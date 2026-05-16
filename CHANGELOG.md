@@ -1,23 +1,32 @@
 # Changelog
 
-All notable changes to `laravel-atlas` will be documented in this file.
+All notable changes to `laravel-atlas` will be documented in this file. This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-16
+
+First public release.
+
 ### Added
-- Bootstrap scaffolding for v0.1: `Lucasp\Atlas` namespace, `AtlasServiceProvider`, `atlas:scan` and `atlas:show` artisan commands, `IndexBuilder` + `Index` value object, `Scanner` contract, `AstWalker` helper around `nikic/php-parser`, canonical JSON Schema at `schema/atlas-index.schema.json`, Pest + Orchestra Testbench test harness, PHPStan level 8 config.
-- `ListenerScanner` — second v0.1 scanner. Discovers listeners through three registration paths: the `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` / `__invoke()` parameters under `app/Listeners/`, and `Event::listen()` static calls in service providers. Emits entries into the `listeners` section per `$defs/listener` in `schema/atlas-index.schema.json`. Dedupe precedence when the same listener is found via multiple paths is `listen_array > event_listen_call > auto_discovered`. The `queued` flag is set when the listener class directly `implements ShouldQueue`. `dispatches` is intentionally `[]` at this stage; it populates once `DispatchScanner` and the cross-link pass land.
-- `EventScanner` — first v0.1 scanner. Discovers event classes by walking `app/Events/` and seeding additional candidates from dispatch sites across `app/` (`event(...)`, `Event::dispatch(...)`, and `X::dispatch(...)` calls). Emits entries into the `events` section per `$defs/event` in `schema/atlas-index.schema.json`. The `dispatched_from` and `handled_by` arrays are intentionally empty at this stage; they populate once `DispatchScanner` and the cross-link pass land.
-- `ObserverScanner` — third v0.1 scanner. Discovers observers through three registration paths: the `#[ObservedBy(Observer::class)]` attribute on models (`registration: "attribute"`), `Model::observe(Observer::class)` static calls including `static::observe(...)` inside `booted()` (`registration: "observe_call"`), and `Event::listen('eloquent.{hook}: {Model}', $handler)` listener strings (which contribute only to `model_events`, not `observers`). Emits entries into both the `observers` section per `$defs/observer` and the `model_events` section per `$defs/modelEvent` in `schema/atlas-index.schema.json`. Dedupe precedence when the same observer/model pair is found via multiple paths is `attribute > observe_call`. An observer registered against N models produces N `observers` entries. `dispatches` is intentionally `[]` at this stage; it populates once `DispatchScanner` and the cross-link pass land.
-- Docker-based development environment (`Dockerfile`, `.dockerignore`, `pint.json`) so contributors without `ext-xml`, `ext-mbstring`, `ext-dom`, or `ext-xmlwriter` on their host PHP can run the full toolchain. `docker build -t laravel-atlas-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest` (same pattern for `phpstan` and `pint`).
-- `DispatchScanner` — fourth and final v0.1 scanner. Walks the whole `app/` tree, identifies one-level dispatch sites in any class method body (`event(...)`, `Event::dispatch(...)`, `X::dispatch(...)`, `dispatch(...)`, `Bus::dispatch(...)`), and feeds the cross-link pass. Emits `unresolved_dispatches` directly for dynamic dispatches (`event($var)`, string-concatenated class names, `app()` / `resolve()` / `make()` container resolutions, non-resolvable ternaries). Skips closures, top-level code, and `dispatch_sync`/`dispatch_now`/`Bus::dispatchSync`. Classifies `kind` as `event` for `event()` / `Event::dispatch()`, `job` for `dispatch()` / `Bus::dispatch()`, and disambiguates `X::dispatch(...)` against the `events[]` set during cross-link.
-- `IndexBuilder::crossLink()` — implements the five-phase cross-link: (1) populate `events[*].handled_by` from `listeners[*].handles`; (2) disambiguate `kind: ambiguous` Dispatchable sites against the events set; (3) populate `listeners[*].dispatches` from sites whose enclosing context is a listener's `handle()` method; (4) populate `observers[*].dispatches` from sites whose enclosing method matches a canonical Eloquent hook on a known observer; (5) populate `events[*].dispatched_from` from sites whose target is a known event. The internal `_dispatch_sites` section that DispatchScanner emits is stripped before the `Index` is constructed so the schema never sees it.
 
-### Changed
-- `Scanner` contract: `scan()` now returns `array<string, array<int, array<string, mixed>>>` keyed by section name, and `section(): string` has been removed. `EventScanner`, `ListenerScanner`, and `ObserverScanner` have been migrated, and `IndexBuilder` iterates over the section-to-entries map. Internal contract change only; no external consumers are affected pre-release.
+- **Four static scanners** covering the primitives of Laravel's event-driven architecture:
+  - `EventScanner` — event classes from `app/Events/` plus any class dispatched via `event()`, `Event::dispatch()`, or `X::dispatch()`.
+  - `ListenerScanner` — listeners registered through the `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` parameters, and `Event::listen()` calls anywhere under `app/` (DDD-style providers outside `app/Providers/` are supported). Dedupe precedence: `listen_array > event_listen_call > auto_discovered`.
+  - `ObserverScanner` — observers registered via `Model::observe()` (including `static::observe(...)` in `booted()`), the `#[ObservedBy]` attribute, and `Event::listen('eloquent.*', …)` listener strings. Emits both `observers[]` and synthesized `model_events[]`. Dedupe precedence on same `(observer, model)` pair: `attribute > observe_call`.
+  - `DispatchScanner` — one-level dispatch-site scan of every class method body. Recognises `event()`, `Event::dispatch()`, `X::dispatch()`, `dispatch()`, and `Bus::dispatch()`. Surfaces unresolvable dispatches as `unresolved_dispatches[]` entries with one of four reason codes.
+- **Cross-link pass** in `IndexBuilder` joining the scanners: populates `events[*].handled_by` from listener registrations, disambiguates Dispatchable-form (`X::dispatch()`) sites against the events index, then populates `listeners[*].dispatches`, `observers[*].dispatches`, and `events[*].dispatched_from`.
+- **Two artisan commands:** `atlas:scan` writes `storage/atlas/index.json`; `atlas:show [filter]` prints the index (optionally filtered by FQCN substring).
+- **JSON Schema** at `schema/atlas-index.schema.json` — every emitted index is validated before being written. Validation failure is fatal.
+- **Docker development environment** plus a `Justfile` so contributors without `ext-mbstring`, `ext-xml`, `ext-dom`, or `ext-xmlwriter` on their host PHP can still run the full toolchain.
+- **Coverage reporting** via Codecov on push to `main` and pull requests.
+- **Contributor documentation** under `docs/`: architecture, schema, per-scanner behavior and known limitations, contributing guide.
+- **GitHub Actions** workflows for Pest (matrix across PHP 8.3 / 8.4 / 8.5 × Laravel 11 / 12 / 13 × prefer-lowest / prefer-stable), PHPStan level 8, Pint auto-formatting, coverage upload, dependabot auto-merge, and changelog updating on release.
 
-### Fixed
-- `ListenerScanner` now walks the entire `app/` tree when looking for `$listen` arrays and `Event::listen()` calls, instead of only `app/Providers/`. Custom service providers in DDD-style layouts (e.g. `app/Domain/Invoicing/InvoicingServiceProvider.php`) are now discovered. Class-shape filters in the visitors prevent false positives outside provider classes.
+### Requirements
 
-### Removed
-- spatie/package-skeleton-laravel placeholders (config publishing, views, migrations, factories) — v0.1 needs none of these.
+- PHP **8.3+**
+- Laravel **11, 12, or 13**
+
+[Unreleased]: https://github.com/lucasp1337/laravel-atlas/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lucasp1337/laravel-atlas/releases/tag/v0.1.0
