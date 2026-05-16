@@ -1,0 +1,11 @@
+.git
+.idea
+.fleet
+.vscode
+.phpunit.cache
+.phpunit.result.cache
+vendor
+build
+coverage
+storage
+node_modules
