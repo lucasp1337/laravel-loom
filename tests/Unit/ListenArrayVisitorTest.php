@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Scanners\Visitors\ListenArrayVisitor;
+use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;

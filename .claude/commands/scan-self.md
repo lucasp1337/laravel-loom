@@ -1,9 +1,9 @@
 ---
-description: Run Atlas on a fixture app and review the output
+description: Run Loom on a fixture app and review the output
 argument-hint: <fixture-name> (defaults to basic-app)
 ---
 
-Run Atlas against a fixture app and review the output. Useful for regression checks and for refreshing sample output in README.
+Run Loom against a fixture app and review the output. Useful for regression checks and for refreshing sample output in README.
 
 Fixture: `$ARGUMENTS` (defaults to `basic-app` if empty).
 
@@ -24,19 +24,19 @@ The scanner reads source directly — no need to fully boot the fixture as a Lar
 ```bash
 php -r "
 require 'vendor/autoload.php';
-\$builder = new \Multitude\Atlas\Index\IndexBuilder();
+\$builder = new \Multitude\Loom\Index\IndexBuilder();
 \$index = \$builder->build(__DIR__ . '/tests/Fixtures/${ARGUMENTS:-basic-app}');
 echo json_encode(\$index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-" > /tmp/atlas-scan-output.json
+" > /tmp/loom-scan-output.json
 ```
 
 ### 3. Validate against schema
 
-Run `/validate-schema /tmp/atlas-scan-output.json`. Stop if validation fails.
+Run `/validate-schema /tmp/loom-scan-output.json`. Stop if validation fails.
 
 ### 4. Review output
 
-Read `/tmp/atlas-scan-output.json` and report:
+Read `/tmp/loom-scan-output.json` and report:
 
 - Section counts (matches expected for this fixture?)
 - Any `unresolved_dispatches` entries (expected for `unresolved-dispatches` fixture, suspicious elsewhere)
@@ -48,7 +48,7 @@ Read `/tmp/atlas-scan-output.json` and report:
 If `tests/Fixtures/${ARGUMENTS:-basic-app}/expected-output.json` exists:
 
 ```bash
-diff <(jq -S . /tmp/atlas-scan-output.json) <(jq -S . tests/Fixtures/${ARGUMENTS:-basic-app}/expected-output.json)
+diff <(jq -S . /tmp/loom-scan-output.json) <(jq -S . tests/Fixtures/${ARGUMENTS:-basic-app}/expected-output.json)
 ```
 
 Report the diff. Unexpected differences are likely regressions.

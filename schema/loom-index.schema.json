@@ -1,11 +1,11 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://github.com/lucasp1337/laravel-atlas/schema/atlas-index.schema.json",
-    "title": "Laravel Atlas Index",
-    "description": "Canonical schema for the JSON index emitted by `php artisan atlas:scan`.",
+    "$id": "https://github.com/lucasp1337/laravel-loom/schema/loom-index.schema.json",
+    "title": "Laravel Loom Index",
+    "description": "Canonical schema for the JSON index emitted by `php artisan loom:scan`.",
     "type": "object",
     "required": [
-        "atlas_version",
+        "loom_version",
         "scanned_at",
         "laravel_version",
         "stats",
@@ -17,7 +17,7 @@
     ],
     "additionalProperties": false,
     "properties": {
-        "atlas_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "loom_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
         "scanned_at": { "type": "string", "format": "date-time" },
         "laravel_version": { "type": "string" },
         "stats": {

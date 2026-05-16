@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Index;
+namespace Lucasp\Loom\Index;
 
 /**
- * Immutable value object representing a complete Atlas index.
+ * Immutable value object representing a complete Loom index.
  *
  * Holds the merged output of every scanner plus top-level metadata. Serializes
- * to the canonical JSON shape defined in schema/atlas-index.schema.json.
+ * to the canonical JSON shape defined in schema/loom-index.schema.json.
  */
 final class Index
 {
@@ -20,7 +20,7 @@ final class Index
      * @param  array<int, array<string, mixed>>  $unresolvedDispatches
      */
     public function __construct(
-        public readonly string $atlasVersion,
+        public readonly string $loomVersion,
         public readonly string $scannedAt,
         public readonly string $laravelVersion,
         public readonly array $events = [],
@@ -28,7 +28,8 @@ final class Index
         public readonly array $listeners = [],
         public readonly array $observers = [],
         public readonly array $unresolvedDispatches = [],
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>
@@ -36,7 +37,7 @@ final class Index
     public function toArray(): array
     {
         return [
-            'atlas_version' => $this->atlasVersion,
+            'loom_version' => $this->loomVersion,
             'scanned_at' => $this->scannedAt,
             'laravel_version' => $this->laravelVersion,
             'stats' => [

@@ -3,7 +3,7 @@ description: Prepare a release — bump version, verify changelog, tag check, dr
 argument-hint: <version> (e.g. 0.1.0, 0.2.0, 1.0.0)
 ---
 
-Prepare release `$ARGUMENTS` for Laravel Atlas.
+Prepare release `$ARGUMENTS` for Laravel Loom.
 
 ## Pre-flight
 
@@ -26,7 +26,7 @@ Move the `[Unreleased]` content under a new `## [$ARGUMENTS] - YYYY-MM-DD` headi
 ### 3. Update version references
 
 - `composer.json` — bump `version` if present (Composer normally takes version from tags; only set if explicitly versioned)
-- `src/Atlas.php` (or wherever `VERSION` const lives) — update
+- `src/Loom.php` (or wherever `VERSION` const lives) — update
 - `README.md` — if it shows the version anywhere, update
 
 ### 4. Confirm tag does not exist
@@ -44,7 +44,7 @@ Produce a `release-notes-$ARGUMENTS.md` (do not commit) with:
 - Headline (one sentence: what this release is about)
 - Highlights (3-5 bullets pulled from CHANGELOG, plain English not changelog speak)
 - Breaking changes (if any) with migration guidance
-- Schema version note (mention `atlas_version` if it changed)
+- Schema version note (mention `loom_version` if it changed)
 - Acknowledgments
 
 This is for the human to paste into the GitHub release UI. Do not push or create the release yourself.

@@ -16,7 +16,7 @@
     backupStaticProperties="false"
 >
     <testsuites>
-        <testsuite name="Atlas Test Suite">
+        <testsuite name="Loom Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

@@ -10,10 +10,10 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ```
 src/
-  AtlasServiceProvider.php          # registers the two artisan commands
+  LoomServiceProvider.php          # registers the two artisan commands
   Console/
-    ScanCommand.php                 # atlas:scan — writes storage/atlas/index.json
-    ShowCommand.php                 # atlas:show [filter] — prints the index
+    ScanCommand.php                 # loom:scan — writes storage/loom/index.json
+    ShowCommand.php                 # loom:show [filter] — prints the index
   Contracts/
     Scanner.php                     # the one-method contract every scanner implements
   Index/
@@ -29,7 +29,7 @@ src/
     AstWalker.php                   # parser + NameResolver wrapper
 
 schema/
-  atlas-index.schema.json           # the contract for every index Atlas emits
+  loom-index.schema.json           # the contract for every index Loom emits
 
 tests/
   Unit/                             # visitor-level tests, heredoc snippets
@@ -59,7 +59,7 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 **`_dispatch_sites` is internal.** DispatchScanner returns `['unresolved_dispatches' => …, '_dispatch_sites' => …]`. The underscore-prefixed section feeds the cross-link pass and is stripped before the `Index` is constructed. The JSON schema rejects it via `additionalProperties: false` — that's intentional, not a bug.
 
-**Static only.** No `app()->make()`, no `Event::listen()` at runtime, no `\ReflectionClass::getMethods()` for anything Atlas analyzes. Atlas reads source files via `file_get_contents`. Reflection is fine for inspecting the running Laravel application (e.g. `Application::VERSION`), not for inspecting the app being scanned.
+**Static only.** No `app()->make()`, no `Event::listen()` at runtime, no `\ReflectionClass::getMethods()` for anything Loom analyzes. Loom reads source files via `file_get_contents`. Reflection is fine for inspecting the running Laravel application (e.g. `Application::VERSION`), not for inspecting the app being scanned.
 
 **Unresolved dispatches are first-class output.** When DispatchScanner sees `event($var)` or `event("App\\Events\\{$x}")`, it MUST emit an `unresolved_dispatches` entry. Silently dropping these is a regression. The four reason codes are fixed by the schema: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`.
 
@@ -87,7 +87,7 @@ After cross-link: strip `_dispatch_sites` from the merged sections before constr
 |---|---|---|
 | `scanner-architect` | Scanner design, discovery strategy, three-concern separation | Adding or redesigning a scanner. Writes a design doc. |
 | `ast-specialist` | `nikic/php-parser` visitors, NameResolver edge cases | Writing or fixing AST-traversal code |
-| `schema-guardian` | `schema/atlas-index.schema.json` | Any change to output shape; veto power on the schema |
+| `schema-guardian` | `schema/loom-index.schema.json` | Any change to output shape; veto power on the schema |
 | `test-engineer` | Pest tests, fixture apps, Testbench harness | After any scanner or IndexBuilder change |
 | `quality-inspector` | PHPStan level 8, Pint, AST-code smells | Pre-commit, post-feature |
 | `doc-writer` | README, sample outputs, CHANGELOG, scanner docs | User-facing prose changes |
@@ -97,7 +97,7 @@ Slash commands wire chains together:
 - `/run-checks` — PHPStan + Pint + Pest, halt on first failure (run inside Docker if your host lacks ext-xml etc.)
 - `/scan-self <fixture>` — exercise the scanners against a fixture app and inspect the output
 - `/prep-release <version>` — version bump, changelog assembly, tag check
-- `/validate-schema <path>` — validate an arbitrary JSON file against `schema/atlas-index.schema.json`
+- `/validate-schema <path>` — validate an arbitrary JSON file against `schema/loom-index.schema.json`
 
 ---
 
@@ -110,15 +110,15 @@ Slash commands wire chains together:
 - Pint Laravel preset, fixtures excluded via `pint.json`
 - Pest 3 + Orchestra Testbench
 
-Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-atlas-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest`.
+Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-loom-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest`.
 
 ---
 
 ## Things to NEVER do
 
-- **Use `php artisan event:list` as a data source.** Atlas re-derives from source for accuracy, to surface things Laravel's command misses (observers, dispatch sites, unresolved dispatches with file/line), and to work on a checked-out repo without booting the app. The runtime command requires a fully-booted Laravel app; Atlas does not.
+- **Use `php artisan event:list` as a data source.** Loom re-derives from source for accuracy, to surface things Laravel's command misses (observers, dispatch sites, unresolved dispatches with file/line), and to work on a checked-out repo without booting the app. The runtime command requires a fully-booted Laravel app; Loom does not.
 - **Modify the schema without `schema-guardian` review.** Schema changes are breaking or near-breaking; they need explicit version-bump reasoning.
-- **Add CLI flags or output formats** beyond `atlas:scan` (no flags) and `atlas:show [filter]` (one optional positional argument). The two-command surface is deliberately frozen.
+- **Add CLI flags or output formats** beyond `loom:scan` (no flags) and `loom:show [filter]` (one optional positional argument). The two-command surface is deliberately frozen.
 - **Skip cases silently when you can emit `unresolved_dispatches`.** Better to flag a gap than hide it.
 - **Commit failing checks.** PHPStan, Pint, and Pest all green before any commit lands.
 - **Add dependencies without strong justification.** Every new dependency is a contributor friction point.
@@ -127,6 +127,6 @@ Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. T
 
 ## When you are uncertain about scope
 
-If you're considering work that isn't obviously about events, listeners, observers, or dispatches — stop and ask a human. Atlas is deliberately narrow. Container bindings, the scheduler, broadcast channels, notifications, mailables, runtime tracing, an MCP server, a Blade UI, Markdown export, diff/CI integration — these have all been considered and excluded. If a new primitive is genuinely needed, it gets its own scanner via `/add-scanner`, not bolted onto an existing one.
+If you're considering work that isn't obviously about events, listeners, observers, or dispatches — stop and ask a human. Loom is deliberately narrow. Container bindings, the scheduler, broadcast channels, notifications, mailables, runtime tracing, an MCP server, a Blade UI, Markdown export, diff/CI integration — these have all been considered and excluded. If a new primitive is genuinely needed, it gets its own scanner via `/add-scanner`, not bolted onto an existing one.
 
 The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.

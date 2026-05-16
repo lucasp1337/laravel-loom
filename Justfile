@@ -2,7 +2,7 @@
 # Docker so contributors without ext-mbstring/ext-xml/ext-dom/ext-xmlwriter
 # on their host PHP can still run the toolchain.
 
-image := "laravel-atlas-dev:latest"
+image := "laravel-loom-dev:latest"
 docker_run := "docker run --rm -v $(pwd):/app " + image
 
 # Default recipe: list every available task.
@@ -56,11 +56,11 @@ scan target:
         -v {{target}}:/target:ro \
         {{image}} \
         php -r "require '/app/vendor/autoload.php'; \
-            \$b = new Lucasp\Atlas\Index\IndexBuilder(); \
-            \$b->register(new Lucasp\Atlas\Scanners\EventScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\ListenerScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\ObserverScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\DispatchScanner()); \
+            \$b = new Lucasp\Loom\Index\IndexBuilder(); \
+            \$b->register(new Lucasp\Loom\Scanners\EventScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\ListenerScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\ObserverScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\DispatchScanner()); \
             \$start = microtime(true); \
             \$index = \$b->build('/target', 'unknown'); \
             \$ms = number_format((microtime(true) - \$start) * 1000, 0); \
@@ -78,9 +78,9 @@ scan-json target:
         -v {{target}}:/target:ro \
         {{image}} \
         php -r "require '/app/vendor/autoload.php'; \
-            \$b = new Lucasp\Atlas\Index\IndexBuilder(); \
-            \$b->register(new Lucasp\Atlas\Scanners\EventScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\ListenerScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\ObserverScanner()); \
-            \$b->register(new Lucasp\Atlas\Scanners\DispatchScanner()); \
+            \$b = new Lucasp\Loom\Index\IndexBuilder(); \
+            \$b->register(new Lucasp\Loom\Scanners\EventScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\ListenerScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\ObserverScanner()); \
+            \$b->register(new Lucasp\Loom\Scanners\DispatchScanner()); \
             echo json_encode(\$b->build('/target', 'unknown')->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);"

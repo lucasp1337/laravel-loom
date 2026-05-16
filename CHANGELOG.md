@@ -1,10 +1,10 @@
 # Changelog
 
-All notable changes to `laravel-atlas` will be documented in this file. This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
+All notable changes to `laravel-loom` will be documented in this file. This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased](https://github.com/lucasp1337/laravel-atlas/compare/v0.1.0...HEAD)
+## [Unreleased](https://github.com/lucasp1337/laravel-loom/compare/v0.1.0...HEAD)
 
-## [0.1.0](https://github.com/lucasp1337/laravel-atlas/releases/tag/v0.1.0) - 2026-05-16
+## [0.1.0](https://github.com/lucasp1337/laravel-loom/releases/tag/v0.1.0) - 2026-05-16
 
 First public release.
 
@@ -17,8 +17,8 @@ First public release.
   - `DispatchScanner` — one-level dispatch-site scan of every class method body. Recognises `event()`, `Event::dispatch()`, `X::dispatch()`, `dispatch()`, and `Bus::dispatch()`. Surfaces unresolvable dispatches as `unresolved_dispatches[]` entries with one of four reason codes.
   
 - **Cross-link pass** in `IndexBuilder` joining the scanners: populates `events[*].handled_by` from listener registrations, disambiguates Dispatchable-form (`X::dispatch()`) sites against the events index, then populates `listeners[*].dispatches`, `observers[*].dispatches`, and `events[*].dispatched_from`.
-- **Two artisan commands:** `atlas:scan` writes `storage/atlas/index.json`; `atlas:show [filter]` prints the index (optionally filtered by FQCN substring).
-- **JSON Schema** at `schema/atlas-index.schema.json` — every emitted index is validated before being written. Validation failure is fatal.
+- **Two artisan commands:** `loom:scan` writes `storage/loom/index.json`; `loom:show [filter]` prints the index (optionally filtered by FQCN substring).
+- **JSON Schema** at `schema/loom-index.schema.json` — every emitted index is validated before being written. Validation failure is fatal.
 - **Docker development environment** plus a `Justfile` so contributors without `ext-mbstring`, `ext-xml`, `ext-dom`, or `ext-xmlwriter` on their host PHP can still run the full toolchain.
 - **Coverage reporting** via Codecov on push to `main` and pull requests.
 - **Contributor documentation** under `docs/`: architecture, schema, per-scanner behavior and known limitations, contributing guide.

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Scanners;
+namespace Lucasp\Loom\Scanners;
 
 use FilesystemIterator;
-use Lucasp\Atlas\Contracts\Scanner;
-use Lucasp\Atlas\Scanners\Visitors\DispatchSiteVisitor;
-use Lucasp\Atlas\Support\AstWalker;
+use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
+use Lucasp\Loom\Support\AstWalker;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;

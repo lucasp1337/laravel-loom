@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Index;
+namespace Lucasp\Loom\Index;
 
 use JsonSchema\Validator;
-use Lucasp\Atlas\Contracts\Scanner;
-use Lucasp\Atlas\Scanners\Visitors\ObserverClassVisitor;
+use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use RuntimeException;
 
 /**
@@ -18,7 +18,7 @@ use RuntimeException;
  */
 class IndexBuilder
 {
-    public const ATLAS_VERSION = '0.1.0';
+    public const LOOM_VERSION = '0.1.0';
 
     /** @var array<int, Scanner> */
     private array $scanners = [];
@@ -77,7 +77,7 @@ class IndexBuilder
         }
 
         return new Index(
-            atlasVersion: self::ATLAS_VERSION,
+            loomVersion: self::LOOM_VERSION,
             scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
             laravelVersion: $laravelVersion,
             events: $sections['events'],
@@ -89,14 +89,14 @@ class IndexBuilder
     }
 
     /**
-     * Validate an index payload against schema/atlas-index.schema.json.
+     * Validate an index payload against schema/loom-index.schema.json.
      *
      * @param  array<string, mixed>  $payload
      * @return array<int, string> validation errors; empty when valid
      */
     public function validate(array $payload): array
     {
-        $schemaPath = dirname(__DIR__, 2).'/schema/atlas-index.schema.json';
+        $schemaPath = dirname(__DIR__, 2).'/schema/loom-index.schema.json';
         if (! is_file($schemaPath)) {
             throw new RuntimeException("Schema not found at {$schemaPath}");
         }

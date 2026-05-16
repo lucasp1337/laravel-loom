@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Contracts;
+namespace Lucasp\Loom\Contracts;
 
 interface Scanner
 {

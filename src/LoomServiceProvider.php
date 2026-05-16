@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas;
+namespace Lucasp\Loom;
 
 use Illuminate\Support\ServiceProvider;
-use Lucasp\Atlas\Console\ScanCommand;
-use Lucasp\Atlas\Console\ShowCommand;
+use Lucasp\Loom\Console\ScanCommand;
+use Lucasp\Loom\Console\ShowCommand;
 
-class AtlasServiceProvider extends ServiceProvider
+class LoomServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {

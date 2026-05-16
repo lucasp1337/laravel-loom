@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\EventScanner;
 
 function eventFixturePath(): string
 {

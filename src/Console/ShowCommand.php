@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Console;
+namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
 
 class ShowCommand extends Command
 {
-    protected $signature = 'atlas:show {filter? : Optional FQCN substring filter}';
+    protected $signature = 'loom:show {filter? : Optional FQCN substring filter}';
 
-    protected $description = 'Print the Atlas index, optionally filtered by FQCN substring';
+    protected $description = 'Print the Loom index, optionally filtered by FQCN substring';
 
     public function handle(): int
     {
-        $path = $this->laravel->storagePath('atlas/index.json');
+        $path = $this->laravel->storagePath('loom/index.json');
         if (! is_file($path)) {
-            $this->error("Atlas index not found at {$path}. Run `php artisan atlas:scan` first.");
+            $this->error("Loom index not found at {$path}. Run `php artisan loom:scan` first.");
 
             return self::FAILURE;
         }
@@ -30,7 +30,7 @@ class ShowCommand extends Command
 
         $data = json_decode($raw, true);
         if (! is_array($data)) {
-            $this->error("Atlas index at {$path} is not valid JSON.");
+            $this->error("Loom index at {$path} is not valid JSON.");
 
             return self::FAILURE;
         }

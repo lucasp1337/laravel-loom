@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Index\IndexBuilder;
+use Lucasp\Loom\Index\IndexBuilder;
 
 it('produces an empty index that validates against the schema', function () {
     $builder = new IndexBuilder;
@@ -12,8 +12,8 @@ it('produces an empty index that validates against the schema', function () {
 
     expect($builder->validate($payload))->toBe([]);
     expect($payload)
-        ->toHaveKeys(['atlas_version', 'scanned_at', 'laravel_version', 'stats', 'events', 'listeners', 'observers', 'model_events', 'unresolved_dispatches'])
-        ->and($payload['atlas_version'])->toBe('0.1.0')
+        ->toHaveKeys(['loom_version', 'scanned_at', 'laravel_version', 'stats', 'events', 'listeners', 'observers', 'model_events', 'unresolved_dispatches'])
+        ->and($payload['loom_version'])->toBe('0.1.0')
         ->and($payload['stats'])->toBe([
             'events' => 0,
             'listeners' => 0,

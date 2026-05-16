@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Scanners\ListenerScanner;
+use Lucasp\Loom\Scanners\ListenerScanner;
 
 function listenerFixturePath(): string
 {

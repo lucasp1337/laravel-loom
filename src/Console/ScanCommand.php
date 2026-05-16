@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Console;
+namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Application;
-use Lucasp\Atlas\Index\IndexBuilder;
-use Lucasp\Atlas\Scanners\DispatchScanner;
-use Lucasp\Atlas\Scanners\EventScanner;
-use Lucasp\Atlas\Scanners\ListenerScanner;
-use Lucasp\Atlas\Scanners\ObserverScanner;
+use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Scanners\DispatchScanner;
+use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\ListenerScanner;
+use Lucasp\Loom\Scanners\ObserverScanner;
 
 class ScanCommand extends Command
 {
-    protected $signature = 'atlas:scan';
+    protected $signature = 'loom:scan';
 
-    protected $description = 'Scan the application and write storage/atlas/index.json';
+    protected $description = 'Scan the application and write storage/loom/index.json';
 
     public function handle(): int
     {
         $appRoot = $this->laravel->basePath();
-        $outputPath = $this->laravel->storagePath('atlas/index.json');
+        $outputPath = $this->laravel->storagePath('loom/index.json');
 
         $builder = new IndexBuilder;
         $builder->register(new EventScanner);
@@ -34,7 +34,7 @@ class ScanCommand extends Command
 
         $errors = $builder->validate($payload);
         if ($errors !== []) {
-            $this->error('Atlas index failed schema validation:');
+            $this->error('Loom index failed schema validation:');
             foreach ($errors as $error) {
                 $this->line("  - {$error}");
             }
@@ -47,7 +47,7 @@ class ScanCommand extends Command
         }
         file_put_contents($outputPath, (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        $this->info("Atlas index written to {$outputPath}");
+        $this->info("Loom index written to {$outputPath}");
 
         return self::SUCCESS;
     }

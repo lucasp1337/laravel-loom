@@ -1,35 +1,35 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="art/logo-wide-dark.svg">
-    <img src="art/logo-wide.svg" alt="Laravel Atlas — Architecture as data" width="320">
+    <img src="art/logo-wide.svg" alt="Laravel Loom — Architecture as data" width="320">
   </picture>
 </p>
 
 <p align="center">
-  <a href="https://github.com/lucasp1337/laravel-atlas/actions/workflows/run-tests.yml"><img src="https://github.com/lucasp1337/laravel-atlas/actions/workflows/run-tests.yml/badge.svg?branch=main" alt="Tests"></a>
-  <a href="https://github.com/lucasp1337/laravel-atlas/actions/workflows/phpstan.yml"><img src="https://github.com/lucasp1337/laravel-atlas/actions/workflows/phpstan.yml/badge.svg?branch=main" alt="PHPStan"></a>
-  <a href="https://codecov.io/gh/lucasp1337/laravel-atlas"><img src="https://codecov.io/gh/lucasp1337/laravel-atlas/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://github.com/lucasp1337/laravel-loom/actions/workflows/run-tests.yml"><img src="https://github.com/lucasp1337/laravel-loom/actions/workflows/run-tests.yml/badge.svg?branch=main" alt="Tests"></a>
+  <a href="https://github.com/lucasp1337/laravel-loom/actions/workflows/phpstan.yml"><img src="https://github.com/lucasp1337/laravel-loom/actions/workflows/phpstan.yml/badge.svg?branch=main" alt="PHPStan"></a>
+  <a href="https://codecov.io/gh/lucasp1337/laravel-loom"><img src="https://codecov.io/gh/lucasp1337/laravel-loom/graph/badge.svg" alt="Coverage"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
 </p>
 
-# Laravel Atlas
+# Laravel Loom
 
 **See your Laravel application's event-driven architecture at a glance.**
 
-Atlas is a static analyzer that reads your application's source code and produces a structured JSON index of every event, listener, observer, and dispatch site — with file paths and line numbers, ready for humans, CI pipelines, and AI agents to consume.
+Loom is a static analyzer that reads your application's source code and produces a structured JSON index of every event, listener, observer, and dispatch site — with file paths and line numbers, ready for humans, CI pipelines, and AI agents to consume.
 
 ```bash
-php artisan atlas:scan
-# storage/atlas/index.json
+php artisan loom:scan
+# storage/loom/index.json
 ```
 
-No runtime tracing. No service-container introspection. No booting your app. Atlas walks PHP source, resolves names with `nikic/php-parser`, and writes a deterministic JSON file. It works on a freshly cloned repo without `vendor/`.
+No runtime tracing. No service-container introspection. No booting your app. Loom walks PHP source, resolves names with `nikic/php-parser`, and writes a deterministic JSON file. It works on a freshly cloned repo without `vendor/`.
 
 ## Why?
 
 Event-driven Laravel apps drift fast. Listeners get added in providers, observers attached in `booted()`, dispatches scattered across services. `php artisan event:list` shows you what Laravel happened to register at boot — not what's actually in your source. Observers don't appear at all. Dispatch sites are invisible.
 
-Atlas answers the questions that command can't:
+Loom answers the questions that command can't:
 
 - *Where is `OrderPlaced` dispatched from?* → `events[].dispatched_from`
 - *Which listeners handle it?* → `events[].handled_by`
@@ -42,7 +42,7 @@ The output is a single JSON file. Diff it in CI to catch architectural drift. Fe
 ## Installation
 
 ```bash
-composer require lucasp1337/laravel-atlas --dev
+composer require lucasp1337/laravel-loom --dev
 ```
 
 PHP 8.3+ and Laravel 11, 12, or 13.
@@ -50,12 +50,12 @@ PHP 8.3+ and Laravel 11, 12, or 13.
 ## Usage
 
 ```bash
-php artisan atlas:scan          # writes storage/atlas/index.json
-php artisan atlas:show          # prints the index
-php artisan atlas:show OrderPlaced   # filters by FQCN substring
+php artisan loom:scan          # writes storage/loom/index.json
+php artisan loom:show          # prints the index
+php artisan loom:show OrderPlaced   # filters by FQCN substring
 ```
 
-The output file lives at `storage/atlas/index.json` and is gitignored by default — consume it from CI, commit it deliberately, or ignore it. Up to you.
+The output file lives at `storage/loom/index.json` and is gitignored by default — consume it from CI, commit it deliberately, or ignore it. Up to you.
 
 ## What gets discovered
 
@@ -66,7 +66,7 @@ The output file lives at `storage/atlas/index.json` and is gitignored by default
 | **Observers** | `Model::observe()` calls (including `static::observe(...)` inside `booted()`), the `#[ObservedBy]` attribute, plus Eloquent model events synthesized from observer hooks and `Event::listen('eloquent.*', …)` |
 | **Dispatches** | One-level scan of every method body for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()` calls. Cross-links them to events, listeners, and observers. |
 
-Atlas favors *surfacing gaps* over hiding them. Dynamic dispatches like `event($variable)` or `event("App\\Events\\{$name}")` don't disappear — they land in `unresolved_dispatches[]` with the reason (`dynamic_class_name`, `string_concatenation`, `container_resolution`, `conditional_dispatch`) and a file:line pointer.
+Loom favors *surfacing gaps* over hiding them. Dynamic dispatches like `event($variable)` or `event("App\\Events\\{$name}")` don't disappear — they land in `unresolved_dispatches[]` with the reason (`dynamic_class_name`, `string_concatenation`, `container_resolution`, `conditional_dispatch`) and a file:line pointer.
 
 ## Sample output
 
@@ -74,7 +74,7 @@ A representative scan against a small Laravel 13 app:
 
 ```json
 {
-  "atlas_version": "0.1.0",
+  "loom_version": "0.1.0",
   "scanned_at": "2026-05-16T19:25:54Z",
   "laravel_version": "13.7",
   "stats": {
@@ -146,18 +146,18 @@ A representative scan against a small Laravel 13 app:
 }
 ```
 
-Schema is locked at `schema/atlas-index.schema.json` — every scan is validated against it before being written.
+Schema is locked at `schema/loom-index.schema.json` — every scan is validated against it before being written.
 
 ## Performance
 
-Atlas is fast because it does one thing. On a fresh `laravel new` app, the scan finishes in well under a second. A medium-sized real-world app (~200 PHP files in `app/`) scans in **~200ms**.
+Loom is fast because it does one thing. On a fresh `laravel new` app, the scan finishes in well under a second. A medium-sized real-world app (~200 PHP files in `app/`) scans in **~200ms**.
 
 ## What it does not do
 
-Atlas is deliberately narrow. Not in scope:
+Loom is deliberately narrow. Not in scope:
 
 - Container bindings, the scheduler, broadcast channels, notifications, mailables
-- Analysis of job class internals (Atlas records dispatch sites; what happens inside the job is your queue worker's concern)
+- Analysis of job class internals (Loom records dispatch sites; what happens inside the job is your queue worker's concern)
 - Subscribers (`subscribe()` method) — coming later
 - Runtime tracing of any kind
 - An MCP server, Blade UI, Markdown export, diff / CI integration
@@ -181,7 +181,7 @@ just check    # PHPStan + Pint --test + Pest
 just coverage # Pest with per-file coverage
 ```
 
-See [docs/contributing.md](docs/contributing.md) for the full list of recipes (including `just scan <path>` to run Atlas against any Laravel app on disk).
+See [docs/contributing.md](docs/contributing.md) for the full list of recipes (including `just scan <path>` to run Loom against any Laravel app on disk).
 
 ## Documentation
 

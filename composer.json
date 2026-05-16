@@ -1,8 +1,8 @@
 {
-    "name": "lucasp1337/laravel-atlas",
+    "name": "lucasp1337/laravel-loom",
     "description": "Static architectural inspector for Laravel applications — emits a JSON index of events, listeners, and observers.",
-    "keywords": ["laravel", "static-analysis", "events", "listeners", "observers", "atlas"],
-    "homepage": "https://github.com/lucasp1337/laravel-atlas",
+    "keywords": ["laravel", "static-analysis", "events", "listeners", "observers", "loom"],
+    "homepage": "https://github.com/lucasp1337/laravel-loom",
     "license": "MIT",
     "authors": [
         {
@@ -28,12 +28,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Lucasp\\Atlas\\": "src/"
+            "Lucasp\\Loom\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Lucasp\\Atlas\\Tests\\": "tests/"
+            "Lucasp\\Loom\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -52,7 +52,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Lucasp\\Atlas\\AtlasServiceProvider"
+                "Lucasp\\Loom\\LoomServiceProvider"
             ]
         }
     },

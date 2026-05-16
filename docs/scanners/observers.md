@@ -95,7 +95,7 @@ forceDeleting, forceDeleted, booting, booted
 ## Known limitations
 
 - **Closure handlers in `Event::listen('eloquent.*', fn ...)`.** Silently dropped. No FQCN to record.
-- **Dynamic args.** `#[ObservedBy($var)]`, `Model::observe($var)`, `$class::observe(...)`, `Event::listen($var, ...)` are all skipped. Atlas does not currently emit unresolved entries for observer registrations.
+- **Dynamic args.** `#[ObservedBy($var)]`, `Model::observe($var)`, `$class::observe(...)`, `Event::listen($var, ...)` are all skipped. Loom does not currently emit unresolved entries for observer registrations.
 - **Container-form registrations.** `app('events')->listen('eloquent.*', ...)` is not matched. Only the `Event::` facade form for path 3.
 - **Inherited hooks from parent observer classes.** Not resolved. The hook visitor only sees methods declared on the class itself.
 - **Trait-provided hook methods.** Not resolved. Same reason.

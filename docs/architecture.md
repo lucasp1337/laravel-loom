@@ -1,6 +1,6 @@
 # Architecture
 
-How Atlas is wired internally.
+How Loom is wired internally.
 
 ## Pipeline
 
@@ -9,14 +9,14 @@ Filesystem → Discovery → AST parsing → Emission → Merge → Cross-link �
               (per scanner)            (per scanner) (IndexBuilder)             (schema)    (index.json)
 ```
 
-`IndexBuilder` orchestrates the pipeline. Each scanner contributes to one or more sections of the index, the cross-link pass joins data across scanners, then the result is validated against `schema/atlas-index.schema.json` and written to `storage/atlas/index.json`.
+`IndexBuilder` orchestrates the pipeline. Each scanner contributes to one or more sections of the index, the cross-link pass joins data across scanners, then the result is validated against `schema/loom-index.schema.json` and written to `storage/loom/index.json`.
 
-The `atlas:scan` artisan command is a thin wrapper around `IndexBuilder::build()`. The `atlas:show` command reads the written index and prints it (optionally filtered by FQCN substring).
+The `loom:scan` artisan command is a thin wrapper around `IndexBuilder::build()`. The `loom:show` command reads the written index and prints it (optionally filtered by FQCN substring).
 
 ## The Scanner contract
 
 ```php
-namespace Lucasp\Atlas\Contracts;
+namespace Lucasp\Loom\Contracts;
 
 interface Scanner
 {
@@ -59,7 +59,7 @@ Hybrid strategies are common (events come from both `app/Events/` and dispatch-s
 
 ### 2. Parsing
 
-Pure AST work via `nikic/php-parser`. Use `Lucasp\Atlas\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.
+Pure AST work via `nikic/php-parser`. Use `Lucasp\Loom\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.
 
 Visitor conventions:
 
@@ -82,7 +82,7 @@ Emit deterministically: sort entries by FQCN (or whatever the natural key is) so
 3. **Merge** returned sections into a single map. Each section is a concatenation of every scanner's contribution.
 4. **Cross-link** (see below)
 5. **Strip** any `_*` underscore-prefixed sections (internal)
-6. **Validate** the merged sections against `schema/atlas-index.schema.json` using `justinrainbow/json-schema`
+6. **Validate** the merged sections against `schema/loom-index.schema.json` using `justinrainbow/json-schema`
 7. **Wrap** the result in an `Index` value object
 
 Validation failure is fatal. A non-conforming index throws rather than writing garbage to disk.
@@ -129,7 +129,7 @@ The intent: surface gaps in the index rather than silently dropping data. A cons
 
 - **File-level parse errors** — `AstWalker::walk()` swallows them and returns `null`. The scanner sees no visitor hits for that file.
 - **Schema validation errors** — fatal. `IndexBuilder` throws a `RuntimeException` with the violating section path.
-- **Missing app root** — `atlas:scan` resolves the app root from Laravel itself (`$this->laravel->basePath()`), so this can only happen if Atlas is invoked outside a Laravel application.
+- **Missing app root** — `loom:scan` resolves the app root from Laravel itself (`$this->laravel->basePath()`), so this can only happen if Loom is invoked outside a Laravel application.
 - **Empty results** — valid. An app with no events, listeners, or observers produces a well-formed index with empty arrays and zero stats.
 
 ## Performance
@@ -146,4 +146,4 @@ If you exceed these, the first move is sharing parsed ASTs across scanners (curr
 
 Adding a new scanner is one file plus one registration line in `ScanCommand`. The `Scanner` contract has been designed so a new scanner can contribute new sections without touching existing scanners — see [contributing.md](contributing.md) for the workflow.
 
-Runtime data merging (e.g. promoting `confidence` from `high` to verified after a trace) would attach to existing dispatch entries via a separate overlay, not by mutating scanner output. Atlas stays static; overlays would be a layer above.
+Runtime data merging (e.g. promoting `confidence` from `high` to verified after a trace) would attach to existing dispatch entries via a separate overlay, not by mutating scanner output. Loom stays static; overlays would be a layer above.

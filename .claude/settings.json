@@ -6,7 +6,7 @@
       "Bash(./vendor/bin/phpstan:*)",
       "Bash(./vendor/bin/pint:*)",
       "Bash(./vendor/bin/pest:*)",
-      "Bash(php artisan atlas:*)",
+      "Bash(php artisan loom:*)",
       "Bash(php -r:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",

@@ -54,7 +54,7 @@ Entries are sorted by `fqcn` ascending. `id` always equals `fqcn` (the schema re
 - **`X::dispatch(...)` for events outside `app/Events/`.** Dropped by the Dispatchable trim. The trim is necessary to avoid promoting every job to an event; it has the downside of missing rare-but-legitimate events in non-standard locations. Workaround: use `event(new ...)` or `Event::dispatch(...)` for those classes.
 - **Dynamic dispatch targets.** `event($variable)` doesn't contribute to event discovery. This is by design — the static analyzer can't resolve the variable. The dispatch site surfaces in `unresolved_dispatches[]` via DispatchScanner.
 - **Closure / arrow-function event classes.** Anonymous classes have no FQCN and are skipped.
-- **Vendor / storage directories.** Never walked. Atlas only scans `app/`.
+- **Vendor / storage directories.** Never walked. Loom only scans `app/`.
 - **`Event::listen('eloquent.*', …)`** — these are model events, not class events. They appear in `model_events[]`, not `events[]`. See [observers.md](observers.md).
 
 ## When something looks wrong

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Scanners\Visitors;
+namespace Lucasp\Loom\Scanners\Visitors;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;

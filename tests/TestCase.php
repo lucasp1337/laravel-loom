@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Tests;
+namespace Lucasp\Loom\Tests;
 
 use Illuminate\Foundation\Application;
-use Lucasp\Atlas\AtlasServiceProvider;
+use Lucasp\Loom\LoomServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
@@ -17,7 +17,7 @@ class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
-            AtlasServiceProvider::class,
+            LoomServiceProvider::class,
         ];
     }
 }

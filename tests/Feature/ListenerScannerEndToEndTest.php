@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Index\IndexBuilder;
-use Lucasp\Atlas\Scanners\ListenerScanner;
+use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Scanners\ListenerScanner;
 
 function listenerEndToEndFixturePath(): string
 {

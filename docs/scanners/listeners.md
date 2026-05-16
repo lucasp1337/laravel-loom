@@ -49,7 +49,7 @@ Entries are sorted by `fqcn` ascending.
 
 ## Known limitations
 
-- **Closures / arrow-function listeners.** `Event::listen(EventClass::class, fn ($e) => …)` and closure values inside `$listen` are silently dropped. There's no FQCN to record. Atlas does NOT currently emit an `unresolved_dispatches`-style entry for unresolvable listener registrations.
+- **Closures / arrow-function listeners.** `Event::listen(EventClass::class, fn ($e) => …)` and closure values inside `$listen` are silently dropped. There's no FQCN to record. Loom does NOT currently emit an `unresolved_dispatches`-style entry for unresolvable listener registrations.
 - **Dynamic event names.** `Event::listen($variable, Listener::class)` is skipped.
 - **Tuple method names.** `[Listener::class, 'customHandler']` records the listener but loses the method name. Multi-handler listeners aren't represented.
 - **Container-form registrations.** `$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.

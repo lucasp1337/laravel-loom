@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Scanners\Visitors;
+namespace Lucasp\Loom\Scanners\Visitors;
 
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -18,7 +18,7 @@ final class ObserverClassVisitor extends NodeVisitorAbstract
 {
     /**
      * Canonical Eloquent model lifecycle hook names. Mirrors
-     * schema/atlas-index.schema.json#/$defs/modelEvent/properties/event/enum.
+     * schema/loom-index.schema.json#/$defs/modelEvent/properties/event/enum.
      */
     public const HOOKS = [
         'retrieved', 'creating', 'created', 'updating', 'updated',

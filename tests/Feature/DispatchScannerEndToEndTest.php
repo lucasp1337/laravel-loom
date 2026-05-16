@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Index\IndexBuilder;
-use Lucasp\Atlas\Scanners\DispatchScanner;
-use Lucasp\Atlas\Scanners\EventScanner;
-use Lucasp\Atlas\Scanners\ListenerScanner;
-use Lucasp\Atlas\Scanners\ObserverScanner;
+use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Scanners\DispatchScanner;
+use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\ListenerScanner;
+use Lucasp\Loom\Scanners\ObserverScanner;
 
 function dispatchEndToEndFixturePath(): string
 {

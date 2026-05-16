@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Scanners\DispatchScanner;
+use Lucasp\Loom\Scanners\DispatchScanner;
 
 function dispatchFixturePath(): string
 {
@@ -30,7 +30,7 @@ it('returns both unresolved_dispatches and _dispatch_sites keys', function () {
 });
 
 it('returns empty arrays when app/ does not exist', function () {
-    $result = (new DispatchScanner)->scan(sys_get_temp_dir().'/atlas-no-such-dir');
+    $result = (new DispatchScanner)->scan(sys_get_temp_dir().'/loom-no-such-dir');
 
     expect($result['unresolved_dispatches'])->toBe([]);
     expect($result['_dispatch_sites'])->toBe([]);

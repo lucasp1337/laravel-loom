@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Atlas\Scanners\ObserverScanner;
+use Lucasp\Loom\Scanners\ObserverScanner;
 
 function observerFixturePath(): string
 {

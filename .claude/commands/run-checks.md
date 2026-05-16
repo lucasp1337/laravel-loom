@@ -2,7 +2,7 @@
 description: Run the full quality check sequence (PHPStan, Pint, Pest)
 ---
 
-Run all quality checks for Laravel Atlas. Halt on first failure and report clearly.
+Run all quality checks for Laravel Loom. Halt on first failure and report clearly.
 
 ## Sequence
 

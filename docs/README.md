@@ -1,11 +1,11 @@
-# Laravel Atlas — Documentation
+# Laravel Loom — Documentation
 
 Documentation for contributors. For installation and the user-facing introduction, see the [root README](../README.md).
 
 ## Where to start
 
-- **[Architecture](architecture.md)** — how Atlas is structured: the scanner contract, the cross-link pass, and the data flow from source code to JSON.
-- **[Schema](schema.md)** — the shape of `storage/atlas/index.json`. Reference companion to `schema/atlas-index.schema.json`.
+- **[Architecture](architecture.md)** — how Loom is structured: the scanner contract, the cross-link pass, and the data flow from source code to JSON.
+- **[Schema](schema.md)** — the shape of `storage/loom/index.json`. Reference companion to `schema/loom-index.schema.json`.
 - **[Contributing](contributing.md)** — how to run the toolchain (PHPStan, Pint, Pest), how to add a scanner, how to add a fixture.
 
 ## Per-scanner behavior
@@ -19,7 +19,7 @@ Each scanner has a dedicated page documenting what it detects, what it emits, ex
 
 ## Reading order for new contributors
 
-1. Root [README](../README.md) — what Atlas does and how to install it
+1. Root [README](../README.md) — what Loom does and how to install it
 2. [architecture.md](architecture.md) — the pipeline
 3. [contributing.md](contributing.md) — how to develop locally
 4. Pick a scanner doc that matches the area you're touching

@@ -1,6 +1,6 @@
 # Contributing
 
-How to develop on Atlas locally.
+How to develop on Loom locally.
 
 ## Prerequisites
 
@@ -49,13 +49,13 @@ The Dockerfile installs `mbstring`, `xml`, `dom`, `xmlwriter`, and `zip` on top 
 If you'd rather skip `just`, the raw equivalents are:
 
 ```bash
-docker build -t laravel-atlas-dev:latest .
-docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest
+docker build -t laravel-loom-dev:latest .
+docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest
 ```
 
 ## Scanning an external Laravel app
 
-The `Justfile` exposes a quick way to point Atlas at any Laravel app on disk:
+The `Justfile` exposes a quick way to point Loom at any Laravel app on disk:
 
 ```bash
 just scan /path/to/your/laravel/app                # prints stats
@@ -68,14 +68,14 @@ Useful for verifying behavior on real codebases beyond `tests/Fixtures/`.
 
 ```
 src/                        # production code
-  AtlasServiceProvider.php  # registers atlas:scan and atlas:show
+  LoomServiceProvider.php  # registers loom:scan and loom:show
   Console/                  # the two artisan commands
   Contracts/Scanner.php     # the one-method scanner interface
   Index/                    # IndexBuilder + Index value object
   Scanners/                 # one file per primitive + Visitors/ subdir
   Support/AstWalker.php     # parser + NameResolver wrapper
 
-schema/atlas-index.schema.json   # the contract for every emitted index
+schema/loom-index.schema.json   # the contract for every emitted index
 
 tests/
   Unit/                     # visitor tests, heredoc snippets
@@ -91,7 +91,7 @@ The workflow is automated via a chain of specialized agents (see `AGENTS.md`). T
 
 1. **Design.** Write `docs/scanners/{name}.md` covering what it detects, what it emits to the schema, edge cases, and known limitations. Mirror the structure of the existing scanner docs.
 
-2. **Implement.** Create `src/Scanners/{Name}Scanner.php` implementing `Lucasp\Atlas\Contracts\Scanner`. Three concerns must live in separate methods:
+2. **Implement.** Create `src/Scanners/{Name}Scanner.php` implementing `Lucasp\Loom\Contracts\Scanner`. Three concerns must live in separate methods:
    - Discovery (filesystem walk / provider reflection / attribute scan)
    - Parsing (delegated to one or more `NodeVisitor` classes in `src/Scanners/Visitors/`)
    - Emission (build schema-shaped arrays, sort deterministically)
@@ -120,7 +120,7 @@ Pint skips `tests/Fixtures/` (configured via `pint.json`) because fixture files 
 
 ## Working on the schema
 
-`schema/atlas-index.schema.json` is the contract for every emitted index. Changes go through the `schema-guardian` agent for review and require:
+`schema/loom-index.schema.json` is the contract for every emitted index. Changes go through the `schema-guardian` agent for review and require:
 
 1. A version-bump assessment (patch / minor / major per the rules in [schema.md](schema.md))
 2. Updated sample outputs in `README.md` and any affected tests
@@ -136,7 +136,7 @@ The `IndexBuilder` validates every built index against the schema before writing
 - New slash commands should chain existing agents rather than introduce parallel workflows
 - `audit-spec`-style guardrails should reference observable behavior (tests, code), not frozen spec documents
 
-If you fork the repo to build a different Laravel introspection tool, the agents may give you a useful starting point — they're intentionally generic about Laravel and specific about Atlas.
+If you fork the repo to build a different Laravel introspection tool, the agents may give you a useful starting point — they're intentionally generic about Laravel and specific about Loom.
 
 ## Style
 
@@ -150,7 +150,7 @@ If you fork the repo to build a different Laravel introspection tool, the agents
 
 The release workflow is the `/prep-release` slash command:
 
-1. Bumps `IndexBuilder::ATLAS_VERSION` (and `composer.json` if a version field is present)
+1. Bumps `IndexBuilder::LOOM_VERSION` (and `composer.json` if a version field is present)
 2. Drafts a CHANGELOG entry from the Unreleased section
 3. Verifies the toolchain is green
 4. Suggests a git tag command

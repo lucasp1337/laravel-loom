@@ -1,15 +1,15 @@
 ---
-description: Validate a JSON file against the canonical Atlas schema
+description: Validate a JSON file against the canonical Loom schema
 argument-hint: <path-to-json-file>
 ---
 
-Validate the JSON file at `$ARGUMENTS` against `schema/atlas-index.schema.json`.
+Validate the JSON file at `$ARGUMENTS` against `schema/loom-index.schema.json`.
 
 ## Method
 
 Invoke `schema-guardian` with:
 
-> Validate `$ARGUMENTS` against `schema/atlas-index.schema.json`. Report:
+> Validate `$ARGUMENTS` against `schema/loom-index.schema.json`. Report:
 > - Pass/fail
 > - If fail: every violation with the JSON pointer path and the schema rule that failed
 > - If pass: a brief summary of what the file contained (counts per section)
@@ -19,7 +19,7 @@ Invoke `schema-guardian` with:
 If a CLI validator is installed (e.g. `vendor/bin/json-schema-validate`), use it:
 
 ```bash
-vendor/bin/json-schema-validate schema/atlas-index.schema.json $ARGUMENTS
+vendor/bin/json-schema-validate schema/loom-index.schema.json $ARGUMENTS
 ```
 
 If not, run a small PHP script:
@@ -29,7 +29,7 @@ php -r "
 require 'vendor/autoload.php';
 \$validator = new \JsonSchema\Validator();
 \$data = json_decode(file_get_contents('$ARGUMENTS'));
-\$schema = json_decode(file_get_contents('schema/atlas-index.schema.json'));
+\$schema = json_decode(file_get_contents('schema/loom-index.schema.json'));
 \$validator->validate(\$data, \$schema);
 if (\$validator->isValid()) {
     echo 'VALID' . PHP_EOL;

@@ -125,7 +125,7 @@ EventScanner's dispatch-site seeding ensures most Dispatchable-form events are a
 - **`Queue::push(...)`, `Queue::later(...)`.** Not recognized.
 - **Trait-method dispatches.** Sites in trait methods record the trait's FQCN as `classFqcn`. The trait FQCN won't match any listener or observer entry, so the dispatch won't light up `dispatches[]` — but it can still populate `events[*].dispatched_from` if its target is a known event.
 - **Top-level dispatches (script-level code).** Skipped entirely.
-- **Closures of any kind.** Skipped. This is by design but means dispatches inside collection callbacks (`->each(fn () => event(...))`) are invisible to Atlas.
+- **Closures of any kind.** Skipped. This is by design but means dispatches inside collection callbacks (`->each(fn () => event(...))`) are invisible to Loom.
 - **Multi-handler listeners.** Only literal `method === 'handle'` matches for listener `dispatches[]`. A listener with `handleFoo()` and `handleBar()` doesn't have those methods' dispatches recorded under it.
 - **Dispatch sites inside abstract methods.** Won't happen (abstract methods have no body), but worth noting that interface-declared dispatch contracts aren't introspected.
 - **Cross-link orphans.** A dispatch site whose `target` doesn't match any event in `events[]` doesn't contribute to `dispatched_from`. This usually means EventScanner didn't discover the target (event class outside `app/Events/` and not dispatched via the helper/facade forms). Not a DispatchScanner bug — fix by ensuring the target is discoverable.

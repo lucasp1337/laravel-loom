@@ -1,9 +1,9 @@
 ---
-description: Scaffold a new Atlas scanner end-to-end through the agent chain
+description: Scaffold a new Loom scanner end-to-end through the agent chain
 argument-hint: <ScannerName>
 ---
 
-You are scaffolding a new scanner for Laravel Atlas. The scanner name is: $ARGUMENTS
+You are scaffolding a new scanner for Laravel Loom. The scanner name is: $ARGUMENTS
 
 ## First: scope check
 
@@ -11,7 +11,7 @@ Before writing any code, figure out whether this is a redesign of an existing sc
 
 1. List `src/Scanners/*.php` (e.g. with `Glob` or `ls`). That is the authoritative set of scanners in the codebase right now.
 2. If `$ARGUMENTS` matches an existing file (with or without the `Scanner.php` suffix), this is a redesign. Confirm with the user before proceeding — they may have meant to extend, not replace.
-3. If `$ARGUMENTS` is something new, surface that this expands Atlas's scope. Atlas is deliberately narrow (events, listeners, observers, dispatches). New primitives — container bindings, scheduler entries, broadcast channels, notifications, mailables — have historically been declined. Confirm with the user before designing.
+3. If `$ARGUMENTS` is something new, surface that this expands Loom's scope. Loom is deliberately narrow (events, listeners, observers, dispatches). New primitives — container bindings, scheduler entries, broadcast channels, notifications, mailables — have historically been declined. Confirm with the user before designing.
 
 Also check `docs/scanners/` for the corresponding behavior doc when a scanner exists; that's where the contract for the scanner lives.
 
@@ -31,7 +31,7 @@ Read the design doc back to the user. Pause for confirmation if anything looks o
 
 Invoke `schema-guardian`:
 
-> Review the schema contribution proposed in `docs/scanners/$ARGUMENTS.md`. Confirm it fits the existing `schema/atlas-index.schema.json` or specify what additions are needed and what version bump they imply.
+> Review the schema contribution proposed in `docs/scanners/$ARGUMENTS.md`. Confirm it fits the existing `schema/loom-index.schema.json` or specify what additions are needed and what version bump they imply.
 
 If schema-guardian requires changes, apply them before continuing.
 

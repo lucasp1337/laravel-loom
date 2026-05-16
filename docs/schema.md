@@ -1,12 +1,12 @@
 # Schema
 
-Reference for `storage/atlas/index.json`. The authoritative definition is `schema/atlas-index.schema.json`; this page is prose companion.
+Reference for `storage/loom/index.json`. The authoritative definition is `schema/loom-index.schema.json`; this page is prose companion.
 
 ## Top-level structure
 
 ```
 {
-  "atlas_version": string,        // semver of Atlas that produced this index
+  "loom_version": string,        // semver of Loom that produced this index
   "scanned_at": string,           // ISO 8601 UTC timestamp
   "laravel_version": string,      // detected Laravel version of the scanned app
   "stats": object,                // counts by section
@@ -161,7 +161,7 @@ Counts mirror the sizes of the corresponding arrays. `model_events` is intention
 
 ## Versioning
 
-`atlas_version` follows semver against the schema shape:
+`loom_version` follows semver against the schema shape:
 
 - **Patch** — bug fix in scanner output that doesn't change the shape
 - **Minor** — additive: new optional fields, new enum values, new sections

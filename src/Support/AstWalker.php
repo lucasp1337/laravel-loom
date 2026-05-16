@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Atlas\Support;
+namespace Lucasp\Loom\Support;
 
 use PhpParser\Error;
 use PhpParser\NodeTraverser;

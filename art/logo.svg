@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Laravel Atlas">
-  <title>Laravel Atlas</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Laravel Loom">
+  <title>Laravel Loom</title>
   <!-- Construction guides (faint, dashed) -->
   <line x1="32" y1="4" x2="32" y2="60" stroke="#8a8a85" stroke-width="0.6" stroke-dasharray="1.4 2" opacity="0.55"/>
   <line x1="4" y1="54" x2="60" y2="54" stroke="#8a8a85" stroke-width="0.6" stroke-dasharray="1.4 2" opacity="0.55"/>
