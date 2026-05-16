@@ -1,4 +1,11 @@
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="art/logo-wide-dark.svg">
+    <img src="art/logo-wide.svg" alt="Laravel Atlas — Architecture as data" width="320">
+  </picture>
+</p>
+
+<p align="center">
   <a href="https://github.com/lucasp1337/laravel-atlas/actions/workflows/run-tests.yml"><img src="https://github.com/lucasp1337/laravel-atlas/actions/workflows/run-tests.yml/badge.svg?branch=main" alt="Tests"></a>
   <a href="https://github.com/lucasp1337/laravel-atlas/actions/workflows/phpstan.yml"><img src="https://github.com/lucasp1337/laravel-atlas/actions/workflows/phpstan.yml/badge.svg?branch=main" alt="PHPStan"></a>
   <a href="https://codecov.io/gh/lucasp1337/laravel-atlas"><img src="https://codecov.io/gh/lucasp1337/laravel-atlas/graph/badge.svg" alt="Coverage"></a>
