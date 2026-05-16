@@ -28,23 +28,41 @@ vendor/bin/pest                   # full test suite
 
 All three must pass before any commit.
 
-## Docker toolchain
+## Docker toolchain via `just`
 
-If your host PHP lacks the required extensions (common on minimal Linux installs or PHP 8.5 alpha builds):
+If your host PHP lacks the required extensions (common on minimal Linux installs or PHP 8.5 builds), the repo ships a `Justfile` that wraps every common task in a Docker container. Install [just](https://github.com/casey/just), then:
+
+```bash
+just build           # build the Docker dev image (once)
+just install         # composer install inside the container
+just check           # full toolchain: PHPStan + Pint --test + Pest
+just test            # just the Pest suite
+just phpstan         # just PHPStan
+just pint            # apply Pint formatting
+just shell           # interactive shell inside the container
+```
+
+Run `just` with no arguments to see every recipe.
+
+The Dockerfile installs `mbstring`, `xml`, `dom`, `xmlwriter`, and `zip` on top of `php:8.3-cli-alpine`. Composer is included.
+
+If you'd rather skip `just`, the raw equivalents are:
 
 ```bash
 docker build -t laravel-atlas-dev:latest .
 docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest
 ```
 
-The Dockerfile installs `mbstring`, `xml`, `dom`, `xmlwriter`, and `zip` on top of `php:8.3-cli-alpine`. Composer is included.
+## Scanning an external Laravel app
 
-Substitute `vendor/bin/phpstan` or `vendor/bin/pint` in the same `docker run` invocation. A convenience triple-run:
+The `Justfile` exposes a quick way to point Atlas at any Laravel app on disk:
 
 ```bash
-docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest sh -c \
-  "vendor/bin/phpstan analyse --memory-limit=512M && vendor/bin/pint --test && vendor/bin/pest"
+just scan /path/to/your/laravel/app                # prints stats
+just scan-json /path/to/your/laravel/app > index.json   # writes the full index
 ```
+
+Useful for verifying behavior on real codebases beyond `tests/Fixtures/`.
 
 ## Repository structure
 

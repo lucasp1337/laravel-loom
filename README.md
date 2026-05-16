@@ -111,14 +111,15 @@ A representative `storage/atlas/index.json` with all four scanners active:
 
 ## Local development
 
-Installing the package only needs PHP 8.3+, but running the test suite locally needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` is provided so contributors without those extensions on their host PHP can run the full toolchain:
+Installing the package only needs PHP 8.3+, but running the test suite locally needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` plus a `Justfile` are provided so contributors without those extensions on their host PHP can run the full toolchain:
 
 ```bash
-docker build -t laravel-atlas-dev:latest .
-docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest
+just build    # build the Docker dev image
+just install  # composer install inside the container
+just check    # PHPStan + Pint --test + Pest
 ```
 
-The same pattern works for `vendor/bin/phpstan` and `vendor/bin/pint`.
+See `docs/contributing.md` for the full list of recipes.
 
 ## What it detects
 

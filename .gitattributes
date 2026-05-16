@@ -24,3 +24,4 @@
 /Dockerfile         export-ignore
 /.dockerignore      export-ignore
 /pint.json          export-ignore
+/Justfile           export-ignore
