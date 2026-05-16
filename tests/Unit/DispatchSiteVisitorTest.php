@@ -1,0 +1,570 @@
+<?php
+
+declare(strict_types=1);
+
+use Lucasp\Atlas\Scanners\Visitors\DispatchSiteVisitor;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\ParserFactory;
+
+/**
+ * Parse a PHP source string and run DispatchSiteVisitor (after NameResolver) over it.
+ *
+ * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>}
+ */
+function runDispatchSiteVisitor(string $source): array
+{
+    $parser = (new ParserFactory)->createForNewestSupportedVersion();
+    $ast = $parser->parse($source);
+
+    expect($ast)->not->toBeNull();
+
+    $visitor = new DispatchSiteVisitor;
+    $traverser = new NodeTraverser;
+    $traverser->addVisitor(new NameResolver);
+    $traverser->addVisitor($visitor);
+    $traverser->traverse($ast);
+
+    return [$visitor->getSites(), $visitor->getUnresolved()];
+}
+
+// -----------------------------------------------------------------------------
+// Recognised forms
+// -----------------------------------------------------------------------------
+
+it('recognises event(new Foo()) as helper + event', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            event(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
+    expect($sites[0]['form'])->toBe('helper');
+    expect($sites[0]['provisionalKind'])->toBe('event');
+    expect($sites[0]['classFqcn'])->toBe('App\\Services\\Svc');
+    expect($sites[0]['method'])->toBe('go');
+    expect($sites[0]['confidence'])->toBe('high');
+});
+
+it('recognises event(Foo::class) as helper + event', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            event(Foo::class);
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
+    expect($sites[0]['form'])->toBe('helper');
+    expect($sites[0]['provisionalKind'])->toBe('event');
+});
+
+it('recognises Event::dispatch(Foo::class) as facade + event', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    use Illuminate\Support\Facades\Event;
+    class Svc {
+        public function go(): void {
+            Event::dispatch(Foo::class);
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
+    expect($sites[0]['form'])->toBe('facade');
+    expect($sites[0]['provisionalKind'])->toBe('event');
+});
+
+it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            Foo::dispatch();
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
+    expect($sites[0]['form'])->toBe('dispatchable');
+    expect($sites[0]['provisionalKind'])->toBe('ambiguous');
+});
+
+it('recognises dispatch(new Bar()) as job_helper + job', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    class Svc {
+        public function go(): void {
+            dispatch(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Jobs\\Bar');
+    expect($sites[0]['form'])->toBe('job_helper');
+    expect($sites[0]['provisionalKind'])->toBe('job');
+});
+
+it('recognises Bus::dispatch(new Bar()) as job_helper + job', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go(): void {
+            Bus::dispatch(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['target'])->toBe('App\\Jobs\\Bar');
+    expect($sites[0]['form'])->toBe('job_helper');
+    expect($sites[0]['provisionalKind'])->toBe('job');
+});
+
+// -----------------------------------------------------------------------------
+// Class / method context
+// -----------------------------------------------------------------------------
+
+it('captures handle() method context for an enclosing class', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Listeners;
+    use App\Events\Foo;
+    class Send {
+        public function handle($event): void {
+            event(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['classFqcn'])->toBe('App\\Listeners\\Send');
+    expect($sites[0]['method'])->toBe('handle');
+});
+
+it('captures __construct method context', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function __construct() {
+            event(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['method'])->toBe('__construct');
+});
+
+it('captures observer-hook method names like created', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Observers;
+    use App\Events\Foo;
+    class UserObserver {
+        public function created($model): void {
+            event(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]['method'])->toBe('created');
+});
+
+it('records two sites in a single method with shared context', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    use App\Events\Bar;
+    class Svc {
+        public function go(): void {
+            event(new Foo());
+            event(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(2);
+    foreach ($sites as $s) {
+        expect($s['classFqcn'])->toBe('App\\Services\\Svc');
+        expect($s['method'])->toBe('go');
+    }
+});
+
+it('captures distinct method names across methods in one class', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    use App\Events\Bar;
+    class Svc {
+        public function a(): void { event(new Foo()); }
+        public function b(): void { event(new Bar()); }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(2);
+    $byMethod = [];
+    foreach ($sites as $s) {
+        $byMethod[$s['method']] = $s['target'];
+    }
+    expect($byMethod)->toBe([
+        'a' => 'App\\Events\\Foo',
+        'b' => 'App\\Events\\Bar',
+    ]);
+});
+
+// -----------------------------------------------------------------------------
+// Skip cases
+// -----------------------------------------------------------------------------
+
+it('skips dispatch sites inside closures', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            $c = function () {
+                event(new Foo());
+            };
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+it('skips dispatch sites inside arrow functions', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            $c = fn () => event(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+it('skips top-level dispatches outside any class', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    event(new Foo());
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+// -----------------------------------------------------------------------------
+// Unresolved reasons
+// -----------------------------------------------------------------------------
+
+it('records event($variable) as dynamic_class_name unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($variable): void {
+            event($variable);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('dynamic_class_name');
+    expect($unresolved[0]['expression'])->toContain('event(');
+});
+
+it('records string interpolation as string_concatenation unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(string $x): void {
+            event("App\\Events\\{$x}");
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('string_concatenation');
+});
+
+it('records string concatenation as string_concatenation unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(string $name): void {
+            event("App\\Events\\" . $name);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('string_concatenation');
+});
+
+it('records app() resolution as container_resolution unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(): void {
+            event(app('events.key'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('container_resolution');
+});
+
+it('records resolve() as container_resolution unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(): void {
+            event(resolve('events.key'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('container_resolution');
+});
+
+it('records $container->make() as container_resolution unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($container): void {
+            event($container->make('events.key'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('container_resolution');
+});
+
+it('records ternary with non-resolvable branches as conditional_dispatch', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($flag, $a, $b): void {
+            event($flag ? $a : $b);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]['reason'])->toBe('conditional_dispatch');
+});
+
+it('expands ternary with resolvable branches into two sites', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    use App\Events\Bar;
+    class Svc {
+        public function go(bool $flag): void {
+            event($flag ? new Foo() : new Bar());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(2);
+    $targets = array_column($sites, 'target');
+    sort($targets);
+    expect($targets)->toBe(['App\\Events\\Bar', 'App\\Events\\Foo']);
+});
+
+it('skips event() with zero arguments entirely', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(): void {
+            event();
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+// -----------------------------------------------------------------------------
+// Conditional skips: dispatch_sync / dispatch_now / Bus::dispatchSync / Bus::dispatchNow
+// -----------------------------------------------------------------------------
+
+it('skips dispatch_sync(...) entirely', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    class Svc {
+        public function go(): void {
+            dispatch_sync(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+it('skips dispatch_now(...) entirely', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    class Svc {
+        public function go(): void {
+            dispatch_now(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+it('skips Bus::dispatchSync(...) entirely', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go(): void {
+            Bus::dispatchSync(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
+it('skips Bus::dispatchNow(...) entirely', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Bar;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go(): void {
+            Bus::dispatchNow(new Bar());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});

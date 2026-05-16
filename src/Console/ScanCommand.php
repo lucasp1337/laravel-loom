@@ -7,6 +7,7 @@ namespace Lucasp\Atlas\Console;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Application;
 use Lucasp\Atlas\Index\IndexBuilder;
+use Lucasp\Atlas\Scanners\DispatchScanner;
 use Lucasp\Atlas\Scanners\EventScanner;
 use Lucasp\Atlas\Scanners\ListenerScanner;
 use Lucasp\Atlas\Scanners\ObserverScanner;
@@ -26,6 +27,7 @@ class ScanCommand extends Command
         $builder->register(new EventScanner);
         $builder->register(new ListenerScanner);
         $builder->register(new ObserverScanner);
+        $builder->register(new DispatchScanner);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();
