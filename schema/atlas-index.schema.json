@@ -1,0 +1,180 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/lucasp1337/laravel-atlas/schema/atlas-index.schema.json",
+    "title": "Laravel Atlas Index",
+    "description": "Canonical schema for the JSON index emitted by `php artisan atlas:scan`.",
+    "type": "object",
+    "required": [
+        "atlas_version",
+        "scanned_at",
+        "laravel_version",
+        "stats",
+        "events",
+        "model_events",
+        "listeners",
+        "observers",
+        "unresolved_dispatches"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "atlas_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "scanned_at": { "type": "string", "format": "date-time" },
+        "laravel_version": { "type": "string" },
+        "stats": {
+            "type": "object",
+            "required": ["events", "listeners", "observers", "unresolved_dispatches"],
+            "additionalProperties": false,
+            "properties": {
+                "events": { "type": "integer", "minimum": 0 },
+                "listeners": { "type": "integer", "minimum": 0 },
+                "observers": { "type": "integer", "minimum": 0 },
+                "unresolved_dispatches": { "type": "integer", "minimum": 0 }
+            }
+        },
+        "events": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/event" }
+        },
+        "model_events": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/modelEvent" }
+        },
+        "listeners": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/listener" }
+        },
+        "observers": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/observer" }
+        },
+        "unresolved_dispatches": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/unresolvedDispatch" }
+        }
+    },
+    "$defs": {
+        "event": {
+            "type": "object",
+            "required": ["id", "fqcn", "kind", "file", "line", "dispatched_from", "handled_by"],
+            "additionalProperties": false,
+            "properties": {
+                "id": { "type": "string" },
+                "fqcn": { "type": "string" },
+                "kind": { "enum": ["class"] },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "dispatched_from": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["file", "line", "method"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "file": { "type": "string" },
+                            "line": { "type": "integer", "minimum": 1 },
+                            "method": { "type": "string" }
+                        }
+                    }
+                },
+                "handled_by": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        },
+        "modelEvent": {
+            "type": "object",
+            "required": ["id", "kind", "model", "event", "handled_by"],
+            "additionalProperties": false,
+            "properties": {
+                "id": { "type": "string" },
+                "kind": { "enum": ["model_event"] },
+                "model": { "type": "string" },
+                "event": {
+                    "enum": [
+                        "retrieved", "creating", "created", "updating", "updated",
+                        "saving", "saved", "deleting", "deleted", "restoring", "restored",
+                        "replicating", "trashed", "forceDeleting", "forceDeleted",
+                        "booting", "booted"
+                    ]
+                },
+                "handled_by": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        },
+        "listener": {
+            "type": "object",
+            "required": ["fqcn", "file", "line", "handles", "registration", "queued", "dispatches"],
+            "additionalProperties": false,
+            "properties": {
+                "fqcn": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "handles": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "registration": {
+                    "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"]
+                },
+                "queued": { "type": "boolean" },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatch" }
+                }
+            }
+        },
+        "observer": {
+            "type": "object",
+            "required": ["fqcn", "file", "line", "observes", "registration", "hooks", "dispatches"],
+            "additionalProperties": false,
+            "properties": {
+                "fqcn": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "observes": { "type": "string" },
+                "registration": { "enum": ["observe_call", "attribute"] },
+                "hooks": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatch" }
+                }
+            }
+        },
+        "dispatch": {
+            "type": "object",
+            "required": ["target", "kind", "confidence", "file", "line"],
+            "additionalProperties": false,
+            "properties": {
+                "target": { "type": "string" },
+                "kind": { "enum": ["event", "job"] },
+                "confidence": { "enum": ["high", "medium", "low"] },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 }
+            }
+        },
+        "unresolvedDispatch": {
+            "type": "object",
+            "required": ["file", "line", "expression", "reason"],
+            "additionalProperties": false,
+            "properties": {
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "expression": { "type": "string" },
+                "reason": {
+                    "enum": [
+                        "dynamic_class_name",
+                        "container_resolution",
+                        "string_concatenation",
+                        "conditional_dispatch"
+                    ]
+                }
+            }
+        }
+    }
+}
