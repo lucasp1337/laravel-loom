@@ -7,6 +7,7 @@ namespace Lucasp\Atlas\Console;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Application;
 use Lucasp\Atlas\Index\IndexBuilder;
+use Lucasp\Atlas\Scanners\EventScanner;
 
 class ScanCommand extends Command
 {
@@ -20,7 +21,7 @@ class ScanCommand extends Command
         $outputPath = $this->laravel->storagePath('atlas/index.json');
 
         $builder = new IndexBuilder;
-        // Scanners are registered here as they land.
+        $builder->register(new EventScanner);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();
