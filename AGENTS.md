@@ -1,0 +1,132 @@
+# AGENTS.md
+
+Operational guide for AI agents working on this repo. Humans should read `README.md` and `docs/` instead — those are written for you.
+
+This file is for the parts that don't fit anywhere else: conventions that aren't enforced by tests, mistakes that have been made before, and the boundaries between subagents.
+
+---
+
+## Repo layout
+
+```
+src/
+  AtlasServiceProvider.php          # registers the two artisan commands
+  Console/
+    ScanCommand.php                 # atlas:scan — writes storage/atlas/index.json
+    ShowCommand.php                 # atlas:show [filter] — prints the index
+  Contracts/
+    Scanner.php                     # the one-method contract every scanner implements
+  Index/
+    Index.php                       # immutable value object — serializes to JSON
+    IndexBuilder.php                # orchestrates scanners + runs the cross-link pass
+  Scanners/
+    EventScanner.php
+    ListenerScanner.php
+    ObserverScanner.php
+    DispatchScanner.php
+    Visitors/                       # PhpParser NodeVisitorAbstract subclasses
+  Support/
+    AstWalker.php                   # parser + NameResolver wrapper
+
+schema/
+  atlas-index.schema.json           # the contract for every index Atlas emits
+
+tests/
+  Unit/                             # visitor-level tests, heredoc snippets
+  Feature/                          # scanner + IndexBuilder tests, fixture-driven
+  Fixtures/                         # minimal app trees per scenario
+
+docs/                               # contributor docs — start here for everything else
+```
+
+---
+
+## Conventions that aren't enforced by tests
+
+These have caused regressions. Don't rediscover them.
+
+**Visitors read on `leaveNode`, not `enterNode`.** `AstWalker` attaches `NameResolver` first. NameResolver rewrites `Node\Name` references as it descends — so by the time you're in `enterNode` for an outer node (e.g. a `FuncCall`), the inner `New_->class` or `ClassConstFetch->class` you want to read has NOT been resolved yet. `EventClassVisitor` is the one exception (it reads `$node->namespacedName` on the class itself, which NameResolver sets before descent). Everywhere else, use `leaveNode`. We've shipped this bug at least twice.
+
+**Visitors reset state in `beforeTraverse()`.** Scanners reuse a single visitor instance across all files in a discovery loop. Forgetting to reset means dispatch sites from file A bleed into file B's reported sites.
+
+**One source of truth per output field.**
+- `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Listener scanners don't write to event entries.
+- `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
+- `listeners[*].dispatches` / `observers[*].dispatches` — same; cross-link from DispatchScanner.
+- `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
+
+If two scanners ever write to the same field, you've drifted from the design — fix the drift, don't merge the writes.
+
+**`_dispatch_sites` is internal.** DispatchScanner returns `['unresolved_dispatches' => …, '_dispatch_sites' => …]`. The underscore-prefixed section feeds the cross-link pass and is stripped before the `Index` is constructed. The JSON schema rejects it via `additionalProperties: false` — that's intentional, not a bug.
+
+**Static only.** No `app()->make()`, no `Event::listen()` at runtime, no `\ReflectionClass::getMethods()` for anything Atlas analyzes. Atlas reads source files via `file_get_contents`. Reflection is fine for inspecting the running Laravel application (e.g. `Application::VERSION`), not for inspecting the app being scanned.
+
+**Unresolved dispatches are first-class output.** When DispatchScanner sees `event($var)` or `event("App\\Events\\{$x}")`, it MUST emit an `unresolved_dispatches` entry. Silently dropping these is a regression. The four reason codes are fixed by the schema: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`.
+
+**Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
+
+---
+
+## The cross-link pass
+
+`IndexBuilder::crossLink()` is the only place that reads cross-scanner data. Five phases, in order:
+
+1. **`events[*].handled_by`** — listeners' `handles` arrays inverted onto matching event entries
+2. **Disambiguate `kind: ambiguous`** — Dispatchable-form sites (`X::dispatch(...)`) get `kind = event` if their target is in `events[]`, else `kind = job`
+3. **`listeners[*].dispatches`** — sites whose enclosing context is a listener FQCN + `method === 'handle'`
+4. **`observers[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook
+5. **`events[*].dispatched_from`** — sites with finalized `kind === 'event'` and `target` matching an event entry
+
+After cross-link: strip `_dispatch_sites` from the merged sections before constructing the `Index`. Schema validation happens against the stripped payload.
+
+---
+
+## The subagent fleet
+
+| Agent | Domain | When to invoke |
+|---|---|---|
+| `scanner-architect` | Scanner design, discovery strategy, three-concern separation | Adding or redesigning a scanner. Writes a design doc. |
+| `ast-specialist` | `nikic/php-parser` visitors, NameResolver edge cases | Writing or fixing AST-traversal code |
+| `schema-guardian` | `schema/atlas-index.schema.json` | Any change to output shape; veto power on the schema |
+| `test-engineer` | Pest tests, fixture apps, Testbench harness | After any scanner or IndexBuilder change |
+| `quality-inspector` | PHPStan level 8, Pint, AST-code smells | Pre-commit, post-feature |
+| `doc-writer` | README, sample outputs, CHANGELOG, scanner docs | User-facing prose changes |
+
+Slash commands wire chains together:
+- `/add-scanner <Name>` — architect → schema-guardian → ast-specialist → test-engineer → quality-inspector → doc-writer
+- `/run-checks` — PHPStan + Pint + Pest, halt on first failure (run inside Docker if your host lacks ext-xml etc.)
+- `/scan-self <fixture>` — exercise the scanners against a fixture app and inspect the output
+- `/prep-release <version>` — version bump, changelog assembly, tag check
+- `/validate-schema <path>` — validate an arbitrary JSON file against `schema/atlas-index.schema.json`
+
+---
+
+## Tech invariants
+
+- PHP 8.3+, Laravel 11+
+- `nikic/php-parser` for all AST work — no regex parsing of PHP source
+- `justinrainbow/json-schema` for validation
+- PHPStan level 8, zero errors
+- Pint Laravel preset, fixtures excluded via `pint.json`
+- Pest 3 + Orchestra Testbench
+
+Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-atlas-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest`.
+
+---
+
+## Things to NEVER do
+
+- **Use `php artisan event:list` as a data source.** Atlas re-derives from source for accuracy, to surface things Laravel's command misses (observers, dispatch sites, unresolved dispatches with file/line), and to work on a checked-out repo without booting the app. The runtime command requires a fully-booted Laravel app; Atlas does not.
+- **Modify the schema without `schema-guardian` review.** Schema changes are breaking or near-breaking; they need explicit version-bump reasoning.
+- **Add CLI flags or output formats** beyond `atlas:scan` (no flags) and `atlas:show [filter]` (one optional positional argument). The two-command surface is deliberately frozen.
+- **Skip cases silently when you can emit `unresolved_dispatches`.** Better to flag a gap than hide it.
+- **Commit failing checks.** PHPStan, Pint, and Pest all green before any commit lands.
+- **Add dependencies without strong justification.** Every new dependency is a contributor friction point.
+
+---
+
+## When you are uncertain about scope
+
+If you're considering work that isn't obviously about events, listeners, observers, or dispatches — stop and ask a human. Atlas is deliberately narrow. Container bindings, the scheduler, broadcast channels, notifications, mailables, runtime tracing, an MCP server, a Blade UI, Markdown export, diff/CI integration — these have all been considered and excluded. If a new primitive is genuinely needed, it gets its own scanner via `/add-scanner`, not bolted onto an existing one.
+
+The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.

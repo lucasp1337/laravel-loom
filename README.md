@@ -1,93 +1,145 @@
-# :package_description
+# Laravel Atlas
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/:vendor_slug/:package_slug/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/:vendor_slug/:package_slug/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-<!--delete-->
----
-This repo can be used to scaffold a Laravel package. Follow these steps to get started:
+Static architectural inspector for Laravel applications. Scans source code and emits a structured JSON index of the application's event-driven architecture — events, listeners, observers, and the dispatch relationships between them.
 
-1. Press the "Use this template" button at the top of this repo to create a new repo with the contents of this skeleton.
-2. Run "php ./configure.php" to run a script that will replace all placeholders throughout all the files.
-3. Have fun creating your package.
-4. If you need help creating a package, consider picking up our <a href="https://laravelpackage.training">Laravel Package Training</a> video course.
----
-<!--/delete-->
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+No runtime tracing. No UI. No MCP. Just a discovery layer that produces a machine-readable index.
 
-## Support us
+> *The architectural memory of your Laravel app — for humans, CI, and AI agents.*
 
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/:package_name.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/:package_name)
+## Status
 
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
+**Pre-release.** All four scanners (events, listeners, observers, dispatches) and the cross-link pass are in place. The package is functional end-to-end. APIs may still shift before a tagged 0.1.0 release.
 
 ## Installation
 
-You can install the package via composer:
-
 ```bash
-composer require :vendor_slug/:package_slug
-```
-
-You can publish and run the migrations with:
-
-```bash
-php artisan vendor:publish --tag=":package_slug-migrations"
-php artisan migrate
-```
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag=":package_slug-config"
-```
-
-This is the contents of the published config file:
-
-```php
-return [
-];
-```
-
-Optionally, you can publish the views using
-
-```bash
-php artisan vendor:publish --tag=":package_slug-views"
+composer require lucasp1337/laravel-atlas --dev
 ```
 
 ## Usage
 
-```php
-$:variable = new VendorName\Skeleton();
-echo $:variable->echoPhrase('Hello, VendorName!');
+```bash
+php artisan atlas:scan          # writes storage/atlas/index.json
+php artisan atlas:show          # prints the index
+php artisan atlas:show OrderPlaced   # filters by FQCN substring
 ```
 
-## Testing
+The output file lives at `storage/atlas/index.json` and is gitignored by default.
+
+## Sample output
+
+A representative `storage/atlas/index.json` with all four scanners active:
+
+```json
+{
+  "atlas_version": "0.1.0",
+  "scanned_at": "2026-05-16T14:22:00Z",
+  "laravel_version": "12.x",
+  "stats": {
+    "events": 1,
+    "listeners": 1,
+    "observers": 1,
+    "unresolved_dispatches": 1
+  },
+  "events": [
+    {
+      "id": "App\\Events\\OrderPlaced",
+      "fqcn": "App\\Events\\OrderPlaced",
+      "kind": "class",
+      "file": "app/Events/OrderPlaced.php",
+      "line": 12,
+      "dispatched_from": [
+        { "file": "app/Services/Checkout.php", "line": 87, "method": "App\\Services\\Checkout::finalize" }
+      ],
+      "handled_by": ["App\\Listeners\\SendOrderConfirmation"]
+    }
+  ],
+  "model_events": [
+    {
+      "id": "eloquent.created: App\\Models\\User",
+      "kind": "model_event",
+      "model": "App\\Models\\User",
+      "event": "created",
+      "handled_by": ["App\\Observers\\UserObserver::created"]
+    }
+  ],
+  "listeners": [
+    {
+      "fqcn": "App\\Listeners\\SendOrderConfirmation",
+      "file": "app/Listeners/SendOrderConfirmation.php",
+      "line": 14,
+      "handles": ["App\\Events\\OrderPlaced"],
+      "registration": "listen_array",
+      "queued": true,
+      "dispatches": [
+        {
+          "target": "App\\Events\\OrderConfirmationSent",
+          "kind": "event",
+          "confidence": "high",
+          "file": "app/Listeners/SendOrderConfirmation.php",
+          "line": 31
+        }
+      ]
+    }
+  ],
+  "observers": [
+    {
+      "fqcn": "App\\Observers\\UserObserver",
+      "file": "app/Observers/UserObserver.php",
+      "line": 9,
+      "observes": "App\\Models\\User",
+      "registration": "attribute",
+      "hooks": ["created", "deleted", "updated"],
+      "dispatches": []
+    }
+  ],
+  "unresolved_dispatches": [
+    {
+      "file": "app/Services/Notifier.php",
+      "line": 42,
+      "expression": "event($eventClass)",
+      "reason": "dynamic_class_name"
+    }
+  ]
+}
+```
+
+## Requirements
+
+- PHP **8.3+**
+- Laravel **11.0+**
+
+## Local development
+
+Installing the package only needs PHP 8.3+, but running the test suite locally needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` is provided so contributors without those extensions on their host PHP can run the full toolchain:
 
 ```bash
-composer test
+docker build -t laravel-atlas-dev:latest .
+docker run --rm -v "$(pwd):/app" laravel-atlas-dev:latest vendor/bin/pest
 ```
 
-## Changelog
+The same pattern works for `vendor/bin/phpstan` and `vendor/bin/pint`.
 
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
+## What it detects
 
-## Contributing
+- **Events** — classes in `app/Events`, plus any class dispatched via `event()`, `Event::dispatch()`, or `X::dispatch()`
+- **Listeners** — `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()`, and `Event::listen()` calls anywhere under `app/`
+- **Observers** — `Model::observe()` calls (including `static::observe(...)` in `booted()`), the `#[ObservedBy]` attribute, plus Eloquent model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`
+- **Shallow dispatch scan** — one level of `event()` / `dispatch()` / `Bus::dispatch()` / `X::dispatch()` calls inside each handler. Unresolvable dynamic dispatches surface in `unresolved_dispatches[]` rather than being silently dropped.
 
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+## What it does not detect
 
-## Security Vulnerabilities
+Container bindings, the scheduler, broadcast channels, notifications, mailables, job class internals (beyond dispatch sites), subscribers, runtime tracing, an MCP server, a Blade UI, Markdown export, diff/CI integration, multi-framework support, Laravel < 11 support.
 
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
+See [docs/scanners/](docs/scanners/) for per-scanner edge cases and known limitations.
 
-## Credits
+## Documentation
 
-- [:author_name](https://github.com/:author_username)
-- [All Contributors](../../contributors)
+- [Architecture](docs/architecture.md) — pipeline, scanner contract, cross-link pass
+- [Schema](docs/schema.md) — JSON schema reference
+- [Scanners](docs/scanners/) — per-scanner behavior, edge cases, known limitations
+- [Contributing](docs/contributing.md) — toolchain, Docker workflow, how to add a scanner
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+The MIT License (MIT). See [LICENSE.md](LICENSE.md).

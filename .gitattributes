@@ -18,3 +18,9 @@
 /UPGRADING.md       export-ignore
 /phpstan.neon.dist  export-ignore
 /phpstan-baseline.neon  export-ignore
+/.claude            export-ignore
+/AGENTS.md          export-ignore
+/CLAUDE.md          export-ignore
+/Dockerfile         export-ignore
+/.dockerignore      export-ignore
+/pint.json          export-ignore
