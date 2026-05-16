@@ -9,6 +9,7 @@ use Illuminate\Foundation\Application;
 use Lucasp\Atlas\Index\IndexBuilder;
 use Lucasp\Atlas\Scanners\EventScanner;
 use Lucasp\Atlas\Scanners\ListenerScanner;
+use Lucasp\Atlas\Scanners\ObserverScanner;
 
 class ScanCommand extends Command
 {
@@ -24,6 +25,7 @@ class ScanCommand extends Command
         $builder = new IndexBuilder;
         $builder->register(new EventScanner);
         $builder->register(new ListenerScanner);
+        $builder->register(new ObserverScanner);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();
