@@ -1,7 +1,10 @@
 FROM php:8.3-cli-alpine
 
-RUN apk add --no-cache git unzip libzip-dev oniguruma-dev \
-    && docker-php-ext-install -j$(nproc) zip mbstring
+RUN apk add --no-cache git unzip libzip-dev oniguruma-dev $PHPIZE_DEPS \
+    && docker-php-ext-install -j$(nproc) zip mbstring \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov \
+    && apk del $PHPIZE_DEPS
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

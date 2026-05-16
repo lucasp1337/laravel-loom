@@ -1,5 +1,3 @@
-# Laravel Atlas — task runner.
-#
 # Run `just` with no arguments to list recipes. Most recipes shell out to
 # Docker so contributors without ext-mbstring/ext-xml/ext-dom/ext-xmlwriter
 # on their host PHP can still run the toolchain.
@@ -37,6 +35,10 @@ pint-check:
 # Run the Pest test suite.
 test *args:
     {{docker_run}} vendor/bin/pest {{args}}
+
+# Run Pest with coverage, printing per-file percentages.
+coverage:
+    {{docker_run}} vendor/bin/pest --coverage --min=0
 
 # Run a single test file or filter (e.g. `just test-filter EventScanner`).
 test-filter filter:
