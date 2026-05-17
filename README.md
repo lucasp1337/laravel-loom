@@ -82,7 +82,8 @@ A representative scan against a small Laravel 13 app:
     "events": 3,
     "listeners": 3,
     "observers": 3,
-    "unresolved_dispatches": 0
+    "unresolved_dispatches": 0,
+    "closure_listeners": 1
   },
   "events": [
     {
@@ -146,6 +147,16 @@ A representative scan against a small Laravel 13 app:
       "line": 42,
       "expression": "event($eventClass)",
       "reason": "dynamic_class_name"
+    }
+  ],
+  "closure_listeners": [
+    {
+      "event": "App\\Events\\OrderPlaced",
+      "file": "app/Providers/EventServiceProvider.php",
+      "line": 38,
+      "registration": "event_listen_call",
+      "queued": false,
+      "dispatches": []
     }
   ]
 }
