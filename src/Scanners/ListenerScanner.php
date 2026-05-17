@@ -45,14 +45,23 @@ final class ListenerScanner implements Scanner
     public function scan(string $appRoot): array
     {
         $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot);
-        $listenArrayPairs = $this->discoverFromListenArray($appRoot);
-        $eventListenPairs = $this->discoverFromEventListenCalls($appRoot);
+        [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
+        [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
-        $subscribers = $this->resolveSubscribers($appRoot, $subscriberFqcns);
+        [$subscribers, $subscriberClosures] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
 
         $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers);
 
-        return ['listeners' => $this->emit($merged)];
+        $closureListeners = $this->buildClosureListeners(
+            $listenArrayClosures,
+            $eventListenClosures,
+            $subscriberClosures,
+        );
+
+        return [
+            'listeners' => $this->emit($merged),
+            'closure_listeners' => $closureListeners,
+        ];
     }
 
     /**
@@ -101,26 +110,36 @@ final class ListenerScanner implements Scanner
      * directory; the ListenArrayVisitor filters by class shape so the
      * wider walk does not introduce false positives.
      *
-     * @return array<int, array{event: string, listener: string, method: string}>
+     * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
      */
     private function discoverFromListenArray(string $appRoot): array
     {
         $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
         if (! is_dir($appDir)) {
-            return [];
+            return [[], []];
         }
 
         $visitor = new ListenArrayVisitor;
         $pairs = [];
+        $closures = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
+            $relative = $this->relativePath($appRoot, $file->getPathname());
             foreach ($visitor->getPairs() as $pair) {
                 $pairs[] = $pair;
             }
+            foreach ($visitor->getClosurePairs() as $closure) {
+                $closures[] = [
+                    'event' => $closure['event'],
+                    'file' => $relative,
+                    'line' => $closure['line'],
+                    'registration' => $closure['registration'],
+                ];
+            }
         }
 
-        return $pairs;
+        return [$pairs, $closures];
     }
 
     /**
@@ -131,26 +150,36 @@ final class ListenerScanner implements Scanner
      * method but commonly live outside app/Providers/. The visitor itself
      * is location-agnostic, so widening the walk is the correct fix.
      *
-     * @return array<int, array{event: string, listener: string, method: string}>
+     * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
      */
     private function discoverFromEventListenCalls(string $appRoot): array
     {
         $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
         if (! is_dir($appDir)) {
-            return [];
+            return [[], []];
         }
 
         $visitor = new EventListenCallVisitor;
         $pairs = [];
+        $closures = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
+            $relative = $this->relativePath($appRoot, $file->getPathname());
             foreach ($visitor->getPairs() as $pair) {
                 $pairs[] = $pair;
             }
+            foreach ($visitor->getClosurePairs() as $closure) {
+                $closures[] = [
+                    'event' => $closure['event'],
+                    'file' => $relative,
+                    'line' => $closure['line'],
+                    'registration' => $closure['registration'],
+                ];
+            }
         }
 
-        return $pairs;
+        return [$pairs, $closures];
     }
 
     /**
@@ -194,11 +223,12 @@ final class ListenerScanner implements Scanner
      * empty `handles[]` — see docs/scanners/listeners.md for the gap.
      *
      * @param  array<int, string>  $fqcns
-     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>
+     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
      */
     private function resolveSubscribers(string $appRoot, array $fqcns): array
     {
         $result = [];
+        $closures = [];
 
         foreach ($fqcns as $fqcn) {
             $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
@@ -209,21 +239,31 @@ final class ListenerScanner implements Scanner
             $visitor = new SubscriberClassVisitor;
             $this->walker->walk($absolute, [$visitor]);
 
+            $relative = $this->relativePath($appRoot, $absolute);
+
             foreach ($visitor->getClasses() as $class) {
                 if ($class['fqcn'] !== $fqcn) {
                     continue;
                 }
                 $result[$fqcn] = [
-                    'file' => $this->relativePath($appRoot, $absolute),
+                    'file' => $relative,
                     'line' => $class['line'],
                     'queued' => $class['queued'],
                     'handles' => $class['handles'],
                 ];
+                foreach ($class['closureHandles'] as $handle) {
+                    $closures[] = [
+                        'event' => $handle['event'],
+                        'file' => $relative,
+                        'line' => $handle['line'],
+                        'registration' => 'subscriber',
+                    ];
+                }
                 break;
             }
         }
 
-        return $result;
+        return [$result, $closures];
     }
 
     /**
@@ -420,6 +460,51 @@ final class ListenerScanner implements Scanner
         }
 
         return $entries;
+    }
+
+    /**
+     * Merge, dedup, and sort closure listener entries from all three sources.
+     *
+     * Dedup key: (event, file, line, registration). Sort by (event, file, line).
+     *
+     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $listenArrayClosures
+     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $eventListenClosures
+     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $subscriberClosures
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildClosureListeners(
+        array $listenArrayClosures,
+        array $eventListenClosures,
+        array $subscriberClosures,
+    ): array {
+        /** @var array<string, array{event: string, file: string, line: int, registration: string}> $seen */
+        $seen = [];
+
+        foreach ([$listenArrayClosures, $eventListenClosures, $subscriberClosures] as $bucket) {
+            foreach ($bucket as $entry) {
+                $key = $entry['event'].'|'.$entry['file'].'|'.$entry['line'].'|'.$entry['registration'];
+                $seen[$key] = $entry;
+            }
+        }
+
+        $entries = array_values($seen);
+        usort($entries, function (array $a, array $b): int {
+            return [$a['event'], $a['file'], $a['line']] <=> [$b['event'], $b['file'], $b['line']];
+        });
+
+        $result = [];
+        foreach ($entries as $entry) {
+            $result[] = [
+                'event' => $entry['event'],
+                'file' => $entry['file'],
+                'line' => $entry['line'],
+                'registration' => $entry['registration'],
+                'queued' => false,
+                'dispatches' => [],
+            ];
+        }
+
+        return $result;
     }
 
     /**

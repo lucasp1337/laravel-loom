@@ -253,6 +253,103 @@ it('keeps both pairs when one listener handles the same event under auto-discove
     );
 });
 
+it('discovers all closure listeners across $listen, Event::listen, and subscriber sources', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    expect($closures)->toHaveCount(4);
+});
+
+it('sorts closure_listeners by (event, file, line) ascending', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    expect($closures)->toBe([
+        [
+            'event' => 'App\\Events\\InventoryDepleted',
+            'file' => 'app/Listeners/OrderEventSubscriber.php',
+            'line' => 22,
+            'registration' => 'subscriber',
+            'queued' => false,
+            'dispatches' => [],
+        ],
+        [
+            'event' => 'App\\Events\\OrderPlaced',
+            'file' => 'app/Providers/EventServiceProvider.php',
+            'line' => 24,
+            'registration' => 'listen_array',
+            'queued' => false,
+            'dispatches' => [],
+        ],
+        [
+            'event' => 'App\\Events\\OrderPlaced',
+            'file' => 'app/Providers/EventServiceProvider.php',
+            'line' => 39,
+            'registration' => 'event_listen_call',
+            'queued' => false,
+            'dispatches' => [],
+        ],
+        [
+            'event' => 'App\\Events\\StockLow',
+            'file' => 'app/Providers/EventServiceProvider.php',
+            'line' => 40,
+            'registration' => 'event_listen_call',
+            'queued' => false,
+            'dispatches' => [],
+        ],
+    ]);
+});
+
+it('emits every closure listener with queued=false and dispatches=[]', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    expect($closures)->not->toBe([]);
+
+    foreach ($closures as $entry) {
+        expect($entry['queued'])->toBeFalse();
+        expect($entry['dispatches'])->toBe([]);
+    }
+});
+
+it('attributes registration correctly per closure listener source', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    $byRegistration = [];
+    foreach ($closures as $entry) {
+        $byRegistration[$entry['registration']] = ($byRegistration[$entry['registration']] ?? 0) + 1;
+    }
+
+    expect($byRegistration)->toBe([
+        'subscriber' => 1,
+        'listen_array' => 1,
+        'event_listen_call' => 2,
+    ]);
+});
+
+it('does not leak closure listeners into the regular listeners[] array', function () {
+    $result = (new ListenerScanner)->scan(listenerFixturePath());
+
+    // The fixture has been extended with closure registrations but the regular
+    // listeners[] count must stay at 9 (the existing class-based listeners).
+    expect($result['listeners'])->toHaveCount(9);
+
+    // OrderEventSubscriber's handles[] must not pick up InventoryDepleted —
+    // that mapping went to closure_listeners, not handles[].
+    $entry = listenerByFqcn($result['listeners'], 'App\\Listeners\\OrderEventSubscriber');
+    expect($entry)->not->toBeNull();
+
+    $handledEvents = array_column($entry['handles'], 'event');
+    expect($handledEvents)->not->toContain('App\\Events\\InventoryDepleted');
+});
+
+it('emits the schema-required keys on every closure listener', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    expect($closures)->not->toBe([]);
+
+    foreach ($closures as $entry) {
+        expect($entry)->toHaveKeys(['event', 'file', 'line', 'registration', 'queued', 'dispatches']);
+    }
+});
+
 it('emits the schema-required keys on every listener', function () {
     $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
 

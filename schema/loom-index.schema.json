@@ -13,7 +13,8 @@
         "model_events",
         "listeners",
         "observers",
-        "unresolved_dispatches"
+        "unresolved_dispatches",
+        "closure_listeners"
     ],
     "additionalProperties": false,
     "properties": {
@@ -22,13 +23,14 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "unresolved_dispatches"],
+            "required": ["events", "listeners", "observers", "unresolved_dispatches", "closure_listeners"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
                 "listeners": { "type": "integer", "minimum": 0 },
                 "observers": { "type": "integer", "minimum": 0 },
-                "unresolved_dispatches": { "type": "integer", "minimum": 0 }
+                "unresolved_dispatches": { "type": "integer", "minimum": 0 },
+                "closure_listeners": { "type": "integer", "minimum": 0 }
             }
         },
         "events": {
@@ -50,6 +52,10 @@
         "unresolved_dispatches": {
             "type": "array",
             "items": { "$ref": "#/$defs/unresolvedDispatch" }
+        },
+        "closure_listeners": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/closureListener" }
         }
     },
     "$defs": {
@@ -172,6 +178,24 @@
                 "confidence": { "enum": ["high", "medium", "low"] },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 }
+            }
+        },
+        "closureListener": {
+            "type": "object",
+            "required": ["event", "file", "line", "registration", "queued", "dispatches"],
+            "additionalProperties": false,
+            "properties": {
+                "event": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "registration": {
+                    "enum": ["listen_array", "event_listen_call", "subscriber"]
+                },
+                "queued": { "type": "boolean" },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
             }
         },
         "unresolvedDispatch": {

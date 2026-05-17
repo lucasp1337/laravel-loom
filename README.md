@@ -63,6 +63,7 @@ The output file lives at `storage/loom/index.json` and is gitignored by default 
 |---|---|
 | **Events** | `app/Events/**` filesystem walk, plus any class dispatched via `event()`, `Event::dispatch()`, or `X::dispatch()` |
 | **Listeners** | The `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` parameters, `Event::listen()` calls anywhere under `app/` (DDD-style providers in `app/Domain/.../Providers/` are supported), and subscribers registered via `$subscribe` or `Event::subscribe()` |
+| **Closure listeners** | Closure and arrow-function values inside `$listen` arrays, as the second argument to `Event::listen()`, and inside subscriber `subscribe()` return-arrays. Emitted as a separate `closure_listeners[]` section. |
 | **Observers** | `Model::observe()` calls (including `static::observe(...)` inside `booted()`), the `#[ObservedBy]` attribute, plus Eloquent model events synthesized from observer hooks and `Event::listen('eloquent.*', …)` |
 | **Dispatches** | One-level scan of every method body for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()` calls. Cross-links them to events, listeners, and observers. |
 

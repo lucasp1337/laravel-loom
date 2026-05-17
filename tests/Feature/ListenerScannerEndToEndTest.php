@@ -110,6 +110,40 @@ it('sorts events[*].handled_by by listener asc then method asc', function () {
     ]);
 });
 
+it('counts closure listeners in stats.closure_listeners', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    expect($payload['stats']['closure_listeners'])->toBe(4);
+    expect($payload['closure_listeners'])->toHaveCount(4);
+});
+
+it('produces a schema-valid index with closure listeners populated', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    expect($builder->validate($payload))->toBe([]);
+});
+
+it('passes through closure listener entries from the scanner into the index in sorted order', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    $events = array_column($payload['closure_listeners'], 'event');
+    expect($events)->toBe([
+        'App\\Events\\InventoryDepleted',
+        'App\\Events\\OrderPlaced',
+        'App\\Events\\OrderPlaced',
+        'App\\Events\\StockLow',
+    ]);
+});
+
 it('emits every listener with an empty dispatches array', function () {
     $builder = new IndexBuilder;
     $builder->register(new ListenerScanner);

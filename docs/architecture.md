@@ -31,6 +31,7 @@ A scanner takes a path to a Laravel app root and returns an array keyed by secti
 
 - `events`
 - `listeners`
+- `closure_listeners`
 - `observers`
 - `model_events`
 - `unresolved_dispatches`
@@ -102,6 +103,8 @@ Five phases, in order:
 4. **`observers[*].dispatches`** — same as #3 but matching observer FQCNs and methods drawn from the canonical Eloquent hook enum (`creating`, `created`, `updating`, …). Sites in non-hook methods on an observer (utility methods) don't appear here.
 
 5. **`events[*].dispatched_from`** — for each site with finalized `kind === 'event'` and `target` matching an event entry, append `{file, line, method: "Class::method"}` to that event's `dispatched_from` array.
+
+The cross-link pass deliberately does NOT join `closure_listeners[]` into `events[*].handled_by`. That field's entry shape is `{listener: string, method: string}`; closures have neither. Adding closures would require a schema change (a new entry variant) and is reserved for a future design pass — don't add it without going through `schema-guardian`. Similarly, `closure_listeners[*].dispatches` stays empty for now; populating it requires line-span attribution rather than the class+method join used for `listeners[*].dispatches`.
 
 After cross-link: arrays are sorted (by string content or by `(file, line)` as appropriate) for determinism, `_dispatch_sites` is removed from the section map, and validation runs.
 

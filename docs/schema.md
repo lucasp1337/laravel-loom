@@ -13,6 +13,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "events": array,                // discovered event classes
   "model_events": array,          // Eloquent model event entries
   "listeners": array,             // discovered listeners
+  "closure_listeners": array,     // discovered closure / arrow-function listener registrations
   "observers": array,             // discovered observers
   "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
 }
@@ -125,6 +126,33 @@ When the same listener is discovered through multiple paths, precedence is `subs
 
 `confidence` is currently always `"high"` for statically resolved targets. `"medium"` and `"low"` are reserved for future runtime overlay work.
 
+## `closure_listeners[]`
+
+Closure and arrow-function listener registrations. Distinct from `listeners[]` because they have no FQCN to key against — each entry represents a single registration site.
+
+```
+{
+  "event": string,                // FQCN for ::class registrations, raw string for string-keyed registrations
+  "file": string,                 // path to the closure node, not the registration call
+  "line": integer,                // 1-indexed line of the closure node
+  "registration": enum,           // see below
+  "queued": boolean,              // currently always false
+  "dispatches": array             // currently always empty; reserved
+}
+```
+
+`registration` enum:
+
+- `listen_array` — closure value inside the `$listen` array on an `EventServiceProvider`
+- `event_listen_call` — closure as the second argument to `Event::listen()`
+- `subscriber` — closure value inside a subscriber's `subscribe()` return-array
+
+`queued` is always `false` in the current release; closure-queue detection is out of scope. `dispatches` is always `[]` and is reserved for future line-span-based attribution of dispatch sites inside the closure body.
+
+Entries are sorted by `(event, file, line)` ascending. No dedupe — each registration site is its own entry.
+
+The cross-link pass intentionally does NOT add closure entries to `events[*].handled_by`, because that field's shape is `{listener, method}` and closures have neither. Consumers should filter `closure_listeners[]` by `event` themselves.
+
 ## `observers[]`
 
 ```
@@ -172,6 +200,7 @@ One observer registered against N models produces N entries.
 {
   "events": integer,
   "listeners": integer,
+  "closure_listeners": integer,
   "observers": integer,
   "unresolved_dispatches": integer
 }

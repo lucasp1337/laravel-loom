@@ -21,6 +21,7 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
             SendOrderConfirmation::class,
             [PsrOnly::class, 'someMethod'],
             [OrderEventsHandler::class, 'handlePlaced'],
+            fn ($e) => null,
         ],
         StockLow::class => [
             [OrderEventsHandler::class, 'handleStockLow'],
@@ -36,6 +37,9 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
         Event::listen(StockLow::class, NotifyAdmins::class);
         Event::listen($dynamicEvent, \App\Listeners\NeverSeen::class);
         Event::listen(OrderPlaced::class, fn ($e) => null);
+        Event::listen(StockLow::class, function ($e) {
+            return null;
+        });
         Event::subscribe(AuditSubscriber::class);
     }
 }
