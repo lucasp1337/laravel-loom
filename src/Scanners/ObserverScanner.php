@@ -20,7 +20,7 @@ use SplFileInfo;
  * (`#[ObservedBy]`, `Model::observe()`, `Event::listen('eloquent.*')`) and
  * emits both `observers[]` and `model_events[]` payloads.
  *
- * See docs/scanners/ObserverScanner.md for the full design.
+ * See docs/scanners/observers.md for the full design.
  */
 final class ObserverScanner implements Scanner
 {
@@ -120,7 +120,7 @@ final class ObserverScanner implements Scanner
     /**
      * Dedupe `(observer, model)` registration tuples and resolve observer file
      * locations. Precedence: `attribute > observe_call`. Observers whose file
-     * cannot be located on disk are silently dropped per design §6.
+     * cannot be located on disk are silently dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: string}>  $regs
      * @param  array<string, array{file: string, line: int, hooks: array<int, string>}>  $classMap

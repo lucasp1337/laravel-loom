@@ -20,7 +20,7 @@ use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
  * conforming to `$defs/unresolvedDispatch` (without the `file` field, which
  * the scanner fills in after traversal).
  *
- * See docs/scanners/DispatchScanner.md §3.
+ * See docs/scanners/dispatches.md for the full design.
  */
 final class DispatchSiteVisitor extends NodeVisitorAbstract
 {
@@ -72,7 +72,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     public function enterNode(Node $node): null
     {
-        // Treat Trait_ and Class_ identically per design §8 (trait gap).
+        // Treat Trait_ and Class_ identically (trait gap is documented).
         if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
             $fqcn = $node->namespacedName?->toString();
             $this->classStack[] = ['class' => $fqcn, 'method' => null];
@@ -146,7 +146,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $this->recordHelperOrFacade($node, $node->args, 'job_helper', 'job', 'dispatch');
         }
 
-        // dispatch_sync / dispatch_now intentionally skipped per design §8.
+        // dispatch_sync / dispatch_now intentionally skipped.
     }
 
     private function handleStaticCall(Node\Expr\StaticCall $node): void
@@ -160,7 +160,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         $methodName = $node->name->toString();
         if ($methodName !== 'dispatch') {
-            // dispatchSync / dispatchNow intentionally skipped per design §8.
+            // dispatchSync / dispatchNow intentionally skipped.
             return;
         }
 
@@ -207,7 +207,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     private function recordHelperOrFacade(Node\Expr $callNode, array $args, string $form, string $kind, string $callLabel): void
     {
         if ($args === []) {
-            // event() with zero args → silently skip (malformed per §3c).
+            // event() with zero args → silently skip (malformed).
             return;
         }
 
@@ -219,7 +219,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $resolved = $this->resolveStaticClass($first->value);
 
         // Special case: ternary whose branches both resolve statically →
-        // emit two sites instead of an unresolved (per §8).
+        // emit two sites instead of an unresolved.
         if ($resolved === null && $first->value instanceof Node\Expr\Ternary) {
             $ternary = $first->value;
             $ifBranch = $ternary->if;
@@ -247,7 +247,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         // Unresolved — classify reason.
         if ($this->shouldSkipEmission()) {
             // Even unresolved entries are skipped for closure-internal sites
-            // and top-level-script sites (design §8: skipped during emission).
+            // and top-level-script sites (skipped during emission).
             return;
         }
 

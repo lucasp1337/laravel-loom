@@ -17,7 +17,7 @@ use SplFileInfo;
 /**
  * Discovers event classes via a filesystem walk of app/Events/ seeded by
  * statically resolvable dispatch sites across app/. See
- * docs/scanners/EventScanner.md for the full design.
+ * docs/scanners/events.md for the full design.
  */
 final class EventScanner implements Scanner
 {
@@ -133,7 +133,7 @@ final class EventScanner implements Scanner
                 continue;
             }
 
-            // Per §3b/§7a: helper (event(...)) and facade (Event::dispatch(...))
+            // Helper (event(...)) and facade (Event::dispatch(...))
             // forms are unambiguous event dispatches and bring the target in
             // regardless of file location. The Dispatchable form
             // (X::dispatch(...)) is ambiguous (could be a job) so it is only
