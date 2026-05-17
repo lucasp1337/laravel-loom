@@ -17,8 +17,9 @@ use PhpParser\NodeVisitorAbstract;
  *  - Interfaces and traits (different node types — never match Stmt\Class_)
  *
  * `queued` is true iff `Illuminate\Contracts\Queue\ShouldQueue` appears in the
- * DIRECT `implements` list (post-NameResolver). Indirect (via parent class)
- * is a documented gap — see issue #14.
+ * DIRECT `implements` list (post-NameResolver). Indirect inheritance (via parent
+ * class or trait) needs the cross-file class hierarchy resolver tracked in
+ * issue #13 — documented gap for now.
  *
  * Reads on `leaveNode` so NameResolver has fully resolved every name inside
  * the class body before we inspect it.

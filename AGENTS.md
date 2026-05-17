@@ -43,7 +43,7 @@ src/
     EventScanner.php
     ListenerScanner.php
     ObserverScanner.php
-    JobScanner.php
+    JobsScanner.php
     DispatchScanner.php
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/

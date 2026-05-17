@@ -1,10 +1,10 @@
-# JobScanner
+# JobsScanner
 
 Discovers queueable and synchronous job classes and emits the `jobs[]` section of the index.
 
 ## What it detects
 
-JobScanner finds job classes via two discovery paths and merges them by FQCN:
+JobsScanner finds job classes via two discovery paths and merges them by FQCN:
 
 1. **Filesystem walk of `app/Jobs/`.** Every `*.php` file under `app/Jobs/` (recursively) is parsed and any concrete class found becomes a job candidate. Abstract classes, interfaces, traits, and anonymous classes are skipped.
 
@@ -51,7 +51,7 @@ Entries are sorted by `fqcn` ascending.
 
 ## Known limitations
 
-- **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the job inherits `ShouldQueue` from a parent rather than declaring it on its own `implements` clause. Gated on the cross-file class hierarchy resolver (issue #14).
+- **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the job inherits `ShouldQueue` from a parent rather than declaring it on its own `implements` clause. Gated on the cross-file class hierarchy resolver (issue #13).
 - **Helper methods called from `handle()`.** Dispatches inside a helper method (e.g. `processOrder()` called by `handle()`) are not attributed to the job's `dispatches[]`. Only sites whose enclosing method is literally `handle` are joined. Same constraint as listeners' non-`handle*` methods.
 - **`Bus::chain([new A, new B])` and `Bus::batch([...])`.** Neither captured by DispatchScanner today. Jobs registered via chain or batch will not surface in `jobs[*].dispatched_from`. A future change to `DispatchSiteVisitor` could recognise array-literal chain/batch contents.
 - **Method-form queue configs.** `backoff()` and `retryUntil()` methods are not parsed. Only class-level scalar property declarations (`public $backoff = 60;`) are extracted into `queue_config`.
