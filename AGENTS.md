@@ -48,6 +48,7 @@ src/
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
     AstWalker.php                   # parser + NameResolver wrapper
+    ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
 
 schema/
   loom-index.schema.json           # the contract for every index Loom emits
