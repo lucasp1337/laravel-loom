@@ -10,7 +10,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run ListenerClassVisitor (after NameResolver) over it.
  *
- * @return array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}>
+ * @return array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
  */
 function runListenerClassVisitor(string $source): array
 {
@@ -49,7 +49,9 @@ it('extracts a listener with a typed handle() parameter', function () {
     expect($classes)->toHaveCount(1);
     expect($classes[0]['fqcn'])->toBe('App\\Listeners\\SendOrderConfirmation');
     expect($classes[0]['line'])->toBe(7);
-    expect($classes[0]['handles'])->toBe(['App\\Events\\OrderPlaced']);
+    expect($classes[0]['handles'])->toBe([
+        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle'],
+    ]);
     expect($classes[0]['queued'])->toBeFalse();
     expect($classes[0]['has_handle'])->toBeTrue();
 });
@@ -75,7 +77,9 @@ it('marks the listener as queued when implementing ShouldQueue via a use import'
 
     expect($classes)->toHaveCount(1);
     expect($classes[0]['queued'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe(['App\\Events\\OrderPlaced']);
+    expect($classes[0]['handles'])->toBe([
+        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle'],
+    ]);
 });
 
 it('marks the listener as queued when implementing the ShouldQueue FQCN directly', function () {

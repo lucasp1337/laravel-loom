@@ -8,6 +8,7 @@ use App\Events\OrderPlaced;
 use App\Events\StockLow;
 use App\Listeners\AuditSubscriber;
 use App\Listeners\NotifyAdmins;
+use App\Listeners\OrderEventsHandler;
 use App\Listeners\OrderEventSubscriber;
 use App\Listeners\PsrOnly;
 use App\Listeners\SendOrderConfirmation;
@@ -19,6 +20,10 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
         OrderPlaced::class => [
             SendOrderConfirmation::class,
             [PsrOnly::class, 'someMethod'],
+            [OrderEventsHandler::class, 'handlePlaced'],
+        ],
+        StockLow::class => [
+            [OrderEventsHandler::class, 'handleStockLow'],
         ],
     ];
 

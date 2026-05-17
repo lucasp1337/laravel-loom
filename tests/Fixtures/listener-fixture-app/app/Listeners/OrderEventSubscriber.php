@@ -21,7 +21,10 @@ class OrderEventSubscriber implements ShouldQueue
         ];
     }
 
+    public function handle(OrderPlaced $event): void {}
+
     public function handleOrderPlaced(OrderPlaced $event): void {}
 
     public function handleStockLow(StockLow $event): void {}
 }
+

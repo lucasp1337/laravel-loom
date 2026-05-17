@@ -61,7 +61,10 @@ it('populates events[*].handled_by from listener handles inversion', function ()
 
     $orderPlaced = dispatchEntryByFqcn($payload['events'], 'App\\Events\\OrderPlaced');
     expect($orderPlaced)->not->toBeNull();
-    expect($orderPlaced['handled_by'])->toContain('App\\Listeners\\SendOrderConfirmation');
+    expect($orderPlaced['handled_by'])->toContain([
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
 });
 
 it('populates listeners[*].dispatches from the listener handle() body', function () {
@@ -161,11 +164,33 @@ it('records the unresolved_dispatches with file, line, expression, reason', func
     }
 });
 
+it('attributes dispatches in non-handle() methods listed in handles[*].method', function () {
+    // Regression guard for the v0.2 cross-link Phase 3 fix: under the old
+    // `method === 'handle'` join, dispatches inside MultiHandlerListener's
+    // handlePlaced() and handleAdjusted() bodies were dropped. The new join
+    // is `method ∈ listener.handles[*].method`.
+    $payload = buildDispatchEndToEndPayload();
+
+    $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\MultiHandlerListener');
+    expect($listener)->not->toBeNull();
+
+    $byTarget = [];
+    foreach ($listener['dispatches'] as $d) {
+        $byTarget[$d['target']] = $d;
+    }
+
+    expect($byTarget)->toHaveKey('App\\Jobs\\SendReceipt');
+    expect($byTarget['App\\Jobs\\SendReceipt']['kind'])->toBe('job');
+
+    expect($byTarget)->toHaveKey('App\\Events\\OrderConfirmationSent');
+    expect($byTarget['App\\Events\\OrderConfirmationSent']['kind'])->toBe('event');
+});
+
 it('matches the expected stats counts', function () {
     $payload = buildDispatchEndToEndPayload();
 
     expect($payload['stats']['events'])->toBe(3);
-    expect($payload['stats']['listeners'])->toBe(1);
+    expect($payload['stats']['listeners'])->toBe(2);
     expect($payload['stats']['observers'])->toBe(1);
     expect($payload['stats']['unresolved_dispatches'])->toBe(2);
 });

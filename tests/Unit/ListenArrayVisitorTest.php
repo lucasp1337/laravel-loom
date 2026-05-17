@@ -10,7 +10,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run ListenArrayVisitor (after NameResolver) over it.
  *
- * @return array<int, array{event: string, listener: string}>
+ * @return array<int, array{event: string, listener: string, method: string}>
  */
 function runListenArrayVisitor(string $source): array
 {
@@ -52,8 +52,16 @@ it('extracts pairs from a class literally named EventServiceProvider', function 
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(2);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\SendOrderConfirmation']);
-    expect($pairs[1])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\UpdateInventory']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
+    expect($pairs[1])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\UpdateInventory',
+        'method' => 'handle',
+    ]);
 });
 
 it('extracts pairs from a class extending the EventServiceProvider base FQCN under a different short name', function () {
@@ -78,7 +86,11 @@ it('extracts pairs from a class extending the EventServiceProvider base FQCN und
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\SendOrderConfirmation']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
 });
 
 it('ignores $listen on a class that is neither named nor extending EventServiceProvider', function () {
@@ -105,7 +117,7 @@ it('ignores $listen on a class that is neither named nor extending EventServiceP
     expect($pairs)->toBe([]);
 });
 
-it('extracts the listener FQCN from a tuple value and discards the method', function () {
+it('extracts the listener FQCN and method from a tuple value', function () {
     $source = <<<'PHP'
     <?php
 
@@ -127,7 +139,40 @@ it('extracts the listener FQCN from a tuple value and discards the method', func
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\PsrOnly']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\PsrOnly',
+        'method' => 'someMethod',
+    ]);
+});
+
+it('defaults the method to "handle" for a bare Listener::class value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                SendOrderConfirmation::class,
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
 });
 
 it('skips closure listener values', function () {

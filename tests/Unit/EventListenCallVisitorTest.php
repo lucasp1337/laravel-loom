@@ -10,7 +10,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run EventListenCallVisitor (after NameResolver) over it.
  *
- * @return array<int, array{event: string, listener: string}>
+ * @return array<int, array{event: string, listener: string, method: string}>
  */
 function runEventListenCallVisitor(string $source): array
 {
@@ -28,7 +28,7 @@ function runEventListenCallVisitor(string $source): array
     return $visitor->getPairs();
 }
 
-it('extracts a pair from Event::listen with the facade imported via use', function () {
+it('extracts a pair from Event::listen with the facade imported via use, defaulting method to handle', function () {
     $source = <<<'PHP'
     <?php
 
@@ -50,10 +50,14 @@ it('extracts a pair from Event::listen with the facade imported via use', functi
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\SendOrderConfirmation']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
 });
 
-it('extracts a pair from Event::listen with a [Listener::class, method] tuple, discarding the method', function () {
+it('extracts the explicit method from a [Listener::class, method] tuple', function () {
     $source = <<<'PHP'
     <?php
 
@@ -67,7 +71,7 @@ it('extracts a pair from Event::listen with a [Listener::class, method] tuple, d
     {
         public function boot(): void
         {
-            Event::listen(OrderPlaced::class, [SendOrderConfirmation::class, 'handle']);
+            Event::listen(OrderPlaced::class, [SendOrderConfirmation::class, 'onPlaced']);
         }
     }
     PHP;
@@ -75,7 +79,11 @@ it('extracts a pair from Event::listen with a [Listener::class, method] tuple, d
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\SendOrderConfirmation']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'onPlaced',
+    ]);
 });
 
 it('skips Event::listen calls whose event argument is a variable', function () {
@@ -145,7 +153,11 @@ it('extracts a pair when the Event facade is referenced via its FQCN with no use
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe(['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Listeners\\SendOrderConfirmation']);
+    expect($pairs[0])->toBe([
+        'event' => 'App\\Events\\OrderPlaced',
+        'listener' => 'App\\Listeners\\SendOrderConfirmation',
+        'method' => 'handle',
+    ]);
 });
 
 it('ignores static listen calls on classes other than the Event facade', function () {
