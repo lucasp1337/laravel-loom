@@ -140,3 +140,15 @@ it('reports file paths relative to the fixture root with forward slashes', funct
         expect($entry['file'])->toStartWith('app/');
     }
 });
+
+it('does not seed event classes dispatched via the Dispatchable form into jobs[]', function () {
+    $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
+
+    // App\Events\CartCleared uses the Dispatchable trait so
+    // `CartCleared::dispatch()` is syntactically valid. The DispatchSiteVisitor
+    // emits it with provisionalKind: ambiguous, which JobsScanner used to seed
+    // unconditionally — producing a spurious jobs[] entry for an event class.
+    // The guard requires either app/Jobs/ location or ShouldQueue implements
+    // for ambiguous-kind sites; CartCleared satisfies neither.
+    expect(jobByFqcn($entries, 'App\\Events\\CartCleared'))->toBeNull();
+});

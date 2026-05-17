@@ -43,7 +43,7 @@ final class JobsScanner implements Scanner
 
         $merged = $fsClasses;
 
-        foreach ($dispatchTargets as $fqcn => $_) {
+        foreach ($dispatchTargets as $fqcn => $kind) {
             if (isset($merged[$fqcn])) {
                 continue;
             }
@@ -53,10 +53,33 @@ final class JobsScanner implements Scanner
                 continue;
             }
 
+            // Ambiguous Dispatchable-form sites (`X::dispatch()`) don't prove
+            // X is a job — events use the same trait. EventScanner gates the
+            // symmetric case to classes under `app/Events/`; mirror that here:
+            // for ambiguous targets, only keep the entry if the file is under
+            // `app/Jobs/` or the class directly implements ShouldQueue. The
+            // helper form `dispatch(new X)` / `Bus::dispatch(new X)` is
+            // unambiguous and bypasses the guard.
+            if ($kind === 'ambiguous'
+                && ! $this->isUnderAppJobs($located['file'])
+                && ! $located['queued']
+            ) {
+                continue;
+            }
+
             $merged[$fqcn] = $located;
         }
 
         return ['jobs' => $this->emit($merged)];
+    }
+
+    /**
+     * The located file's relative path is forward-slashed by `relativePath()`,
+     * so a simple prefix check is portable.
+     */
+    private function isUnderAppJobs(string $relativeFile): bool
+    {
+        return str_starts_with($relativeFile, 'app/Jobs/');
     }
 
     /**
@@ -92,10 +115,11 @@ final class JobsScanner implements Scanner
     /**
      * Collect dispatch targets that look like job dispatches: helper form
      * `dispatch(new X)` / `Bus::dispatch(new X)` (provisionalKind=job) and
-     * ambiguous Dispatchable form (`X::dispatch()`). The cross-link pass
-     * confirms the final kind; this only seeds discovery.
+     * ambiguous Dispatchable form (`X::dispatch()`). The kind is preserved
+     * so the caller can apply a stricter guard for ambiguous targets — a
+     * Dispatchable static call alone doesn't prove the target is a job.
      *
-     * @return array<string, true>
+     * @return array<string, 'job'|'ambiguous'>
      */
     private function discoverFromDispatchSites(string $appRoot): array
     {
@@ -115,7 +139,14 @@ final class JobsScanner implements Scanner
                 if ($kind === 'event') {
                     continue;
                 }
-                $candidates[$site['target']] = true;
+
+                $target = $site['target'];
+                // Helper-form `dispatch(new X)` / `Bus::dispatch(new X)` wins
+                // over ambiguous `X::dispatch()` — once one site proves X is a
+                // job unambiguously, that's the final answer for X.
+                if ($kind === 'job' || ! isset($candidates[$target])) {
+                    $candidates[$target] = $kind;
+                }
             }
         }
 
