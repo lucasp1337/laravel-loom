@@ -48,9 +48,9 @@ final class ListenerScanner implements Scanner
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
-        [$subscribers, $subscriberClosures] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
+        [$subscribers, $subscriberClosures, $subscriberForeignPairs] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
 
-        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers);
+        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers, $subscriberForeignPairs);
 
         $closureListeners = $this->buildClosureListeners(
             $listenArrayClosures,
@@ -214,21 +214,31 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Resolve each subscriber FQCN to a file + parsed subscribe() return-array.
+     * Resolve each subscriber FQCN to a file plus everything parsed out of its
+     * subscribe() method. Both forms are supported: the return-array
+     * (`return [Event::class => 'method', …]`) and the imperative body
+     * (`$events->listen(Event::class, [self::class, 'method'])`).
      *
-     * A subscriber is dropped if its source file can't be located via the
-     * PSR-4 guess or if the class has no `subscribe()` method. If the method
-     * exists but its body has no parseable return-array (e.g. the imperative
-     * `$events->listen(...)` form), the subscriber is still emitted with an
-     * empty `handles[]` — see docs/scanners/listeners.md for the gap.
+     * Returns three slots: the subscriber's own (event, method) pairs that
+     * land on its `handles[]`, the closure registrations it makes (emitted
+     * to `closure_listeners[]` with `registration: subscriber`), and any
+     * foreign (event, listener, method) pairs — i.e. the subscriber wired
+     * up a listener that belongs to a different class. Foreign pairs flow
+     * through the regular `applyPair()` merge at REGISTRATION_SUBSCRIBER,
+     * which upgrades the foreign listener's `registration` accordingly.
      *
+     * A subscriber is dropped only if its source file can't be located via
+     * the PSR-4 guess or if the class has no `subscribe()` method at all.
+     *
+
      * @param  array<int, string>  $fqcns
-     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
+     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>, 2: array<int, array{event: string, listener: string, method: string}>}
      */
     private function resolveSubscribers(string $appRoot, array $fqcns): array
     {
         $result = [];
         $closures = [];
+        $foreignPairs = [];
 
         foreach ($fqcns as $fqcn) {
             $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
@@ -259,11 +269,14 @@ final class ListenerScanner implements Scanner
                         'registration' => 'subscriber',
                     ];
                 }
+                foreach ($class['foreignPairs'] as $pair) {
+                    $foreignPairs[] = $pair;
+                }
                 break;
             }
         }
 
-        return [$result, $closures];
+        return [$result, $closures, $foreignPairs];
     }
 
     /**
@@ -275,9 +288,10 @@ final class ListenerScanner implements Scanner
      * @param  array<int, array{event: string, listener: string, method: string}>  $listenArrayPairs
      * @param  array<int, array{event: string, listener: string, method: string}>  $eventListenPairs
      * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>  $subscribers
+     * @param  array<int, array{event: string, listener: string, method: string}>  $subscriberForeignPairs
      * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>
      */
-    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers): array
+    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers, array $subscriberForeignPairs = []): array
     {
         /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}> $acc */
         $acc = [];
@@ -329,6 +343,13 @@ final class ListenerScanner implements Scanner
                 $key = $pair['event'].'::'.$pair['method'];
                 $acc[$fqcn]['handles'][$key] = $pair;
             }
+        }
+
+        // Foreign listener pairs registered imperatively from inside subscribe()
+        // bodies. These flow through the same merge path as $listen / Event::listen()
+        // pairs but at `subscriber` precedence.
+        foreach ($subscriberForeignPairs as $pair) {
+            $this->applyPair($acc, $pair, self::REGISTRATION_SUBSCRIBER);
         }
 
         $result = [];

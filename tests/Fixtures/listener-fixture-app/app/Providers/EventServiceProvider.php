@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Events\OrderPlaced;
 use App\Events\StockLow;
 use App\Listeners\AuditSubscriber;
+use App\Listeners\ImperativeSubscriber;
 use App\Listeners\NotifyAdmins;
 use App\Listeners\OrderEventsHandler;
 use App\Listeners\OrderEventSubscriber;
@@ -41,5 +42,6 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
             return null;
         });
         Event::subscribe(AuditSubscriber::class);
+        Event::subscribe(ImperativeSubscriber::class);
     }
 }
