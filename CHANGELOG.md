@@ -2,11 +2,35 @@
 
 All notable changes to `laravel-loom` will be documented in this file. This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased](https://github.com/lucasp1337/laravel-loom/compare/v0.1.0...HEAD)
+## [0.2.0](https://github.com/lucasp1337/laravel-loom/compare/v0.1.0...v0.2.0) - 2026-05-17
+
+### Changed
+
+- **BREAKING — `listeners[*].handles` shape.** The array now holds `{event, method}` objects instead of bare event-FQCN strings. Both fields are always present; `method` defaults to `"handle"` for registrations that didn't name one (auto-discovery, bare `Listener::class` in `$listen`, bare `Listener::class` in `Event::listen()`). Entries are deduped by the `(event, method)` tuple and sorted by `event` then `method`.
+
+  Migration: consumers reading `listener['handles']` previously got `["App\\Events\\OrderPlaced"]`; they now get `[{"event": "App\\Events\\OrderPlaced", "method": "handle"}]`. Extract the legacy shape with `array_map(fn ($h) => $h['event'], $listener['handles'])`.
+
+- **BREAKING — `events[*].handled_by` shape.** The array now holds `{listener, method}` objects instead of bare listener-FQCN strings. Sorted by `listener` ascending then `method` ascending.
+
+  Migration: consumers reading `event['handled_by']` previously got `["App\\Listeners\\SendOrderConfirmation"]`; they now get `[{"listener": "App\\Listeners\\SendOrderConfirmation", "method": "handle"}]`. Extract the legacy shape with `array_map(fn ($h) => $h['listener'], $event['handled_by'])`.
+
+- `LOOM_VERSION` bumped to `0.2.0` to reflect the breaking schema changes.
 
 ### Added
 
+- **Multi-handler listener support.** A single listener class registered against different events under different methods is now represented faithfully. Tuple-form registrations preserved across all four discovery paths:
+  - `$listen` array: `EventClass::class => [[Listener::class, 'handleFoo']]` records `method: "handleFoo"`.
+  - `Event::listen(EventClass::class, [Listener::class, 'handleFoo'])` records `method: "handleFoo"`.
+  - Subscriber return-array tuple values `[Event::class => [self::class, 'handleFoo']]` and `[Event::class => [Subscriber::class, 'handleFoo']]` record `method: "handleFoo"`.
+  - Bare `Listener::class` forms (in `$listen`, in `Event::listen()`) and auto-discovery default to `method: "handle"`.
+
+  A listener can carry multiple `handles[]` entries for the same event under different methods; the dedupe key is the full `(event, method)` tuple.
+
 - **ListenerScanner — subscriber discovery.** Detects subscriber classes registered via `$subscribe = [Subscriber::class, …]` on `EventServiceProvider` (or any class extending it) and via `Event::subscribe(Subscriber::class)` calls. The subscriber's own `subscribe()` method is parsed for return-array form (`return [Event::class => 'method', …]`), and the resulting events populate `handles[]`. Subscribers are emitted with `registration: "subscriber"` — a new highest-precedence source above `listen_array`. Imperative `$events->listen(...)` inside `subscribe()` remains a documented gap.
+
+### Fixed
+
+- **Cross-link Phase 3 dispatch attribution for non-`handle` listener methods.** Previously, the listener-dispatch join keyed on the literal method name `handle`, so dispatches emitted from `handleOrderPlaced()` / `handleRefund()` / any custom handler method were silently dropped from `listeners[*].dispatches`. The join now matches when the dispatch's enclosing method is in the listener's `handles[*].method` set, so dispatches from custom handler methods are attributed to the listener.
 
 ## [0.1.0](https://github.com/lucasp1337/laravel-loom/releases/tag/v0.1.0) - 2026-05-16
 

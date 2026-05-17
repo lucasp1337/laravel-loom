@@ -30,7 +30,7 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
   "file": string,                 // path relative to app root, forward slashes
   "line": integer,                // 1-indexed declaration line
   "dispatched_from": array,       // populated by cross-link from DispatchScanner
-  "handled_by": array<string>     // populated by cross-link from listeners
+  "handled_by": array             // populated by cross-link from listeners
 }
 ```
 
@@ -44,7 +44,16 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
 }
 ```
 
-`handled_by[]` is a list of listener FQCNs.
+`handled_by[]` entry:
+
+```
+{
+  "listener": string,             // FQCN of the listener class
+  "method": string                // handler method on the listener
+}
+```
+
+Sorted by `listener` ascending, then `method` ascending. A listener with multiple handler methods for the same event contributes one entry per `(listener, method)` pair.
 
 ## `model_events[]`
 
@@ -75,21 +84,32 @@ forceDeleting, forceDeleted, booting, booted
   "fqcn": string,
   "file": string,
   "line": integer,
-  "handles": array<string>,       // FQCNs of events this listener handles
+  "handles": array,               // {event, method} pairs this listener handles
   "registration": enum,           // see below
   "queued": boolean,              // true iff class directly implements ShouldQueue
   "dispatches": array             // populated by cross-link from DispatchScanner
 }
 ```
 
+`handles[]` entry:
+
+```
+{
+  "event": string,                // FQCN of the event class
+  "method": string                // handler method on the listener
+}
+```
+
+`method` is always present. It defaults to `"handle"` when the registration didn't name a method (auto-discovery, bare `Listener::class` in a `$listen` array, bare `Listener::class` as the second argument to `Event::listen()`). Tuple forms `[Listener::class, 'foo']` preserve the method name. Entries are deduped by `(event, method)` and sorted by `event` then `method`.
+
 `registration` enum:
 
+- `subscriber` — discovered via `$subscribe` array or `Event::subscribe(...)`
 - `listen_array` — found in the `$listen` array of an `EventServiceProvider`
-- `auto_discovered` — Laravel 11+ auto-discovery via typed `handle()` parameter
 - `event_listen_call` — registered via `Event::listen()` in a provider's `boot()`
-- `subscriber` — reserved for v0.2 subscriber support; not currently emitted
+- `auto_discovered` — Laravel 11+ auto-discovery via typed `handle()` parameter
 
-When the same listener is discovered through multiple paths, precedence is `listen_array > event_listen_call > auto_discovered`.
+When the same listener is discovered through multiple paths, precedence is `subscriber > listen_array > event_listen_call > auto_discovered`.
 
 `dispatches[]` entry (`$defs/dispatch`):
 
