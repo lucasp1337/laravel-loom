@@ -68,7 +68,7 @@ The cross-link pass consumes this to populate the three cross-linked fields belo
 
 ### Cross-link populates these from `_dispatch_sites`
 
-**`listeners[*].dispatches`** — entries whose `classFqcn` matches a listener AND `method === 'handle'`. Built as `$defs/dispatch`:
+**`listeners[*].dispatches`** — entries whose `classFqcn` matches a listener AND whose enclosing method is in that listener's `handles[*].method` set. Built as `$defs/dispatch`:
 
 ```json
 {
@@ -107,10 +107,9 @@ EventScanner's dispatch-site seeding ensures most Dispatchable-form events are a
 
 ## Expected behavior
 
-- **Dispatch inside `handle()` on a listener.** Contributes to that listener's `dispatches[]`.
+- **Dispatch inside any method on a listener that handles an event via that method.** Contributes to that listener's `dispatches[]`. For example, a listener with `handles: [{event: OrderPlaced, method: handlePlaced}]` has the dispatches inside `handlePlaced()` attributed to it.
 - **Dispatch inside an Eloquent hook method on an observer.** Contributes to that observer's `dispatches[]`.
-- **Dispatch in any other method.** Doesn't appear in `listeners[*].dispatches` or `observers[*].dispatches`. May still contribute to `events[*].dispatched_from` if it dispatches an event.
-- **Dispatch inside a non-handler method on a listener** (e.g. `SendOrderConfirmation::otherMethod()`). The site is recorded in `_dispatch_sites` but doesn't appear in `listeners[*].dispatches` (because `method !== 'handle'`). If it dispatches an event, it does contribute to `events[*].dispatched_from`.
+- **Dispatch in a helper method NOT registered as a handler.** Doesn't appear in `listeners[*].dispatches` or `observers[*].dispatches` (because the method isn't in the handler set). May still contribute to `events[*].dispatched_from` if it dispatches an event.
 - **Multiple dispatches in one method.** Each recorded separately.
 - **Two ternary branches both resolving to concrete classes.** Two resolved sites emitted, one per branch. Not `conditional_dispatch`.
 - **Dispatchable form `X::dispatch(...)` where `X` is in `events[]`.** Finalized as `kind: event`.
@@ -126,7 +125,7 @@ EventScanner's dispatch-site seeding ensures most Dispatchable-form events are a
 - **Trait-method dispatches.** Sites in trait methods record the trait's FQCN as `classFqcn`. The trait FQCN won't match any listener or observer entry, so the dispatch won't light up `dispatches[]` — but it can still populate `events[*].dispatched_from` if its target is a known event.
 - **Top-level dispatches (script-level code).** Skipped entirely.
 - **Closures of any kind.** Skipped. This is by design but means dispatches inside collection callbacks (`->each(fn () => event(...))`) are invisible to Loom.
-- **Multi-handler listeners.** Only literal `method === 'handle'` matches for listener `dispatches[]`. A listener with `handleFoo()` and `handleBar()` doesn't have those methods' dispatches recorded under it.
+- **Dispatches inside helper methods called from a handler.** A listener whose `handle()` calls `$this->doWork()`, where `doWork()` is the one that dispatches — the dispatch site is recorded in `_dispatch_sites` but isn't attributed to the listener (because `doWork` isn't in `handles[*].method`). It still contributes to `events[*].dispatched_from` if its target is an event.
 - **Dispatch sites inside abstract methods.** Won't happen (abstract methods have no body), but worth noting that interface-declared dispatch contracts aren't introspected.
 - **Cross-link orphans.** A dispatch site whose `target` doesn't match any event in `events[]` doesn't contribute to `dispatched_from`. This usually means EventScanner didn't discover the target (event class outside `app/Events/` and not dispatched via the helper/facade forms). Not a DispatchScanner bug — fix by ensuring the target is discoverable.
 - **Confidence is uniformly `"high"`.** No medium/low classification yet.
@@ -137,7 +136,7 @@ Triage checklist for a missing dispatch entry:
 
 1. Is the dispatch inside a closure? That's the documented skip.
 2. Is the dispatch in a top-level script (not inside a class)? Skipped.
-3. Is the enclosing method literally named `handle` (for listeners) or a canonical Eloquent hook (for observers)? If not, the site won't appear in `dispatches[]`. Check `_dispatch_sites` (visible only inside cross-link, but observable indirectly via `events[*].dispatched_from`).
+3. For a listener: is the enclosing method registered as a handler — i.e. does it appear in that listener's `handles[*].method` set? Auto-discovered listeners only have `handle`; multi-handler listeners may have `handleFoo`, `handleBar`, etc. Helper methods called from a registered handler don't count. For an observer: is the enclosing method a canonical Eloquent hook name? If neither matches, the site won't appear in `dispatches[]`, though it may still contribute to `events[*].dispatched_from`.
 4. Is the dispatched target resolvable? `event($variable)` should appear in `unresolved_dispatches[]` instead.
 5. For Dispatchable-form `X::dispatch(...)`: did EventScanner find `X`? If not, it's classified as a job. Check `events[]`.
 
