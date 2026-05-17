@@ -26,7 +26,8 @@ use SplFileInfo;
  * External / vendor classes are opaque leaves: when traversal encounters an
  * FQCN not in the index, the resolver records it in the return list and
  * stops traversing further up that branch. See
- * `docs/design/class-hierarchy-resolver.md`.
+ * `docs/support/class-hierarchy.md` for the public contract and
+ * `docs/adr/0001-class-hierarchy-resolver.md` for the rationale.
  *
  * All FQCNs are returned without a leading backslash.
  */

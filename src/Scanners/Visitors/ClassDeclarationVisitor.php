@@ -22,7 +22,7 @@ use PhpParser\NodeVisitorAbstract;
  * enclosing file path is **not** known to the visitor; callers attach it
  * after traversal (mirrors `JobClassVisitor`).
  *
- * See `docs/design/class-hierarchy-resolver.md` for the design.
+ * See `docs/support/class-hierarchy.md` for the resolver contract.
  */
 final class ClassDeclarationVisitor extends NodeVisitorAbstract
 {

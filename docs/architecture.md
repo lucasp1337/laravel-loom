@@ -63,7 +63,7 @@ Hybrid strategies are common (events come from both `app/Events/` and dispatch-s
 
 Pure AST work via `nikic/php-parser`. Use `Lucasp\Loom\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.
 
-When a scanner needs transitive `extends` / `implements` / `use Trait` information (e.g. recognising a job as queued via `ShouldQueue` declared on an abstract parent), use `Lucasp\Loom\Support\ClassHierarchyResolver`. It lives at `src/Support/ClassHierarchyResolver.php` and is constructed once per `IndexBuilder::build()` call against the scanned `$appRoot`. It performs a single lazy walk of `app/` on first use, parses each file via the shared `AstWalker` + `ClassDeclarationVisitor`, and memoises queries. External / vendor classes are opaque leaves: traversal records them and stops. See [docs/design/class-hierarchy-resolver.md](design/class-hierarchy-resolver.md) for the full contract.
+When a scanner needs transitive `extends` / `implements` / `use Trait` information (e.g. recognising a job as queued via `ShouldQueue` declared on an abstract parent), use `Lucasp\Loom\Support\ClassHierarchyResolver`. It lives at `src/Support/ClassHierarchyResolver.php` and is constructed once per `IndexBuilder::build()` call against the scanned `$appRoot`. It performs a single lazy walk of `app/` on first use, parses each file via the shared `AstWalker` + `ClassDeclarationVisitor`, and memoises queries. External / vendor classes are opaque leaves: traversal records them and stops. See [docs/support/class-hierarchy.md](support/class-hierarchy.md) for the contract and [ADR 0001](adr/0001-class-hierarchy-resolver.md) for the rationale.
 
 Visitor conventions:
 
