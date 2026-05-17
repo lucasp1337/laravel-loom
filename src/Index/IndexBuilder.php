@@ -46,6 +46,7 @@ class IndexBuilder
             'observers' => [],
             'model_events' => [],
             'unresolved_dispatches' => [],
+            'closure_listeners' => [],
         ];
 
         foreach ($this->scanners as $scanner) {
@@ -85,6 +86,7 @@ class IndexBuilder
             listeners: $sections['listeners'],
             observers: $sections['observers'],
             unresolvedDispatches: $sections['unresolved_dispatches'],
+            closureListeners: $sections['closure_listeners'],
         );
     }
 

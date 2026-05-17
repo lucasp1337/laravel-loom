@@ -20,12 +20,16 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
 
+    /** @var array<int, array{event: string, line: int, registration: string}> */
+    private array $closurePairs = [];
+
     /**
      * @param  array<int, Node>  $nodes
      */
     public function beforeTraverse(array $nodes): ?array
     {
         $this->pairs = [];
+        $this->closurePairs = [];
 
         return null;
     }
@@ -61,8 +65,27 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $event = $this->classConstFqcn($first->value);
+        $event = $this->eventFromValue($first->value);
         if ($event === null) {
+            return null;
+        }
+
+        if ($second->value instanceof Node\Expr\Closure
+            || $second->value instanceof Node\Expr\ArrowFunction
+        ) {
+            $this->closurePairs[] = [
+                'event' => $event,
+                'line' => $second->value->getStartLine(),
+                'registration' => 'event_listen_call',
+            ];
+
+            return null;
+        }
+
+        // Class-only listeners under string events (e.g. 'eloquent.*') belong
+        // to ObserverScanner territory; only class-keyed events emit into
+        // listeners[].
+        if (! $first->value instanceof Node\Expr\ClassConstFetch) {
             return null;
         }
 
@@ -76,6 +99,20 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             'listener' => $resolved['listener'],
             'method' => $resolved['method'],
         ];
+
+        return null;
+    }
+
+    private function eventFromValue(Node\Expr $expr): ?string
+    {
+        $direct = $this->classConstFqcn($expr);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        if ($expr instanceof Node\Scalar\String_) {
+            return $expr->value;
+        }
 
         return null;
     }
@@ -137,5 +174,13 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     public function getPairs(): array
     {
         return $this->pairs;
+    }
+
+    /**
+     * @return array<int, array{event: string, line: int, registration: string}>
+     */
+    public function getClosurePairs(): array
+    {
+        return $this->closurePairs;
     }
 }

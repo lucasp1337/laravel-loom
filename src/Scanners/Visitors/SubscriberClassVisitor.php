@@ -27,7 +27,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 {
     private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
-    /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}> */
+    /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>}> */
     private array $classes = [];
 
     private ?string $currentClassFqcn = null;
@@ -73,7 +73,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         }
 
         $this->currentClassFqcn = $node->namespacedName->toString();
-        $handles = $this->extractHandles($subscribeMethod);
+        [$handles, $closureHandles] = $this->extractHandles($subscribeMethod);
         $this->currentClassFqcn = null;
 
         $this->classes[] = [
@@ -81,21 +81,23 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             'line' => $node->getStartLine(),
             'queued' => $queued,
             'handles' => $handles,
+            'closureHandles' => $closureHandles,
         ];
 
         return null;
     }
 
     /**
-     * @return array<int, array{event: string, method: string}>
+     * @return array{0: array<int, array{event: string, method: string}>, 1: array<int, array{event: string, line: int}>}
      */
     private function extractHandles(Node\Stmt\ClassMethod $method): array
     {
         if ($method->stmts === null) {
-            return [];
+            return [[], []];
         }
 
         $handles = [];
+        $closureHandles = [];
 
         foreach ($method->stmts as $stmt) {
             if (! $stmt instanceof Node\Stmt\Return_) {
@@ -109,8 +111,25 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 if ($item->key === null) {
                     continue;
                 }
-                $event = $this->classConstFqcn($item->key);
+                $event = $this->eventFromKey($item->key);
                 if ($event === null) {
+                    continue;
+                }
+
+                if ($item->value instanceof Node\Expr\Closure
+                    || $item->value instanceof Node\Expr\ArrowFunction
+                ) {
+                    $closureHandles[] = [
+                        'event' => $event,
+                        'line' => $item->value->getStartLine(),
+                    ];
+
+                    continue;
+                }
+
+                // Non-closure handlers under a string event key belong to
+                // ObserverScanner territory and must not flow into handles[].
+                if (! $item->key instanceof Node\Expr\ClassConstFetch) {
                     continue;
                 }
 
@@ -125,7 +144,21 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             break;
         }
 
-        return $handles;
+        return [$handles, $closureHandles];
+    }
+
+    private function eventFromKey(Node\Expr $expr): ?string
+    {
+        $direct = $this->classConstFqcn($expr);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        if ($expr instanceof Node\Scalar\String_) {
+            return $expr->value;
+        }
+
+        return null;
     }
 
     private function extractMethodName(Node\Expr $value): ?string
@@ -178,7 +211,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>
+     * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>}>
      */
     public function getClasses(): array
     {

@@ -21,6 +21,9 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
 
+    /** @var array<int, array{event: string, line: int, registration: string}> */
+    private array $closurePairs = [];
+
     /**
      * Depth-1 enclosing-class stack. PHP allows nested class declarations in
      * conditional blocks; we only treat the outermost qualifying class as a
@@ -36,6 +39,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     public function beforeTraverse(array $nodes): ?array
     {
         $this->pairs = [];
+        $this->closurePairs = [];
         $this->classStack = [];
 
         return null;
@@ -107,16 +111,39 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
                 continue;
             }
 
-            $eventFqcn = $this->classConstFqcn($item->key);
+            $eventFqcn = $this->eventFromKey($item->key);
             if ($eventFqcn === null) {
                 continue;
             }
+
+            // Class-keyed entries flow into both the regular pair slot AND the
+            // closure-pair slot. String-keyed entries (e.g. 'eloquent.*' =>
+            // [Listener::class]) belong to ObserverScanner and must NOT leak
+            // into listeners[]; only their closure values are captured.
+            $keyIsClass = $item->key instanceof Node\Expr\ClassConstFetch;
 
             $value = $item->value;
 
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $listenerItem) {
-                    $resolved = $this->listenerFromValue($listenerItem->value);
+                    $listenerValue = $listenerItem->value;
+                    if ($listenerValue instanceof Node\Expr\Closure
+                        || $listenerValue instanceof Node\Expr\ArrowFunction
+                    ) {
+                        $this->closurePairs[] = [
+                            'event' => $eventFqcn,
+                            'line' => $listenerValue->getStartLine(),
+                            'registration' => 'listen_array',
+                        ];
+
+                        continue;
+                    }
+
+                    if (! $keyIsClass) {
+                        continue;
+                    }
+
+                    $resolved = $this->listenerFromValue($listenerValue);
                     if ($resolved !== null) {
                         $this->pairs[] = [
                             'event' => $eventFqcn,
@@ -126,6 +153,20 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
                     }
                 }
 
+                continue;
+            }
+
+            if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
+                $this->closurePairs[] = [
+                    'event' => $eventFqcn,
+                    'line' => $value->getStartLine(),
+                    'registration' => 'listen_array',
+                ];
+
+                continue;
+            }
+
+            if (! $keyIsClass) {
                 continue;
             }
 
@@ -139,6 +180,20 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
                 ];
             }
         }
+    }
+
+    private function eventFromKey(Node\Expr $expr): ?string
+    {
+        $direct = $this->classConstFqcn($expr);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        if ($expr instanceof Node\Scalar\String_) {
+            return $expr->value;
+        }
+
+        return null;
     }
 
     /**
@@ -200,5 +255,13 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     public function getPairs(): array
     {
         return $this->pairs;
+    }
+
+    /**
+     * @return array<int, array{event: string, line: int, registration: string}>
+     */
+    public function getClosurePairs(): array
+    {
+        return $this->closurePairs;
     }
 }
