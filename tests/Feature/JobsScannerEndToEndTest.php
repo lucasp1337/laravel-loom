@@ -1,0 +1,133 @@
+<?php
+
+declare(strict_types=1);
+
+use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Scanners\DispatchScanner;
+use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\JobsScanner;
+use Lucasp\Loom\Scanners\ListenerScanner;
+
+function jobsEndToEndFixturePath(): string
+{
+    return dirname(__DIR__).'/Fixtures/jobs-fixture-app';
+}
+
+function buildJobsEndToEndPayload(): array
+{
+    $builder = new IndexBuilder;
+    $builder->register(new EventScanner);
+    $builder->register(new ListenerScanner);
+    $builder->register(new JobsScanner);
+    $builder->register(new DispatchScanner);
+
+    return $builder->build(jobsEndToEndFixturePath(), '12.x')->toArray();
+}
+
+/**
+ * @param  array<int, array<string, mixed>>  $entries
+ */
+function jobEntryByFqcn(array $entries, string $fqcn): ?array
+{
+    foreach ($entries as $entry) {
+        if (($entry['fqcn'] ?? null) === $fqcn) {
+            return $entry;
+        }
+    }
+
+    return null;
+}
+
+it('produces a schema-valid index with EventScanner, JobsScanner, and DispatchScanner registered', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new EventScanner);
+    $builder->register(new ListenerScanner);
+    $builder->register(new JobsScanner);
+    $builder->register(new DispatchScanner);
+
+    $payload = $builder->build(jobsEndToEndFixturePath(), '12.x')->toArray();
+
+    expect($builder->validate($payload))->toBe([]);
+});
+
+it('counts discovered jobs in stats.jobs', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    expect($payload['stats']['jobs'])->toBe(4);
+    expect($payload['jobs'])->toHaveCount(4);
+});
+
+it('includes the known job FQCNs', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    $fqcns = array_column($payload['jobs'], 'fqcn');
+
+    expect($fqcns)->toContain('App\\Jobs\\ProcessOrder');
+    expect($fqcns)->toContain('App\\Jobs\\SendInvoice');
+    expect($fqcns)->toContain('App\\Jobs\\RunReport');
+    expect($fqcns)->toContain('App\\Domain\\Billing\\Jobs\\ChargeCustomer');
+});
+
+it('populates jobs[ProcessOrder].dispatched_from via the Phase 5 job branch', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+
+    $methods = array_column($entry['dispatched_from'], 'method');
+    expect($methods)->toContain('App\\Services\\Checkout::finalize');
+});
+
+it('populates jobs[ChargeCustomer].dispatched_from for jobs discovered via PSR-4 seeding', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Domain\\Billing\\Jobs\\ChargeCustomer');
+    expect($entry)->not->toBeNull();
+    expect($entry['dispatched_from'])->not->toBe([]);
+
+    $methods = array_column($entry['dispatched_from'], 'method');
+    expect($methods)->toContain('App\\Services\\Billing::charge');
+});
+
+it('populates jobs[ProcessOrder].dispatches from the job handle() body (Phase 4 branch)', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+    expect($entry['dispatches'])->not->toBe([]);
+
+    $byTarget = [];
+    foreach ($entry['dispatches'] as $d) {
+        $byTarget[$d['target']] = $d;
+    }
+
+    expect($byTarget)->toHaveKey('App\\Events\\OrderProcessed');
+    expect($byTarget['App\\Events\\OrderProcessed']['kind'])->toBe('event');
+});
+
+it('leaves non-job sections sensibly populated and non-null', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    expect($payload['observers'])->toBe([]);
+    expect($payload['model_events'])->toBe([]);
+    expect($payload['stats']['observers'])->toBe(0);
+});
+
+// gap: Bus::chain([new ProcessOrder, new SendInvoice]) does not currently
+// surface either job in dispatched_from. The DispatchSiteVisitor only
+// recognises direct dispatch forms (helper, facade, Dispatchable static).
+// Asserting the no-op behaviour so a future fix is detectable.
+it('does NOT surface Bus::chain([...]) targets in dispatched_from (documented silent gap)', function () {
+    $payload = buildJobsEndToEndPayload();
+
+    // ProcessOrder IS dispatched from Checkout::finalize, but NOT from
+    // Billing::charge via the Bus::chain expression — guard only on Billing.
+    $processOrder = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($processOrder)->not->toBeNull();
+    $methods = array_column($processOrder['dispatched_from'], 'method');
+    expect($methods)->not->toContain('App\\Services\\Billing::charge');
+
+    $sendInvoice = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\SendInvoice');
+    expect($sendInvoice)->not->toBeNull();
+    expect($sendInvoice['dispatched_from'])->toBe([]);
+});

@@ -45,6 +45,7 @@ class IndexBuilder
             'listeners' => [],
             'observers' => [],
             'model_events' => [],
+            'jobs' => [],
             'unresolved_dispatches' => [],
             'closure_listeners' => [],
         ];
@@ -85,6 +86,7 @@ class IndexBuilder
             modelEvents: $sections['model_events'],
             listeners: $sections['listeners'],
             observers: $sections['observers'],
+            jobs: $sections['jobs'],
             unresolvedDispatches: $sections['unresolved_dispatches'],
             closureListeners: $sections['closure_listeners'],
         );
@@ -128,9 +130,11 @@ class IndexBuilder
      * Phase 3: listeners[*].dispatches from sites whose (class, method=handle)
      *          matches a listener.
      * Phase 4: observers[*].dispatches from sites whose (class, method∈hook
-     *          enum) matches an observer.
-     * Phase 5: events[*].dispatched_from from sites whose target is an
-     *          event FQCN (kind=event after disambiguation).
+     *          enum) matches an observer. Also populates jobs[*].dispatches
+     *          from sites whose (class, method=handle) matches a job.
+     * Phase 5: events[*].dispatched_from and jobs[*].dispatched_from from
+     *          sites whose target matches a known event/job FQCN (kind
+     *          after disambiguation).
      *
      * Disambiguation runs before phases 3/4/5 so every consumer reads the
      * final kind.
@@ -154,6 +158,13 @@ class IndexBuilder
         foreach ($sections['listeners'] as $idx => $listener) {
             if (isset($listener['fqcn']) && is_string($listener['fqcn'])) {
                 $listenerIndex[$listener['fqcn']] = $idx;
+            }
+        }
+
+        $jobIndex = [];
+        foreach ($sections['jobs'] as $idx => $job) {
+            if (isset($job['fqcn']) && is_string($job['fqcn'])) {
+                $jobIndex[$job['fqcn']] = $idx;
             }
         }
 
@@ -265,6 +276,17 @@ class IndexBuilder
                 $sections['listeners'][$lIdx]['dispatches'] = $existing;
             }
 
+            // Job dispatch attribution: enclosing class must be a known job,
+            // enclosing method must be exactly `handle` (v1 strict gate —
+            // utility-method dispatches are a documented gap).
+            if (is_string($method) && $method === 'handle' && isset($jobIndex[$classFqcn])) {
+                $jIdx = $jobIndex[$classFqcn];
+                /** @var array<int, array<string, mixed>> $existing */
+                $existing = $sections['jobs'][$jIdx]['dispatches'] ?? [];
+                $existing[] = $entry;
+                $sections['jobs'][$jIdx]['dispatches'] = $existing;
+            }
+
             // Observer dispatch attribution: method must be a canonical hook.
             if (is_string($method) && isset($observerHooks[$method]) && isset($observerIndex[$classFqcn])) {
                 foreach ($observerIndex[$classFqcn] as $oIdx) {
@@ -276,11 +298,12 @@ class IndexBuilder
             }
         }
 
-        // Phase 5: events[*].dispatched_from. Sites with classFqcn=null or
-        // method=null are skipped because the schema requires a method string.
+        // Phase 5: events[*].dispatched_from and jobs[*].dispatched_from.
+        // Sites with classFqcn=null or method=null are skipped because the
+        // shared dispatchSite shape requires a method string.
         foreach ($dispatchSites as $site) {
             $kind = $site['provisionalKind'] ?? null;
-            if ($kind !== 'event') {
+            if ($kind !== 'event' && $kind !== 'job') {
                 continue;
             }
 
@@ -290,7 +313,7 @@ class IndexBuilder
             $file = $site['file'] ?? null;
             $line = $site['line'] ?? null;
 
-            if (! is_string($target) || ! isset($eventIndex[$target])) {
+            if (! is_string($target)) {
                 continue;
             }
             if (! is_string($classFqcn) || ! is_string($method)) {
@@ -300,15 +323,27 @@ class IndexBuilder
                 continue;
             }
 
-            $eIdx = $eventIndex[$target];
-            /** @var array<int, array<string, mixed>> $existing */
-            $existing = $sections['events'][$eIdx]['dispatched_from'] ?? [];
-            $existing[] = [
+            $entry = [
                 'file' => $file,
                 'line' => $line,
                 'method' => $classFqcn.'::'.$method,
             ];
-            $sections['events'][$eIdx]['dispatched_from'] = $existing;
+
+            if ($kind === 'event' && isset($eventIndex[$target])) {
+                $eIdx = $eventIndex[$target];
+                /** @var array<int, array<string, mixed>> $existing */
+                $existing = $sections['events'][$eIdx]['dispatched_from'] ?? [];
+                $existing[] = $entry;
+                $sections['events'][$eIdx]['dispatched_from'] = $existing;
+            }
+
+            if ($kind === 'job' && isset($jobIndex[$target])) {
+                $jIdx = $jobIndex[$target];
+                /** @var array<int, array<string, mixed>> $existing */
+                $existing = $sections['jobs'][$jIdx]['dispatched_from'] ?? [];
+                $existing[] = $entry;
+                $sections['jobs'][$jIdx]['dispatched_from'] = $existing;
+            }
         }
 
         // Sort all cross-linked arrays for deterministic output.
@@ -348,6 +383,24 @@ class IndexBuilder
                     [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
             });
             $sections['observers'][$idx]['dispatches'] = $dispatches;
+        }
+
+        foreach ($sections['jobs'] as $idx => $job) {
+            /** @var array<int, array<string, mixed>> $dispatchedFrom */
+            $dispatchedFrom = $job['dispatched_from'] ?? [];
+            usort($dispatchedFrom, function (array $a, array $b): int {
+                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
+                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
+            });
+            $sections['jobs'][$idx]['dispatched_from'] = $dispatchedFrom;
+
+            /** @var array<int, array<string, mixed>> $dispatches */
+            $dispatches = $job['dispatches'] ?? [];
+            usort($dispatches, function (array $a, array $b): int {
+                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
+                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
+            });
+            $sections['jobs'][$idx]['dispatches'] = $dispatches;
         }
     }
 }

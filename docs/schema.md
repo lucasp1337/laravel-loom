@@ -14,6 +14,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "model_events": array,          // Eloquent model event entries
   "listeners": array,             // discovered listeners
   "closure_listeners": array,     // discovered closure / arrow-function listener registrations
+  "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
   "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
 }
@@ -35,7 +36,7 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
 }
 ```
 
-`dispatched_from[]` entry:
+`dispatched_from[]` entry (`$defs/dispatchSite`):
 
 ```
 {
@@ -44,6 +45,8 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
   "method": string                // "ClassName::methodName" of the dispatching context
 }
 ```
+
+The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`. It used to be inline under `events[*].dispatched_from`; the body is unchanged, only the schema reference was promoted.
 
 `handled_by[]` entry:
 
@@ -153,6 +156,41 @@ Entries are sorted by `(event, file, line)` ascending. No dedupe — each regist
 
 The cross-link pass intentionally does NOT add closure entries to `events[*].handled_by`, because that field's shape is `{listener, method}` and closures have neither. Consumers should filter `closure_listeners[]` by `event` themselves.
 
+## `jobs[]`
+
+```
+{
+  "fqcn": string,
+  "file": string,
+  "line": integer,
+  "queued": boolean,              // true iff class directly implements ShouldQueue
+  "queue_config": object | null,  // null when queued is false; $defs/queueConfig otherwise
+  "dispatched_from": array,       // populated by cross-link; $defs/dispatchSite entries
+  "dispatches": array             // populated by cross-link; $defs/dispatch entries
+}
+```
+
+`$defs/queueConfig` entry:
+
+```
+{
+  "connection": string | null,
+  "queue": string | null,
+  "delay": integer | null,
+  "tries": integer | null,
+  "timeout": integer | null,
+  "backoff": integer | null
+}
+```
+
+All six keys are required when `queue_config` is an object; each value is the scalar literal declared as a class property, or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
+
+`dispatched_from[]` uses `$defs/dispatchSite` (the same shape as `events[*].dispatched_from`). It is populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` whose `target` matches the job's FQCN.
+
+`dispatches[]` uses `$defs/dispatch`. It is populated by the cross-link pass from dispatch sites whose enclosing class is the job and whose enclosing method is literally `handle`.
+
+Entries are sorted by `fqcn` ascending.
+
 ## `observers[]`
 
 ```
@@ -201,6 +239,7 @@ One observer registered against N models produces N entries.
   "events": integer,
   "listeners": integer,
   "closure_listeners": integer,
+  "jobs": integer,
   "observers": integer,
   "unresolved_dispatches": integer
 }

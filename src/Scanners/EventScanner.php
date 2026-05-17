@@ -9,6 +9,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Psr4ClassLocator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -22,9 +23,12 @@ final class EventScanner implements Scanner
 {
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    private Psr4ClassLocator $locator;
+
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->locator = $locator ?? new Psr4ClassLocator;
     }
 
     /**
@@ -150,20 +154,8 @@ final class EventScanner implements Scanner
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
     {
-        $trimmed = ltrim($fqcn, '\\');
-        if ($trimmed === '') {
-            return null;
-        }
-        $segments = explode('\\', $trimmed);
-
-        // Map the leading "App" segment (Laravel default root namespace) to
-        // the "app/" directory; leave any other root namespace lowercased.
-        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
-
-        $relative = implode('/', $segments).'.php';
-        $absolute = $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-
-        if (! is_file($absolute)) {
+        $absolute = $this->locator->locate($appRoot, $fqcn);
+        if ($absolute === null) {
             return null;
         }
 

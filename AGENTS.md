@@ -43,6 +43,7 @@ src/
     EventScanner.php
     ListenerScanner.php
     ObserverScanner.php
+    JobsScanner.php
     DispatchScanner.php
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
@@ -72,7 +73,8 @@ These have caused regressions. Don't rediscover them.
 **One source of truth per output field.**
 - `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Each entry is a `{listener, method}` pair. Listener scanners don't write to event entries. Closure registrations in `closure_listeners[]` are intentionally NOT joined back into `handled_by` — that field's shape requires an FQCN + method, which closures lack.
 - `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
-- `listeners[*].dispatches` / `observers[*].dispatches` — same; cross-link from DispatchScanner.
+- `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
+- `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
 - `closure_listeners[*].dispatches` — reserved; currently always `[]`. Line-span-based attribution from DispatchScanner is a planned follow-up.
 - `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
 
@@ -95,8 +97,8 @@ If two scanners ever write to the same field, you've drifted from the design —
 1. **`events[*].handled_by`** — listeners' `handles` `{event, method}` pairs inverted onto matching event entries as `{listener, method}` pairs
 2. **Disambiguate `kind: ambiguous`** — Dispatchable-form sites (`X::dispatch(...)`) get `kind = event` if their target is in `events[]`, else `kind = job`
 3. **`listeners[*].dispatches`** — sites whose enclosing context is a listener FQCN + enclosing method is in that listener's `handles[*].method` set
-4. **`observers[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook
-5. **`events[*].dispatched_from`** — sites with finalized `kind === 'event'` and `target` matching an event entry
+4. **`observers[*].dispatches` and `jobs[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook, or whose enclosing context is a job FQCN + enclosing method is `handle`
+5. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — sites with finalized `kind === 'event'` matched to event entries, plus sites with finalized `kind === 'job'` matched to job entries
 
 After cross-link: strip `_dispatch_sites` from the merged sections before constructing the `Index`. Schema validation happens against the stripped payload.
 
