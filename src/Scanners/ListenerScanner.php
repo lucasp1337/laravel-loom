@@ -7,8 +7,11 @@ namespace Lucasp\Loom\Scanners;
 use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
+use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
+use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
+use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -21,6 +24,8 @@ use SplFileInfo;
  */
 final class ListenerScanner implements Scanner
 {
+    private const REGISTRATION_SUBSCRIBER = 'subscriber';
+
     private const REGISTRATION_LISTEN_ARRAY = 'listen_array';
 
     private const REGISTRATION_EVENT_LISTEN_CALL = 'event_listen_call';
@@ -42,8 +47,10 @@ final class ListenerScanner implements Scanner
         $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot);
         $listenArrayPairs = $this->discoverFromListenArray($appRoot);
         $eventListenPairs = $this->discoverFromEventListenCalls($appRoot);
+        $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
+        $subscribers = $this->resolveSubscribers($appRoot, $subscriberFqcns);
 
-        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs);
+        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers);
 
         return ['listeners' => $this->emit($merged)];
     }
@@ -147,16 +154,87 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Combine the three discovery sources by listener FQCN. Precedence for the
-     * `registration` field is `listen_array > event_listen_call > auto_discovered`.
+     * Walk app/ for `$subscribe` arrays and Event::subscribe(...) calls and
+     * return the deduped set of subscriber FQCNs.
+     *
+     * @return array<int, string>
+     */
+    private function discoverSubscriberFqcns(string $appRoot): array
+    {
+        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
+        if (! is_dir($appDir)) {
+            return [];
+        }
+
+        $arrayVisitor = new SubscribeArrayVisitor;
+        $callVisitor = new EventSubscribeCallVisitor;
+
+        $seen = [];
+
+        foreach ($this->iteratePhpFiles($appDir) as $file) {
+            $this->walker->walk($file->getPathname(), [$arrayVisitor, $callVisitor]);
+            foreach ($arrayVisitor->getSubscribers() as $fqcn) {
+                $seen[$fqcn] = true;
+            }
+            foreach ($callVisitor->getSubscribers() as $fqcn) {
+                $seen[$fqcn] = true;
+            }
+        }
+
+        return array_keys($seen);
+    }
+
+    /**
+     * Resolve each subscriber FQCN to a file + parsed subscribe() return-array.
+     *
+     * Subscribers whose source file can't be located via PSR-4 guess, or that
+     * have no parseable subscribe() return-array, are dropped (documented gap).
+     *
+     * @param  array<int, string>  $fqcns
+     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, string>}>
+     */
+    private function resolveSubscribers(string $appRoot, array $fqcns): array
+    {
+        $result = [];
+
+        foreach ($fqcns as $fqcn) {
+            $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
+            if ($absolute === null || ! is_file($absolute)) {
+                continue;
+            }
+
+            $visitor = new SubscriberClassVisitor;
+            $this->walker->walk($absolute, [$visitor]);
+
+            foreach ($visitor->getClasses() as $class) {
+                if ($class['fqcn'] !== $fqcn) {
+                    continue;
+                }
+                $result[$fqcn] = [
+                    'file' => $this->relativePath($appRoot, $absolute),
+                    'line' => $class['line'],
+                    'queued' => $class['queued'],
+                    'handles' => $class['handles'],
+                ];
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Combine the four discovery sources by listener FQCN. Precedence for the
+     * `registration` field is `subscriber > listen_array > event_listen_call > auto_discovered`.
      * `handles` is the union of events across all sources.
      *
      * @param  array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}>  $autoDiscovered
      * @param  array<int, array{event: string, listener: string}>  $listenArrayPairs
      * @param  array<int, array{event: string, listener: string}>  $eventListenPairs
+     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, string>}>  $subscribers
      * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, string>, registration: string}>
      */
-    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs): array
+    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers): array
     {
         /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, true>, registration: ?string}> $acc */
         $acc = [];
@@ -181,6 +259,31 @@ final class ListenerScanner implements Scanner
 
         foreach ($listenArrayPairs as $pair) {
             $this->applyPair($acc, $pair, self::REGISTRATION_LISTEN_ARRAY);
+        }
+
+        foreach ($subscribers as $fqcn => $data) {
+            if (! isset($acc[$fqcn])) {
+                $acc[$fqcn] = [
+                    'file' => $data['file'],
+                    'line' => $data['line'],
+                    'queued' => $data['queued'],
+                    'handles' => [],
+                    'registration' => self::REGISTRATION_SUBSCRIBER,
+                ];
+            } else {
+                // Subscriber discovery has highest precedence; overwrite file/line/queued
+                // so we point at the subscriber class rather than an unrelated location.
+                $acc[$fqcn]['file'] = $data['file'];
+                $acc[$fqcn]['line'] = $data['line'];
+                $acc[$fqcn]['queued'] = $data['queued'];
+                if ($this->precedence(self::REGISTRATION_SUBSCRIBER) > $this->precedence($acc[$fqcn]['registration'])) {
+                    $acc[$fqcn]['registration'] = self::REGISTRATION_SUBSCRIBER;
+                }
+            }
+
+            foreach ($data['handles'] as $event) {
+                $acc[$fqcn]['handles'][$event] = true;
+            }
         }
 
         $result = [];
@@ -247,6 +350,7 @@ final class ListenerScanner implements Scanner
     private function precedence(?string $registration): int
     {
         return match ($registration) {
+            self::REGISTRATION_SUBSCRIBER => 4,
             self::REGISTRATION_LISTEN_ARRAY => 3,
             self::REGISTRATION_EVENT_LISTEN_CALL => 2,
             self::REGISTRATION_AUTO_DISCOVERED => 1,
@@ -263,17 +367,8 @@ final class ListenerScanner implements Scanner
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
     {
-        $trimmed = ltrim($fqcn, '\\');
-        if ($trimmed === '') {
-            return null;
-        }
-        $segments = explode('\\', $trimmed);
-        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
-
-        $relative = implode('/', $segments).'.php';
-        $absolute = $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-
-        if (! is_file($absolute)) {
+        $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
+        if ($absolute === null || ! is_file($absolute)) {
             return null;
         }
 
@@ -317,6 +412,25 @@ final class ListenerScanner implements Scanner
         }
 
         return $entries;
+    }
+
+    /**
+     * Map an FQCN to its likely on-disk path under $appRoot using the Laravel
+     * default PSR-4 convention (App\ → app/). Returns null only for an empty
+     * FQCN; file existence is the caller's concern.
+     */
+    private function absolutePathForFqcn(string $appRoot, string $fqcn): ?string
+    {
+        $trimmed = ltrim($fqcn, '\\');
+        if ($trimmed === '') {
+            return null;
+        }
+        $segments = explode('\\', $trimmed);
+        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
+
+        $relative = implode('/', $segments).'.php';
+
+        return $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
     }
 
     /**

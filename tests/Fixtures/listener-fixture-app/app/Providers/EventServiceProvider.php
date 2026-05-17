@@ -6,7 +6,9 @@ namespace App\Providers;
 
 use App\Events\OrderPlaced;
 use App\Events\StockLow;
+use App\Listeners\AuditSubscriber;
 use App\Listeners\NotifyAdmins;
+use App\Listeners\OrderEventSubscriber;
 use App\Listeners\PsrOnly;
 use App\Listeners\SendOrderConfirmation;
 use Illuminate\Support\Facades\Event;
@@ -20,10 +22,15 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
         ],
     ];
 
+    protected $subscribe = [
+        OrderEventSubscriber::class,
+    ];
+
     public function boot(): void
     {
         Event::listen(StockLow::class, NotifyAdmins::class);
         Event::listen($dynamicEvent, \App\Listeners\NeverSeen::class);
         Event::listen(OrderPlaced::class, fn ($e) => null);
+        Event::subscribe(AuditSubscriber::class);
     }
 }
