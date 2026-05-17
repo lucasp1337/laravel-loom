@@ -32,6 +32,7 @@ A scanner takes a path to a Laravel app root and returns an array keyed by secti
 - `events`
 - `listeners`
 - `closure_listeners`
+- `jobs`
 - `observers`
 - `model_events`
 - `unresolved_dispatches`
@@ -100,9 +101,9 @@ Five phases, in order:
 
 3. **`listeners[*].dispatches`** — for each dispatch site whose enclosing class FQCN matches a listener and whose enclosing method is in that listener's set of `handles[*].method` values, append a `$defs/dispatch` entry to that listener's `dispatches` array. Dispatches emitted from a custom handler method (`handleOrderPlaced`, `handleOrderRefunded`, …) are attributed to the listener, not dropped.
 
-4. **`observers[*].dispatches`** — same as #3 but matching observer FQCNs and methods drawn from the canonical Eloquent hook enum (`creating`, `created`, `updating`, …). Sites in non-hook methods on an observer (utility methods) don't appear here.
+4. **`observers[*].dispatches` and `jobs[*].dispatches`** — same as #3 but matching observer FQCNs and methods drawn from the canonical Eloquent hook enum (`creating`, `created`, `updating`, …), or matching job FQCNs whose enclosing method is `handle`. Sites in non-hook methods on an observer, or in helper methods called from a job's `handle()`, don't appear here.
 
-5. **`events[*].dispatched_from`** — for each site with finalized `kind === 'event'` and `target` matching an event entry, append `{file, line, method: "Class::method"}` to that event's `dispatched_from` array.
+5. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — for each site with finalized `kind === 'event'` and `target` matching an event entry, append a `$defs/dispatchSite` entry (`{file, line, method: "Class::method"}`) to that event's `dispatched_from` array. The mirror join runs for `kind === 'job'` against the jobs index.
 
 The cross-link pass deliberately does NOT join `closure_listeners[]` into `events[*].handled_by`. That field's entry shape is `{listener: string, method: string}`; closures have neither. Adding closures would require a schema change (a new entry variant) and is reserved for a future design pass — don't add it without going through `schema-guardian`. Similarly, `closure_listeners[*].dispatches` stays empty for now; populating it requires line-span attribution rather than the class+method join used for `listeners[*].dispatches`.
 

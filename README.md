@@ -63,6 +63,7 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
 - **Listeners** — Laravel's auto-discovery, `$listen` arrays on `EventServiceProvider`, `Event::listen()` calls anywhere under `app/`, and subscribers via `$subscribe` / `Event::subscribe()`.
 - **Closure listeners** — closures and arrow functions wherever a listener can be (`$listen`, `Event::listen()`, subscriber bodies). Emitted as a separate `closure_listeners[]` section.
 - **Observers** — `Model::observe()` calls, the `#[ObservedBy]` attribute, plus model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`.
+- **Jobs** — classes under `app/Jobs/` (recursive), plus any class dispatched via `dispatch()`, `Bus::dispatch()`, or the Dispatchable form `X::dispatch()` (located via PSR-4, so jobs in DDD layouts get picked up). Records `queued` and `queue_config` (connection, queue, delay, tries, timeout, backoff) when declared as class properties.
 - **Dispatches** — every method body scanned for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()`. Cross-linked back to listeners and observers by handler method.
 
 ## Sample output
@@ -171,7 +172,7 @@ On a fresh `laravel new` app, the scan finishes in well under a second. A medium
 
 Tracked at the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1). Highlights:
 
-- More sections: [jobs](https://github.com/lucasp1337/laravel-loom/issues/5), [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [schedule entries](https://github.com/lucasp1337/laravel-loom/issues/7), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
+- More sections: [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [schedule entries](https://github.com/lucasp1337/laravel-loom/issues/7), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
 - A [browser UI](https://github.com/lucasp1337/laravel-loom/issues/19) for clicking through the index — events, listeners, dispatch chains.
 - An [MCP server](https://github.com/lucasp1337/laravel-loom/issues/20) so AI coding assistants can query the index instead of grepping.
 - [`loom:diff`](https://github.com/lucasp1337/laravel-loom/issues/9) and [`loom:check`](https://github.com/lucasp1337/laravel-loom/issues/10) for CI.
