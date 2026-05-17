@@ -93,11 +93,11 @@ The cross-link pass is the only place that reads cross-scanner data. It runs aft
 
 Five phases, in order:
 
-1. **`events[*].handled_by`** — for each listener, for each event FQCN in `listener.handles`, append `listener.fqcn` to the matching event's `handled_by` array. Orphan listeners (events the listener handles but EventScanner didn't find) are silently skipped.
+1. **`events[*].handled_by`** — for each listener, for each `{event, method}` pair in `listener.handles`, append `{listener: listener.fqcn, method}` to the matching event's `handled_by` array. Sorted by `listener` ascending then `method` ascending. Orphan registrations (events the listener handles but EventScanner didn't find) are silently skipped.
 
 2. **Disambiguate `kind: ambiguous`** — DispatchScanner emits `X::dispatch(...)` Dispatchable-form sites with `kind: ambiguous` because the class could be either an event or a job. The disambiguator finalizes each: `kind = event` if `target` is in `events[]`, otherwise `kind = job`. EventScanner's dispatch-site seeding ensures most event classes are already in `events[]`; classes that aren't fall through to `job`.
 
-3. **`listeners[*].dispatches`** — for each dispatch site whose enclosing class FQCN matches a listener and whose enclosing method is literally `handle`, append a `$defs/dispatch` entry to that listener's `dispatches` array.
+3. **`listeners[*].dispatches`** — for each dispatch site whose enclosing class FQCN matches a listener and whose enclosing method is in that listener's set of `handles[*].method` values, append a `$defs/dispatch` entry to that listener's `dispatches` array. Dispatches emitted from a custom handler method (`handleOrderPlaced`, `handleOrderRefunded`, …) are attributed to the listener, not dropped.
 
 4. **`observers[*].dispatches`** — same as #3 but matching observer FQCNs and methods drawn from the canonical Eloquent hook enum (`creating`, `created`, `updating`, …). Sites in non-hook methods on an observer (utility methods) don't appear here.
 

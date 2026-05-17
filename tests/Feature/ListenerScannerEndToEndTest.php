@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Scanners\EventScanner;
 use Lucasp\Loom\Scanners\ListenerScanner;
 
 function listenerEndToEndFixturePath(): string
@@ -28,10 +29,11 @@ it('counts discovered listeners in stats.listeners', function () {
     // SendOrderConfirmation, UpdateInventory, NotifyAdmins, PsrOnly, UntypedListener,
     // IssueInvoice (registered via Event::listen() in InvoicingServiceProvider, which
     // sits at app/Domain/Invoicing/ rather than app/Providers/), OrderEventSubscriber
-    // ($subscribe array), and AuditSubscriber (Event::subscribe()).
+    // ($subscribe array), AuditSubscriber (Event::subscribe()), and OrderEventsHandler
+    // (multi-handler listener registered via the $listen array with explicit methods).
     // NeverSeen is skipped (dynamic event); IgnoredListener is skipped (its $listen
     // array sits on a non-EventServiceProvider class, filtered by ListenArrayVisitor).
-    expect($payload['stats']['listeners'])->toBe(8);
+    expect($payload['stats']['listeners'])->toBe(9);
 });
 
 it('includes the known listener FQCNs', function () {
@@ -50,6 +52,7 @@ it('includes the known listener FQCNs', function () {
     expect($fqcns)->toContain('App\\Domain\\Invoicing\\Listeners\\IssueInvoice');
     expect($fqcns)->toContain('App\\Listeners\\OrderEventSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
+    expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
 });
 
 it('leaves non-listener sections as empty arrays, not null', function () {
@@ -66,6 +69,45 @@ it('leaves non-listener sections as empty arrays, not null', function () {
     expect($payload['stats']['events'])->toBe(0);
     expect($payload['stats']['observers'])->toBe(0);
     expect($payload['stats']['unresolved_dispatches'])->toBe(0);
+});
+
+it('sorts events[*].handled_by by listener asc then method asc', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new EventScanner);
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    $orderPlaced = null;
+    foreach ($payload['events'] as $event) {
+        if (($event['fqcn'] ?? null) === 'App\\Events\\OrderPlaced') {
+            $orderPlaced = $event;
+            break;
+        }
+    }
+
+    expect($orderPlaced)->not->toBeNull();
+
+    // OrderPlaced is handled by:
+    //   - AuditSubscriber::audit                              (subscriber)
+    //   - IssueInvoice::handle                                (event_listen_call)
+    //   - OrderEventSubscriber::handle                        (auto-discovered handle())
+    //   - OrderEventSubscriber::handleOrderPlaced             (subscribe array)
+    //   - OrderEventsHandler::handlePlaced                    ($listen array tuple)
+    //   - PsrOnly::someMethod                                 ($listen array tuple)
+    //   - SendOrderConfirmation::handle                       ($listen array bare class)
+    //   - UpdateInventory::handle                             (auto-discovered)
+    // Sorted by (listener, method) ascending.
+    expect($orderPlaced['handled_by'])->toBe([
+        ['listener' => 'App\\Domain\\Invoicing\\Listeners\\IssueInvoice', 'method' => 'handle'],
+        ['listener' => 'App\\Listeners\\AuditSubscriber', 'method' => 'audit'],
+        ['listener' => 'App\\Listeners\\OrderEventSubscriber', 'method' => 'handle'],
+        ['listener' => 'App\\Listeners\\OrderEventSubscriber', 'method' => 'handleOrderPlaced'],
+        ['listener' => 'App\\Listeners\\OrderEventsHandler', 'method' => 'handlePlaced'],
+        ['listener' => 'App\\Listeners\\PsrOnly', 'method' => 'someMethod'],
+        ['listener' => 'App\\Listeners\\SendOrderConfirmation', 'method' => 'handle'],
+        ['listener' => 'App\\Listeners\\UpdateInventory', 'method' => 'handle'],
+    ]);
 });
 
 it('emits every listener with an empty dispatches array', function () {

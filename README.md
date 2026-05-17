@@ -62,7 +62,7 @@ The output file lives at `storage/loom/index.json` and is gitignored by default 
 | Primitive | Discovery paths |
 |---|---|
 | **Events** | `app/Events/**` filesystem walk, plus any class dispatched via `event()`, `Event::dispatch()`, or `X::dispatch()` |
-| **Listeners** | The `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` parameters, and `Event::listen()` calls anywhere under `app/` (DDD-style providers in `app/Domain/.../Providers/` are supported) |
+| **Listeners** | The `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` parameters, `Event::listen()` calls anywhere under `app/` (DDD-style providers in `app/Domain/.../Providers/` are supported), and subscribers registered via `$subscribe` or `Event::subscribe()` |
 | **Observers** | `Model::observe()` calls (including `static::observe(...)` inside `booted()`), the `#[ObservedBy]` attribute, plus Eloquent model events synthesized from observer hooks and `Event::listen('eloquent.*', …)` |
 | **Dispatches** | One-level scan of every method body for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()` calls. Cross-links them to events, listeners, and observers. |
 
@@ -74,7 +74,7 @@ A representative scan against a small Laravel 13 app:
 
 ```json
 {
-  "loom_version": "0.1.0",
+  "loom_version": "0.2.0",
   "scanned_at": "2026-05-16T19:25:54Z",
   "laravel_version": "13.7",
   "stats": {
@@ -93,7 +93,9 @@ A representative scan against a small Laravel 13 app:
       "dispatched_from": [
         { "file": "app/Services/Checkout.php", "line": 87, "method": "App\\Services\\Checkout::finalize" }
       ],
-      "handled_by": ["App\\Listeners\\SendOrderConfirmation"]
+      "handled_by": [
+        { "listener": "App\\Listeners\\SendOrderConfirmation", "method": "handle" }
+      ]
     }
   ],
   "model_events": [
@@ -110,7 +112,9 @@ A representative scan against a small Laravel 13 app:
       "fqcn": "App\\Listeners\\SendOrderConfirmation",
       "file": "app/Listeners/SendOrderConfirmation.php",
       "line": 14,
-      "handles": ["App\\Events\\OrderPlaced"],
+      "handles": [
+        { "event": "App\\Events\\OrderPlaced", "method": "handle" }
+      ],
       "registration": "auto_discovered",
       "queued": true,
       "dispatches": [
@@ -158,7 +162,6 @@ Loom is deliberately narrow. Not in scope:
 
 - Container bindings, the scheduler, broadcast channels, notifications, mailables
 - Analysis of job class internals (Loom records dispatch sites; what happens inside the job is your queue worker's concern)
-- Subscribers (`subscribe()` method) — coming later
 - Runtime tracing of any kind
 - An MCP server, Blade UI, Markdown export, diff / CI integration
 - Multi-framework support, Laravel < 11

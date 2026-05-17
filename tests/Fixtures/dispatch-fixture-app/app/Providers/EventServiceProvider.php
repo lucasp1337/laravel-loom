@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Events\InventoryAdjusted;
 use App\Events\OrderPlaced;
+use App\Listeners\MultiHandlerListener;
 use App\Listeners\SendOrderConfirmation;
 
 class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\EventServiceProvider
@@ -12,6 +14,10 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
     protected $listen = [
         OrderPlaced::class => [
             SendOrderConfirmation::class,
+            [MultiHandlerListener::class, 'handlePlaced'],
+        ],
+        InventoryAdjusted::class => [
+            [MultiHandlerListener::class, 'handleAdjusted'],
         ],
     ];
 }

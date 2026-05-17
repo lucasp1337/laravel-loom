@@ -57,10 +57,13 @@ it('records each unresolved entry with file, line, expression, reason', function
     }
 });
 
-it('emits seven recognised dispatch sites in the fixture', function () {
+it('emits nine recognised dispatch sites in the fixture', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
 
-    expect($result['_dispatch_sites'])->toHaveCount(7);
+    // SendOrderConfirmation::handle (3) + SendOrderConfirmation::otherMethod (1)
+    // + UserObserver::created (1) + UserObserver::utility (1) + Checkout::finalize (1)
+    // + MultiHandlerListener::handlePlaced (1) + MultiHandlerListener::handleAdjusted (1).
+    expect($result['_dispatch_sites'])->toHaveCount(9);
 });
 
 it('records each site with target, kind, form, file, line, class and method', function () {
