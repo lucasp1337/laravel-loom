@@ -18,7 +18,7 @@ Both `Closure` (long-form `function ($e) { … }`) and `ArrowFunction` (`fn ($e)
 
 ## Output
 
-One entry per closure registration site, conforming to `$defs/closure_listener`:
+One entry per closure registration site, conforming to `$defs/closureListener`:
 
 ```json
 {
@@ -37,7 +37,7 @@ One entry per closure registration site, conforming to `$defs/closure_listener`:
 - `queued` is always `false`. Closure-queue detection is out of scope.
 - `dispatches` is always `[]`. The field is reserved for future line-span-based dispatch attribution.
 
-Entries are sorted by `(file, line, event)` ascending for determinism.
+Entries are sorted by `(event, file, line)` ascending for determinism.
 
 ## Expected behavior
 

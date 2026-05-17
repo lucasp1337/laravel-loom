@@ -149,7 +149,7 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 
 `queued` is always `false` in the current release; closure-queue detection is out of scope. `dispatches` is always `[]` and is reserved for future line-span-based attribution of dispatch sites inside the closure body.
 
-Entries are sorted by `(file, line, event)` ascending. No dedupe — each registration site is its own entry.
+Entries are sorted by `(event, file, line)` ascending. No dedupe — each registration site is its own entry.
 
 The cross-link pass intentionally does NOT add closure entries to `events[*].handled_by`, because that field's shape is `{listener, method}` and closures have neither. Consumers should filter `closure_listeners[]` by `event` themselves.
 

@@ -55,7 +55,7 @@
         },
         "closure_listeners": {
             "type": "array",
-            "items": { "$ref": "#/$defs/closure_listener" }
+            "items": { "$ref": "#/$defs/closureListener" }
         }
     },
     "$defs": {
@@ -180,7 +180,7 @@
                 "line": { "type": "integer", "minimum": 1 }
             }
         },
-        "closure_listener": {
+        "closureListener": {
             "type": "object",
             "required": ["event", "file", "line", "registration", "queued", "dispatches"],
             "additionalProperties": false,
