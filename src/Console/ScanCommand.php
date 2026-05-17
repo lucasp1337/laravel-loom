@@ -9,6 +9,7 @@ use Illuminate\Foundation\Application;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DispatchScanner;
 use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\JobsScanner;
 use Lucasp\Loom\Scanners\ListenerScanner;
 use Lucasp\Loom\Scanners\ObserverScanner;
 
@@ -27,6 +28,7 @@ class ScanCommand extends Command
         $builder->register(new EventScanner);
         $builder->register(new ListenerScanner);
         $builder->register(new ObserverScanner);
+        $builder->register(new JobsScanner);
         $builder->register(new DispatchScanner);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());

@@ -17,6 +17,7 @@ final class Index
      * @param  array<int, array<string, mixed>>  $modelEvents
      * @param  array<int, array<string, mixed>>  $listeners
      * @param  array<int, array<string, mixed>>  $observers
+     * @param  array<int, array<string, mixed>>  $jobs
      * @param  array<int, array<string, mixed>>  $unresolvedDispatches
      * @param  array<int, array<string, mixed>>  $closureListeners
      */
@@ -28,6 +29,7 @@ final class Index
         public readonly array $modelEvents = [],
         public readonly array $listeners = [],
         public readonly array $observers = [],
+        public readonly array $jobs = [],
         public readonly array $unresolvedDispatches = [],
         public readonly array $closureListeners = [],
     ) {
@@ -46,6 +48,7 @@ final class Index
                 'events' => count($this->events),
                 'listeners' => count($this->listeners),
                 'observers' => count($this->observers),
+                'jobs' => count($this->jobs),
                 'unresolved_dispatches' => count($this->unresolvedDispatches),
                 'closure_listeners' => count($this->closureListeners),
             ],
@@ -53,6 +56,7 @@ final class Index
             'model_events' => $this->modelEvents,
             'listeners' => $this->listeners,
             'observers' => $this->observers,
+            'jobs' => $this->jobs,
             'unresolved_dispatches' => $this->unresolvedDispatches,
             'closure_listeners' => $this->closureListeners,
         ];

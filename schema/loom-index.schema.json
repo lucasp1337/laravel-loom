@@ -13,6 +13,7 @@
         "model_events",
         "listeners",
         "observers",
+        "jobs",
         "unresolved_dispatches",
         "closure_listeners"
     ],
@@ -23,12 +24,13 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "unresolved_dispatches", "closure_listeners"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
                 "listeners": { "type": "integer", "minimum": 0 },
                 "observers": { "type": "integer", "minimum": 0 },
+                "jobs": { "type": "integer", "minimum": 0 },
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
                 "closure_listeners": { "type": "integer", "minimum": 0 }
             }
@@ -48,6 +50,10 @@
         "observers": {
             "type": "array",
             "items": { "$ref": "#/$defs/observer" }
+        },
+        "jobs": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/job" }
         },
         "unresolved_dispatches": {
             "type": "array",
@@ -71,16 +77,7 @@
                 "line": { "type": "integer", "minimum": 1 },
                 "dispatched_from": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["file", "line", "method"],
-                        "additionalProperties": false,
-                        "properties": {
-                            "file": { "type": "string" },
-                            "line": { "type": "integer", "minimum": 1 },
-                            "method": { "type": "string" }
-                        }
-                    }
+                    "items": { "$ref": "#/$defs/dispatchSite" }
                 },
                 "handled_by": {
                     "type": "array",
@@ -166,6 +163,54 @@
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" }
                 }
+            }
+        },
+        "job": {
+            "type": "object",
+            "required": ["fqcn", "file", "line", "queued", "queue_config", "dispatched_from", "dispatches"],
+            "additionalProperties": false,
+            "properties": {
+                "fqcn": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "queued": { "type": "boolean" },
+                "queue_config": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/queueConfig" }
+                    ]
+                },
+                "dispatched_from": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatchSite" }
+                },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatch" }
+                }
+            }
+        },
+        "queueConfig": {
+            "type": "object",
+            "required": ["connection", "queue", "delay", "tries", "timeout", "backoff"],
+            "additionalProperties": false,
+            "properties": {
+                "connection": { "type": ["string", "integer", "null"] },
+                "queue": { "type": ["string", "integer", "null"] },
+                "delay": { "type": ["string", "integer", "null"] },
+                "tries": { "type": ["string", "integer", "null"] },
+                "timeout": { "type": ["string", "integer", "null"] },
+                "backoff": { "type": ["string", "integer", "null"] }
+            }
+        },
+        "dispatchSite": {
+            "type": "object",
+            "required": ["file", "line", "method"],
+            "additionalProperties": false,
+            "properties": {
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "method": { "type": "string" }
             }
         },
         "dispatch": {
