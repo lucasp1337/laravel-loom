@@ -48,9 +48,9 @@ final class ListenerScanner implements Scanner
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
-        [$subscribers, $subscriberClosures] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
+        [$subscribers, $subscriberClosures, $subscriberForeignPairs] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
 
-        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers);
+        $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers, $subscriberForeignPairs);
 
         $closureListeners = $this->buildClosureListeners(
             $listenArrayClosures,
@@ -223,12 +223,13 @@ final class ListenerScanner implements Scanner
      * empty `handles[]` — see docs/scanners/listeners.md for the gap.
      *
      * @param  array<int, string>  $fqcns
-     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
+     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>, 2: array<int, array{event: string, listener: string, method: string}>}
      */
     private function resolveSubscribers(string $appRoot, array $fqcns): array
     {
         $result = [];
         $closures = [];
+        $foreignPairs = [];
 
         foreach ($fqcns as $fqcn) {
             $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
@@ -259,11 +260,14 @@ final class ListenerScanner implements Scanner
                         'registration' => 'subscriber',
                     ];
                 }
+                foreach ($class['foreignPairs'] as $pair) {
+                    $foreignPairs[] = $pair;
+                }
                 break;
             }
         }
 
-        return [$result, $closures];
+        return [$result, $closures, $foreignPairs];
     }
 
     /**
@@ -275,9 +279,10 @@ final class ListenerScanner implements Scanner
      * @param  array<int, array{event: string, listener: string, method: string}>  $listenArrayPairs
      * @param  array<int, array{event: string, listener: string, method: string}>  $eventListenPairs
      * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>  $subscribers
+     * @param  array<int, array{event: string, listener: string, method: string}>  $subscriberForeignPairs
      * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>
      */
-    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers): array
+    private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers, array $subscriberForeignPairs = []): array
     {
         /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}> $acc */
         $acc = [];
@@ -329,6 +334,13 @@ final class ListenerScanner implements Scanner
                 $key = $pair['event'].'::'.$pair['method'];
                 $acc[$fqcn]['handles'][$key] = $pair;
             }
+        }
+
+        // Foreign listener pairs registered imperatively from inside subscribe()
+        // bodies. These flow through the same merge path as $listen / Event::listen()
+        // pairs but at `subscriber` precedence.
+        foreach ($subscriberForeignPairs as $pair) {
+            $this->applyPair($acc, $pair, self::REGISTRATION_SUBSCRIBER);
         }
 
         $result = [];
