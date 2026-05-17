@@ -8,8 +8,10 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Parses subscriber classes — those that expose a `subscribe(Dispatcher $events)`
- * method — and extracts the events they subscribe to.
+ * Parses subscriber classes — those that expose a `subscribe()` method whose
+ * first parameter is a dispatcher — and extracts the events they subscribe to.
+ * The dispatcher is bound by parameter position; its name and type-hint are
+ * irrelevant.
  *
  * Supports two forms:
  *

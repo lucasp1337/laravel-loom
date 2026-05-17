@@ -214,14 +214,23 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Resolve each subscriber FQCN to a file + parsed subscribe() return-array.
+     * Resolve each subscriber FQCN to a file plus everything parsed out of its
+     * subscribe() method. Both forms are supported: the return-array
+     * (`return [Event::class => 'method', …]`) and the imperative body
+     * (`$events->listen(Event::class, [self::class, 'method'])`).
      *
-     * A subscriber is dropped if its source file can't be located via the
-     * PSR-4 guess or if the class has no `subscribe()` method. If the method
-     * exists but its body has no parseable return-array (e.g. the imperative
-     * `$events->listen(...)` form), the subscriber is still emitted with an
-     * empty `handles[]` — see docs/scanners/listeners.md for the gap.
+     * Returns three slots: the subscriber's own (event, method) pairs that
+     * land on its `handles[]`, the closure registrations it makes (emitted
+     * to `closure_listeners[]` with `registration: subscriber`), and any
+     * foreign (event, listener, method) pairs — i.e. the subscriber wired
+     * up a listener that belongs to a different class. Foreign pairs flow
+     * through the regular `applyPair()` merge at REGISTRATION_SUBSCRIBER,
+     * which upgrades the foreign listener's `registration` accordingly.
      *
+     * A subscriber is dropped only if its source file can't be located via
+     * the PSR-4 guess or if the class has no `subscribe()` method at all.
+     *
+
      * @param  array<int, string>  $fqcns
      * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>, 2: array<int, array{event: string, listener: string, method: string}>}
      */
