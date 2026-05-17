@@ -18,13 +18,22 @@ function psr4FixtureRoot(): string
     return $root;
 }
 
+/**
+ * Normalises native filesystem separators to forward slashes so test
+ * assertions are portable between POSIX (`/`) and Windows (`\`) runners.
+ */
+function psr4Normalize(string $path): string
+{
+    return str_replace(DIRECTORY_SEPARATOR, '/', $path);
+}
+
 it('resolves an App-prefixed FQCN under app/', function () {
     $root = psr4FixtureRoot();
     $locator = new Psr4ClassLocator;
 
     $result = $locator->locate($root, 'App\\Jobs\\ProcessOrder');
 
-    expect($result)->toBe($root.'/app/Jobs/ProcessOrder.php');
+    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/app/Jobs/ProcessOrder.php');
 });
 
 it('resolves deeply nested App-prefixed FQCN', function () {
@@ -33,7 +42,7 @@ it('resolves deeply nested App-prefixed FQCN', function () {
 
     $result = $locator->locate($root, 'App\\Domain\\Billing\\Jobs\\ChargeCustomer');
 
-    expect($result)->toBe($root.'/app/Domain/Billing/Jobs/ChargeCustomer.php');
+    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/app/Domain/Billing/Jobs/ChargeCustomer.php');
 });
 
 it('returns null when the guessed file does not exist', function () {
@@ -55,7 +64,7 @@ it('trims a leading backslash before resolving', function () {
 
     $result = $locator->locate($root, '\\App\\Jobs\\ProcessOrder');
 
-    expect($result)->toBe($root.'/app/Jobs/ProcessOrder.php');
+    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/app/Jobs/ProcessOrder.php');
 });
 
 it('lowercases non-App root namespace segments for the path guess', function () {
@@ -64,5 +73,5 @@ it('lowercases non-App root namespace segments for the path guess', function () 
 
     $result = $locator->locate($root, 'Custom\\Thing\\Item');
 
-    expect($result)->toBe($root.'/custom/Thing/Item.php');
+    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/custom/Thing/Item.php');
 });
