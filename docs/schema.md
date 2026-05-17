@@ -105,7 +105,7 @@ forceDeleting, forceDeleted, booting, booted
 
 `registration` enum:
 
-- `subscriber` — discovered via `$subscribe` array or `Event::subscribe(...)`
+- `subscriber` — discovered via a subscriber's `subscribe()` method. Covers both the return-array form (`return [Event::class => 'method', …]`) and the imperative form (`$events->listen(Event::class, [Listener::class, 'method'])` against the dispatcher parameter). The subscriber itself is registered via `$subscribe` array or `Event::subscribe(...)`. A foreign listener wired imperatively from inside a subscriber's body is also stamped `subscriber`.
 - `listen_array` — found in the `$listen` array of an `EventServiceProvider`
 - `event_listen_call` — registered via `Event::listen()` in a provider's `boot()`
 - `auto_discovered` — Laravel 11+ auto-discovery via typed `handle()` parameter
@@ -145,7 +145,7 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 
 - `listen_array` — closure value inside the `$listen` array on an `EventServiceProvider`
 - `event_listen_call` — closure as the second argument to `Event::listen()`
-- `subscriber` — closure value inside a subscriber's `subscribe()` return-array
+- `subscriber` — closure inside a subscriber's `subscribe()` method, either as a return-array value or as the second argument to an imperative `$events->listen(...)` call against the dispatcher parameter
 
 `queued` is always `false` in the current release; closure-queue detection is out of scope. `dispatches` is always `[]` and is reserved for future line-span-based attribution of dispatch sites inside the closure body.
 

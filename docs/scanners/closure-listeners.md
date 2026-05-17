@@ -12,7 +12,7 @@ Three discovery paths:
 
 2. **Closure as the second argument of `Event::listen()`.** `Event::listen(OrderPlaced::class, fn ($e) => …)` anywhere under `app/`. Emitted with `registration: "event_listen_call"`. The class-shape filter that applies to `$listen` walks does NOT apply here — any static call to the `Event` facade qualifies.
 
-3. **Closure in a subscriber's `subscribe()` return-array.** `public function subscribe($events): array { return [OrderPlaced::class => fn ($e) => …]; }` on any class registered as a subscriber (via `$subscribe` array or `Event::subscribe(...)`). Emitted with `registration: "subscriber"`.
+3. **Closure inside a subscriber's `subscribe()` body** — either as a return-array value (`return [OrderPlaced::class => fn ($e) => …]`) or as the second argument to an imperative `$events->listen(OrderPlaced::class, fn ($e) => …)` call against the dispatcher parameter. Applies to any class registered as a subscriber (via `$subscribe` array or `Event::subscribe(...)`). Both sub-cases emit with `registration: "subscriber"`.
 
 Both `Closure` (long-form `function ($e) { … }`) and `ArrowFunction` (`fn ($e) => …`) are detected. The event key may be a `::class` reference or a raw string (`'user.created'`).
 

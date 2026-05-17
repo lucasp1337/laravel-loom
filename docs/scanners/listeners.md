@@ -14,7 +14,28 @@ ListenerScanner uses four discovery paths and merges them by listener FQCN:
 
 3. **`Event::listen()` static calls.** Walks the entire `app/` tree for `\Illuminate\Support\Facades\Event::listen(EventClass::class, Listener::class)` calls. Bare `Listener::class` second arguments map to `method: "handle"`; tuple form `[Listener::class, 'method']` preserves the method name. The class-shape filter only applies in path 2 — Event::listen calls are scanner-agnostic about the surrounding class, so providers in DDD-style layouts (e.g. `app/Domain/Invoicing/Providers/InvoicingServiceProvider.php`) are discovered.
 
-4. **Subscribers.** Classes registered via the `$subscribe = [SubscriberClass::class, …]` array on an `EventServiceProvider`, or via `Event::subscribe(SubscriberClass::class)` calls. The subscriber's own `subscribe($events): array` method is then parsed: the return-array form contributes events to the subscriber's `handles[]`. Both `[Event::class => 'handlerMethod']` and tuple values `[Event::class => [self::class, 'handlerMethod']]` / `[Event::class => [Subscriber::class, 'handlerMethod']]` are recognised. Subscribers receive `registration: "subscriber"` — the highest-precedence source.
+4. **Subscribers.** Classes registered via the `$subscribe = [SubscriberClass::class, …]` array on an `EventServiceProvider`, or via `Event::subscribe(SubscriberClass::class)` calls. The subscriber's own `subscribe($events): array` method is then parsed in two complementary ways — see [Subscribers](#subscribers) below. Subscribers receive `registration: "subscriber"` — the highest-precedence source.
+
+## Subscribers
+
+A Laravel event subscriber can wire its handlers in two forms inside its `subscribe()` method, and Loom parses both. A single subscriber can mix them — the contributions from each form are merged.
+
+**Return-array form.** `return [Event::class => 'method', Event::class => [self::class, 'method']]`. Each pair contributes a `{event, method}` entry to the subscriber's own `handles[]`. Both bare-string method values and tuple values `[self::class, 'method']` / `[static::class, 'method']` / `[OwnFqcn::class, 'method']` resolve to the subscriber itself.
+
+**Imperative form.** A body that calls `$events->listen(...)` against the dispatcher parameter. The dispatcher is identified by parameter position — its name and type-hint are irrelevant. The visitor walks into control-flow constructs (`if`, `foreach`, `try/catch`, …) but does not descend into nested closures or other method bodies.
+
+Routing rules for an imperative `$events->listen(EventClass::class, $callable)` call:
+
+| Callable shape | Routes to |
+|---|---|
+| `[self::class, 'method']`, `[static::class, 'method']`, or `[OwnFqcn::class, 'method']` | Subscriber's own `handles[]` (own FQCN) |
+| Bare string `'method'` (Laravel binds bare-string callables to the subscriber instance) | Subscriber's own `handles[]` |
+| `[OtherClass::class, 'method']` | Registers `OtherClass` as a regular `listeners[]` entry with `registration: "subscriber"` |
+| `fn ($e) => …` or `function ($e) { … }` | Emitted into `closure_listeners[]` with `registration: "subscriber"` |
+
+The third rule has a noteworthy consequence: when a subscriber imperatively wires a *foreign* listener (one not declared on the subscriber's own class), that subscriber becomes the registration-source for the foreign listener — its `registration` is upgraded to `subscriber`, the highest-precedence source. This matches Laravel's runtime semantics (the subscriber is responsible for the registration) but means a listener's `registration` can flip from a lower-precedence value to `subscriber` purely because some subscriber elsewhere chose to wire it.
+
+The precedence rule (`subscriber > listen_array > event_listen_call > auto_discovered`) is unchanged; only what counts as a `subscriber`-sourced registration is broader.
 
 ## Output
 
@@ -89,7 +110,9 @@ The same event handled by different methods on one listener (`[Listener::class, 
 
 - **Dynamic event names.** `Event::listen($variable, Listener::class)` is skipped.
 - **Container-form registrations.** `$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.
-- **Subscribers — imperative `subscribe()` form.** Only the return-array form (`return [Event::class => 'method', …]`) is parsed. Bodies that call `$events->listen(Event::class, [self::class, 'method'])` imperatively contribute no events to `handles[]` — the subscriber is still emitted, just with an empty `handles` array.
+- **Nested `$events->subscribe(SubscriberFqcn::class)` inside a `subscribe()` body.** Not matched. Subscriber registrations are only picked up from the `$subscribe` array on `EventServiceProvider` and top-level `Event::subscribe(...)` calls; chaining subscribers from inside another subscriber's body is out of scope.
+- **Registrations hidden inside nested closures or other method calls inside `subscribe()`.** Example: `collect([…])->each(fn () => $events->listen(Event::class, …))`. The walker descends into control-flow statements but does not enter nested closures, arrow functions, or method bodies, so these registrations are dropped.
+- **Dispatcher accessed by anything other than the `subscribe()` parameter.** `$this->dispatcher->listen(...)`, `app(Dispatcher::class)->listen(...)`, or a re-aliased variable that wasn't the original method parameter are not matched. Only `listen(...)` calls on the parameter that occupies the dispatcher position are routed.
 - **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the listener inherits `ShouldQueue` rather than implementing it directly.
 - **Traits providing `handle()`.** Auto-discovery only inspects methods declared on the class itself, not those mixed in via traits.
 - **Union, intersection, nullable, builtin type-hints on `handle()`.** No auto-discovered event. The listener is still emitted with `handles: []`.
