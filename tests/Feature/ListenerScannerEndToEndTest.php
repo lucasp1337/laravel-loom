@@ -33,7 +33,9 @@ it('counts discovered listeners in stats.listeners', function () {
     // (multi-handler listener registered via the $listen array with explicit methods).
     // NeverSeen is skipped (dynamic event); IgnoredListener is skipped (its $listen
     // array sits on a non-EventServiceProvider class, filtered by ListenArrayVisitor).
-    expect($payload['stats']['listeners'])->toBe(9);
+    // ImperativeSubscriber is registered via Event::subscribe() and its imperative
+    // subscribe() body matches the 10th listener entry.
+    expect($payload['stats']['listeners'])->toBe(10);
 });
 
 it('includes the known listener FQCNs', function () {
@@ -53,6 +55,7 @@ it('includes the known listener FQCNs', function () {
     expect($fqcns)->toContain('App\\Listeners\\OrderEventSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
+    expect($fqcns)->toContain('App\\Listeners\\ImperativeSubscriber');
 });
 
 it('leaves non-listener sections as empty arrays, not null', function () {
@@ -101,6 +104,7 @@ it('sorts events[*].handled_by by listener asc then method asc', function () {
     expect($orderPlaced['handled_by'])->toBe([
         ['listener' => 'App\\Domain\\Invoicing\\Listeners\\IssueInvoice', 'method' => 'handle'],
         ['listener' => 'App\\Listeners\\AuditSubscriber', 'method' => 'audit'],
+        ['listener' => 'App\\Listeners\\ImperativeSubscriber', 'method' => 'onPlaced'],
         ['listener' => 'App\\Listeners\\OrderEventSubscriber', 'method' => 'handle'],
         ['listener' => 'App\\Listeners\\OrderEventSubscriber', 'method' => 'handleOrderPlaced'],
         ['listener' => 'App\\Listeners\\OrderEventsHandler', 'method' => 'handlePlaced'],
@@ -116,8 +120,8 @@ it('counts closure listeners in stats.closure_listeners', function () {
 
     $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
 
-    expect($payload['stats']['closure_listeners'])->toBe(4);
-    expect($payload['closure_listeners'])->toHaveCount(4);
+    expect($payload['stats']['closure_listeners'])->toBe(5);
+    expect($payload['closure_listeners'])->toHaveCount(5);
 });
 
 it('produces a schema-valid index with closure listeners populated', function () {
@@ -138,6 +142,7 @@ it('passes through closure listener entries from the scanner into the index in s
     $events = array_column($payload['closure_listeners'], 'event');
     expect($events)->toBe([
         'App\\Events\\InventoryDepleted',
+        'App\\Events\\OrderPlaced',
         'App\\Events\\OrderPlaced',
         'App\\Events\\OrderPlaced',
         'App\\Events\\StockLow',

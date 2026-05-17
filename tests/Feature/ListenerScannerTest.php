@@ -43,7 +43,8 @@ it('discovers the expected set of listeners from the fixture app', function () {
     expect($fqcns)->toContain('App\\Listeners\\OrderEventSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
-    expect($entries)->toHaveCount(9);
+    expect($fqcns)->toContain('App\\Listeners\\ImperativeSubscriber');
+    expect($entries)->toHaveCount(10);
 });
 
 it('applies listen_array precedence over auto-discovery for SendOrderConfirmation', function () {
@@ -77,19 +78,41 @@ it('records UpdateInventory as auto_discovered and not queued', function () {
     expect($entry['line'])->toBe(9);
 });
 
-it('upgrades NotifyAdmins to event_listen_call precedence over auto-discovery', function () {
+it('upgrades NotifyAdmins to subscriber precedence when imperative subscribe() registers it', function () {
     $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
 
     $entry = listenerByFqcn($entries, 'App\\Listeners\\NotifyAdmins');
 
     expect($entry)->not->toBeNull();
-    expect($entry['registration'])->toBe('event_listen_call');
+    // ImperativeSubscriber::subscribe() calls `$events->listen(InventoryDepleted::class,
+    // [NotifyAdmins::class, 'handle'])`, which is a foreign listener registration at
+    // 'subscriber' precedence. That outranks the Event::listen() registration in
+    // EventServiceProvider::boot(), so the final registration must be 'subscriber'.
+    expect($entry['registration'])->toBe('subscriber');
     expect($entry['queued'])->toBeFalse();
     expect($entry['handles'])->toBe([
+        ['event' => 'App\\Events\\InventoryDepleted', 'method' => 'handle'],
         ['event' => 'App\\Events\\StockLow', 'method' => 'handle'],
     ]);
     expect($entry['file'])->toBe('app/Listeners/NotifyAdmins.php');
     expect($entry['line'])->toBe(9);
+});
+
+it('records the imperative subscriber with its self-bound and bare-string handles', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\ImperativeSubscriber');
+
+    expect($entry)->not->toBeNull();
+    expect($entry['registration'])->toBe('subscriber');
+    expect($entry['queued'])->toBeFalse();
+    expect($entry['file'])->toBe('app/Listeners/ImperativeSubscriber.php');
+    // OrderPlaced::onPlaced is a [self::class, 'onPlaced'] tuple; StockLow::onStockLow
+    // is a bare-string method that Laravel binds to the subscriber instance.
+    expect($entry['handles'])->toBe([
+        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+        ['event' => 'App\\Events\\StockLow', 'method' => 'onStockLow'],
+    ]);
 });
 
 it('locates PsrOnly via the PSR-4 guess and records it as listen_array', function () {
@@ -256,7 +279,7 @@ it('keeps both pairs when one listener handles the same event under auto-discove
 it('discovers all closure listeners across $listen, Event::listen, and subscriber sources', function () {
     $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
 
-    expect($closures)->toHaveCount(4);
+    expect($closures)->toHaveCount(5);
 });
 
 it('sorts closure_listeners by (event, file, line) ascending', function () {
@@ -273,8 +296,16 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
         ],
         [
             'event' => 'App\\Events\\OrderPlaced',
+            'file' => 'app/Listeners/ImperativeSubscriber.php',
+            'line' => 18,
+            'registration' => 'subscriber',
+            'queued' => false,
+            'dispatches' => [],
+        ],
+        [
+            'event' => 'App\\Events\\OrderPlaced',
             'file' => 'app/Providers/EventServiceProvider.php',
-            'line' => 24,
+            'line' => 25,
             'registration' => 'listen_array',
             'queued' => false,
             'dispatches' => [],
@@ -282,7 +313,7 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
         [
             'event' => 'App\\Events\\OrderPlaced',
             'file' => 'app/Providers/EventServiceProvider.php',
-            'line' => 39,
+            'line' => 40,
             'registration' => 'event_listen_call',
             'queued' => false,
             'dispatches' => [],
@@ -290,7 +321,7 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
         [
             'event' => 'App\\Events\\StockLow',
             'file' => 'app/Providers/EventServiceProvider.php',
-            'line' => 40,
+            'line' => 41,
             'registration' => 'event_listen_call',
             'queued' => false,
             'dispatches' => [],
@@ -318,7 +349,7 @@ it('attributes registration correctly per closure listener source', function () 
     }
 
     expect($byRegistration)->toBe([
-        'subscriber' => 1,
+        'subscriber' => 2,
         'listen_array' => 1,
         'event_listen_call' => 2,
     ]);
@@ -328,8 +359,9 @@ it('does not leak closure listeners into the regular listeners[] array', functio
     $result = (new ListenerScanner)->scan(listenerFixturePath());
 
     // The fixture has been extended with closure registrations but the regular
-    // listeners[] count must stay at 9 (the existing class-based listeners).
-    expect($result['listeners'])->toHaveCount(9);
+    // listeners[] count must stay at 10 (the existing class-based listeners
+    // plus ImperativeSubscriber).
+    expect($result['listeners'])->toHaveCount(10);
 
     // OrderEventSubscriber's handles[] must not pick up InventoryDepleted —
     // that mapping went to closure_listeners, not handles[].
@@ -348,6 +380,38 @@ it('emits the schema-required keys on every closure listener', function () {
     foreach ($closures as $entry) {
         expect($entry)->toHaveKeys(['event', 'file', 'line', 'registration', 'queued', 'dispatches']);
     }
+});
+
+it('upgrades a foreign listener to subscriber registration when registered imperatively from subscribe()', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    // Regression guard for the precedence change introduced with imperative
+    // subscribe() body discovery. NotifyAdmins is now registered from inside
+    // ImperativeSubscriber::subscribe() via a foreign-class tuple. The pair
+    // flows through ListenerScanner::applyPair() with REGISTRATION_SUBSCRIBER
+    // (precedence 4), which outranks both event_listen_call (2) and
+    // auto_discovered (1) — so the final registration must be 'subscriber'.
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\NotifyAdmins');
+
+    expect($entry)->not->toBeNull();
+    expect($entry['registration'])->toBe('subscriber');
+    expect($entry['handles'])->toContain(
+        ['event' => 'App\\Events\\InventoryDepleted', 'method' => 'handle'],
+    );
+});
+
+it('emits a closure_listeners[] entry with registration=subscriber for closures registered from inside subscribe()', function () {
+    $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
+
+    $imperativeClosures = array_values(array_filter(
+        $closures,
+        fn (array $entry) => $entry['file'] === 'app/Listeners/ImperativeSubscriber.php',
+    ));
+
+    expect($imperativeClosures)->toHaveCount(1);
+    expect($imperativeClosures[0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($imperativeClosures[0]['registration'])->toBe('subscriber');
+    expect($imperativeClosures[0]['queued'])->toBeFalse();
 });
 
 it('emits the schema-required keys on every listener', function () {
