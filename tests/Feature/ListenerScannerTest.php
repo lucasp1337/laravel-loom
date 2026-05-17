@@ -40,7 +40,9 @@ it('discovers the expected set of listeners from the fixture app', function () {
     expect($fqcns)->toContain('App\\Listeners\\PsrOnly');
     expect($fqcns)->toContain('App\\Listeners\\UntypedListener');
     expect($fqcns)->toContain('App\\Domain\\Invoicing\\Listeners\\IssueInvoice');
-    expect($entries)->toHaveCount(6);
+    expect($fqcns)->toContain('App\\Listeners\\OrderEventSubscriber');
+    expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
+    expect($entries)->toHaveCount(8);
 });
 
 it('applies listen_array precedence over auto-discovery for SendOrderConfirmation', function () {
@@ -138,6 +140,30 @@ it('discovers Event::listen() registrations in providers outside app/Providers/'
     expect($issueInvoice['registration'])->toBe('event_listen_call');
     expect($issueInvoice['handles'])->toBe(['App\\Events\\OrderPlaced']);
     expect($issueInvoice['file'])->toBe('app/Domain/Invoicing/Listeners/IssueInvoice.php');
+});
+
+it('discovers subscribers from the $subscribe array on EventServiceProvider', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\OrderEventSubscriber');
+
+    expect($entry)->not->toBeNull();
+    expect($entry['registration'])->toBe('subscriber');
+    expect($entry['queued'])->toBeTrue();
+    expect($entry['handles'])->toBe(['App\\Events\\OrderPlaced', 'App\\Events\\StockLow']);
+    expect($entry['file'])->toBe('app/Listeners/OrderEventSubscriber.php');
+});
+
+it('discovers subscribers from Event::subscribe() calls', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\AuditSubscriber');
+
+    expect($entry)->not->toBeNull();
+    expect($entry['registration'])->toBe('subscriber');
+    expect($entry['queued'])->toBeFalse();
+    expect($entry['handles'])->toBe(['App\\Events\\OrderPlaced']);
+    expect($entry['file'])->toBe('app/Listeners/AuditSubscriber.php');
 });
 
 it('emits dispatches as an empty array for every listener', function () {

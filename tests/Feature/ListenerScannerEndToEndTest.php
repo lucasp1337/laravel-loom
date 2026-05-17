@@ -26,11 +26,12 @@ it('counts discovered listeners in stats.listeners', function () {
     $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
 
     // SendOrderConfirmation, UpdateInventory, NotifyAdmins, PsrOnly, UntypedListener,
-    // and IssueInvoice (registered via Event::listen() in InvoicingServiceProvider,
-    // which sits at app/Domain/Invoicing/ rather than app/Providers/).
+    // IssueInvoice (registered via Event::listen() in InvoicingServiceProvider, which
+    // sits at app/Domain/Invoicing/ rather than app/Providers/), OrderEventSubscriber
+    // ($subscribe array), and AuditSubscriber (Event::subscribe()).
     // NeverSeen is skipped (dynamic event); IgnoredListener is skipped (its $listen
     // array sits on a non-EventServiceProvider class, filtered by ListenArrayVisitor).
-    expect($payload['stats']['listeners'])->toBe(6);
+    expect($payload['stats']['listeners'])->toBe(8);
 });
 
 it('includes the known listener FQCNs', function () {
@@ -47,6 +48,8 @@ it('includes the known listener FQCNs', function () {
     expect($fqcns)->toContain('App\\Listeners\\PsrOnly');
     expect($fqcns)->toContain('App\\Listeners\\UntypedListener');
     expect($fqcns)->toContain('App\\Domain\\Invoicing\\Listeners\\IssueInvoice');
+    expect($fqcns)->toContain('App\\Listeners\\OrderEventSubscriber');
+    expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
 });
 
 it('leaves non-listener sections as empty arrays, not null', function () {

@@ -4,6 +4,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased](https://github.com/lucasp1337/laravel-loom/compare/v0.1.0...HEAD)
 
+### Added
+
+- **ListenerScanner — subscriber discovery.** Detects subscriber classes registered via `$subscribe = [Subscriber::class, …]` on `EventServiceProvider` (or any class extending it) and via `Event::subscribe(Subscriber::class)` calls. The subscriber's own `subscribe()` method is parsed for return-array form (`return [Event::class => 'method', …]`), and the resulting events populate `handles[]`. Subscribers are emitted with `registration: "subscriber"` — a new highest-precedence source above `listen_array`. Imperative `$events->listen(...)` inside `subscribe()` remains a documented gap.
+
 ## [0.1.0](https://github.com/lucasp1337/laravel-loom/releases/tag/v0.1.0) - 2026-05-16
 
 First public release.

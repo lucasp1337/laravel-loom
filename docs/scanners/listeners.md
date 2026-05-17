@@ -4,13 +4,15 @@ Discovers event listeners and emits the `listeners[]` section of the index.
 
 ## What it detects
 
-ListenerScanner uses three discovery paths and merges them by listener FQCN:
+ListenerScanner uses four discovery paths and merges them by listener FQCN:
 
 1. **Auto-discovery via `app/Listeners/`.** Every class in `app/Listeners/` with a public `handle()` method is a listener candidate. The first parameter's type-hint becomes the event the listener handles. Classes implementing `Illuminate\Contracts\Queue\ShouldQueue` directly are marked `queued: true`.
 
 2. **`$listen` array on `EventServiceProvider`.** Walks the entire `app/` tree (not just `app/Providers/`) and looks at classes named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`. The `$listen` property (any visibility, must be `array`) is parsed: each `EventClass::class => [Listener::class, …]` pair becomes a registration. Tuple values `[Listener::class, 'method']` record the listener FQCN; the method name is discarded.
 
 3. **`Event::listen()` static calls.** Walks the entire `app/` tree for `\Illuminate\Support\Facades\Event::listen(EventClass::class, Listener::class)` calls. The class-shape filter only applies in path 2 — Event::listen calls are scanner-agnostic about the surrounding class, so providers in DDD-style layouts (e.g. `app/Domain/Invoicing/Providers/InvoicingServiceProvider.php`) are discovered.
+
+4. **Subscribers.** Classes registered via the `$subscribe = [SubscriberClass::class, …]` array on an `EventServiceProvider`, or via `Event::subscribe(SubscriberClass::class)` calls. The subscriber's own `subscribe($events): array` method is then parsed: the return-array form `[Event::class => 'handlerMethod', …]` contributes events to the subscriber's `handles[]`. Subscribers receive `registration: "subscriber"` — the highest-precedence source.
 
 ## Output
 
@@ -30,7 +32,7 @@ One entry per listener FQCN, conforming to `$defs/listener`:
 
 `dispatches` is always emitted as an empty array. It is populated by the cross-link pass from DispatchScanner's per-call-site data.
 
-`registration` is set per the precedence rule: `listen_array > event_listen_call > auto_discovered`. When a listener is discovered through multiple paths, the entry's `registration` reports the highest-precedence source observed.
+`registration` is set per the precedence rule: `subscriber > listen_array > event_listen_call > auto_discovered`. When a listener is discovered through multiple paths, the entry's `registration` reports the highest-precedence source observed.
 
 `handles` is the union of event FQCNs across all paths, sorted ascending.
 
@@ -53,7 +55,7 @@ Entries are sorted by `fqcn` ascending.
 - **Dynamic event names.** `Event::listen($variable, Listener::class)` is skipped.
 - **Tuple method names.** `[Listener::class, 'customHandler']` records the listener but loses the method name. Multi-handler listeners aren't represented.
 - **Container-form registrations.** `$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.
-- **Subscribers (`subscribe()` method).** Not detected. The schema enum reserves `registration: "subscriber"` but the scanner doesn't currently emit it.
+- **Subscribers — imperative `subscribe()` form.** Only the return-array form (`return [Event::class => 'method', …]`) is parsed. Bodies that call `$events->listen(Event::class, [self::class, 'method'])` imperatively contribute no events to `handles[]` — the subscriber is still emitted, just with an empty `handles` array.
 - **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the listener inherits `ShouldQueue` rather than implementing it directly.
 - **Traits providing `handle()`.** Auto-discovery only inspects methods declared on the class itself, not those mixed in via traits.
 - **Union, intersection, nullable, builtin type-hints on `handle()`.** No auto-discovered event. The listener is still emitted with `handles: []`.
