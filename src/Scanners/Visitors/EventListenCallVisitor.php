@@ -17,7 +17,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
 {
     private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
 
-    /** @var array<int, array{event: string, listener: string}> */
+    /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
 
     /**
@@ -66,25 +66,48 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $listener = $this->listenerFromValue($second->value);
-        if ($listener === null) {
+        $resolved = $this->listenerFromValue($second->value);
+        if ($resolved === null) {
             return null;
         }
 
-        $this->pairs[] = ['event' => $event, 'listener' => $listener];
+        $this->pairs[] = [
+            'event' => $event,
+            'listener' => $resolved['listener'],
+            'method' => $resolved['method'],
+        ];
 
         return null;
     }
 
-    private function listenerFromValue(Node\Expr $value): ?string
+    /**
+     * @return array{listener: string, method: string}|null
+     */
+    private function listenerFromValue(Node\Expr $value): ?array
     {
         $direct = $this->classConstFqcn($value);
         if ($direct !== null) {
-            return $direct;
+            return ['listener' => $direct, 'method' => 'handle'];
+        }
+
+        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
+            $listener = $this->classConstFqcn($value->items[0]->value);
+            if ($listener === null) {
+                return null;
+            }
+            $methodNode = $value->items[1]->value;
+            if (! $methodNode instanceof Node\Scalar\String_) {
+                return null;
+            }
+
+            return ['listener' => $listener, 'method' => $methodNode->value];
         }
 
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            return $this->classConstFqcn($value->items[0]->value);
+            $listener = $this->classConstFqcn($value->items[0]->value);
+            if ($listener !== null) {
+                return ['listener' => $listener, 'method' => 'handle'];
+            }
         }
 
         return null;
@@ -109,7 +132,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{event: string, listener: string}>
+     * @return array<int, array{event: string, listener: string, method: string}>
      */
     public function getPairs(): array
     {

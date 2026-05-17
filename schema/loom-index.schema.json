@@ -78,7 +78,15 @@
                 },
                 "handled_by": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                        "type": "object",
+                        "required": ["listener", "method"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "listener": { "type": "string" },
+                            "method": { "type": "string" }
+                        }
+                    }
                 }
             }
         },
@@ -114,7 +122,15 @@
                 "line": { "type": "integer", "minimum": 1 },
                 "handles": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                        "type": "object",
+                        "required": ["event", "method"],
+                        "additionalProperties": false,
+                        "properties": {
+                            "event": { "type": "string" },
+                            "method": { "type": "string" }
+                        }
+                    }
                 },
                 "registration": {
                     "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"]

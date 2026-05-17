@@ -58,7 +58,7 @@ final class ListenerScanner implements Scanner
     /**
      * Walk app/Listeners/ to collect listener classes with their handle() shape.
      *
-     * @return array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}>
+     * @return array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
      */
     private function discoverFromAutoDiscovery(string $appRoot): array
     {
@@ -101,7 +101,7 @@ final class ListenerScanner implements Scanner
      * directory; the ListenArrayVisitor filters by class shape so the
      * wider walk does not introduce false positives.
      *
-     * @return array<int, array{event: string, listener: string}>
+     * @return array<int, array{event: string, listener: string, method: string}>
      */
     private function discoverFromListenArray(string $appRoot): array
     {
@@ -131,7 +131,7 @@ final class ListenerScanner implements Scanner
      * method but commonly live outside app/Providers/. The visitor itself
      * is location-agnostic, so widening the walk is the correct fix.
      *
-     * @return array<int, array{event: string, listener: string}>
+     * @return array<int, array{event: string, listener: string, method: string}>
      */
     private function discoverFromEventListenCalls(string $appRoot): array
     {
@@ -194,7 +194,7 @@ final class ListenerScanner implements Scanner
      * empty `handles[]` — see docs/scanners/listeners.md for the gap.
      *
      * @param  array<int, string>  $fqcns
-     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, string>}>
+     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>
      */
     private function resolveSubscribers(string $appRoot, array $fqcns): array
     {
@@ -231,21 +231,22 @@ final class ListenerScanner implements Scanner
      * `registration` field is `subscriber > listen_array > event_listen_call > auto_discovered`.
      * `handles` is the union of events across all sources.
      *
-     * @param  array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}>  $autoDiscovered
-     * @param  array<int, array{event: string, listener: string}>  $listenArrayPairs
-     * @param  array<int, array{event: string, listener: string}>  $eventListenPairs
-     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, string>}>  $subscribers
-     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, string>, registration: string}>
+     * @param  array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>  $autoDiscovered
+     * @param  array<int, array{event: string, listener: string, method: string}>  $listenArrayPairs
+     * @param  array<int, array{event: string, listener: string, method: string}>  $eventListenPairs
+     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>  $subscribers
+     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>
      */
     private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers): array
     {
-        /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, true>, registration: ?string}> $acc */
+        /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}> $acc */
         $acc = [];
 
         foreach ($autoDiscovered as $fqcn => $data) {
             $handlesSet = [];
-            foreach ($data['handles'] as $event) {
-                $handlesSet[$event] = true;
+            foreach ($data['handles'] as $pair) {
+                $key = $pair['event'].'::'.$pair['method'];
+                $handlesSet[$key] = $pair;
             }
             $acc[$fqcn] = [
                 'file' => $data['file'],
@@ -284,8 +285,9 @@ final class ListenerScanner implements Scanner
                 }
             }
 
-            foreach ($data['handles'] as $event) {
-                $acc[$fqcn]['handles'][$event] = true;
+            foreach ($data['handles'] as $pair) {
+                $key = $pair['event'].'::'.$pair['method'];
+                $acc[$fqcn]['handles'][$key] = $pair;
             }
         }
 
@@ -304,8 +306,10 @@ final class ListenerScanner implements Scanner
                 $entry['queued'] = $located['queued'];
             }
 
-            $handles = array_keys($entry['handles']);
-            sort($handles);
+            $handles = array_values($entry['handles']);
+            usort($handles, function (array $a, array $b): int {
+                return [$a['event'], $a['method']] <=> [$b['event'], $b['method']];
+            });
 
             $registration = $entry['registration'] ?? self::REGISTRATION_AUTO_DISCOVERED;
 
@@ -326,8 +330,8 @@ final class ListenerScanner implements Scanner
      * event to its handles set, and upgrade its `registration` if the incoming
      * source has higher precedence than what's currently recorded.
      *
-     * @param  array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, true>, registration: ?string}>  $acc
-     * @param  array{event: string, listener: string}  $pair
+     * @param  array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}>  $acc
+     * @param  array{event: string, listener: string, method: string}  $pair
      */
     private function applyPair(array &$acc, array $pair, string $registration): void
     {
@@ -343,7 +347,8 @@ final class ListenerScanner implements Scanner
             ];
         }
 
-        $acc[$fqcn]['handles'][$pair['event']] = true;
+        $key = $pair['event'].'::'.$pair['method'];
+        $acc[$fqcn]['handles'][$key] = ['event' => $pair['event'], 'method' => $pair['method']];
 
         if ($this->precedence($registration) > $this->precedence($acc[$fqcn]['registration'])) {
             $acc[$fqcn]['registration'] = $registration;
@@ -394,7 +399,7 @@ final class ListenerScanner implements Scanner
     /**
      * Build schema-shaped listener entries, sorted by FQCN ascending.
      *
-     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, string>, registration: string}>  $merged
+     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>  $merged
      * @return array<int, array<string, mixed>>
      */
     private function emit(array $merged): array

@@ -27,8 +27,10 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 {
     private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
-    /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, string>}> */
+    /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}> */
     private array $classes = [];
+
+    private ?string $currentClassFqcn = null;
 
     /**
      * @param  array<int, Node>  $nodes
@@ -36,6 +38,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     public function beforeTraverse(array $nodes): ?array
     {
         $this->classes = [];
+        $this->currentClassFqcn = null;
 
         return null;
     }
@@ -69,7 +72,9 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             }
         }
 
+        $this->currentClassFqcn = $node->namespacedName->toString();
         $handles = $this->extractHandles($subscribeMethod);
+        $this->currentClassFqcn = null;
 
         $this->classes[] = [
             'fqcn' => $node->namespacedName->toString(),
@@ -82,7 +87,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, string>
+     * @return array<int, array{event: string, method: string}>
      */
     private function extractHandles(Node\Stmt\ClassMethod $method): array
     {
@@ -105,15 +110,53 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                     continue;
                 }
                 $event = $this->classConstFqcn($item->key);
-                if ($event !== null) {
-                    $handles[] = $event;
+                if ($event === null) {
+                    continue;
                 }
+
+                $methodName = $this->extractMethodName($item->value);
+                if ($methodName === null) {
+                    continue;
+                }
+
+                $handles[] = ['event' => $event, 'method' => $methodName];
             }
 
             break;
         }
 
         return $handles;
+    }
+
+    private function extractMethodName(Node\Expr $value): ?string
+    {
+        if ($value instanceof Node\Scalar\String_) {
+            return $value->value;
+        }
+
+        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
+            $methodNode = $value->items[1]->value;
+            if (! $methodNode instanceof Node\Scalar\String_) {
+                return null;
+            }
+
+            // Accept self::class, static::class, or the subscriber's own FQCN.
+            $classExpr = $value->items[0]->value;
+            if ($classExpr instanceof Node\Expr\ClassConstFetch
+                && $classExpr->class instanceof Node\Name
+                && $classExpr->name instanceof Node\Identifier
+                && $classExpr->name->toString() === 'class'
+            ) {
+                $name = $classExpr->class->toString();
+                if ($name === 'self' || $name === 'static' || $name === $this->currentClassFqcn) {
+                    return $methodNode->value;
+                }
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function classConstFqcn(Node\Expr $expr): ?string
@@ -135,7 +178,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, string>}>
+     * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>
      */
     public function getClasses(): array
     {

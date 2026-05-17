@@ -18,7 +18,7 @@ use RuntimeException;
  */
 class IndexBuilder
 {
-    public const LOOM_VERSION = '0.1.0';
+    public const LOOM_VERSION = '0.2.0';
 
     /** @var array<int, Scanner> */
     private array $scanners = [];
@@ -165,6 +165,10 @@ class IndexBuilder
         }
 
         // Phase 1: handled_by from listener.handles inversion.
+        // Build per-listener method set for Phase 3 dispatch attribution while we're here.
+        /** @var array<string, array<string, true>> $listenerMethods */
+        $listenerMethods = [];
+
         foreach ($sections['listeners'] as $listener) {
             $listenerFqcn = $listener['fqcn'] ?? null;
             $handles = $listener['handles'] ?? [];
@@ -172,18 +176,36 @@ class IndexBuilder
                 continue;
             }
 
-            foreach ($handles as $eventFqcn) {
-                if (! is_string($eventFqcn)) {
+            foreach ($handles as $pair) {
+                if (! is_array($pair)) {
                     continue;
                 }
+                $eventFqcn = $pair['event'] ?? null;
+                $method = $pair['method'] ?? null;
+                if (! is_string($eventFqcn) || ! is_string($method)) {
+                    continue;
+                }
+
+                $listenerMethods[$listenerFqcn][$method] = true;
+
                 if (! isset($eventIndex[$eventFqcn])) {
                     continue;
                 }
                 $eIdx = $eventIndex[$eventFqcn];
-                /** @var array<int, string> $handledBy */
+                /** @var array<int, array{listener: string, method: string}> $handledBy */
                 $handledBy = $sections['events'][$eIdx]['handled_by'] ?? [];
-                if (! in_array($listenerFqcn, $handledBy, true)) {
-                    $handledBy[] = $listenerFqcn;
+
+                $alreadyPresent = false;
+                foreach ($handledBy as $existing) {
+                    if ($existing['listener'] === $listenerFqcn
+                        && $existing['method'] === $method
+                    ) {
+                        $alreadyPresent = true;
+                        break;
+                    }
+                }
+                if (! $alreadyPresent) {
+                    $handledBy[] = ['listener' => $listenerFqcn, 'method' => $method];
                 }
                 $sections['events'][$eIdx]['handled_by'] = $handledBy;
             }
@@ -228,8 +250,12 @@ class IndexBuilder
                 'line' => $line,
             ];
 
-            // Listener dispatch attribution: method must be exactly "handle".
-            if ($method === 'handle' && isset($listenerIndex[$classFqcn])) {
+            // Listener dispatch attribution: enclosing method must be one of the
+            // listener's registered handler methods (handle, handleFoo, etc.).
+            if (is_string($method)
+                && isset($listenerIndex[$classFqcn])
+                && isset($listenerMethods[$classFqcn][$method])
+            ) {
                 $lIdx = $listenerIndex[$classFqcn];
                 /** @var array<int, array<string, mixed>> $existing */
                 $existing = $sections['listeners'][$lIdx]['dispatches'] ?? [];
@@ -285,9 +311,12 @@ class IndexBuilder
 
         // Sort all cross-linked arrays for deterministic output.
         foreach ($sections['events'] as $idx => $event) {
-            /** @var array<int, string> $handledBy */
+            /** @var array<int, array{listener: string, method: string}> $handledBy */
             $handledBy = $event['handled_by'] ?? [];
-            sort($handledBy);
+            usort($handledBy, function (array $a, array $b): int {
+                return [$a['listener'], $a['method']] <=>
+                    [$b['listener'], $b['method']];
+            });
             $sections['events'][$idx]['handled_by'] = $handledBy;
 
             /** @var array<int, array<string, mixed>> $dispatchedFrom */

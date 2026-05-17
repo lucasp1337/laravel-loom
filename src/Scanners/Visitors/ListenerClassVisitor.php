@@ -18,7 +18,7 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
 {
     private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
-    /** @var array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}> */
+    /** @var array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}> */
     private array $classes = [];
 
     /**
@@ -68,7 +68,7 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
                 // Only a bare Node\Name counts as a usable event type — unions,
                 // intersections, nullables, and builtins are documented gaps.
                 if ($type instanceof Node\Name) {
-                    $handles[] = $type->toString();
+                    $handles[] = ['event' => $type->toString(), 'method' => 'handle'];
                 }
             }
             break;
@@ -86,7 +86,7 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, string>}>
+     * @return array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
      */
     public function getClasses(): array
     {

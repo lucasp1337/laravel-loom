@@ -18,7 +18,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
 {
     private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
 
-    /** @var array<int, array{event: string, listener: string}> */
+    /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
 
     /**
@@ -116,9 +116,13 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
 
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $listenerItem) {
-                    $listenerFqcn = $this->listenerFromValue($listenerItem->value);
-                    if ($listenerFqcn !== null) {
-                        $this->pairs[] = ['event' => $eventFqcn, 'listener' => $listenerFqcn];
+                    $resolved = $this->listenerFromValue($listenerItem->value);
+                    if ($resolved !== null) {
+                        $this->pairs[] = [
+                            'event' => $eventFqcn,
+                            'listener' => $resolved['listener'],
+                            'method' => $resolved['method'],
+                        ];
                     }
                 }
 
@@ -126,23 +130,47 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             }
 
             // Single listener written without an enclosing array — uncommon but legal.
-            $listenerFqcn = $this->listenerFromValue($value);
-            if ($listenerFqcn !== null) {
-                $this->pairs[] = ['event' => $eventFqcn, 'listener' => $listenerFqcn];
+            $resolved = $this->listenerFromValue($value);
+            if ($resolved !== null) {
+                $this->pairs[] = [
+                    'event' => $eventFqcn,
+                    'listener' => $resolved['listener'],
+                    'method' => $resolved['method'],
+                ];
             }
         }
     }
 
-    private function listenerFromValue(Node\Expr $value): ?string
+    /**
+     * @return array{listener: string, method: string}|null
+     */
+    private function listenerFromValue(Node\Expr $value): ?array
     {
         $direct = $this->classConstFqcn($value);
         if ($direct !== null) {
-            return $direct;
+            return ['listener' => $direct, 'method' => 'handle'];
         }
 
-        // Tuple form: [ListenerClass::class, 'method']. v0.1 discards the method.
+        // Tuple form: [ListenerClass::class, 'method'].
+        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
+            $listener = $this->classConstFqcn($value->items[0]->value);
+            if ($listener === null) {
+                return null;
+            }
+            $methodNode = $value->items[1]->value;
+            if (! $methodNode instanceof Node\Scalar\String_) {
+                return null;
+            }
+
+            return ['listener' => $listener, 'method' => $methodNode->value];
+        }
+
+        // Bare-tuple case with a single class element behaves like a direct ::class.
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            return $this->classConstFqcn($value->items[0]->value);
+            $listener = $this->classConstFqcn($value->items[0]->value);
+            if ($listener !== null) {
+                return ['listener' => $listener, 'method' => 'handle'];
+            }
         }
 
         return null;
@@ -167,7 +195,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{event: string, listener: string}>
+     * @return array<int, array{event: string, listener: string, method: string}>
      */
     public function getPairs(): array
     {
