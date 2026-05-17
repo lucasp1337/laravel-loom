@@ -2,6 +2,8 @@
 
 Discovers event listeners and emits the `listeners[]` section of the index.
 
+> Closure-based listeners (arrow functions and `function () { … }` values in `$listen`, `Event::listen()`, or subscriber return-arrays) are emitted into the separate `closure_listeners[]` section instead — they have no FQCN to key against the `listeners[]` shape. See [closure-listeners.md](closure-listeners.md).
+
 ## What it detects
 
 ListenerScanner uses four discovery paths and merges them by listener FQCN:
@@ -85,7 +87,6 @@ The same event handled by different methods on one listener (`[Listener::class, 
 
 ## Known limitations
 
-- **Closures / arrow-function listeners.** `Event::listen(EventClass::class, fn ($e) => …)` and closure values inside `$listen` are silently dropped. There's no FQCN to record. Loom does NOT currently emit an `unresolved_dispatches`-style entry for unresolvable listener registrations.
 - **Dynamic event names.** `Event::listen($variable, Listener::class)` is skipped.
 - **Container-form registrations.** `$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.
 - **Subscribers — imperative `subscribe()` form.** Only the return-array form (`return [Event::class => 'method', …]`) is parsed. Bodies that call `$events->listen(Event::class, [self::class, 'method'])` imperatively contribute no events to `handles[]` — the subscriber is still emitted, just with an empty `handles` array.
@@ -101,8 +102,8 @@ Triage checklist for missing listeners:
 
 1. Is it registered in `$listen` on an `EventServiceProvider` (or a class named `EventServiceProvider`)? Yes → should be picked up. Check the class-shape filter is satisfied.
 2. Is it under `app/Listeners/` with a `handle()` method? Yes → auto-discovered.
-3. Is it registered via `Event::listen(EventClass::class, Listener::class)`? Yes → picked up regardless of where the calling file lives, as long as both event and listener are `::class` references (not strings, not variables, not closures).
-4. Is it a closure listener? That's documented above — not supported.
+3. Is it registered via `Event::listen(EventClass::class, Listener::class)`? Yes → picked up regardless of where the calling file lives, as long as both event and listener are `::class` references (not strings or variables).
+4. Is it a closure or arrow function? It's emitted into `closure_listeners[]`, not `listeners[]`. See [closure-listeners.md](closure-listeners.md).
 5. Is the listener file findable via the PSR-4 guess (leading `App\` → `app/`)? Run `ls app/{trimmed path}.php`. If not found, the listener is dropped.
 
 For unexpected `registration` values: trace through the precedence rule. Listeners present in `$listen` AND in `app/Listeners/` get `registration: listen_array` because that path wins.

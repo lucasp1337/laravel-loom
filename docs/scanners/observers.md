@@ -94,7 +94,7 @@ forceDeleting, forceDeleted, booting, booted
 
 ## Known limitations
 
-- **Closure handlers in `Event::listen('eloquent.*', fn ...)`.** Silently dropped. No FQCN to record.
+- **Closure handlers in `Event::listen('eloquent.*', fn ...)`.** Do not contribute to `model_events[*].handled_by` — that field requires an `Observer::method` string. The registration itself is captured in `closure_listeners[]` with the raw string event (see [closure-listeners.md](closure-listeners.md)), but ObserverScanner won't synthesize a `model_events` entry from it.
 - **Dynamic args.** `#[ObservedBy($var)]`, `Model::observe($var)`, `$class::observe(...)`, `Event::listen($var, ...)` are all skipped. Loom does not currently emit unresolved entries for observer registrations.
 - **Container-form registrations.** `app('events')->listen('eloquent.*', ...)` is not matched. Only the `Event::` facade form for path 3.
 - **Inherited hooks from parent observer classes.** Not resolved. The hook visitor only sees methods declared on the class itself.

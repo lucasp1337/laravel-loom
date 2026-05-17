@@ -18,6 +18,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- **Closure listener discovery.** A new top-level `closure_listeners[]` section captures closure and arrow-function registrations that `listeners[]` can't represent (no FQCN). Three discovery paths: closure values inside the `$listen` array on `EventServiceProvider` (`registration: "listen_array"`), closures as the second argument to `Event::listen()` anywhere under `app/` (`registration: "event_listen_call"`), and closures in a subscriber's `subscribe()` return-array (`registration: "subscriber"`). Both `fn ($e) => …` and long-form `function ($e) { … }` are detected. The `event` field holds the FQCN for `::class` registrations and the raw string for string-keyed registrations; `file`/`line` point to the closure node. The section is additive — existing consumers reading `listeners[]` see no shape change. `queued` is always `false` and `dispatches` is always `[]` in this release; both are reserved fields. `events[*].handled_by` does not link back to closures (their shape lacks an FQCN + method); filter `closure_listeners[]` by `event` instead. See [docs/scanners/closure-listeners.md](docs/scanners/closure-listeners.md).
+
 - **Multi-handler listener support.** A single listener class registered against different events under different methods is now represented faithfully. Tuple-form registrations preserved across all four discovery paths:
   - `$listen` array: `EventClass::class => [[Listener::class, 'handleFoo']]` records `method: "handleFoo"`.
   - `Event::listen(EventClass::class, [Listener::class, 'handleFoo'])` records `method: "handleFoo"`.

@@ -50,9 +50,10 @@ These have caused regressions. Don't rediscover them.
 **Visitors reset state in `beforeTraverse()`.** Scanners reuse a single visitor instance across all files in a discovery loop. Forgetting to reset means dispatch sites from file A bleed into file B's reported sites.
 
 **One source of truth per output field.**
-- `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Each entry is a `{listener, method}` pair. Listener scanners don't write to event entries.
+- `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Each entry is a `{listener, method}` pair. Listener scanners don't write to event entries. Closure registrations in `closure_listeners[]` are intentionally NOT joined back into `handled_by` — that field's shape requires an FQCN + method, which closures lack.
 - `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
 - `listeners[*].dispatches` / `observers[*].dispatches` — same; cross-link from DispatchScanner.
+- `closure_listeners[*].dispatches` — reserved; currently always `[]`. Line-span-based attribution from DispatchScanner is a planned follow-up.
 - `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
 
 If two scanners ever write to the same field, you've drifted from the design — fix the drift, don't merge the writes.
