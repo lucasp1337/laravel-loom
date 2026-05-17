@@ -14,6 +14,14 @@ use PhpParser\ParserFactory;
  */
 function runListenArrayVisitor(string $source): array
 {
+    return runListenArrayVisitorFull($source)['pairs'];
+}
+
+/**
+ * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: string}>}
+ */
+function runListenArrayVisitorFull(string $source): array
+{
     $parser = (new ParserFactory)->createForNewestSupportedVersion();
     $ast = $parser->parse($source);
 
@@ -25,7 +33,10 @@ function runListenArrayVisitor(string $source): array
     $traverser->addVisitor($visitor);
     $traverser->traverse($ast);
 
-    return $visitor->getPairs();
+    return [
+        'pairs' => $visitor->getPairs(),
+        'closurePairs' => $visitor->getClosurePairs(),
+    ];
 }
 
 it('extracts pairs from a class literally named EventServiceProvider', function () {
@@ -219,6 +230,135 @@ it('skips entries with string keys instead of ::class', function () {
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toBe([]);
+});
+
+it('emits a closure pair when the $listen value is an arrow function', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                fn ($e) => null,
+            ],
+        ];
+    }
+    PHP;
+
+    $result = runListenArrayVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
+    expect($result['closurePairs'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+});
+
+it('emits a closure pair when the $listen value is a long-form Closure', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                function ($e) { return null; },
+            ],
+        ];
+    }
+    PHP;
+
+    $result = runListenArrayVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
+});
+
+it('routes class listeners to getPairs() and closures to getClosurePairs() in a mixed array', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                SendOrderConfirmation::class,
+                fn ($e) => null,
+            ],
+        ];
+    }
+    PHP;
+
+    $result = runListenArrayVisitorFull($source);
+
+    expect($result['pairs'])->toHaveCount(1);
+    expect($result['pairs'][0]['listener'])->toBe('App\\Listeners\\SendOrderConfirmation');
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+});
+
+it('emits a closure pair with a string event key', function () {
+    // String event keys are legitimate for closures (Event::listen('user.created', fn (…)))
+    // but the same string key under a non-closure value belongs to ObserverScanner.
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            'user.created' => [
+                fn ($e) => null,
+            ],
+        ];
+    }
+    PHP;
+
+    $result = runListenArrayVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('user.created');
+    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
+});
+
+it('drops both pair and closure-pair when the key is a variable', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            $event => [
+                fn ($e) => null,
+            ],
+        ];
+    }
+    PHP;
+
+    $result = runListenArrayVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toBe([]);
 });
 
 it('returns no pairs for an empty $listen array', function () {

@@ -8,7 +8,7 @@ use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 
 /**
- * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>
+ * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>}>
  */
 function runSubscriberClassVisitor(string $source): array
 {
@@ -178,6 +178,95 @@ it('skips classes without a subscribe() method', function () {
     PHP;
 
     expect(runSubscriberClassVisitor($source))->toBe([]);
+});
+
+it('routes closure values in subscribe() return array to closureHandles', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Events\StockLow;
+
+    class MixedSubscriber
+    {
+        public function subscribe($events): array
+        {
+            return [
+                OrderPlaced::class => 'handleOrderPlaced',
+                StockLow::class => fn ($e) => null,
+            ];
+        }
+    }
+    PHP;
+
+    $classes = runSubscriberClassVisitor($source);
+
+    expect($classes)->toHaveCount(1);
+    expect($classes[0]['handles'])->toBe([
+        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handleOrderPlaced'],
+    ]);
+    expect($classes[0]['closureHandles'])->toHaveCount(1);
+    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\StockLow');
+    expect($classes[0]['closureHandles'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+});
+
+it('routes long-form closure values in subscribe() return array to closureHandles', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class LongFormSubscriber
+    {
+        public function subscribe($events): array
+        {
+            return [
+                OrderPlaced::class => function ($e) {
+                    return null;
+                },
+            ];
+        }
+    }
+    PHP;
+
+    $classes = runSubscriberClassVisitor($source);
+
+    expect($classes)->toHaveCount(1);
+    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]['closureHandles'])->toHaveCount(1);
+    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+});
+
+it('drops non-closure handlers under string event keys and keeps closure handlers under string keys', function () {
+    // String event keys for non-closure handlers belong to ObserverScanner;
+    // string keys for closures are still legal (subscriber can listen to 'user.created').
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Listeners;
+
+    class StringKeySubscriber
+    {
+        public function subscribe($events): array
+        {
+            return [
+                'eloquent.*' => 'handleAny',
+                'user.created' => fn ($e) => null,
+            ];
+        }
+    }
+    PHP;
+
+    $classes = runSubscriberClassVisitor($source);
+
+    expect($classes)->toHaveCount(1);
+    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]['closureHandles'])->toHaveCount(1);
+    expect($classes[0]['closureHandles'][0]['event'])->toBe('user.created');
 });
 
 it('returns empty handles when subscribe() does not return an array literal', function () {

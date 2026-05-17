@@ -14,6 +14,14 @@ use PhpParser\ParserFactory;
  */
 function runEventListenCallVisitor(string $source): array
 {
+    return runEventListenCallVisitorFull($source)['pairs'];
+}
+
+/**
+ * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: string}>}
+ */
+function runEventListenCallVisitorFull(string $source): array
+{
     $parser = (new ParserFactory)->createForNewestSupportedVersion();
     $ast = $parser->parse($source);
 
@@ -25,7 +33,10 @@ function runEventListenCallVisitor(string $source): array
     $traverser->addVisitor($visitor);
     $traverser->traverse($ast);
 
-    return $visitor->getPairs();
+    return [
+        'pairs' => $visitor->getPairs(),
+        'closurePairs' => $visitor->getClosurePairs(),
+    ];
 }
 
 it('extracts a pair from Event::listen with the facade imported via use, defaulting method to handle', function () {
@@ -158,6 +169,109 @@ it('extracts a pair when the Event facade is referenced via its FQCN with no use
         'listener' => 'App\\Listeners\\SendOrderConfirmation',
         'method' => 'handle',
     ]);
+});
+
+it('emits a closure pair from Event::listen(Foo::class, fn ($e) => …)', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(OrderPlaced::class, fn ($e) => null);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
+    expect($result['closurePairs'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+});
+
+it('emits a closure pair with a string event from Event::listen(\'string.event\', fn () => …)', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen('user.created', fn ($e) => null);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('user.created');
+    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
+});
+
+it('drops Event::listen($var, fn () => …) entirely', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen($dynamic, fn ($e) => null);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toBe([]);
+});
+
+it('emits a closure pair from Event::listen(Foo::class, function () { … }) long-form', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(OrderPlaced::class, function ($e) {
+                return null;
+            });
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
 });
 
 it('ignores static listen calls on classes other than the Event facade', function () {
