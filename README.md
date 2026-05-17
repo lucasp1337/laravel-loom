@@ -14,30 +14,30 @@
 
 # Laravel Loom
 
-**See your Laravel application's event-driven architecture at a glance.**
+*Architecture as data.*
 
-Loom is a static analyzer that reads your application's source code and produces a structured JSON index of every event, listener, observer, and dispatch site — with file paths and line numbers, ready for humans, CI pipelines, and AI agents to consume.
+Static analyzer for Laravel's event-driven primitives. Scans your source and writes a JSON file listing the events, listeners, observers, and dispatch sites it finds — with file paths and line numbers. Unresolved dispatch calls inside method bodies (`event($variable)`, container lookups) are surfaced with a reason code rather than dropped silently; top-level scripts and closure bodies are skipped entirely. Per-scanner edge cases live in [docs/scanners/](docs/scanners/).
 
 ```bash
 php artisan loom:scan
 # storage/loom/index.json
 ```
 
-No runtime tracing. No service-container introspection. No booting your app. Loom walks PHP source, resolves names with `nikic/php-parser`, and writes a deterministic JSON file. It works on a freshly cloned repo without `vendor/`.
+No app boot, no runtime tracing, no `vendor/` required. Loom reads PHP source with `nikic/php-parser` and emits a deterministic JSON file.
 
-## Why?
+## Why
 
-Event-driven Laravel apps drift fast. Listeners get added in providers, observers attached in `booted()`, dispatches scattered across services. `php artisan event:list` shows you what Laravel happened to register at boot — not what's actually in your source. Observers don't appear at all. Dispatch sites are invisible.
+Event-driven Laravel apps drift fast. Listeners get added in providers, observers attached in `booted()`, dispatches scattered across services. `php artisan event:list` shows you what Laravel happened to register at boot — not what's actually in your source. Observers don't appear at all. Dispatch sites are invisible. Subscribers vary by registration form.
 
 Loom answers the questions that command can't:
 
 - *Where is `OrderPlaced` dispatched from?* → `events[].dispatched_from`
-- *Which listeners handle it?* → `events[].handled_by`
-- *What does `SendOrderConfirmation::handle()` dispatch internally?* → `listeners[].dispatches`
-- *Which observers run on `App\Models\User`?* → `observers[]` + synthesized `model_events[]`
-- *Are there any dynamic `event($variable)` calls that static analysis can't resolve?* → `unresolved_dispatches[]`
+- *Which listeners handle it, and via which methods?* → `events[].handled_by` (class-based) + `closure_listeners[]` filtered by `event` (closures, which don't have an FQCN to cross-link)
+- *What does `SendOrderConfirmation::handle()` dispatch?* → `listeners[].dispatches`
+- *Which observers run on `App\Models\User`?* → `observers[]` + `model_events[]`
+- *Any dynamic dispatches Loom couldn't pin down?* → `unresolved_dispatches[]` with a reason and a file:line
 
-The output is a single JSON file. Diff it in CI to catch architectural drift. Feed it to your coding agent to give it instant context on your event flow. Render it as a graph. Search it. Whatever you want — it's just JSON.
+Per-scanner edge cases and known limitations live in [docs/scanners/](docs/scanners/).
 
 ## Installation
 
@@ -55,23 +55,20 @@ php artisan loom:show          # prints the index
 php artisan loom:show OrderPlaced   # filters by FQCN substring
 ```
 
-The output file lives at `storage/loom/index.json` and is gitignored by default — consume it from CI, commit it deliberately, or ignore it. Up to you.
+The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if you don't want to commit it.
 
 ## What gets discovered
 
-| Primitive | Discovery paths |
-|---|---|
-| **Events** | `app/Events/**` filesystem walk, plus any class dispatched via `event()`, `Event::dispatch()`, or `X::dispatch()` |
-| **Listeners** | The `$listen` array on `EventServiceProvider`, Laravel 11+ auto-discovery via typed `handle()` parameters, `Event::listen()` calls anywhere under `app/` (DDD-style providers in `app/Domain/.../Providers/` are supported), and subscribers registered via `$subscribe` or `Event::subscribe()` |
-| **Closure listeners** | Closure and arrow-function values inside `$listen` arrays, as the second argument to `Event::listen()`, and inside subscriber `subscribe()` return-arrays. Emitted as a separate `closure_listeners[]` section. |
-| **Observers** | `Model::observe()` calls (including `static::observe(...)` inside `booted()`), the `#[ObservedBy]` attribute, plus Eloquent model events synthesized from observer hooks and `Event::listen('eloquent.*', …)` |
-| **Dispatches** | One-level scan of every method body for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()` calls. Cross-links them to events, listeners, and observers. |
-
-Loom favors *surfacing gaps* over hiding them. Dynamic dispatches like `event($variable)` or `event("App\\Events\\{$name}")` don't disappear — they land in `unresolved_dispatches[]` with the reason (`dynamic_class_name`, `string_concatenation`, `container_resolution`, `conditional_dispatch`) and a file:line pointer.
+- **Events** — `app/Events/**` walk, plus any class statically dispatched via `event(new Foo)` / `Event::dispatch(new Foo)` (regardless of where the class lives). The ambiguous Dispatchable form `X::dispatch()` only counts as an event when the target resolves under `app/Events/`.
+- **Listeners** — Laravel's auto-discovery, `$listen` arrays on `EventServiceProvider`, `Event::listen()` calls anywhere under `app/`, and subscribers via `$subscribe` / `Event::subscribe()`.
+- **Closure listeners** — closures and arrow functions wherever a listener can be (`$listen`, `Event::listen()`, subscriber bodies). Emitted as a separate `closure_listeners[]` section.
+- **Observers** — `Model::observe()` calls, the `#[ObservedBy]` attribute, plus model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`.
+- **Dispatches** — every method body scanned for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()`. Cross-linked back to listeners and observers by handler method.
 
 ## Sample output
 
-A representative scan against a small Laravel 13 app:
+<details>
+<summary>Click to expand a representative scan against a small Laravel 13 app</summary>
 
 ```json
 {
@@ -79,10 +76,10 @@ A representative scan against a small Laravel 13 app:
   "scanned_at": "2026-05-16T19:25:54Z",
   "laravel_version": "13.7",
   "stats": {
-    "events": 3,
-    "listeners": 3,
-    "observers": 3,
-    "unresolved_dispatches": 0,
+    "events": 1,
+    "listeners": 1,
+    "observers": 1,
+    "unresolved_dispatches": 1,
     "closure_listeners": 1
   },
   "events": [
@@ -162,23 +159,27 @@ A representative scan against a small Laravel 13 app:
 }
 ```
 
-Schema is locked at `schema/loom-index.schema.json` — every scan is validated against it before being written.
+</details>
+
+The JSON shape is defined by `schema/loom-index.schema.json` and validated on every scan. The schema follows semver — but pre-1.0, breaking changes are tolerated and called out in the [CHANGELOG](CHANGELOG.md). From 1.0 onwards, breaking changes will require a major bump.
 
 ## Performance
 
-Loom is fast because it does one thing. On a fresh `laravel new` app, the scan finishes in well under a second. A medium-sized real-world app (~200 PHP files in `app/`) scans in **~200ms**.
+On a fresh `laravel new` app, the scan finishes in well under a second. A medium-sized real-world app (~200 PHP files in `app/`) scans in around 200ms.
 
-## What it does not do
+## What's planned
 
-Loom is deliberately narrow. Not in scope:
+Tracked at the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1). Highlights:
 
-- Container bindings, the scheduler, broadcast channels, notifications, mailables
-- Analysis of job class internals (Loom records dispatch sites; what happens inside the job is your queue worker's concern)
-- Runtime tracing of any kind
-- An MCP server, Blade UI, Markdown export, diff / CI integration
-- Multi-framework support, Laravel < 11
+- More sections: [jobs](https://github.com/lucasp1337/laravel-loom/issues/5), [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [schedule entries](https://github.com/lucasp1337/laravel-loom/issues/7), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
+- A [browser UI](https://github.com/lucasp1337/laravel-loom/issues/19) for clicking through the index — events, listeners, dispatch chains.
+- An [MCP server](https://github.com/lucasp1337/laravel-loom/issues/20) so AI coding assistants can query the index instead of grepping.
+- [`loom:diff`](https://github.com/lucasp1337/laravel-loom/issues/9) and [`loom:check`](https://github.com/lucasp1337/laravel-loom/issues/10) for CI.
+- A few correctness fixes — [container-form registrations](https://github.com/lucasp1337/laravel-loom/issues/15), [indirect `ShouldQueue`](https://github.com/lucasp1337/laravel-loom/issues/14), [closure dispatch attribution](https://github.com/lucasp1337/laravel-loom/issues/16).
 
-For per-scanner edge cases and known limitations, see [docs/scanners/](docs/scanners/).
+Out of scope: runtime tracing, IDE plugins, complexity/quality metrics, and data-model / access-control primitives (models, migrations, validators, policies). Loom's domain is *control flow* — what dispatches what, what handles what, what runs when — which includes routes and schedules even though they're not strictly `Event::dispatch()`-shaped.
+
+For per-scanner edge cases and known limitations today, see [docs/scanners/](docs/scanners/).
 
 ## Requirements
 

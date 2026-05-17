@@ -6,6 +6,26 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ---
 
+## Scope
+
+Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `unresolved_dispatches`. Planned for v1.0: `jobs`, mailables, notifications, schedule entries, routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
+
+Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
+
+Out of scope, and not just "later":
+
+- Data-model and access-control primitives — models, migrations, validators, policies, gates
+- Runtime tracing / queue worker observation
+- Code-quality metrics (complexity, fat-class detection, line counts)
+- Visualization features beyond the read-only browser UI in #19
+- Laravel < 11
+
+Loom's domain is the *control flow* of a Laravel app — what dispatches what, what handles what, what runs when. Routes and schedules are part of that (an HTTP request fires a controller method; cron fires a job at 2am), even though they aren't strictly "event-driven" in the `Event::dispatch()` sense. Models and migrations are not.
+
+When a subagent proposes a feature, the test is: *does this enrich the existing schema, make an existing consumer more useful, or close a documented gap?* If not, decline or file an issue for later.
+
+---
+
 ## Repo layout
 
 ```
@@ -128,6 +148,6 @@ Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. T
 
 ## When you are uncertain about scope
 
-If you're considering work that isn't obviously about events, listeners, observers, or dispatches — stop and ask a human. Loom is deliberately narrow. Container bindings, the scheduler, broadcast channels, notifications, mailables, runtime tracing, an MCP server, a Blade UI, Markdown export, diff/CI integration — these have all been considered and excluded. If a new primitive is genuinely needed, it gets its own scanner via `/add-scanner`, not bolted onto an existing one.
+See the **Scope** section near the top of this file for what's emitted today vs planned for v1.0. If something doesn't fit either list, stop and ask a human — don't bolt it onto an existing scanner. A genuinely new primitive gets its own scanner via `/add-scanner`.
 
 The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.
