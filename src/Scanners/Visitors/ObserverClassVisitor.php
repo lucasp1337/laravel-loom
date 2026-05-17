@@ -11,7 +11,7 @@ use PhpParser\NodeVisitorAbstract;
  * Enumerates Eloquent observer hook methods on classes.
  *
  * For each top-level Stmt\Class_, records every method whose name matches the
- * canonical hook enum (see ObserverScanner design §2e). Visibility is ignored
+ * canonical hook enum (see docs/scanners/observers.md). Visibility is ignored
  * by design — Laravel's observer dispatcher does not strictly require public.
  */
 final class ObserverClassVisitor extends NodeVisitorAbstract

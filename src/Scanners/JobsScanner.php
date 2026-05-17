@@ -19,7 +19,7 @@ use SplFileInfo;
  * dispatch sites whose target resolves via PSR-4 to a class anywhere
  * under app/.
  *
- * See docs/scanners/JobsScanner.md (forthcoming) for the full design.
+ * See docs/scanners/jobs.md for the full design.
  */
 final class JobsScanner implements Scanner
 {

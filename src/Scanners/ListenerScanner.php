@@ -20,7 +20,7 @@ use SplFileInfo;
 /**
  * Discovers Laravel event listeners across three sources: auto-discovery via
  * app/Listeners/, the $listen array on EventServiceProvider, and Event::listen()
- * static calls. See docs/scanners/ListenerScanner.md for the full design.
+ * static calls. See docs/scanners/listeners.md for the full design.
  */
 final class ListenerScanner implements Scanner
 {

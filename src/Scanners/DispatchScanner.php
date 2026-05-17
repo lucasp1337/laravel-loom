@@ -18,7 +18,7 @@ use SplFileInfo;
  * `unresolved_dispatches` section and the internal `_dispatch_sites`
  * section consumed by IndexBuilder's cross-link pass.
  *
- * See docs/scanners/DispatchScanner.md for the full design.
+ * See docs/scanners/dispatches.md for the full design.
  */
 final class DispatchScanner implements Scanner
 {
