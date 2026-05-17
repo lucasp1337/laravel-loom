@@ -1,7 +1,10 @@
 # ClassHierarchyResolver — design
 
-Internal design note for issue #13. Audience: `ast-specialist` (implementer),
-`test-engineer` (test plan). Not user-facing.
+Internal design note for the cross-file class hierarchy resolver (issue #13).
+Captures the rationale behind the trade-offs — opaque-leaf strategy for vendor
+classes, eager filesystem walk over Composer-driven resolution, scope kept to
+class-graph relations with method-level resolution deferred. Read this when
+extending the resolver or wiring a new consumer.
 
 ## Why
 
@@ -215,8 +218,8 @@ Be explicit; these are tempting and they all blow the scope:
    trait-of-trait, multi-class file, cycle, unknown leaf, anonymous-class
    skip.
 3. Wire into `IndexBuilder` construction (instantiate, pass into existing
-   scanner constructors as a nullable param OR via a setter — implementer's
-   call, but do NOT change scanner behavior in this PR).
+   scanner constructors as a nullable param OR via a setter), but do NOT
+   change scanner behavior in this PR.
 4. No schema changes. No output changes.
 
 **Follow-up PRs (one per consumer, each trivial once the resolver exists):**
@@ -233,7 +236,7 @@ Be explicit; these are tempting and they all blow the scope:
 Each follow-up cites this design doc and updates the relevant scanner doc's
 "Known limitations" section.
 
-## Test plan outline (for `test-engineer`)
+## Test coverage
 
 Fixtures under `tests/Fixtures/ClassHierarchy/`:
 
@@ -260,10 +263,9 @@ No feature-level tests in this PR — no scanner consumes the resolver yet.
 ## Open items
 
 - **Single-class-per-build memoisation of `implementsInterface` etc.** Worth
-  it given scanners hit the same FQCN many times. Implementer choice on
-  exact memoisation granularity; do not over-engineer (a flat
+  it given scanners hit the same FQCN many times. A flat
   `array<string, array<string, bool>>` keyed by `[fqcn][interface]` is
-  enough).
+  enough — don't over-engineer.
 - **Whether the resolver should expose the raw `ClassDeclaration` records.**
   Pro: future scanners may want `kind` / `file` / `line`. Con: leaks the
   internal shape. Recommendation: keep private for v1; promote to public if
