@@ -187,8 +187,11 @@ final class ListenerScanner implements Scanner
     /**
      * Resolve each subscriber FQCN to a file + parsed subscribe() return-array.
      *
-     * Subscribers whose source file can't be located via PSR-4 guess, or that
-     * have no parseable subscribe() return-array, are dropped (documented gap).
+     * A subscriber is dropped if its source file can't be located via the
+     * PSR-4 guess or if the class has no `subscribe()` method. If the method
+     * exists but its body has no parseable return-array (e.g. the imperative
+     * `$events->listen(...)` form), the subscriber is still emitted with an
+     * empty `handles[]` — see docs/scanners/listeners.md for the gap.
      *
      * @param  array<int, string>  $fqcns
      * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, string>}>
