@@ -28,7 +28,8 @@ final class Index
         public readonly array $listeners = [],
         public readonly array $observers = [],
         public readonly array $unresolvedDispatches = [],
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>
