@@ -8,7 +8,7 @@ Discovers event listeners and emits the `listeners[]` section of the index.
 
 ListenerScanner uses four discovery paths and merges them by listener FQCN:
 
-1. **Auto-discovery via `app/Listeners/`.** Every class in `app/Listeners/` with a public `handle()` method is a listener candidate. The first parameter's type-hint becomes the event the listener handles. Classes implementing `Illuminate\Contracts\Queue\ShouldQueue` directly are marked `queued: true`.
+1. **Auto-discovery via `app/Listeners/`.** Every class in `app/Listeners/` with a public `handle()` method is a listener candidate. The first parameter's type-hint becomes the event the listener handles. Classes that transitively implement `Illuminate\Contracts\Queue\ShouldQueue` — directly or via a parent class indexed under `app/` — are marked `queued: true`.
 
 2. **`$listen` array on `EventServiceProvider`.** Walks the entire `app/` tree (not just `app/Providers/`) and looks at classes named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`. The `$listen` property (any visibility, must be `array`) is parsed: each `EventClass::class => [Listener::class, …]` pair becomes a registration. Bare `Listener::class` values map to `method: "handle"`. Tuple values `[Listener::class, 'method']` preserve the method name.
 
@@ -104,7 +104,7 @@ The same event handled by different methods on one listener (`[Listener::class, 
 - **`Event::listen(Event::class, [Listener::class, 'method'])`.** Method name preserved. Bare `Event::listen(Event::class, Listener::class)` maps to `method: "handle"`.
 - **`Event::listen()` inside a non-provider class.** Discovered. The `Event::listen` visitor doesn't filter by surrounding class shape — it accepts any static call.
 - **`Event::listen(\Illuminate\Support\Facades\Event::class, ...)` fully qualified.** Resolved correctly via NameResolver.
-- **`ShouldQueue` implemented directly.** `queued: true`. The check is on the class's `implements` clause post-NameResolver.
+- **`ShouldQueue` implemented transitively.** `queued: true` whenever any class in the listener's `extends` chain (or the listener itself) carries `implements ShouldQueue`. Resolution uses the cross-file [class hierarchy resolver](../support/class-hierarchy.md).
 
 ## Known limitations
 
@@ -113,7 +113,7 @@ The same event handled by different methods on one listener (`[Listener::class, 
 - **Nested `$events->subscribe(SubscriberFqcn::class)` inside a `subscribe()` body.** Not matched. Subscriber registrations are only picked up from the `$subscribe` array on `EventServiceProvider` and top-level `Event::subscribe(...)` calls; chaining subscribers from inside another subscriber's body is out of scope.
 - **Registrations hidden inside nested closures or other method calls inside `subscribe()`.** Example: `collect([…])->each(fn () => $events->listen(Event::class, …))`. The walker descends into control-flow statements but does not enter nested closures, arrow functions, or method bodies, so these registrations are dropped.
 - **Dispatcher accessed by anything other than the `subscribe()` parameter.** `$this->dispatcher->listen(...)`, `app(Dispatcher::class)->listen(...)`, or a re-aliased variable that wasn't the original method parameter are not matched. Only `listen(...)` calls on the parameter that occupies the dispatcher position are routed.
-- **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the listener inherits `ShouldQueue` rather than implementing it directly.
+- **`ShouldQueue` inherited through vendor classes.** The resolver only indexes `app/`. A listener that extends a class from a vendor package which itself implements `ShouldQueue` will report `queued: false`.
 - **Traits providing `handle()`.** Auto-discovery only inspects methods declared on the class itself, not those mixed in via traits.
 - **Union, intersection, nullable, builtin type-hints on `handle()`.** No auto-discovered event. The listener is still emitted with `handles: []`.
 - **Wildcard listeners (`Event::listen('eloquent.*', …)`).** These are model events, not class events. They appear in `model_events[]` via [ObserverScanner](observers.md), not in `listeners[]`.

@@ -53,8 +53,8 @@ it('produces a schema-valid index with EventScanner, JobsScanner, and DispatchSc
 it('counts discovered jobs in stats.jobs', function () {
     $payload = buildJobsEndToEndPayload();
 
-    expect($payload['stats']['jobs'])->toBe(4);
-    expect($payload['jobs'])->toHaveCount(4);
+    expect($payload['stats']['jobs'])->toBe(5);
+    expect($payload['jobs'])->toHaveCount(5);
 });
 
 it('includes the known job FQCNs', function () {

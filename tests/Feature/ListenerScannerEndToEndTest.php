@@ -34,8 +34,9 @@ it('counts discovered listeners in stats.listeners', function () {
     // NeverSeen is skipped (dynamic event); IgnoredListener is skipped (its $listen
     // array sits on a non-EventServiceProvider class, filtered by ListenArrayVisitor).
     // ImperativeSubscriber is registered via Event::subscribe() and its imperative
-    // subscribe() body matches the 10th listener entry.
-    expect($payload['stats']['listeners'])->toBe(10);
+    // subscribe() body matches a listener entry. InheritsQueued is auto-discovered
+    // from app/Listeners/ and exercises indirect ShouldQueue via its parent.
+    expect($payload['stats']['listeners'])->toBe(11);
 });
 
 it('includes the known listener FQCNs', function () {
