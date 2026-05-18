@@ -9,6 +9,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -23,6 +24,8 @@ use SplFileInfo;
  */
 final class JobsScanner implements Scanner
 {
+    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
+
     private AstWalker $walker;
 
     private Psr4ClassLocator $locator;
@@ -38,7 +41,9 @@ final class JobsScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $fsClasses = $this->discoverFromFilesystem($appRoot);
+        $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
+
+        $fsClasses = $this->discoverFromFilesystem($appRoot, $resolver);
         $dispatchTargets = $this->discoverFromDispatchSites($appRoot);
 
         $merged = $fsClasses;
@@ -48,7 +53,7 @@ final class JobsScanner implements Scanner
                 continue;
             }
 
-            $located = $this->locateByPsr4Guess($appRoot, $fqcn);
+            $located = $this->locateByPsr4Guess($appRoot, $fqcn, $resolver);
             if ($located === null) {
                 continue;
             }
@@ -85,7 +90,7 @@ final class JobsScanner implements Scanner
     /**
      * @return array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>
      */
-    private function discoverFromFilesystem(string $appRoot): array
+    private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
         $jobsDir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Jobs';
         if (! is_dir($jobsDir)) {
@@ -103,7 +108,7 @@ final class JobsScanner implements Scanner
                 $results[$class['fqcn']] = [
                     'file' => $relative,
                     'line' => $class['line'],
-                    'queued' => $class['queued'],
+                    'queued' => $resolver->implementsInterface($class['fqcn'], self::SHOULD_QUEUE),
                     'queue_config' => $class['queue_config'],
                 ];
             }
@@ -156,7 +161,7 @@ final class JobsScanner implements Scanner
     /**
      * @return array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}|null
      */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?array
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -174,7 +179,7 @@ final class JobsScanner implements Scanner
             return [
                 'file' => $this->relativePath($appRoot, $absolute),
                 'line' => $class['line'],
-                'queued' => $class['queued'],
+                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
                 'queue_config' => $class['queue_config'],
             ];
         }

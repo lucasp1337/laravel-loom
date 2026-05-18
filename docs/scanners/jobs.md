@@ -12,7 +12,7 @@ JobsScanner finds job classes via two discovery paths and merges them by FQCN:
 
 Entries are deduped by FQCN. A job discovered through both paths produces a single entry.
 
-`queued: true` iff the class **directly** implements `Illuminate\Contracts\Queue\ShouldQueue` on its `implements` clause. Inheritance via a parent class is not chased — see Known limitations.
+`queued: true` iff the class transitively implements `Illuminate\Contracts\Queue\ShouldQueue` — either declared on its own `implements` clause, or inherited via a parent class indexed under `app/`. Resolved via the cross-file [class hierarchy resolver](../support/class-hierarchy.md). Inheritance through vendor or framework classes that live outside `app/` is opaque to the resolver and won't surface as `queued: true`.
 
 ## Output
 
@@ -51,7 +51,7 @@ Entries are sorted by `fqcn` ascending.
 
 ## Known limitations
 
-- **Indirect `ShouldQueue` via parent class.** `queued` reports `false` if the job inherits `ShouldQueue` from a parent rather than declaring it on its own `implements` clause. Gated on the cross-file class hierarchy resolver (issue #13).
+- **`ShouldQueue` inherited through vendor classes.** The class hierarchy resolver only indexes `app/`. A job that extends an abstract class from a vendor package (e.g. a Laravel framework class) which itself implements `ShouldQueue` will still report `queued: false`.
 - **Helper methods called from `handle()`.** Dispatches inside a helper method (e.g. `processOrder()` called by `handle()`) are not attributed to the job's `dispatches[]`. Only sites whose enclosing method is literally `handle` are joined. Same constraint as listeners' non-`handle*` methods.
 - **`Bus::chain([new A, new B])` and `Bus::batch([...])`.** Neither captured by DispatchScanner today. Jobs registered via chain or batch will not surface in `jobs[*].dispatched_from`. A future change to `DispatchSiteVisitor` could recognise array-literal chain/batch contents.
 - **Method-form queue configs.** `backoff()` and `retryUntil()` methods are not parsed. Only class-level scalar property declarations (`public $backoff = 60;`) are extracted into `queue_config`.
@@ -69,7 +69,7 @@ Triage checklist for missing jobs:
 3. Is it abstract, an interface, a trait, or an anonymous class? Skipped by design.
 4. Is it only referenced inside `Bus::chain([...])` or `Bus::batch([...])`? Not currently captured.
 
-For unexpected `queued: false` on a class that does extend a queueable parent: confirm the class itself carries `implements ShouldQueue`. Inherited implementation is not detected.
+For unexpected `queued: false` on a class that extends a queueable parent: confirm the parent lives under `app/` and that some class in the extends chain declares `implements ShouldQueue`. Vendor parents are opaque to the resolver.
 
 For unexpected `null` values inside `queue_config`: confirm the property is declared at class level with a scalar literal initializer. `config(...)`, constants, and method-form configurations are not extracted.
 

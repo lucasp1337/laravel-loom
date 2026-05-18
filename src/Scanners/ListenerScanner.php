@@ -13,6 +13,7 @@ use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ClassHierarchyResolver;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -24,6 +25,8 @@ use SplFileInfo;
  */
 final class ListenerScanner implements Scanner
 {
+    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
+
     private const REGISTRATION_SUBSCRIBER = 'subscriber';
 
     private const REGISTRATION_LISTEN_ARRAY = 'listen_array';
@@ -44,6 +47,8 @@ final class ListenerScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
+        $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
+
         $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot);
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
@@ -59,7 +64,7 @@ final class ListenerScanner implements Scanner
         );
 
         return [
-            'listeners' => $this->emit($merged),
+            'listeners' => $this->emit($merged, $resolver),
             'closure_listeners' => $closureListeners,
         ];
     }
@@ -463,7 +468,7 @@ final class ListenerScanner implements Scanner
      * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>  $merged
      * @return array<int, array<string, mixed>>
      */
-    private function emit(array $merged): array
+    private function emit(array $merged, ClassHierarchyResolver $resolver): array
     {
         ksort($merged);
 
@@ -475,7 +480,7 @@ final class ListenerScanner implements Scanner
                 'line' => $data['line'],
                 'handles' => $data['handles'],
                 'registration' => $data['registration'],
-                'queued' => $data['queued'],
+                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
                 'dispatches' => [],
             ];
         }

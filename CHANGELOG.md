@@ -4,6 +4,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Changed
+
+- **Transitive `ShouldQueue` detection for jobs and listeners.** `JobsScanner` and `ListenerScanner` now consult the `ClassHierarchyResolver` when computing `queued`. A job or listener reports `queued: true` whenever any class in its `extends` chain (or the class itself) declares `implements Illuminate\Contracts\Queue\ShouldQueue`, as long as the relevant parent class is indexed under `app/`. The visitor-level check on the direct `implements` clause is preserved for unit tests, but the scanner-emitted answer is the transitive one. Vendor-class parents remain opaque to the resolver and won't surface as `queued: true`. Documented gap closed: indirect `ShouldQueue` via `app/`-resident parent class (issue #14). See [docs/scanners/jobs.md](docs/scanners/jobs.md) and [docs/scanners/listeners.md](docs/scanners/listeners.md).
+
 ### Added
 
 - **`ClassHierarchyResolver` support service.** Internal cross-file resolver for `extends` / `implements` / `use Trait` relationships, backed by a new `ClassDeclarationVisitor`. Lives at `src/Support/ClassHierarchyResolver.php`; lazy-indexes `app/` once per `IndexBuilder::build()` call and memoises per-FQCN queries. Exposes `extendsChain()`, `implementsAll()`, `traitsAll()`, `implementsInterface()`, `isSubclassOf()`, and `knows()`. External classes are treated as opaque leaves. No scanner consumes it yet — groundwork for #14 (migrating `JobClassVisitor` to use the resolver so e.g. `ShouldQueue` declared on an abstract parent is detected). No scanner output or schema changes. Contract at [docs/support/class-hierarchy.md](docs/support/class-hierarchy.md); rationale in [ADR 0001](docs/adr/0001-class-hierarchy-resolver.md). Closes #13.

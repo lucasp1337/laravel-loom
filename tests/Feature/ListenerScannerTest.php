@@ -44,7 +44,20 @@ it('discovers the expected set of listeners from the fixture app', function () {
     expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
     expect($fqcns)->toContain('App\\Listeners\\ImperativeSubscriber');
-    expect($entries)->toHaveCount(10);
+    expect($fqcns)->toContain('App\\Listeners\\InheritsQueued');
+    expect($entries)->toHaveCount(11);
+});
+
+it('detects indirect ShouldQueue via a parent abstract class', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\InheritsQueued');
+
+    expect($entry)->not->toBeNull();
+    // InheritsQueued does NOT implement ShouldQueue directly — it extends
+    // AbstractQueuedListener which does. The resolver-driven queued
+    // detection should walk the extends chain and pick that up.
+    expect($entry['queued'])->toBeTrue();
 });
 
 it('applies listen_array precedence over auto-discovery for SendOrderConfirmation', function () {
@@ -359,9 +372,9 @@ it('does not leak closure listeners into the regular listeners[] array', functio
     $result = (new ListenerScanner)->scan(listenerFixturePath());
 
     // The fixture has been extended with closure registrations but the regular
-    // listeners[] count must stay at 10 (the existing class-based listeners
-    // plus ImperativeSubscriber).
-    expect($result['listeners'])->toHaveCount(10);
+    // listeners[] count must stay at 11 (the existing class-based listeners,
+    // ImperativeSubscriber, and InheritsQueued).
+    expect($result['listeners'])->toHaveCount(11);
 
     // OrderEventSubscriber's handles[] must not pick up InventoryDepleted —
     // that mapping went to closure_listeners, not handles[].

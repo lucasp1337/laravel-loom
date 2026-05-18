@@ -37,8 +37,29 @@ it('discovers the expected set of jobs from the fixture app', function () {
     expect($fqcns)->toContain('App\\Jobs\\ProcessOrder');
     expect($fqcns)->toContain('App\\Jobs\\SendInvoice');
     expect($fqcns)->toContain('App\\Jobs\\RunReport');
+    expect($fqcns)->toContain('App\\Jobs\\IndirectlyQueued');
     expect($fqcns)->toContain('App\\Domain\\Billing\\Jobs\\ChargeCustomer');
-    expect($entries)->toHaveCount(4);
+    expect($entries)->toHaveCount(5);
+});
+
+it('detects indirect ShouldQueue via a parent abstract class', function () {
+    $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
+
+    $entry = jobByFqcn($entries, 'App\\Jobs\\IndirectlyQueued');
+
+    expect($entry)->not->toBeNull();
+    // IndirectlyQueued does NOT implement ShouldQueue directly — it extends
+    // AbstractJob which does. The resolver-driven queued detection should
+    // walk the extends chain and surface the indirect implementation.
+    expect($entry['queued'])->toBeTrue();
+    expect($entry['queue_config'])->toBe([
+        'connection' => null,
+        'queue' => 'reports',
+        'delay' => null,
+        'tries' => null,
+        'timeout' => null,
+        'backoff' => null,
+    ]);
 });
 
 it('skips abstract job classes', function () {
