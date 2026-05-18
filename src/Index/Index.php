@@ -20,6 +20,7 @@ final class Index
      * @param  array<int, array<string, mixed>>  $jobs
      * @param  array<int, array<string, mixed>>  $unresolvedDispatches
      * @param  array<int, array<string, mixed>>  $closureListeners
+     * @param  array<int, array<string, mixed>>  $scheduled
      */
     public function __construct(
         public readonly string $loomVersion,
@@ -32,6 +33,7 @@ final class Index
         public readonly array $jobs = [],
         public readonly array $unresolvedDispatches = [],
         public readonly array $closureListeners = [],
+        public readonly array $scheduled = [],
     ) {
     }
 
@@ -51,6 +53,7 @@ final class Index
                 'jobs' => count($this->jobs),
                 'unresolved_dispatches' => count($this->unresolvedDispatches),
                 'closure_listeners' => count($this->closureListeners),
+                'scheduled' => count($this->scheduled),
             ],
             'events' => $this->events,
             'model_events' => $this->modelEvents,
@@ -59,6 +62,7 @@ final class Index
             'jobs' => $this->jobs,
             'unresolved_dispatches' => $this->unresolvedDispatches,
             'closure_listeners' => $this->closureListeners,
+            'scheduled' => $this->scheduled,
         ];
     }
 }

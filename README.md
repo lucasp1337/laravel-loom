@@ -64,6 +64,7 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
 - **Closure listeners** — closures and arrow functions wherever a listener can be (`$listen`, `Event::listen()`, subscriber bodies). Emitted as a separate `closure_listeners[]` section.
 - **Observers** — `Model::observe()` calls, the `#[ObservedBy]` attribute, plus model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`.
 - **Jobs** — classes under `app/Jobs/` (recursive), plus any class dispatched via `dispatch()`, `Bus::dispatch()`, or the Dispatchable form `X::dispatch()` (located via PSR-4, so jobs in DDD layouts get picked up). Records `queued` and `queue_config` (connection, queue, delay, tries, timeout, backoff) when declared as class properties.
+- **Schedule** — entries declared via the `schedule(Schedule $schedule)` method on `app/Console/Kernel.php`, the `->withSchedule(...)` callback on `Application::configure(...)` in `bootstrap/app.php`, and `Schedule::call/command/job/exec(...)` chains anywhere under `app/`. Records `kind`, resolved `target`, a five-field `cron` expression normalized from Laravel's frequency helpers, `timezone`, the `without_overlapping` / `on_one_server` / `run_in_background` flags, and a sorted list of opaque `constraints[]` labels (`weekdays`, `between(8:00,17:00)`, `when(closure)`, `environments(production)`, …).
 - **Dispatches** — every method body scanned for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()`. Cross-linked back to listeners and observers by handler method.
 
 ## Sample output
@@ -80,6 +81,7 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
     "events": 1,
     "listeners": 1,
     "observers": 1,
+    "scheduled": 1,
     "unresolved_dispatches": 1,
     "closure_listeners": 1
   },
@@ -139,6 +141,20 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
       "dispatches": []
     }
   ],
+  "scheduled": [
+    {
+      "kind": "command",
+      "target": "mail:send {--queue=default}",
+      "cron": "0 13 * * *",
+      "timezone": "America/Chicago",
+      "without_overlapping": true,
+      "on_one_server": false,
+      "run_in_background": false,
+      "constraints": ["weekdays"],
+      "file": "app/Console/Kernel.php",
+      "line": 28
+    }
+  ],
   "unresolved_dispatches": [
     {
       "file": "app/Services/Notifier.php",
@@ -172,7 +188,7 @@ On a fresh `laravel new` app, the scan finishes in well under a second. A medium
 
 Tracked at the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1). Highlights:
 
-- More sections: [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [schedule entries](https://github.com/lucasp1337/laravel-loom/issues/7), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
+- More sections: [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
 - A [browser UI](https://github.com/lucasp1337/laravel-loom/issues/19) for clicking through the index — events, listeners, dispatch chains.
 - An [MCP server](https://github.com/lucasp1337/laravel-loom/issues/20) so AI coding assistants can query the index instead of grepping.
 - [`loom:diff`](https://github.com/lucasp1337/laravel-loom/issues/9) and [`loom:check`](https://github.com/lucasp1337/laravel-loom/issues/10) for CI.

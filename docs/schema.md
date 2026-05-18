@@ -16,6 +16,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "closure_listeners": array,     // discovered closure / arrow-function listener registrations
   "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
+  "scheduled": array,             // task-scheduler entries
   "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
 }
 ```
@@ -214,6 +215,46 @@ When the same `(observer, model)` pair is discovered through both paths, precede
 
 One observer registered against N models produces N entries.
 
+## `scheduled[]`
+
+Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One entry per chain.
+
+```
+{
+  "kind": enum,                   // "command" | "job" | "closure" | "exec"
+  "target": string | null,        // depends on kind; see below
+  "cron": string | null,          // five-field cron expression
+  "timezone": string | null,      // from ->timezone(...)
+  "without_overlapping": boolean,
+  "on_one_server": boolean,
+  "run_in_background": boolean,
+  "constraints": array<string>,   // opaque labels for non-cron restrictions, sorted ascending
+  "file": string,                 // path to the root call (->command/->job/->call/->exec)
+  "line": integer
+}
+```
+
+`$defs/scheduleEntry`. All fields are required. `target` and `cron` may be `null`; `timezone` may be `null`.
+
+`kind` is determined by the chain's root call:
+
+- `command` — `->command(string|FQCN)`. `target` is the signature string verbatim (`"mail:send"`, `"mail:send {--queue=default}"`), or the FQCN when the argument was a `::class` constant.
+- `job` — `->job(new X)` or `->job(X::class)`. `target` is the FQCN.
+- `closure` — `->call(...)`. `target` is `null` for inline closures, `"FQCN::method"` for tuple callables (`[Cls::class, 'method']`) and Laravel callable strings (`'App\\Cls@method'`).
+- `exec` — `->exec(string)`. `target` is the shell command string.
+
+`cron` is the canonical five-field expression for every recognised frequency helper (`daily` → `"0 0 * * *"`, `everyFiveMinutes` → `"*/5 * * * *"`, `cron('*/5 8-17 * * 1-5')` passed through verbatim). It is `null` when no recognised helper appears, when the helper's argument is a variable, or when the last frequency helper in the chain is unrecognised. The recognised set is enumerated in [ADR 0002 §3](adr/0002-schedule-scanner.md). When multiple frequency helpers chain together, last wins (mirroring Laravel's runtime).
+
+`constraints[]` carries opaque labels for non-cron restrictions: day-of-week (`"weekdays"`, `"sundays"`, …), time-window (`"between(8:00,17:00)"`, `"unlessBetween(...)"`), conditional (`"when(closure)"`, `"skip(closure)"`), and environment (`"environments(production,staging)"`). Sorted ascending. Constraints are emitted in addition to `cron` because Laravel evaluates them at runtime alongside the cron tick — they are not folded into the expression.
+
+`file` and `line` point to the root method call of the chain (`$schedule->command(...)`), not the trailing modifier.
+
+Entries are sorted by `(file, line)` ascending. Deduplication is on `(file, line, kind, target)`; merging across kernel / bootstrap / facade discovery favours kernel and bootstrap forms over facade.
+
+Cross-link is one-directional: `scheduled[*].target` with `kind: "job"` carries a job FQCN that consumers can join against `jobs[*].fqcn` client-side. There is no `jobs[*].scheduled` back-pointer — see [ADR 0002 §5](adr/0002-schedule-scanner.md) for rationale.
+
+See [docs/scanners/schedule.md](scanners/schedule.md) for behaviour details and known limitations.
+
 ## `unresolved_dispatches[]`
 
 ```
@@ -241,6 +282,7 @@ One observer registered against N models produces N entries.
   "closure_listeners": integer,
   "jobs": integer,
   "observers": integer,
+  "scheduled": integer,
   "unresolved_dispatches": integer
 }
 ```

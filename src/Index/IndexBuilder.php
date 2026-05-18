@@ -48,6 +48,7 @@ class IndexBuilder
             'jobs' => [],
             'unresolved_dispatches' => [],
             'closure_listeners' => [],
+            'scheduled' => [],
         ];
 
         foreach ($this->scanners as $scanner) {
@@ -89,6 +90,7 @@ class IndexBuilder
             jobs: $sections['jobs'],
             unresolvedDispatches: $sections['unresolved_dispatches'],
             closureListeners: $sections['closure_listeners'],
+            scheduled: $sections['scheduled'],
         );
     }
 
