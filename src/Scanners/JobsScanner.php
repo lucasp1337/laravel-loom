@@ -62,9 +62,10 @@ final class JobsScanner implements Scanner
             // X is a job — events use the same trait. EventScanner gates the
             // symmetric case to classes under `app/Events/`; mirror that here:
             // for ambiguous targets, only keep the entry if the file is under
-            // `app/Jobs/` or the class directly implements ShouldQueue. The
-            // helper form `dispatch(new X)` / `Bus::dispatch(new X)` is
-            // unambiguous and bypasses the guard.
+            // `app/Jobs/` or the class transitively implements ShouldQueue
+            // (via its own `implements` clause or any ancestor indexed under
+            // `app/`). The helper form `dispatch(new X)` / `Bus::dispatch(new X)`
+            // is unambiguous and bypasses the guard.
             if ($kind === 'ambiguous'
                 && ! $this->isUnderAppJobs($located['file'])
                 && ! $located['queued']
