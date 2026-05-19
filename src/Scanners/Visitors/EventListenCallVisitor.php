@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -11,8 +12,7 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects (event, listener) pairs from Event::listen(...) static calls.
  *
- * Only matches the `Illuminate\Support\Facades\Event` facade form. Container
- * forms (`$this->app['events']->listen(...)`) are a documented v0.1 gap.
+ * Container forms (`$this->app['events']->listen(...)`) are not matched.
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {
@@ -104,7 +104,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
 
     private function eventFromValue(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -121,13 +121,13 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = $this->classConstFqcn($value);
+        $direct = AstHelpers::classConstFqcn($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
         if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
+            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
             if ($listener === null) {
                 return null;
             }
@@ -140,31 +140,13 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         }
 
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
+            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
             if ($listener !== null) {
                 return ['listener' => $listener, 'method' => 'handle'];
             }
         }
 
         return null;
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

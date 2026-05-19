@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -281,7 +282,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)
             || in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true)
         ) {
-            if ($this->isRootedAtMailFacadeChainRoot($node->var)) {
+            if ($this->isRootedAtFacadeChainRoot($node->var, Facades::MAIL, self::MAIL_CHAIN_ROOT_METHODS)) {
                 $argIndex = in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true) ? 1 : 0;
                 $this->recordMailableSiteFromArg($node, $node->args, $argIndex, 'mail_chain', 'Mail::...->'.$methodName);
 
@@ -294,7 +295,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             // — opaque-receiver notify is accepted regardless, but we want
             // the `notification_chain` form label when the root is the
             // Notification facade.
-            $form = $this->isRootedAtNotificationFacadeChainRoot($node->var)
+            $form = $this->isRootedAtFacadeChainRoot($node->var, Facades::NOTIFICATION, ['route'])
                 ? 'notification_chain'
                 : 'notify_method';
 
@@ -303,11 +304,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Walk down `->var` of a MethodCall chain. Returns true if the deepest
-     * receiver is a StaticCall on the Mail facade whose method is one of
-     * the chain-root methods (to/cc/bcc/locale/mailer).
+     * Walk down `->var` of a MethodCall chain and check whether the deepest
+     * receiver is a static call on $facade with a method in $rootMethods.
+     *
+     * @param  list<string>  $rootMethods
      */
-    private function isRootedAtMailFacadeChainRoot(Node\Expr $receiver): bool
+    private function isRootedAtFacadeChainRoot(Node\Expr $receiver, Facades $facade, array $rootMethods): bool
     {
         $current = $receiver;
         while ($current instanceof Node\Expr\MethodCall) {
@@ -323,43 +325,11 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         if (! $current->name instanceof Node\Identifier) {
             return false;
         }
-
-        $className = $current->class->toString();
-        if (! Facades::MAIL->matches($className)) {
+        if (! $facade->matches($current->class->toString())) {
             return false;
         }
 
-        return in_array($current->name->toString(), self::MAIL_CHAIN_ROOT_METHODS, true);
-    }
-
-    /**
-     * Walk down `->var` of a MethodCall chain. Returns true if the deepest
-     * receiver is a StaticCall on the Notification facade with method
-     * `route` (possibly preceded by further `->route(...)` links).
-     */
-    private function isRootedAtNotificationFacadeChainRoot(Node\Expr $receiver): bool
-    {
-        $current = $receiver;
-        while ($current instanceof Node\Expr\MethodCall) {
-            $current = $current->var;
-        }
-
-        if (! $current instanceof Node\Expr\StaticCall) {
-            return false;
-        }
-        if (! $current->class instanceof Node\Name) {
-            return false;
-        }
-        if (! $current->name instanceof Node\Identifier) {
-            return false;
-        }
-
-        $className = $current->class->toString();
-        if (! Facades::NOTIFICATION->matches($className)) {
-            return false;
-        }
-
-        return $current->name->toString() === 'route';
+        return in_array($current->name->toString(), $rootMethods, true);
     }
 
     /**
@@ -403,7 +373,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $resolved = $this->resolveStaticClass($arg->value);
+        $resolved = AstHelpers::resolveStaticClass($arg->value);
 
         if ($resolved !== null) {
             if ($this->shouldSkipEmission()) {
@@ -459,7 +429,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $resolved = $this->resolveStaticClass($first->value);
+        $resolved = AstHelpers::resolveStaticClass($first->value);
 
         // Special case: ternary whose branches both resolve statically →
         // emit two sites instead of an unresolved.
@@ -469,8 +439,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $elseBranch = $ternary->else;
 
             if ($ifBranch !== null) {
-                $ifFqcn = $this->resolveStaticClass($ifBranch);
-                $elseFqcn = $this->resolveStaticClass($elseBranch);
+                $ifFqcn = AstHelpers::resolveStaticClass($ifBranch);
+                $elseFqcn = AstHelpers::resolveStaticClass($elseBranch);
 
                 if ($ifFqcn !== null && $elseFqcn !== null) {
                     $this->emitResolved($callNode, $ifFqcn, $form, $kind);
@@ -557,31 +527,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         return $this->classStack[count($this->classStack) - 1]['method'];
-    }
-
-    /**
-     * Resolve a statically determinable target class FQCN from an expression.
-     * Returns null if the expression is not a `new X(...)` or `X::class` form.
-     */
-    private function resolveStaticClass(?Node $expr): ?string
-    {
-        if ($expr === null) {
-            return null;
-        }
-
-        if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name) {
-            return $expr->class->toString();
-        }
-
-        if ($expr instanceof Node\Expr\ClassConstFetch
-            && $expr->class instanceof Node\Name
-            && $expr->name instanceof Node\Identifier
-            && $expr->name->toString() === 'class'
-        ) {
-            return $expr->class->toString();
-        }
-
-        return null;
     }
 
     private function classifyUnresolvedReason(Node $expr): string

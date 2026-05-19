@@ -4,39 +4,17 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Parses subscriber classes — those that expose a `subscribe()` method whose
- * first parameter is a dispatcher — and extracts the events they subscribe to.
- * The dispatcher is bound by parameter position; its name and type-hint are
- * irrelevant.
- *
- * Supports two forms:
- *
- * 1. Return-array form:
- *
- *     public function subscribe($events): array
- *     {
- *         return [
- *             OrderShipped::class => 'handleOrderShipped',
- *             OrderPaid::class => [self::class, 'handleOrderPaid'],
- *         ];
- *     }
- *
- * 2. Imperative form (matched against the first parameter of `subscribe()`):
- *
- *     public function subscribe($events): void
- *     {
- *         $events->listen(OrderShipped::class, [self::class, 'handleOrderShipped']);
- *         $events->listen(OrderPaid::class, [AuditLogger::class, 'log']);
- *     }
+ * Extracts events handled by a class's `subscribe()` method — either via the
+ * returned event=>handler map or imperative `$events->listen(...)` calls.
  */
 final class SubscriberClassVisitor extends NodeVisitorAbstract
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
-
     /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>, foreignPairs: array<int, array{event: string, listener: string, method: string}>}> */
     private array $classes = [];
 
@@ -74,13 +52,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $queued = false;
-        foreach ($node->implements as $implements) {
-            if ($implements->toString() === self::SHOULD_QUEUE) {
-                $queued = true;
-                break;
-            }
-        }
+        $queued = AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
 
         $this->currentClassFqcn = $node->namespacedName->toString();
         [$handles, $closureHandles, $foreignPairs] = $this->extractMethodBody($subscribeMethod);
@@ -309,7 +281,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             $classItem = $listenerValue->items[0];
             $methodItem = $listenerValue->items[1];
 
-            $classFqcn = $this->classConstFqcn($classItem->value);
+            $classFqcn = AstHelpers::classConstFqcn($classItem->value);
             if ($classFqcn === null) {
                 return;
             }
@@ -342,7 +314,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         }
 
         // Bare class-const fetch: $events->listen(Event::class, OtherClass::class).
-        $bareFqcn = $this->classConstFqcn($listenerValue);
+        $bareFqcn = AstHelpers::classConstFqcn($listenerValue);
         if ($bareFqcn !== null) {
             if ($this->isOwnClass($bareFqcn)) {
                 $handles[] = ['event' => $event, 'method' => 'handle'];
@@ -365,7 +337,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -406,24 +378,6 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         }
 
         return null;
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

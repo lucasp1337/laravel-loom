@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Finds `Model::observe(Observer::class)` and `static::observe(...)` calls.
- *
- * Maintains a class-context stack so `static::` / `self::` resolve to the
- * enclosing class declaration's FQCN. `parent::observe(...)` is skipped:
- * Laravel semantics dispatch via late-static-binding, so `parent` would
- * misrepresent the intended target.
+ * Finds `Model::observe(Observer::class)` calls. Tracks enclosing class so
+ * `self::` / `static::` resolve to the declaring class; `parent::` is skipped.
  */
 final class ObserveCallVisitor extends NodeVisitorAbstract
 {
@@ -93,7 +90,7 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $observers = $this->extractObservers($firstArg->value);
+        $observers = AstHelpers::classConstList($firstArg->value);
         if ($observers === []) {
             return null;
         }
@@ -105,49 +102,6 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
         ];
 
         return null;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function extractObservers(Node\Expr $value): array
-    {
-        $direct = $this->classConstFqcn($value);
-        if ($direct !== null) {
-            return [$direct];
-        }
-
-        if ($value instanceof Node\Expr\Array_) {
-            $out = [];
-            foreach ($value->items as $item) {
-                $fqcn = $this->classConstFqcn($item->value);
-                if ($fqcn !== null) {
-                    $out[] = $fqcn;
-                }
-            }
-
-            return $out;
-        }
-
-        return [];
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

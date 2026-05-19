@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Finds `Event::listen('eloquent.{hook}: {Model}', $handler)` calls and
- * emits model-event entries directly (no observer-entry inference).
- *
- * Closure / dynamic handlers are skipped — emitting `"<closure>"` is noise.
+ * Emits model-event entries from `Event::listen('eloquent.{hook}: {Model}', $handler)`.
  */
 final class EloquentListenStringVisitor extends NodeVisitorAbstract
 {
@@ -111,12 +109,8 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
             return ['handler' => $handler, 'method' => $method];
         }
 
-        if ($value instanceof Node\Expr\ClassConstFetch) {
-            $fqcn = $this->classConstFqcn($value);
-            if ($fqcn === null) {
-                return null;
-            }
-
+        $fqcn = AstHelpers::classConstFqcn($value);
+        if ($fqcn !== null) {
             return ['handler' => $fqcn, 'method' => $defaultMethod];
         }
 
@@ -124,16 +118,15 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
             if (count($value->items) < 2) {
                 return null;
             }
-            $first = $value->items[0];
-            $second = $value->items[1];
-            $handler = $this->classConstFqcn($first->value);
+            $handler = AstHelpers::classConstFqcn($value->items[0]->value);
             if ($handler === null) {
                 return null;
             }
-            if (! $second->value instanceof Node\Scalar\String_) {
+            $methodNode = $value->items[1]->value;
+            if (! $methodNode instanceof Node\Scalar\String_) {
                 return null;
             }
-            $method = $second->value->value;
+            $method = $methodNode->value;
             if ($method === '') {
                 return null;
             }
@@ -142,24 +135,6 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
         }
 
         return null;
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

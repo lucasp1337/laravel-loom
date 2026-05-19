@@ -4,20 +4,16 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects listener classes and the shape of their handle() method.
- *
- * Skips anonymous classes (no namespacedName). Abstract classes are kept —
- * concrete subclasses may register through them and consumers can traverse
- * inheritance themselves.
+ * Collects listener classes and their handle() event-type signature.
  */
 final class ListenerClassVisitor extends NodeVisitorAbstract
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
-
     /** @var array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}> */
     private array $classes = [];
 
@@ -43,13 +39,7 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $queued = false;
-        foreach ($node->implements as $implements) {
-            if ($implements->toString() === self::SHOULD_QUEUE) {
-                $queued = true;
-                break;
-            }
-        }
+        $queued = AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
 
         $hasHandle = false;
         $handles = [];

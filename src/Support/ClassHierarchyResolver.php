@@ -155,7 +155,7 @@ final class ClassHierarchyResolver
 
         if (isset($this->index[$fqcn]) && $this->index[$fqcn]['kind'] === 'interface') {
             // Interface input: closure over its `extends` parents.
-            $this->expandInterfaceClosure($fqcn, $result, $seen);
+            $this->expandClosure($fqcn, 'interface', 'parents', $result, $seen);
         } else {
             // Class input (known or unknown): direct interfaces + parents' interfaces.
             $chain = [$fqcn];
@@ -172,8 +172,7 @@ final class ClassHierarchyResolver
                     continue;
                 }
                 foreach ($decl['interfaces'] as $iface) {
-                    $iface = $this->normalize($iface);
-                    $this->expandInterfaceClosure($iface, $result, $seen);
+                    $this->expandClosure($this->normalize($iface), 'interface', 'parents', $result, $seen);
                 }
             }
         }
@@ -204,7 +203,7 @@ final class ClassHierarchyResolver
 
         if (isset($this->index[$fqcn]) && $this->index[$fqcn]['kind'] === 'trait') {
             // Trait input: closure over its own used traits.
-            $this->expandTraitClosure($fqcn, $result, $seen);
+            $this->expandClosure($fqcn, 'trait', 'traits', $result, $seen);
         } else {
             $chain = [$fqcn];
             foreach ($this->extendsChain($fqcn) as $ancestor) {
@@ -220,8 +219,7 @@ final class ClassHierarchyResolver
                     continue;
                 }
                 foreach ($decl['traits'] as $trait) {
-                    $trait = $this->normalize($trait);
-                    $this->expandTraitClosure($trait, $result, $seen);
+                    $this->expandClosure($this->normalize($trait), 'trait', 'traits', $result, $seen);
                 }
             }
         }
@@ -278,62 +276,33 @@ final class ClassHierarchyResolver
     }
 
     /**
-     * Depth-first interface-extends closure, recording in $result and using
-     * $seen as both visited-set (cycle protection) and dedup map.
+     * Depth-first closure over a single edge type ('parents' for interfaces,
+     * 'traits' for traits). $seen doubles as cycle guard and dedup map.
      *
+     * @param  'interface'|'trait'  $expectKind
+     * @param  'parents'|'traits'  $edgeField
      * @param  list<string>  $result
      * @param  array<string, bool>  $seen
      */
-    private function expandInterfaceClosure(string $iface, array &$result, array &$seen): void
+    private function expandClosure(string $fqcn, string $expectKind, string $edgeField, array &$result, array &$seen): void
     {
-        if (isset($seen[$iface])) {
+        if (isset($seen[$fqcn])) {
             return;
         }
-        $seen[$iface] = true;
-        $result[] = $iface;
+        $seen[$fqcn] = true;
+        $result[] = $fqcn;
 
-        if (! isset($this->index[$iface])) {
+        if (! isset($this->index[$fqcn])) {
             return; // opaque leaf
         }
 
-        $decl = $this->index[$iface];
-        if ($decl['kind'] !== 'interface') {
+        $decl = $this->index[$fqcn];
+        if ($decl['kind'] !== $expectKind) {
             return;
         }
 
-        foreach ($decl['parents'] as $parent) {
-            $this->expandInterfaceClosure($this->normalize($parent), $result, $seen);
-        }
-    }
-
-    /**
-     * Depth-first trait-use closure (traits used by traits). Records the
-     * trait's own `implements` is NOT followed here — traits can't
-     * implement interfaces in PHP. We do, however, expose traits used by
-     * traits.
-     *
-     * @param  list<string>  $result
-     * @param  array<string, bool>  $seen
-     */
-    private function expandTraitClosure(string $trait, array &$result, array &$seen): void
-    {
-        if (isset($seen[$trait])) {
-            return;
-        }
-        $seen[$trait] = true;
-        $result[] = $trait;
-
-        if (! isset($this->index[$trait])) {
-            return; // opaque leaf
-        }
-
-        $decl = $this->index[$trait];
-        if ($decl['kind'] !== 'trait') {
-            return;
-        }
-
-        foreach ($decl['traits'] as $nested) {
-            $this->expandTraitClosure($this->normalize($nested), $result, $seen);
+        foreach ($decl[$edgeField] as $neighbour) {
+            $this->expandClosure($this->normalize($neighbour), $expectKind, $edgeField, $result, $seen);
         }
     }
 

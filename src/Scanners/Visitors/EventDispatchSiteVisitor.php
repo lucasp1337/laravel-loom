@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -93,40 +94,16 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Resolve the FQCN of the class referenced in the first argument, if any.
-     *
-     * Handles:
-     *   - new SomeClass(...)
-     *   - SomeClass::class
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      */
     private function resolveFirstArgClass(array $args): ?string
     {
-        if ($args === []) {
-            return null;
-        }
-
-        $first = $args[0];
+        $first = $args[0] ?? null;
         if (! $first instanceof Node\Arg) {
             return null;
         }
 
-        $value = $first->value;
-
-        if ($value instanceof Node\Expr\New_ && $value->class instanceof Node\Name) {
-            return $value->class->toString();
-        }
-
-        if ($value instanceof Node\Expr\ClassConstFetch
-            && $value->class instanceof Node\Name
-            && $value->name instanceof Node\Identifier
-            && $value->name->toString() === 'class'
-        ) {
-            return $value->class->toString();
-        }
-
-        return null;
+        return AstHelpers::resolveStaticClass($first->value);
     }
 
     /**
