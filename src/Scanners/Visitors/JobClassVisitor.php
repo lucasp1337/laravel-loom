@@ -4,39 +4,17 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\JobClassRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/**
- * Collects concrete job classes from a parsed file, capturing the
- * queue-config properties declared directly on the class.
- *
- * Skips:
- *  - Abstract classes
- *  - Anonymous classes (no namespacedName)
- *  - Interfaces and traits (different node types — never match Stmt\Class_)
- *
- * `queued` is true iff `ShouldQueue` appears in the DIRECT `implements`
- * list (post-NameResolver). Indirect inheritance is computed by
- * `JobsScanner` via the resolver, not here.
- *
- * Reads on `leaveNode` so NameResolver has fully resolved every name
- * inside the class body before we inspect it.
- */
+/** Collects concrete job classes (skips abstract + anonymous). */
 final class JobClassVisitor extends NodeVisitorAbstract
 {
-    /**
-     * @var array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queued: bool,
-     *     has_handle: bool,
-     *     queue_config: array<string, string|int|null>,
-     * }>
-     */
+    /** @var list<JobClassRecord> */
     private array $classes = [];
 
     /**
@@ -61,13 +39,13 @@ final class JobClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->classes[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'line' => $node->getStartLine(),
-            'queued' => AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value),
-            'has_handle' => $this->declaresHandleMethod($node),
-            'queue_config' => QueueConfig::extractFrom($node),
-        ];
+        $this->classes[] = new JobClassRecord(
+            fqcn: $node->namespacedName->toString(),
+            line: $node->getStartLine(),
+            queued: AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value),
+            hasHandle: $this->declaresHandleMethod($node),
+            queueConfig: QueueConfig::extractFrom($node),
+        );
 
         return null;
     }
@@ -83,15 +61,7 @@ final class JobClassVisitor extends NodeVisitorAbstract
         return false;
     }
 
-    /**
-     * @return array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queued: bool,
-     *     has_handle: bool,
-     *     queue_config: array<string, string|int|null>,
-     * }>
-     */
+    /** @return list<JobClassRecord> */
     public function getClasses(): array
     {
         return $this->classes;

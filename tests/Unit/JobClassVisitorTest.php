@@ -2,28 +2,14 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\JobClassRecord;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 
 /**
- * Parse a PHP source string and run JobClassVisitor (after NameResolver) over it.
- *
- * @return array<int, array{
- *     fqcn: string,
- *     line: int,
- *     queued: bool,
- *     has_handle: bool,
- *     queue_config: array{
- *         connection: string|int|null,
- *         queue: string|int|null,
- *         delay: string|int|null,
- *         tries: string|int|null,
- *         timeout: string|int|null,
- *         backoff: string|int|null
- *     }
- * }>
+ * @return list<JobClassRecord>
  */
 function runJobClassVisitor(string $source): array
 {
@@ -60,10 +46,10 @@ it('marks a job as queued when implementing ShouldQueue via a use import', funct
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Jobs\\ProcessOrder');
-    expect($classes[0]['line'])->toBe(7);
-    expect($classes[0]['queued'])->toBeTrue();
-    expect($classes[0]['has_handle'])->toBeTrue();
+    expect($classes[0]->fqcn)->toBe('App\\Jobs\\ProcessOrder');
+    expect($classes[0]->line)->toBe(7);
+    expect($classes[0]->queued)->toBeTrue();
+    expect($classes[0]->hasHandle)->toBeTrue();
 });
 
 it('marks a job as queued when implementing the ShouldQueue FQCN directly', function () {
@@ -83,7 +69,7 @@ it('marks a job as queued when implementing the ShouldQueue FQCN directly', func
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queued'])->toBeTrue();
+    expect($classes[0]->queued)->toBeTrue();
 });
 
 it('marks a job as not queued when ShouldQueue is absent', function () {
@@ -103,8 +89,8 @@ it('marks a job as not queued when ShouldQueue is absent', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queued'])->toBeFalse();
-    expect($classes[0]['queue_config'])->toBe([
+    expect($classes[0]->queued)->toBeFalse();
+    expect($classes[0]->queueConfig)->toBe([
         'connection' => null,
         'queue' => null,
         'delay' => null,
@@ -136,7 +122,7 @@ it('extracts every literal scalar queue-config property', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queue_config'])->toBe([
+    expect($classes[0]->queueConfig)->toBe([
         'connection' => 'redis',
         'queue' => 'high',
         'delay' => 30,
@@ -164,7 +150,7 @@ it('leaves undeclared queue-config properties as null', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queue_config'])->toBe([
+    expect($classes[0]->queueConfig)->toBe([
         'connection' => null,
         'queue' => 'low',
         'delay' => null,
@@ -193,9 +179,9 @@ it('leaves non-scalar initializers as null', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queue_config']['queue'])->toBeNull();
-    expect($classes[0]['queue_config']['connection'])->toBeNull();
-    expect($classes[0]['queue_config']['tries'])->toBeNull();
+    expect($classes[0]->queueConfig['queue'])->toBeNull();
+    expect($classes[0]->queueConfig['connection'])->toBeNull();
+    expect($classes[0]->queueConfig['tries'])->toBeNull();
 });
 
 it('extracts queue-config across public, protected, private, and static modifiers', function () {
@@ -218,10 +204,10 @@ it('extracts queue-config across public, protected, private, and static modifier
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queue_config']['connection'])->toBe('redis');
-    expect($classes[0]['queue_config']['queue'])->toBe('mid');
-    expect($classes[0]['queue_config']['tries'])->toBe(2);
-    expect($classes[0]['queue_config']['timeout'])->toBe(90);
+    expect($classes[0]->queueConfig['connection'])->toBe('redis');
+    expect($classes[0]->queueConfig['queue'])->toBe('mid');
+    expect($classes[0]->queueConfig['tries'])->toBe(2);
+    expect($classes[0]->queueConfig['timeout'])->toBe(90);
 });
 
 it('extracts a typed-property initializer', function () {
@@ -241,7 +227,7 @@ it('extracts a typed-property initializer', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queue_config']['tries'])->toBe(3);
+    expect($classes[0]->queueConfig['tries'])->toBe(3);
 });
 
 it('skips abstract classes', function () {
@@ -342,11 +328,11 @@ it('emits each concrete class independently when multiple are declared in one fi
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(2);
-    expect($classes[0]['fqcn'])->toBe('App\\Jobs\\JobOne');
-    expect($classes[0]['queued'])->toBeTrue();
-    expect($classes[0]['queue_config']['tries'])->toBe(1);
-    expect($classes[1]['fqcn'])->toBe('App\\Jobs\\JobTwo');
-    expect($classes[1]['queued'])->toBeFalse();
+    expect($classes[0]->fqcn)->toBe('App\\Jobs\\JobOne');
+    expect($classes[0]->queued)->toBeTrue();
+    expect($classes[0]->queueConfig['tries'])->toBe(1);
+    expect($classes[1]->fqcn)->toBe('App\\Jobs\\JobTwo');
+    expect($classes[1]->queued)->toBeFalse();
 });
 
 it('records has_handle as false when the class has no handle() method', function () {
@@ -366,5 +352,5 @@ it('records has_handle as false when the class has no handle() method', function
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeFalse();
+    expect($classes[0]->hasHandle)->toBeFalse();
 });

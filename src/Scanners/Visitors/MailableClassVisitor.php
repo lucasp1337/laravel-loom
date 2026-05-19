@@ -4,23 +4,15 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\MailableClassRecord;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/**
- * Collects concrete mailable classes with their queue-config properties.
- * `queued` is resolved by the scanner via ClassHierarchyResolver.
- */
+/** Collects concrete mailable classes with their queue-config properties. */
 final class MailableClassVisitor extends NodeVisitorAbstract
 {
-    /**
-     * @var array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queue_config: array<string, string|int|null>,
-     * }>
-     */
+    /** @var list<MailableClassRecord> */
     private array $classes = [];
 
     /**
@@ -45,22 +37,16 @@ final class MailableClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->classes[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'line' => $node->getStartLine(),
-            'queue_config' => QueueConfig::extractFrom($node),
-        ];
+        $this->classes[] = new MailableClassRecord(
+            fqcn: $node->namespacedName->toString(),
+            line: $node->getStartLine(),
+            queueConfig: QueueConfig::extractFrom($node),
+        );
 
         return null;
     }
 
-    /**
-     * @return array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queue_config: array<string, string|int|null>,
-     * }>
-     */
+    /** @return list<MailableClassRecord> */
     public function getClasses(): array
     {
         return $this->classes;

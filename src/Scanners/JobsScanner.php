@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\JobLocation;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
-use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
@@ -39,10 +39,8 @@ final class JobsScanner implements Scanner
     {
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
 
-        $fsClasses = $this->discoverFromFilesystem($appRoot, $resolver);
+        $merged = $this->discoverFromFilesystem($appRoot, $resolver);
         $dispatchTargets = $this->discoverFromDispatchSites($appRoot);
-
-        $merged = $fsClasses;
 
         foreach ($dispatchTargets as $fqcn => $kind) {
             if (isset($merged[$fqcn])) {
@@ -58,8 +56,8 @@ final class JobsScanner implements Scanner
             // when the file is under app/Jobs/ or the class implements
             // ShouldQueue (mirrors EventScanner's symmetric guard).
             if ($kind === 'ambiguous'
-                && ! $this->isUnderAppJobs($located['file'])
-                && ! $located['queued']
+                && ! $this->isUnderAppJobs($located->file)
+                && ! $located->queued
             ) {
                 continue;
             }
@@ -76,7 +74,7 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * @return array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>
+     * @return array<string, JobLocation>
      */
     private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
@@ -92,13 +90,12 @@ final class JobsScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                $relative = $this->relativePath($appRoot, $file->getPathname());
-                $results[$class['fqcn']] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                    'queued' => $resolver->implementsInterface($class['fqcn'], LaravelClasses::SHOULD_QUEUE->value),
-                    'queue_config' => $class['queue_config'],
-                ];
+                $results[$class->fqcn] = new JobLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                    queued: $resolver->implementsInterface($class->fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                    queueConfig: $class->queueConfig,
+                );
             }
         }
 
@@ -140,10 +137,7 @@ final class JobsScanner implements Scanner
         return $candidates;
     }
 
-    /**
-     * @return array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?JobLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -153,21 +147,24 @@ final class JobsScanner implements Scanner
         $visitor = new JobClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
-        if ($class === null) {
-            return null;
+        foreach ($visitor->getClasses() as $class) {
+            if ($class->fqcn !== $fqcn) {
+                continue;
+            }
+
+            return new JobLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+                queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queueConfig: $class->queueConfig,
+            );
         }
 
-        return [
-            'file' => $this->relativePath($appRoot, $absolute),
-            'line' => $class['line'],
-            'queued' => $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
-            'queue_config' => $class['queue_config'],
-        ];
+        return null;
     }
 
     /**
-     * @param  array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>  $merged
+     * @param  array<string, JobLocation>  $merged
      * @return array<int, array<string, mixed>>
      */
     private function emit(array $merged): array
@@ -178,10 +175,10 @@ final class JobsScanner implements Scanner
         foreach ($merged as $fqcn => $location) {
             $entries[] = [
                 'fqcn' => $fqcn,
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'queued' => $location['queued'],
-                'queue_config' => $location['queued'] ? $location['queue_config'] : null,
+                'file' => $location->file,
+                'line' => $location->line,
+                'queued' => $location->queued,
+                'queue_config' => $location->queued ? $location->queueConfig : null,
                 'dispatched_from' => [],
                 'dispatches' => [],
             ];
