@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -12,38 +14,22 @@ use PhpParser\NodeVisitorAbstract;
  * MailableClassVisitor and additionally extracts statically resolvable
  * `via()` channels.
  *
- * Channel extraction is limited per ADR 0003: the `via()` body must be a
- * single `return [...];` whose array items are either literal strings or
- * `Class::class` constants. Anything else flips `channels_dynamic: true`
- * and emits `channels: []`.
+ * Channel extraction is limited per ADR 0003: the `via()` body must be
+ * a single `return [...];` whose array items are either literal strings
+ * or `Class::class` constants. Anything else flips
+ * `channels_dynamic: true` and emits `channels: []`.
  *
  * Skips abstract, interface, trait, and anonymous classes.
  */
 final class NotificationClassVisitor extends NodeVisitorAbstract
 {
-    private const QUEUE_CONFIG_PROPERTIES = [
-        'connection',
-        'queue',
-        'delay',
-        'tries',
-        'timeout',
-        'backoff',
-    ];
-
     /**
      * @var array<int, array{
      *     fqcn: string,
      *     line: int,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     },
+     *     queue_config: array<string, string|int|null>,
      *     channels: list<string>,
-     *     channels_dynamic: bool
+     *     channels_dynamic: bool,
      * }>
      */
     private array $classes = [];
@@ -63,60 +49,33 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         if (! $node instanceof Node\Stmt\Class_) {
             return null;
         }
-
         if ($node->namespacedName === null) {
             return null;
         }
-
         if ($node->isAbstract()) {
             return null;
         }
 
-        $queueConfig = [
-            'connection' => null,
-            'queue' => null,
-            'delay' => null,
-            'tries' => null,
-            'timeout' => null,
-            'backoff' => null,
-        ];
-
-        $viaMethod = null;
-        foreach ($node->stmts as $stmt) {
-            if ($stmt instanceof Node\Stmt\ClassMethod) {
-                if ($stmt->name->toString() === 'via') {
-                    $viaMethod = $stmt;
-                }
-
-                continue;
-            }
-
-            if (! $stmt instanceof Node\Stmt\Property) {
-                continue;
-            }
-
-            foreach ($stmt->props as $prop) {
-                $name = $prop->name->toString();
-                if (! in_array($name, self::QUEUE_CONFIG_PROPERTIES, true)) {
-                    continue;
-                }
-
-                $value = $this->extractScalar($prop->default);
-                if ($value !== null) {
-                    $queueConfig[$name] = $value;
-                }
-            }
-        }
-
-        [$channels, $dynamic] = $this->extractChannels($viaMethod);
+        [$channels, $dynamic] = $this->extractChannels($this->findViaMethod($node));
 
         $this->classes[] = [
             'fqcn' => $node->namespacedName->toString(),
             'line' => $node->getStartLine(),
-            'queue_config' => $queueConfig,
+            'queue_config' => QueueConfig::extractFrom($node),
             'channels' => $channels,
             'channels_dynamic' => $dynamic,
         ];
+
+        return null;
+    }
+
+    private function findViaMethod(Node\Stmt\Class_ $node): ?Node\Stmt\ClassMethod
+    {
+        foreach ($node->stmts as $stmt) {
+            if ($stmt instanceof Node\Stmt\ClassMethod && $stmt->name->toString() === 'via') {
+                return $stmt;
+            }
+        }
 
         return null;
     }
@@ -136,12 +95,7 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         }
 
         $stmts = $via->stmts;
-        if ($stmts === null) {
-            // Abstract method declaration — no body to analyse.
-            return [[], true];
-        }
-
-        if (count($stmts) !== 1) {
+        if ($stmts === null || count($stmts) !== 1) {
             return [[], true];
         }
 
@@ -170,12 +124,9 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
                 continue;
             }
 
-            if ($value instanceof Node\Expr\ClassConstFetch
-                && $value->class instanceof Node\Name
-                && $value->name instanceof Node\Identifier
-                && $value->name->toString() === 'class'
-            ) {
-                $channels[] = $value->class->toString();
+            $fqcn = AstHelpers::classConstFqcn($value);
+            if ($fqcn !== null) {
+                $channels[] = $fqcn;
 
                 continue;
             }
@@ -187,41 +138,13 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         return [$channels, false];
     }
 
-    private function extractScalar(?Node\Expr $expr): string|int|null
-    {
-        if ($expr === null) {
-            return null;
-        }
-
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        if ($expr instanceof Node\Scalar\Int_) {
-            return $expr->value;
-        }
-
-        if ($expr instanceof Node\Expr\UnaryMinus && $expr->expr instanceof Node\Scalar\Int_) {
-            return -$expr->expr->value;
-        }
-
-        return null;
-    }
-
     /**
      * @return array<int, array{
      *     fqcn: string,
      *     line: int,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     },
+     *     queue_config: array<string, string|int|null>,
      *     channels: list<string>,
-     *     channels_dynamic: bool
+     *     channels_dynamic: bool,
      * }>
      */
     public function getClasses(): array

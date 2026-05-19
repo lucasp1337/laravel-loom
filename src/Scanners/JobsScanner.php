@@ -9,6 +9,7 @@ use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\LaravelContracts;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
@@ -22,8 +23,6 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class JobsScanner implements Scanner
 {
     use ScannerFilesystem;
-
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
     private AstWalker $walker;
 
@@ -108,7 +107,7 @@ final class JobsScanner implements Scanner
                 $results[$class['fqcn']] = [
                     'file' => $relative,
                     'line' => $class['line'],
-                    'queued' => $resolver->implementsInterface($class['fqcn'], self::SHOULD_QUEUE),
+                    'queued' => $resolver->implementsInterface($class['fqcn'], LaravelContracts::SHOULD_QUEUE),
                     'queue_config' => $class['queue_config'],
                 ];
             }
@@ -182,7 +181,7 @@ final class JobsScanner implements Scanner
             return [
                 'file' => $this->relativePath($appRoot, $absolute),
                 'line' => $class['line'],
-                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
+                'queued' => $resolver->implementsInterface($fqcn, LaravelContracts::SHOULD_QUEUE),
                 'queue_config' => $class['queue_config'],
             ];
         }

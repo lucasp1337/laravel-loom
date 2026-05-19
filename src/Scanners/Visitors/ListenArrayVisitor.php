@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -16,7 +18,7 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class ListenArrayVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
+    use IdentifiesEventServiceProvider;
 
     /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
@@ -25,70 +27,43 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     private array $closurePairs = [];
 
     /**
-     * Depth-1 enclosing-class stack. PHP allows nested class declarations in
-     * conditional blocks; we only treat the outermost qualifying class as a
-     * potential event service provider.
-     *
-     * @var array<int, bool>
-     */
-    private array $classStack = [];
-
-    /**
      * @param  array<int, Node>  $nodes
      */
     public function beforeTraverse(array $nodes): ?array
     {
         $this->pairs = [];
         $this->closurePairs = [];
-        $this->classStack = [];
+        $this->resetEventServiceProviderStack();
 
         return null;
     }
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Stmt\Class_) {
-            $this->classStack[] = $this->isEventServiceProvider($node);
-        }
+        $this->pushClassNode($node);
 
         return null;
     }
 
     public function leaveNode(Node $node): null
     {
-        // Handle the property on leaveNode so that NameResolver has rewritten
-        // every ClassConstFetch->class Name inside the default array literal.
+        // Handle the property on leaveNode so NameResolver has rewritten
+        // every ClassConstFetch->class Name inside the default array
+        // literal.
         if ($node instanceof Node\Stmt\Property) {
             $this->handleProperty($node);
 
             return null;
         }
 
-        if ($node instanceof Node\Stmt\Class_) {
-            array_pop($this->classStack);
-        }
+        $this->popClassNode($node);
 
         return null;
     }
 
-    private function isEventServiceProvider(Node\Stmt\Class_ $node): bool
-    {
-        if ($node->name !== null && $node->name->toString() === 'EventServiceProvider') {
-            return true;
-        }
-
-        if ($node->extends instanceof Node\Name
-            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
     private function handleProperty(Node\Stmt\Property $node): void
     {
-        if ($this->classStack === [] || end($this->classStack) !== true) {
+        if (! $this->inEventServiceProvider()) {
             return;
         }
 
@@ -116,16 +91,16 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
                 continue;
             }
 
-            // Class-keyed entries flow into both the regular pair slot AND the
-            // closure-pair slot. String-keyed entries (e.g. 'eloquent.*' =>
-            // [Listener::class]) belong to ObserverScanner and must NOT leak
-            // into listeners[]; only their closure values are captured.
+            // Class-keyed entries flow into both the regular pair slot
+            // AND the closure-pair slot. String-keyed entries (e.g.
+            // 'eloquent.*' => [Listener::class]) belong to ObserverScanner
+            // and must NOT leak into listeners[]; only their closure
+            // values are captured.
             $keyIsClass = $item->key instanceof Node\Expr\ClassConstFetch;
             $value = $item->value;
 
             // Array-of-listeners: route each element through the same emit
-            // helper. Single listener (uncommon but legal): emit the value
-            // directly. Both paths share emission semantics.
+            // helper. Single listener: emit the value directly.
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $listenerItem) {
                     $this->emitListenerEntry($eventFqcn, $keyIsClass, $listenerItem->value);
@@ -141,8 +116,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     /**
      * Emit one entry from a single listener-position expression. Routes
      * closures to closurePairs[] and class-keyed class refs to pairs[];
-     * string-keyed entries skip the regular pair slot (their closure
-     * values still flow to closurePairs).
+     * string-keyed entries skip the regular pair slot.
      */
     private function emitListenerEntry(string $eventFqcn, bool $keyIsClass, Node\Expr $value): void
     {
@@ -174,16 +148,12 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
 
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        return null;
+        return $expr instanceof Node\Scalar\String_ ? $expr->value : null;
     }
 
     /**
@@ -191,52 +161,29 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = $this->classConstFqcn($value);
+        // Bare ::class form.
+        $direct = AstHelpers::classConstFqcn($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
-        // Tuple form: [ListenerClass::class, 'method'].
-        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
-            if ($listener === null) {
-                return null;
-            }
-            $methodNode = $value->items[1]->value;
-            if (! $methodNode instanceof Node\Scalar\String_) {
-                return null;
-            }
+        if (! $value instanceof Node\Expr\Array_ || $value->items === []) {
+            return null;
+        }
 
-            return ['listener' => $listener, 'method' => $methodNode->value];
+        // Tuple form: [ListenerClass::class, 'method'].
+        $tuple = AstHelpers::tupleCallable($value);
+        if ($tuple !== null) {
+            return ['listener' => $tuple['class'], 'method' => $tuple['method']];
         }
 
         // Bare-tuple case with a single class element behaves like a direct ::class.
-        if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
-            if ($listener !== null) {
-                return ['listener' => $listener, 'method' => 'handle'];
-            }
+        $first = AstHelpers::classConstFqcn($value->items[0]->value);
+        if ($first !== null) {
+            return ['listener' => $first, 'method' => 'handle'];
         }
 
         return null;
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

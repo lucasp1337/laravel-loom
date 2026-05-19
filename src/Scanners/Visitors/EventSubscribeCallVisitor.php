@@ -37,7 +37,7 @@ final class EventSubscribeCallVisitor extends NodeVisitorAbstract
         if (! $node->class instanceof Node\Name) {
             return null;
         }
-        if ($node->class->toString() !== Facades::EVENT) {
+        if ($node->class->toString() !== Facades::EVENT->value) {
             return null;
         }
         if (! $node->name instanceof Node\Identifier) {

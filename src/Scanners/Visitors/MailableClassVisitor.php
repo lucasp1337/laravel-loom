@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -17,35 +18,19 @@ use PhpParser\NodeVisitorAbstract;
  *  - Interfaces and traits (different node types — never match Stmt\Class_)
  *
  * `queued` is NOT computed here — the scanner calls the class hierarchy
- * resolver to decide. Mirrors JobClassVisitor's shape exactly, minus the
+ * resolver to decide. Mirrors JobClassVisitor's shape, minus the
  * `has_handle` field (mailables don't need it for any downstream decision).
  *
- * Reads on `leaveNode` so NameResolver has fully resolved every name inside
- * the class body before we inspect it.
+ * Reads on `leaveNode` so NameResolver has fully resolved every name
+ * inside the class body before we inspect it.
  */
 final class MailableClassVisitor extends NodeVisitorAbstract
 {
-    private const QUEUE_CONFIG_PROPERTIES = [
-        'connection',
-        'queue',
-        'delay',
-        'tries',
-        'timeout',
-        'backoff',
-    ];
-
     /**
      * @var array<int, array{
      *     fqcn: string,
      *     line: int,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     }
+     *     queue_config: array<string, string|int|null>,
      * }>
      */
     private array $classes = [];
@@ -65,73 +50,18 @@ final class MailableClassVisitor extends NodeVisitorAbstract
         if (! $node instanceof Node\Stmt\Class_) {
             return null;
         }
-
         if ($node->namespacedName === null) {
             return null;
         }
-
         if ($node->isAbstract()) {
             return null;
-        }
-
-        $queueConfig = [
-            'connection' => null,
-            'queue' => null,
-            'delay' => null,
-            'tries' => null,
-            'timeout' => null,
-            'backoff' => null,
-        ];
-
-        foreach ($node->stmts as $stmt) {
-            if (! $stmt instanceof Node\Stmt\Property) {
-                continue;
-            }
-
-            foreach ($stmt->props as $prop) {
-                $name = $prop->name->toString();
-                if (! in_array($name, self::QUEUE_CONFIG_PROPERTIES, true)) {
-                    continue;
-                }
-
-                $value = $this->extractScalar($prop->default);
-                if ($value !== null) {
-                    $queueConfig[$name] = $value;
-                }
-            }
         }
 
         $this->classes[] = [
             'fqcn' => $node->namespacedName->toString(),
             'line' => $node->getStartLine(),
-            'queue_config' => $queueConfig,
+            'queue_config' => QueueConfig::extractFrom($node),
         ];
-
-        return null;
-    }
-
-    /**
-     * Extract a literal scalar initializer. Returns null for non-scalar
-     * expressions (method calls, config(), concatenation, etc.) and for
-     * explicit null literals — both map to "not declared" in the index.
-     */
-    private function extractScalar(?Node\Expr $expr): string|int|null
-    {
-        if ($expr === null) {
-            return null;
-        }
-
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        if ($expr instanceof Node\Scalar\Int_) {
-            return $expr->value;
-        }
-
-        if ($expr instanceof Node\Expr\UnaryMinus && $expr->expr instanceof Node\Scalar\Int_) {
-            return -$expr->expr->value;
-        }
 
         return null;
     }
@@ -140,14 +70,7 @@ final class MailableClassVisitor extends NodeVisitorAbstract
      * @return array<int, array{
      *     fqcn: string,
      *     line: int,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     }
+     *     queue_config: array<string, string|int|null>,
      * }>
      */
     public function getClasses(): array

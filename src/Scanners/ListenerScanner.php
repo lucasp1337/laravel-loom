@@ -13,6 +13,7 @@ use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\LaravelContracts;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
@@ -24,8 +25,6 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class ListenerScanner implements Scanner
 {
     use ScannerFilesystem;
-
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
     private const REGISTRATION_SUBSCRIBER = 'subscriber';
 
@@ -483,7 +482,7 @@ final class ListenerScanner implements Scanner
                 'line' => $data['line'],
                 'handles' => $data['handles'],
                 'registration' => $data['registration'],
-                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
+                'queued' => $resolver->implementsInterface($fqcn, LaravelContracts::SHOULD_QUEUE),
                 'dispatches' => [],
             ];
         }

@@ -4,53 +4,37 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\LaravelContracts;
+use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects concrete job classes from a parsed file, capturing the queue-config
- * properties declared directly on the class.
+ * Collects concrete job classes from a parsed file, capturing the
+ * queue-config properties declared directly on the class.
  *
  * Skips:
  *  - Abstract classes
  *  - Anonymous classes (no namespacedName)
  *  - Interfaces and traits (different node types — never match Stmt\Class_)
  *
- * `queued` is true iff `Illuminate\Contracts\Queue\ShouldQueue` appears in the
- * DIRECT `implements` list (post-NameResolver). Indirect inheritance (via parent
- * class or trait) needs the cross-file class hierarchy resolver tracked in
- * issue #13 — documented gap for now.
+ * `queued` is true iff `ShouldQueue` appears in the DIRECT `implements`
+ * list (post-NameResolver). Indirect inheritance is computed by
+ * `JobsScanner` via the resolver, not here.
  *
- * Reads on `leaveNode` so NameResolver has fully resolved every name inside
- * the class body before we inspect it.
+ * Reads on `leaveNode` so NameResolver has fully resolved every name
+ * inside the class body before we inspect it.
  */
 final class JobClassVisitor extends NodeVisitorAbstract
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
-
-    private const QUEUE_CONFIG_PROPERTIES = [
-        'connection',
-        'queue',
-        'delay',
-        'tries',
-        'timeout',
-        'backoff',
-    ];
-
     /**
      * @var array<int, array{
      *     fqcn: string,
      *     line: int,
      *     queued: bool,
      *     has_handle: bool,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     }
+     *     queue_config: array<string, string|int|null>,
      * }>
      */
     private array $classes = [];
@@ -70,97 +54,33 @@ final class JobClassVisitor extends NodeVisitorAbstract
         if (! $node instanceof Node\Stmt\Class_) {
             return null;
         }
-
-        // Anonymous classes have no namespacedName — skip.
         if ($node->namespacedName === null) {
             return null;
         }
-
         if ($node->isAbstract()) {
             return null;
-        }
-
-        $queued = false;
-        foreach ($node->implements as $implements) {
-            if ($implements->toString() === self::SHOULD_QUEUE) {
-                $queued = true;
-                break;
-            }
-        }
-
-        $hasHandle = false;
-        $queueConfig = [
-            'connection' => null,
-            'queue' => null,
-            'delay' => null,
-            'tries' => null,
-            'timeout' => null,
-            'backoff' => null,
-        ];
-
-        foreach ($node->stmts as $stmt) {
-            if ($stmt instanceof Node\Stmt\ClassMethod) {
-                if ($stmt->name->toString() === 'handle') {
-                    $hasHandle = true;
-                }
-
-                continue;
-            }
-
-            if (! $stmt instanceof Node\Stmt\Property) {
-                continue;
-            }
-
-            foreach ($stmt->props as $prop) {
-                $name = $prop->name->toString();
-                if (! in_array($name, self::QUEUE_CONFIG_PROPERTIES, true)) {
-                    continue;
-                }
-
-                $value = $this->extractScalar($prop->default);
-                if ($value !== null) {
-                    $queueConfig[$name] = $value;
-                }
-            }
         }
 
         $this->classes[] = [
             'fqcn' => $node->namespacedName->toString(),
             'line' => $node->getStartLine(),
-            'queued' => $queued,
-            'has_handle' => $hasHandle,
-            'queue_config' => $queueConfig,
+            'queued' => AstHelpers::declaresInterface($node, LaravelContracts::SHOULD_QUEUE),
+            'has_handle' => $this->declaresHandleMethod($node),
+            'queue_config' => QueueConfig::extractFrom($node),
         ];
 
         return null;
     }
 
-    /**
-     * Extract a literal scalar initializer. Returns null for non-scalar
-     * expressions (method calls, config(), concatenation, etc.) and for
-     * explicit null literals — both map to "not declared" in the index.
-     */
-    private function extractScalar(?Node\Expr $expr): string|int|null
+    private function declaresHandleMethod(Node\Stmt\Class_ $node): bool
     {
-        if ($expr === null) {
-            return null;
+        foreach ($node->stmts as $stmt) {
+            if ($stmt instanceof Node\Stmt\ClassMethod && $stmt->name->toString() === 'handle') {
+                return true;
+            }
         }
 
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        if ($expr instanceof Node\Scalar\Int_) {
-            return $expr->value;
-        }
-
-        // Negative integers parse as a UnaryMinus around an Int_.
-        if ($expr instanceof Node\Expr\UnaryMinus && $expr->expr instanceof Node\Scalar\Int_) {
-            return -$expr->expr->value;
-        }
-
-        // ConstFetch(null) and anything else: not statically resolvable.
-        return null;
+        return false;
     }
 
     /**
@@ -169,14 +89,7 @@ final class JobClassVisitor extends NodeVisitorAbstract
      *     line: int,
      *     queued: bool,
      *     has_handle: bool,
-     *     queue_config: array{
-     *         connection: string|int|null,
-     *         queue: string|int|null,
-     *         delay: string|int|null,
-     *         tries: string|int|null,
-     *         timeout: string|int|null,
-     *         backoff: string|int|null
-     *     }
+     *     queue_config: array<string, string|int|null>,
      * }>
      */
     public function getClasses(): array

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -16,13 +18,10 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class SubscribeArrayVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
+    use IdentifiesEventServiceProvider;
 
     /** @var array<int, string> */
     private array $subscribers = [];
-
-    /** @var array<int, bool> */
-    private array $classStack = [];
 
     /**
      * @param  array<int, Node>  $nodes
@@ -30,16 +29,14 @@ final class SubscribeArrayVisitor extends NodeVisitorAbstract
     public function beforeTraverse(array $nodes): ?array
     {
         $this->subscribers = [];
-        $this->classStack = [];
+        $this->resetEventServiceProviderStack();
 
         return null;
     }
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Stmt\Class_) {
-            $this->classStack[] = $this->isEventServiceProvider($node);
-        }
+        $this->pushClassNode($node);
 
         return null;
     }
@@ -52,31 +49,14 @@ final class SubscribeArrayVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        if ($node instanceof Node\Stmt\Class_) {
-            array_pop($this->classStack);
-        }
+        $this->popClassNode($node);
 
         return null;
     }
 
-    private function isEventServiceProvider(Node\Stmt\Class_ $node): bool
-    {
-        if ($node->name !== null && $node->name->toString() === 'EventServiceProvider') {
-            return true;
-        }
-
-        if ($node->extends instanceof Node\Name
-            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
     private function handleProperty(Node\Stmt\Property $node): void
     {
-        if ($this->classStack === [] || end($this->classStack) !== true) {
+        if (! $this->inEventServiceProvider()) {
             return;
         }
 
@@ -89,30 +69,12 @@ final class SubscribeArrayVisitor extends NodeVisitorAbstract
             }
 
             foreach ($prop->default->items as $item) {
-                $fqcn = $this->classConstFqcn($item->value);
+                $fqcn = AstHelpers::classConstFqcn($item->value);
                 if ($fqcn !== null) {
                     $this->subscribers[] = $fqcn;
                 }
             }
         }
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

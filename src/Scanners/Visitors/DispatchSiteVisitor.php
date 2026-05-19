@@ -192,7 +192,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         // Mail facade — static-only forms: Mail::send(...), Mail::queue(...),
         // Mail::later($delay, ...). Chain-rooted forms (`Mail::to(...)->send`)
         // are handled in handleMethodCall.
-        if (Facades::matches($className, Facades::MAIL)) {
+        if (Facades::MAIL->matches($className)) {
             if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)) {
                 $this->recordMailableSiteFromArg($node, $node->args, 0, 'mail_facade', 'Mail::'.$methodName);
 
@@ -211,7 +211,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         // Notification facade — Notification::send($recipients, new X),
         // Notification::sendNow($recipients, new X).
-        if (Facades::matches($className, Facades::NOTIFICATION)) {
+        if (Facades::NOTIFICATION->matches($className)) {
             if (in_array($methodName, self::NOTIFICATION_FACADE_METHODS, true)) {
                 $this->recordNotificationSiteFromArg($node, $node->args, 1, 'notification_facade', 'Notification::'.$methodName);
 
@@ -227,13 +227,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if (Facades::matches($className, Facades::EVENT)) {
+        if (Facades::EVENT->matches($className)) {
             $this->recordHelperOrFacade($node, $node->args, 'facade', 'event', 'Event::dispatch');
 
             return;
         }
 
-        if (Facades::matches($className, Facades::BUS)) {
+        if (Facades::BUS->matches($className)) {
             $this->recordHelperOrFacade($node, $node->args, 'job_helper', 'job', 'Bus::dispatch');
 
             return;
@@ -325,7 +325,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         $className = $current->class->toString();
-        if (! Facades::matches($className, Facades::MAIL)) {
+        if (! Facades::MAIL->matches($className)) {
             return false;
         }
 
@@ -355,7 +355,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         $className = $current->class->toString();
-        if (! Facades::matches($className, Facades::NOTIFICATION)) {
+        if (! Facades::NOTIFICATION->matches($className)) {
             return false;
         }
 

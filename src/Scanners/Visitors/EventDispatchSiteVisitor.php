@@ -79,7 +79,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 
         $className = $node->class->toString();
 
-        if (Facades::matches($className, Facades::EVENT)) {
+        if (Facades::EVENT->matches($className)) {
             $fqcn = $this->resolveFirstArgClass($node->args);
             if ($fqcn !== null) {
                 $this->targets[] = ['fqcn' => $fqcn, 'line' => $node->getStartLine(), 'form' => 'facade'];

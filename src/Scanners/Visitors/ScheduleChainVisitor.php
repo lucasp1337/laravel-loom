@@ -230,13 +230,13 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         if ($receiver instanceof Node\Name) {
             $resolved = $receiver->getAttribute('resolvedName');
             if ($resolved instanceof Node\Name) {
-                return $resolved->toString() === Facades::SCHEDULE;
+                return $resolved->toString() === Facades::SCHEDULE->value;
             }
 
             // Fallback — should not happen post-NameResolver, but if a file
             // is parsed outside a namespace and the name is already FQ (or
             // the bare alias remains), match either form.
-            return Facades::matches($receiver->toString(), Facades::SCHEDULE);
+            return Facades::SCHEDULE->matches($receiver->toString());
         }
 
         return false;
