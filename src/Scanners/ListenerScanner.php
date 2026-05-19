@@ -13,6 +13,7 @@ use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
@@ -36,9 +37,12 @@ final class ListenerScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    private Psr4ClassLocator $locator;
+
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->locator = $locator ?? new Psr4ClassLocator;
     }
 
     /**
@@ -245,8 +249,8 @@ final class ListenerScanner implements Scanner
         $foreignPairs = [];
 
         foreach ($fqcns as $fqcn) {
-            $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
-            if ($absolute === null || ! is_file($absolute)) {
+            $absolute = $this->locator->locate($appRoot, $fqcn);
+            if ($absolute === null) {
                 continue;
             }
 
@@ -440,8 +444,8 @@ final class ListenerScanner implements Scanner
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
     {
-        $absolute = $this->absolutePathForFqcn($appRoot, $fqcn);
-        if ($absolute === null || ! is_file($absolute)) {
+        $absolute = $this->locator->locate($appRoot, $fqcn);
+        if ($absolute === null) {
             return null;
         }
 
@@ -530,24 +534,5 @@ final class ListenerScanner implements Scanner
         }
 
         return $result;
-    }
-
-    /**
-     * Map an FQCN to its likely on-disk path under $appRoot using the Laravel
-     * default PSR-4 convention (App\ → app/). Returns null only for an empty
-     * FQCN; file existence is the caller's concern.
-     */
-    private function absolutePathForFqcn(string $appRoot, string $fqcn): ?string
-    {
-        $trimmed = ltrim($fqcn, '\\');
-        if ($trimmed === '') {
-            return null;
-        }
-        $segments = explode('\\', $trimmed);
-        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
-
-        $relative = implode('/', $segments).'.php';
-
-        return $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
     }
 }

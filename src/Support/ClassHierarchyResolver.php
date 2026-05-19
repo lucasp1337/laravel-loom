@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
-use FilesystemIterator;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 
 /**
  * Cross-file `extends` / `implements` / `use Trait` resolver.
@@ -33,6 +29,8 @@ use SplFileInfo;
  */
 final class ClassHierarchyResolver
 {
+    use ScannerFilesystem;
+
     private string $appRoot;
 
     private AstWalker $walker;
@@ -363,7 +361,7 @@ final class ClassHierarchyResolver
                 continue;
             }
 
-            $relative = $this->relativePath($absolute);
+            $relative = $this->relativePath($this->appRoot, $absolute);
             foreach ($visitor->getDeclarations() as $decl) {
                 $this->index[$decl['fqcn']] = [
                     'fqcn' => $decl['fqcn'],
@@ -377,40 +375,6 @@ final class ClassHierarchyResolver
                 ];
             }
         }
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $absolute): string
-    {
-        $prefix = rtrim($this->appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 
     private function normalize(string $fqcn): string

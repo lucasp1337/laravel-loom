@@ -10,6 +10,7 @@ use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
@@ -29,9 +30,12 @@ final class ObserverScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    private Psr4ClassLocator $locator;
+
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->locator = $locator ?? new Psr4ClassLocator;
     }
 
     /**
@@ -284,25 +288,16 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Map an observer FQCN to its source file via the `App\` → `app/` PSR-4
-     * convention, then re-parse to recover hooks. Used only when the whole-app
-     * classMap missed the class (observer outside `app/`, autoload edge case).
+     * Locate an observer FQCN on disk and re-parse to recover its hooks.
+     * Used only when the whole-app classMap missed the class (observer
+     * outside `app/`, autoload edge case).
      *
      * @return array{file: string, line: int, hooks: array<int, string>}|null
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
     {
-        $trimmed = ltrim($fqcn, '\\');
-        if ($trimmed === '') {
-            return null;
-        }
-        $segments = explode('\\', $trimmed);
-        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
-
-        $relative = implode('/', $segments).'.php';
-        $absolute = $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-
-        if (! is_file($absolute)) {
+        $absolute = $this->locator->locate($appRoot, $fqcn);
+        if ($absolute === null) {
             return null;
         }
 
