@@ -7,17 +7,11 @@ namespace Lucasp\Loom\Support;
 use PhpParser\Node;
 
 /**
- * Stateless helpers for nikic/php-parser AST nodes that recur across
- * multiple visitors. Each scanner had its own private copy of these —
- * centralised here so a refactor of one helper doesn't need to be
- * threaded through eight files.
+ * Stateless AST helpers shared by visitors.
  */
 final class AstHelpers
 {
-    /**
-     * Resolve `Class::class` to the FQCN string. Returns null when the
-     * expression isn't a `ClassConstFetch` of the form `Name::class`.
-     */
+    /** Resolve `Class::class` to the FQCN string. */
     public static function classConstFqcn(?Node $expr): ?string
     {
         if (! $expr instanceof Node\Expr\ClassConstFetch) {
@@ -36,19 +30,9 @@ final class AstHelpers
         return $expr->class->toString();
     }
 
-    /**
-     * Resolve `new X()` or `X::class` to the FQCN string. Used everywhere
-     * a dispatch target is expected as an argument (events, jobs,
-     * mailables, notifications, schedule entries). Returns null when
-     * the expression is anything else (variable, function call, ternary,
-     * ...).
-     */
+    /** Resolve `new X()` or `X::class` to the FQCN string. */
     public static function resolveStaticClass(?Node $expr): ?string
     {
-        if ($expr === null) {
-            return null;
-        }
-
         if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name) {
             return $expr->class->toString();
         }
@@ -56,11 +40,7 @@ final class AstHelpers
         return self::classConstFqcn($expr);
     }
 
-    /**
-     * Resolve a scalar literal — string, integer (positive or negative),
-     * or null literal — to its PHP value. Used by every class-visitor
-     * extracting declared property defaults (queue_config, etc.).
-     */
+    /** Resolve a scalar literal — string, int (signed), or null. */
     public static function scalarLiteral(?Node $node): string|int|null
     {
         if ($node === null) {
@@ -72,8 +52,6 @@ final class AstHelpers
         if ($node instanceof Node\Scalar\Int_) {
             return $node->value;
         }
-        // Negative integer literal — PHP-Parser models `-3` as
-        // UnaryMinus(LNumber(3)).
         if ($node instanceof Node\Expr\UnaryMinus
             && $node->expr instanceof Node\Scalar\Int_
         ) {
@@ -83,9 +61,6 @@ final class AstHelpers
         return null;
     }
 
-    /**
-     * Read a string-only scalar from an Arg or expression.
-     */
     public static function scalarString(?Node $node): ?string
     {
         if ($node instanceof Node\Arg) {
@@ -95,10 +70,6 @@ final class AstHelpers
         return $node instanceof Node\Scalar\String_ ? $node->value : null;
     }
 
-    /**
-     * Read an integer-only scalar (positive or negative) from an Arg or
-     * expression.
-     */
     public static function scalarInt(?Node $node): ?int
     {
         if ($node instanceof Node\Arg) {
@@ -117,9 +88,7 @@ final class AstHelpers
     }
 
     /**
-     * Extract a `[Class::class, 'method']` callable tuple from an array
-     * literal. Returns the resolved FQCN + method when the shape matches
-     * (exactly two items: ClassConstFetch then String_), otherwise null.
+     * Extract a `[Class::class, 'method']` callable tuple.
      *
      * @return array{class: string, method: string}|null
      */
@@ -142,10 +111,8 @@ final class AstHelpers
     }
 
     /**
-     * Extract a list of class FQCNs from an expression that is either a
-     * single `Class::class` or an array literal of `Class::class` items.
-     * Used by `Model::observe()` and `#[ObservedBy(...)]`. Returns an
-     * empty list when nothing resolves.
+     * Extract a list of class FQCNs from `Class::class` or an array of
+     * `Class::class` items.
      *
      * @return list<string>
      */
@@ -171,11 +138,7 @@ final class AstHelpers
         return $result;
     }
 
-    /**
-     * True when the class directly lists $interfaceFqcn in its
-     * `implements` clause. Direct only — does not chase parents. Use
-     * `ClassHierarchyResolver::implementsInterface` for transitive.
-     */
+    /** True when the class directly declares `implements $interfaceFqcn`. */
     public static function declaresInterface(Node\Stmt\Class_ $node, string $interfaceFqcn): bool
     {
         foreach ($node->implements as $implements) {
@@ -185,5 +148,22 @@ final class AstHelpers
         }
 
         return false;
+    }
+
+    /**
+     * Find a visitor-emitted class record by FQCN.
+     *
+     * @param  array<int, array<string, mixed>>  $classes
+     * @return array<string, mixed>|null
+     */
+    public static function findClass(array $classes, string $fqcn): ?array
+    {
+        foreach ($classes as $class) {
+            if (($class['fqcn'] ?? null) === $fqcn) {
+                return $class;
+            }
+        }
+
+        return null;
     }
 }

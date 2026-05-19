@@ -9,6 +9,7 @@ use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -288,10 +289,6 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Locate an observer FQCN on disk and re-parse to recover its hooks.
-     * Used only when the whole-app classMap missed the class (observer
-     * outside `app/`, autoload edge case).
-     *
      * @return array{file: string, line: int, hooks: array<int, string>}|null
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
@@ -304,16 +301,15 @@ final class ObserverScanner implements Scanner
         $visitor = new ObserverClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] === $fqcn) {
-                return [
-                    'file' => $this->relativePath($appRoot, $absolute),
-                    'line' => $class['line'],
-                    'hooks' => $visitor->getHooks($fqcn),
-                ];
-            }
+        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
+        if ($class === null) {
+            return null;
         }
 
-        return null;
+        return [
+            'file' => $this->relativePath($appRoot, $absolute),
+            'line' => $class['line'],
+            'hooks' => $visitor->getHooks($fqcn),
+        ];
     }
 }

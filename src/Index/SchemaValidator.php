@@ -8,18 +8,14 @@ use JsonSchema\Validator;
 use RuntimeException;
 
 /**
- * Validates an index payload against `schema/loom-index.schema.json`.
- *
- * Extracted from `IndexBuilder` so building and validation are separately
- * testable. `IndexBuilder::validate()` remains as a thin delegate for
- * call-site ergonomics — most consumers want both operations on the same
- * object.
+ * Validates an index payload against schema/loom-index.schema.json.
+ * Throws RuntimeException when the schema file is missing.
  */
 final class SchemaValidator
 {
     /**
      * @param  array<string, mixed>  $payload
-     * @return array<int, string> validation errors; empty when valid
+     * @return array<int, string>
      */
     public function validate(array $payload): array
     {

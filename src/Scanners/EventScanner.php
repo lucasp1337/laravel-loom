@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -146,9 +147,6 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Convert an FQCN to a guessed app/Events PSR-4 path. Returns null if
-     * the file does not exist or cannot be parsed for the class.
-     *
      * @return array{file: string, line: int}|null
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
@@ -161,16 +159,15 @@ final class EventScanner implements Scanner
         $visitor = new EventClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] === $fqcn) {
-                return [
-                    'file' => $this->relativePath($appRoot, $absolute),
-                    'line' => $class['line'],
-                ];
-            }
+        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
+        if ($class === null) {
+            return null;
         }
 
-        return null;
+        return [
+            'file' => $this->relativePath($appRoot, $absolute),
+            'line' => $class['line'],
+        ];
     }
 
     /**

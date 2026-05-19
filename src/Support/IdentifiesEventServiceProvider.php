@@ -7,31 +7,15 @@ namespace Lucasp\Loom\Support;
 use PhpParser\Node;
 
 /**
- * Shared between visitors that scan `$listen` / `$subscribe` arrays on
- * EventServiceProvider classes. Encapsulates the EventServiceProvider
- * recognition rule (class name is `EventServiceProvider` OR it extends
- * the Illuminate base) and the bool-stack that tracks "are we currently
- * inside one" during traversal.
- *
- * Usage:
- *
- *   - In `beforeTraverse`: $this->resetEventServiceProviderStack();
- *   - In `enterNode`: $this->pushClassNode($node);
- *   - In `leaveNode`: $this->popClassNode($node);
- *   - Inside property handlers: $this->inEventServiceProvider().
+ * Track whether the visitor is currently inside an EventServiceProvider
+ * class — either named `EventServiceProvider` or extending the Illuminate
+ * base. Used by `$listen` / `$subscribe` array visitors.
  */
 trait IdentifiesEventServiceProvider
 {
     private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
 
-    /**
-     * Depth-N enclosing-class stack — true when the current class is an
-     * EventServiceProvider, false otherwise. PHP allows nested class
-     * declarations in conditional blocks; the stack lets the visitor
-     * descend into them without forgetting the outer context.
-     *
-     * @var array<int, bool>
-     */
+    /** @var array<int, bool> */
     private array $eventServiceProviderStack = [];
 
     private function resetEventServiceProviderStack(): void
@@ -65,12 +49,7 @@ trait IdentifiesEventServiceProvider
             return true;
         }
 
-        if ($node->extends instanceof Node\Name
-            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE
-        ) {
-            return true;
-        }
-
-        return false;
+        return $node->extends instanceof Node\Name
+            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE;
     }
 }

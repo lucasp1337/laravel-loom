@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\NotificationClassVisitor;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelContracts;
@@ -139,22 +140,19 @@ final class NotificationScanner implements Scanner
         $visitor = new NotificationClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] !== $fqcn) {
-                continue;
-            }
-
-            return [
-                'file' => $this->relativePath($appRoot, $absolute),
-                'line' => $class['line'],
-                'queued' => $resolver->implementsInterface($fqcn, LaravelContracts::SHOULD_QUEUE),
-                'queue_config' => $class['queue_config'],
-                'channels' => $class['channels'],
-                'channels_dynamic' => $class['channels_dynamic'],
-            ];
+        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
+        if ($class === null) {
+            return null;
         }
 
-        return null;
+        return [
+            'file' => $this->relativePath($appRoot, $absolute),
+            'line' => $class['line'],
+            'queued' => $resolver->implementsInterface($fqcn, LaravelContracts::SHOULD_QUEUE),
+            'queue_config' => $class['queue_config'],
+            'channels' => $class['channels'],
+            'channels_dynamic' => $class['channels_dynamic'],
+        ];
     }
 
     /**

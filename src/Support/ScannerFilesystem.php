@@ -10,20 +10,13 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 /**
- * Shared filesystem helpers for scanners. Every scanner needs to walk a
- * directory of `.php` files and normalise absolute paths to forward-slashed
- * paths relative to the scanned app root. Centralising both keeps the
- * scanner classes focused on discovery and emission.
- *
- * Usage: `use ScannerFilesystem;` in the scanner; call
- * `$this->iteratePhpFiles($dir)` and `$this->relativePath($appRoot, $absolute)`.
+ * Filesystem helpers for scanners: recursively yield PHP files and
+ * normalise absolute paths to forward-slashed paths relative to the
+ * scanned app root.
  */
 trait ScannerFilesystem
 {
     /**
-     * Yield every `.php` file under `$dir`, recursively. Skips dot entries
-     * and any file whose extension is not `php` (case-insensitive).
-     *
      * @return iterable<SplFileInfo>
      */
     private function iteratePhpFiles(string $dir): iterable
@@ -47,12 +40,6 @@ trait ScannerFilesystem
         }
     }
 
-    /**
-     * Strip the app-root prefix from an absolute path and normalise to
-     * forward slashes. Returns the absolute path unchanged if it doesn't
-     * sit under `$appRoot` (caller's mistake; we don't try to relativise
-     * paths from elsewhere).
-     */
     private function relativePath(string $appRoot, string $absolute): string
     {
         $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;

@@ -11,6 +11,7 @@ use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelContracts;
@@ -435,10 +436,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Locate the file for a listener FQCN by mapping the leading App\ segment
-     * to app/, then re-running ListenerClassVisitor against the located file
-     * so `queued` is accurate for path A/C-only listeners.
-     *
      * @return array{file: string, line: int, queued: bool}|null
      */
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
@@ -451,17 +448,16 @@ final class ListenerScanner implements Scanner
         $visitor = new ListenerClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] === $fqcn) {
-                return [
-                    'file' => $this->relativePath($appRoot, $absolute),
-                    'line' => $class['line'],
-                    'queued' => $class['queued'],
-                ];
-            }
+        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
+        if ($class === null) {
+            return null;
         }
 
-        return null;
+        return [
+            'file' => $this->relativePath($appRoot, $absolute),
+            'line' => $class['line'],
+            'queued' => $class['queued'],
+        ];
     }
 
     /**

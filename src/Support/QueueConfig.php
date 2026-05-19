@@ -7,26 +7,16 @@ namespace Lucasp\Loom\Support;
 use PhpParser\Node;
 
 /**
- * Centralises the queue-config schema that jobs / mailables /
- * notifications all share: the six recognised property names, the
- * default-null record, and the property-extraction routine that every
- * class visitor used to copy.
+ * Extracts the six queueable-class properties (`connection`, `queue`,
+ * `delay`, `tries`, `timeout`, `backoff`) declared as scalar literals
+ * on a class. Properties not declared map to `null`.
  */
 final class QueueConfig
 {
-    /**
-     * Property names recognised on a class as queue-config overrides.
-     * Their values are scalar literals (string/int/null); anything
-     * non-literal stays null.
-     *
-     * @var list<string>
-     */
+    /** @var list<string> */
     public const PROPERTIES = ['connection', 'queue', 'delay', 'tries', 'timeout', 'backoff'];
 
     /**
-     * Default queue-config record — every recognised property mapped to
-     * null. Use this as the seed when iterating a class's properties.
-     *
      * @return array<string, string|int|null>
      */
     public static function emptyConfig(): array
@@ -40,11 +30,6 @@ final class QueueConfig
     }
 
     /**
-     * Extract queue-config overrides from the class body. Returns a
-     * record where each of {@see self::PROPERTIES} is mapped to its
-     * scalar literal default (string / int / null when not declared or
-     * not a literal).
-     *
      * @return array<string, string|int|null>
      */
     public static function extractFrom(Node\Stmt\Class_ $node): array
