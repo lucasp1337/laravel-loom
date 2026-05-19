@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -15,8 +16,6 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
-
     /** @var array<int, array{event: string, listener: string, method: string}> */
     private array $pairs = [];
 
@@ -45,7 +44,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if (! $node->class instanceof Node\Name) {
             return null;
         }
-        if ($node->class->toString() !== self::EVENT_FACADE) {
+        if ($node->class->toString() !== Facades::EVENT) {
             return null;
         }
         if (! $node->name instanceof Node\Identifier) {

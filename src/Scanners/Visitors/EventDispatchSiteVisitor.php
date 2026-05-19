@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -16,8 +17,6 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
-
     /** @var array<int, array{fqcn: string, line: int, form: 'helper'|'facade'|'dispatchable'}> */
     private array $targets = [];
 
@@ -80,7 +79,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 
         $className = $node->class->toString();
 
-        if ($className === self::EVENT_FACADE || $className === 'Event') {
+        if (Facades::matches($className, Facades::EVENT)) {
             $fqcn = $this->resolveFirstArgClass($node->args);
             if ($fqcn !== null) {
                 $this->targets[] = ['fqcn' => $fqcn, 'line' => $node->getStartLine(), 'form' => 'facade'];

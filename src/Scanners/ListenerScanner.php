@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
@@ -14,9 +13,7 @@ use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
  * Discovers Laravel event listeners across three sources: auto-discovery via
@@ -25,6 +22,8 @@ use SplFileInfo;
  */
 final class ListenerScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
 
     private const REGISTRATION_SUBSCRIBER = 'subscriber';
@@ -550,39 +549,5 @@ final class ListenerScanner implements Scanner
         $relative = implode('/', $segments).'.php';
 
         return $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

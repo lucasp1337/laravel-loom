@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -32,8 +33,6 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     public const MODE_BOOTSTRAP = 'bootstrap';
 
     public const MODE_FACADE = 'facade';
-
-    private const SCHEDULE_FACADE = 'Illuminate\\Support\\Facades\\Schedule';
 
     /** @var array<int, string> */
     private const ROOT_METHODS = ['command', 'job', 'call', 'exec'];
@@ -231,14 +230,13 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         if ($receiver instanceof Node\Name) {
             $resolved = $receiver->getAttribute('resolvedName');
             if ($resolved instanceof Node\Name) {
-                return $resolved->toString() === self::SCHEDULE_FACADE;
+                return $resolved->toString() === Facades::SCHEDULE;
             }
 
             // Fallback — should not happen post-NameResolver, but if a file
-            // is parsed outside a namespace and the name is already FQ, match
-            // directly.
-            return $receiver->toString() === self::SCHEDULE_FACADE
-                || $receiver->toString() === 'Schedule';
+            // is parsed outside a namespace and the name is already FQ (or
+            // the bare alias remains), match either form.
+            return Facades::matches($receiver->toString(), Facades::SCHEDULE);
         }
 
         return false;

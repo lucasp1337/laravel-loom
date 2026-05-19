@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
@@ -24,14 +25,6 @@ use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
  */
 final class DispatchSiteVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
-
-    private const BUS_FACADE = 'Illuminate\\Support\\Facades\\Bus';
-
-    private const MAIL_FACADE = 'Illuminate\\Support\\Facades\\Mail';
-
-    private const NOTIFICATION_FACADE = 'Illuminate\\Support\\Facades\\Notification';
-
     /**
      * Methods that, when called statically on the Mail facade, take the
      * mailable as their first argument.
@@ -199,7 +192,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         // Mail facade — static-only forms: Mail::send(...), Mail::queue(...),
         // Mail::later($delay, ...). Chain-rooted forms (`Mail::to(...)->send`)
         // are handled in handleMethodCall.
-        if ($className === self::MAIL_FACADE || $className === 'Mail') {
+        if (Facades::matches($className, Facades::MAIL)) {
             if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)) {
                 $this->recordMailableSiteFromArg($node, $node->args, 0, 'mail_facade', 'Mail::'.$methodName);
 
@@ -218,7 +211,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         // Notification facade — Notification::send($recipients, new X),
         // Notification::sendNow($recipients, new X).
-        if ($className === self::NOTIFICATION_FACADE || $className === 'Notification') {
+        if (Facades::matches($className, Facades::NOTIFICATION)) {
             if (in_array($methodName, self::NOTIFICATION_FACADE_METHODS, true)) {
                 $this->recordNotificationSiteFromArg($node, $node->args, 1, 'notification_facade', 'Notification::'.$methodName);
 
@@ -234,13 +227,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if ($className === self::EVENT_FACADE || $className === 'Event') {
+        if (Facades::matches($className, Facades::EVENT)) {
             $this->recordHelperOrFacade($node, $node->args, 'facade', 'event', 'Event::dispatch');
 
             return;
         }
 
-        if ($className === self::BUS_FACADE || $className === 'Bus') {
+        if (Facades::matches($className, Facades::BUS)) {
             $this->recordHelperOrFacade($node, $node->args, 'job_helper', 'job', 'Bus::dispatch');
 
             return;
@@ -332,7 +325,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         $className = $current->class->toString();
-        if ($className !== self::MAIL_FACADE && $className !== 'Mail') {
+        if (! Facades::matches($className, Facades::MAIL)) {
             return false;
         }
 
@@ -362,7 +355,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         $className = $current->class->toString();
-        if ($className !== self::NOTIFICATION_FACADE && $className !== 'Notification') {
+        if (! Facades::matches($className, Facades::NOTIFICATION)) {
             return false;
         }
 

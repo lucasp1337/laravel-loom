@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ScannerFilesystem;
 use PhpParser\Node;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 
 /**
  * Discovers entries declared in Laravel's task scheduler.
@@ -20,6 +17,8 @@ use SplFileInfo;
  */
 final class ScheduleScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private const FREQUENCY_HELPERS = [
         'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
         'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
@@ -678,39 +677,5 @@ final class ScheduleScanner implements Scanner
         $target = is_string($entry['target'] ?? null) ? $entry['target'] : '';
 
         return $file.'|'.$line.'|'.$kind.'|'.$target;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

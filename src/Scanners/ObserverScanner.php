@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
  * Discovers Eloquent observers across three independent paths
@@ -24,6 +21,8 @@ use SplFileInfo;
  */
 final class ObserverScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private const REGISTRATION_ATTRIBUTE = 'attribute';
 
     private const REGISTRATION_OBSERVE_CALL = 'observe_call';
@@ -321,39 +320,5 @@ final class ObserverScanner implements Scanner
         }
 
         return null;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }
