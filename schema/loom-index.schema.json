@@ -15,7 +15,8 @@
         "observers",
         "jobs",
         "unresolved_dispatches",
-        "closure_listeners"
+        "closure_listeners",
+        "scheduled"
     ],
     "additionalProperties": false,
     "properties": {
@@ -24,7 +25,7 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -32,7 +33,8 @@
                 "observers": { "type": "integer", "minimum": 0 },
                 "jobs": { "type": "integer", "minimum": 0 },
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
-                "closure_listeners": { "type": "integer", "minimum": 0 }
+                "closure_listeners": { "type": "integer", "minimum": 0 },
+                "scheduled": { "type": "integer", "minimum": 0 }
             }
         },
         "events": {
@@ -62,6 +64,10 @@
         "closure_listeners": {
             "type": "array",
             "items": { "$ref": "#/$defs/closureListener" }
+        },
+        "scheduled": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/scheduleEntry" }
         }
     },
     "$defs": {
@@ -241,6 +247,37 @@
                     "type": "array",
                     "items": { "type": "string" }
                 }
+            }
+        },
+        "scheduleEntry": {
+            "type": "object",
+            "required": [
+                "kind",
+                "target",
+                "cron",
+                "timezone",
+                "without_overlapping",
+                "on_one_server",
+                "run_in_background",
+                "constraints",
+                "file",
+                "line"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": { "enum": ["command", "job", "closure", "exec"] },
+                "target": { "type": ["string", "null"] },
+                "cron": { "type": ["string", "null"] },
+                "timezone": { "type": ["string", "null"] },
+                "without_overlapping": { "type": "boolean" },
+                "on_one_server": { "type": "boolean" },
+                "run_in_background": { "type": "boolean" },
+                "constraints": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 }
             }
         },
         "unresolvedDispatch": {

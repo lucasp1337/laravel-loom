@@ -8,7 +8,7 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ## Scope
 
-Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `unresolved_dispatches`. Planned for v1.0: `jobs`, mailables, notifications, schedule entries, routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
+Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `unresolved_dispatches`. Planned for v1.0: mailables, notifications, routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
 
 Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
 
@@ -44,6 +44,7 @@ src/
     ListenerScanner.php
     ObserverScanner.php
     JobsScanner.php
+    ScheduleScanner.php
     DispatchScanner.php
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
