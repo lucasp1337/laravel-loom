@@ -1,9 +1,10 @@
 name: PHPStan
 
+# Temporarily manual-only (workflow_dispatch). See run-tests.yml for the
+# rationale; restore the auto-triggers once contributor volume justifies
+# automated CI runs.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
