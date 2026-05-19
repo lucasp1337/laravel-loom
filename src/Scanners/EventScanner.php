@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\EventEntry;
+use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
-use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -31,14 +32,12 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{events: list<EventEntry>}
      */
     public function scan(string $appRoot): array
     {
-        $fsClasses = $this->discoverFromFilesystem($appRoot);
-        $dispatchTargets = $this->discoverFromDispatchSites($appRoot, $fsClasses);
-
-        $merged = $fsClasses;
+        $merged = $this->discoverFromFilesystem($appRoot);
+        $dispatchTargets = $this->discoverFromDispatchSites($appRoot, $merged);
 
         foreach (array_keys($dispatchTargets) as $fqcn) {
             if (isset($merged[$fqcn])) {
@@ -57,7 +56,7 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * @return array<string, array{file: string, line: int}>
+     * @return array<string, SourceLocation>
      */
     private function discoverFromFilesystem(string $appRoot): array
     {
@@ -73,11 +72,10 @@ final class EventScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                $relative = $this->relativePath($appRoot, $file->getPathname());
-                $results[$class['fqcn']] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                ];
+                $results[$class->fqcn] = new SourceLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                );
             }
         }
 
@@ -85,7 +83,7 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{file: string, line: int}>  $fsClasses
+     * @param  array<string, SourceLocation>  $fsClasses
      * @return array<string, null>
      */
     private function discoverFromDispatchSites(string $appRoot, array $fsClasses): array
@@ -127,7 +125,7 @@ final class EventScanner implements Scanner
 
             // Dispatchable form is ambiguous with jobs — accept only when the
             // resolved file is under app/Events/.
-            if ($unambiguous || str_starts_with($located['file'], 'app/Events/')) {
+            if ($unambiguous || str_starts_with($located->file, 'app/Events/')) {
                 $kept[$fqcn] = null;
             }
         }
@@ -135,10 +133,7 @@ final class EventScanner implements Scanner
         return $kept;
     }
 
-    /**
-     * @return array{file: string, line: int}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -148,20 +143,23 @@ final class EventScanner implements Scanner
         $visitor = new EventClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
-        if ($class === null) {
-            return null;
+        foreach ($visitor->getClasses() as $class) {
+            if ($class->fqcn !== $fqcn) {
+                continue;
+            }
+
+            return new SourceLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+            );
         }
 
-        return [
-            'file' => $this->relativePath($appRoot, $absolute),
-            'line' => $class['line'],
-        ];
+        return null;
     }
 
     /**
-     * @param  array<string, array{file: string, line: int}>  $merged
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, SourceLocation>  $merged
+     * @return list<EventEntry>
      */
     private function emit(array $merged): array
     {
@@ -169,15 +167,12 @@ final class EventScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            $entries[] = [
-                'id' => $fqcn,
-                'fqcn' => $fqcn,
-                'kind' => 'class',
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'dispatched_from' => [],
-                'handled_by' => [],
-            ];
+            $entries[] = new EventEntry(
+                id: $fqcn,
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+            );
         }
 
         return $entries;
