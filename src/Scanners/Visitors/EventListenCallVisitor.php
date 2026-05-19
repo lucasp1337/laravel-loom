@@ -10,8 +10,7 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects (event, listener) pairs from Event::listen(...) static calls.
- *
+ * Collects (event, listener) pairs from Event::listen(...) calls.
  * Container forms (`$this->app['events']->listen(...)`) are not matched.
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
@@ -35,8 +34,6 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read on leaveNode so NameResolver has rewritten the Name nodes inside
-        // each argument's ClassConstFetch expressions to their FQCNs.
         if (! $node instanceof Node\Expr\StaticCall) {
             return null;
         }
@@ -81,9 +78,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        // Class-only listeners under string events (e.g. 'eloquent.*') belong
-        // to ObserverScanner territory; only class-keyed events emit into
-        // listeners[].
+        // String events (e.g. 'eloquent.*') belong to ObserverScanner.
         if (! $first->value instanceof Node\Expr\ClassConstFetch) {
             return null;
         }

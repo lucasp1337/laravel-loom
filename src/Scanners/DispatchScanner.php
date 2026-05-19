@@ -11,12 +11,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\Sorting;
 
 /**
- * Walks the entire app/ tree collecting every statically recognisable
- * dispatch site (event/job/dispatchable) and emits both the public
- * `unresolved_dispatches` section and the internal `_dispatch_sites`
- * section consumed by IndexBuilder's cross-link pass.
- *
- * See docs/scanners/dispatches.md for the full design.
+ * Collects dispatch sites under app/ and emits `unresolved_dispatches`
+ * plus the internal `_dispatch_sites` section.
  */
 final class DispatchScanner implements Scanner
 {

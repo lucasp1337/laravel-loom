@@ -8,18 +8,11 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Enumerates Eloquent observer hook methods on classes.
- *
- * For each top-level Stmt\Class_, records every method whose name matches the
- * canonical hook enum (see docs/scanners/observers.md). Visibility is ignored
- * by design — Laravel's observer dispatcher does not strictly require public.
+ * Records observer classes and their matching Eloquent hook methods.
  */
 final class ObserverClassVisitor extends NodeVisitorAbstract
 {
-    /**
-     * Canonical Eloquent model lifecycle hook names. Mirrors
-     * schema/loom-index.schema.json#/$defs/modelEvent/properties/event/enum.
-     */
+    /** Mirrors schema modelEvent/event enum. */
     public const HOOKS = [
         'retrieved', 'creating', 'created', 'updating', 'updated',
         'saving', 'saved', 'deleting', 'deleted', 'restoring', 'restored',
@@ -27,7 +20,7 @@ final class ObserverClassVisitor extends NodeVisitorAbstract
         'booting', 'booted',
     ];
 
-    /** @var array<string, array<int, string>> fqcn => sorted unique hook names */
+    /** @var array<string, array<int, string>> */
     private array $hooksByClass = [];
 
     /** @var array<int, array{fqcn: string, line: int}> */

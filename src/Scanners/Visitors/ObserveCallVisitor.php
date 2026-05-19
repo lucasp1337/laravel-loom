@@ -37,8 +37,7 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
             if ($node->namespacedName !== null) {
                 $this->classStack[] = $node->namespacedName->toString();
             } else {
-                // Push a sentinel so the leaveNode pop stays balanced for
-                // anonymous classes (which have no namespacedName).
+                // Sentinel keeps leaveNode pop balanced for anonymous classes.
                 $this->classStack[] = '';
             }
         }
@@ -48,8 +47,6 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // StaticCall handling lives in leaveNode so NameResolver has resolved
-        // the Name nodes inside the call's argument expressions before we read.
         if (! $node instanceof Node\Expr\StaticCall) {
             if ($node instanceof Node\Stmt\Class_) {
                 array_pop($this->classStack);

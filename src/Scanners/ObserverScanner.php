@@ -16,11 +16,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\Sorting;
 
 /**
- * Discovers Eloquent observers across three independent paths
- * (`#[ObservedBy]`, `Model::observe()`, `Event::listen('eloquent.*')`) and
- * emits both `observers[]` and `model_events[]` payloads.
- *
- * See docs/scanners/observers.md for the full design.
+ * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
+ * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
  */
 final class ObserverScanner implements Scanner
 {
@@ -123,18 +120,15 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Dedupe `(observer, model)` registration tuples and resolve observer file
-     * locations. Precedence: `attribute > observe_call`. Observers whose file
-     * cannot be located on disk are silently dropped.
+     * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: string}>  $regs
      * @param  array<string, array{file: string, line: int, hooks: array<int, string>}>  $classMap
      * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>
-     *                                                                                                                                        keyed by "{observer}|{model}"
      */
     private function mergeObservers(string $appRoot, array $regs, array $classMap): array
     {
-        /** @var array<string, string> $registrationByPair pair-key => registration */
+        /** @var array<string, string> $registrationByPair */
         $registrationByPair = [];
 
         foreach ($regs as $reg) {
@@ -156,7 +150,6 @@ final class ObserverScanner implements Scanner
 
             $location = $classMap[$observer] ?? $this->locateByPsr4Guess($appRoot, $observer);
             if ($location === null) {
-                // Observer file unlocatable — schema requires file/line; drop.
                 continue;
             }
 
@@ -183,9 +176,6 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Build `(model, hook) => handled_by[]` from observer hooks (one entry per
-     * matching observer hook) plus path C handlers (always one entry each).
-     *
      * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>  $observers
      * @param  array<int, array{model: string, hook: string, handler: string, method: string}>  $listenEntries
      * @return array<string, array{model: string, event: string, handled_by: array<int, string>}>

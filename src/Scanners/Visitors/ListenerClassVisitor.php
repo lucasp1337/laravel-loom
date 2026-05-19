@@ -29,8 +29,6 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read on leaveNode so NameResolver has already rewritten every Node\Name
-        // inside the class body (including parameter type-hints) to its FQCN.
         if (! $node instanceof Node\Stmt\Class_) {
             return null;
         }
@@ -55,8 +53,7 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
             $hasHandle = true;
             if ($stmt->params !== []) {
                 $type = $stmt->params[0]->type;
-                // Only a bare Node\Name counts as a usable event type — unions,
-                // intersections, nullables, and builtins are documented gaps.
+                // Only bare Node\Name supported — unions/intersections/nullables are gaps.
                 if ($type instanceof Node\Name) {
                     $handles[] = ['event' => $type->toString(), 'method' => 'handle'];
                 }

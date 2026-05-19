@@ -20,9 +20,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\Sorting;
 
 /**
- * Discovers Laravel event listeners across three sources: auto-discovery via
- * app/Listeners/, the $listen array on EventServiceProvider, and Event::listen()
- * static calls. See docs/scanners/listeners.md for the full design.
+ * Discovers event listeners from auto-discovery (app/Listeners/),
+ * $listen arrays, Event::listen() calls, and $subscribe / Event::subscribe.
  */
 final class ListenerScanner implements Scanner
 {
@@ -74,8 +73,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walk app/Listeners/ to collect listener classes with their handle() shape.
-     *
      * @return array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
      */
     private function discoverFromAutoDiscovery(string $appRoot): array
@@ -92,8 +89,8 @@ final class ListenerScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
+                // Auto-discovery requires a literal handle() method.
                 if (! $class['has_handle']) {
-                    // Auto-discovery requires a literal handle() method.
                     continue;
                 }
 
@@ -111,13 +108,8 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walk app/ for $listen arrays on EventServiceProvider classes.
-     *
-     * Walks the whole app/ tree rather than just app/Providers/ because
-     * custom service providers (e.g. App\Domain\Invoicing\Providers\
-     * InvoicingServiceProvider) commonly live outside the conventional
-     * directory; the ListenArrayVisitor filters by class shape so the
-     * wider walk does not introduce false positives.
+     * Walks the whole app/ tree — custom providers can live outside
+     * app/Providers/; the visitor filters by class shape.
      *
      * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
      */
@@ -152,13 +144,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walk app/ for Event::listen() static calls.
-     *
-     * Custom service providers (e.g. an InvoicingServiceProvider in a DDD
-     * layout) register listeners via Event::listen() in their boot()
-     * method but commonly live outside app/Providers/. The visitor itself
-     * is location-agnostic, so widening the walk is the correct fix.
-     *
      * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
      */
     private function discoverFromEventListenCalls(string $appRoot): array
@@ -192,9 +177,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walk app/ for `$subscribe` arrays and Event::subscribe(...) calls and
-     * return the deduped set of subscriber FQCNs.
-     *
      * @return array<int, string>
      */
     private function discoverSubscriberFqcns(string $appRoot): array
@@ -223,23 +205,9 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Resolve each subscriber FQCN to a file plus everything parsed out of its
-     * subscribe() method. Both forms are supported: the return-array
-     * (`return [Event::class => 'method', …]`) and the imperative body
-     * (`$events->listen(Event::class, [self::class, 'method'])`).
+     * Returns (subscriber self-handles, closure registrations, foreign pairs).
+     * Dropped if PSR-4 cannot locate the source file.
      *
-     * Returns three slots: the subscriber's own (event, method) pairs that
-     * land on its `handles[]`, the closure registrations it makes (emitted
-     * to `closure_listeners[]` with `registration: subscriber`), and any
-     * foreign (event, listener, method) pairs — i.e. the subscriber wired
-     * up a listener that belongs to a different class. Foreign pairs flow
-     * through the regular `applyPair()` merge at REGISTRATION_SUBSCRIBER,
-     * which upgrades the foreign listener's `registration` accordingly.
-     *
-     * A subscriber is dropped only if its source file can't be located via
-     * the PSR-4 guess or if the class has no `subscribe()` method at all.
-     *
-
      * @param  array<int, string>  $fqcns
      * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>, 2: array<int, array{event: string, listener: string, method: string}>}
      */
@@ -289,9 +257,8 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Combine the four discovery sources by listener FQCN. Precedence for the
-     * `registration` field is `subscriber > listen_array > event_listen_call > auto_discovered`.
-     * `handles` is the union of events across all sources.
+     * Precedence: subscriber > listen_array > event_listen_call > auto_discovered.
+     * `handles` is the union across sources.
      *
      * @param  array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>  $autoDiscovered
      * @param  array<int, array{event: string, listener: string, method: string}>  $listenArrayPairs
@@ -338,8 +305,7 @@ final class ListenerScanner implements Scanner
                     'registration' => self::REGISTRATION_SUBSCRIBER,
                 ];
             } else {
-                // Subscriber discovery has highest precedence; overwrite file/line/queued
-                // so we point at the subscriber class rather than an unrelated location.
+                // Subscriber precedence wins — point at the subscriber class.
                 $acc[$fqcn]['file'] = $data['file'];
                 $acc[$fqcn]['line'] = $data['line'];
                 $acc[$fqcn]['queued'] = $data['queued'];
@@ -354,18 +320,15 @@ final class ListenerScanner implements Scanner
             }
         }
 
-        // Foreign listener pairs registered imperatively from inside subscribe()
-        // bodies. These flow through the same merge path as $listen / Event::listen()
-        // pairs but at `subscriber` precedence.
+        // Listeners wired imperatively from inside subscribe() bodies.
         foreach ($subscriberForeignPairs as $pair) {
             $this->applyPair($acc, $pair, self::REGISTRATION_SUBSCRIBER);
         }
 
         $result = [];
         foreach ($acc as $fqcn => $entry) {
-            // Listeners discovered only via $listen / Event::listen lack a file
-            // hit from path B. Locate via PSR-4 guess; if that fails the schema
-            // can't be satisfied — drop the listener (documented v0.1 gap).
+            // $listen/Event::listen-only entries lack a file hit; PSR-4 guess
+            // or drop (documented v0.1 gap).
             if ($entry['file'] === null || $entry['line'] === null) {
                 $located = $this->locateByPsr4Guess($appRoot, $fqcn);
                 if ($located === null) {
@@ -394,10 +357,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walk-style insert: ensure the listener exists in the accumulator, add the
-     * event to its handles set, and upgrade its `registration` if the incoming
-     * source has higher precedence than what's currently recorded.
-     *
      * @param  array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}>  $acc
      * @param  array{event: string, listener: string, method: string}  $pair
      */
@@ -460,8 +419,6 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Build schema-shaped listener entries, sorted by FQCN ascending.
-     *
      * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>  $merged
      * @return array<int, array<string, mixed>>
      */
@@ -486,9 +443,7 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Merge, dedup, and sort closure listener entries from all three sources.
-     *
-     * Dedup key: (event, file, line, registration). Sort by (event, file, line).
+     * Dedup by (event, file, line, registration); sort by (event, file, line).
      *
      * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $listenArrayClosures
      * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $eventListenClosures

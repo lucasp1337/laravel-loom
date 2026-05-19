@@ -15,11 +15,8 @@ use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers job classes via a filesystem walk of app/Jobs/ seeded by
- * dispatch sites whose target resolves via PSR-4 to a class anywhere
- * under app/.
- *
- * See docs/scanners/jobs.md for the full design.
+ * Discovers job classes under app/Jobs/ plus dispatch-site targets that
+ * resolve via PSR-4 to a class under app/.
  */
 final class JobsScanner implements Scanner
 {
@@ -57,14 +54,9 @@ final class JobsScanner implements Scanner
                 continue;
             }
 
-            // Ambiguous Dispatchable-form sites (`X::dispatch()`) don't prove
-            // X is a job — events use the same trait. EventScanner gates the
-            // symmetric case to classes under `app/Events/`; mirror that here:
-            // for ambiguous targets, only keep the entry if the file is under
-            // `app/Jobs/` or the class transitively implements ShouldQueue
-            // (via its own `implements` clause or any ancestor indexed under
-            // `app/`). The helper form `dispatch(new X)` / `Bus::dispatch(new X)`
-            // is unambiguous and bypasses the guard.
+            // Dispatchable-form sites are ambiguous with events. Accept only
+            // when the file is under app/Jobs/ or the class implements
+            // ShouldQueue (mirrors EventScanner's symmetric guard).
             if ($kind === 'ambiguous'
                 && ! $this->isUnderAppJobs($located['file'])
                 && ! $located['queued']
@@ -78,10 +70,6 @@ final class JobsScanner implements Scanner
         return ['jobs' => $this->emit($merged)];
     }
 
-    /**
-     * The located file's relative path is forward-slashed by `relativePath()`,
-     * so a simple prefix check is portable.
-     */
     private function isUnderAppJobs(string $relativeFile): bool
     {
         return str_starts_with($relativeFile, 'app/Jobs/');
@@ -118,11 +106,7 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * Collect dispatch targets that look like job dispatches: helper form
-     * `dispatch(new X)` / `Bus::dispatch(new X)` (provisionalKind=job) and
-     * ambiguous Dispatchable form (`X::dispatch()`). The kind is preserved
-     * so the caller can apply a stricter guard for ambiguous targets — a
-     * Dispatchable static call alone doesn't prove the target is a job.
+     * Kind is preserved so the caller can guard ambiguous targets.
      *
      * @return array<string, 'job'|'ambiguous'>
      */
@@ -141,17 +125,12 @@ final class JobsScanner implements Scanner
 
             foreach ($visitor->getSites() as $site) {
                 $kind = $site['provisionalKind'];
-                // Only job-shaped and ambiguous (Dispatchable-form) sites
-                // can seed jobs[]. Event, mailable, and notification kinds
-                // belong to their own scanners.
                 if ($kind !== 'job' && $kind !== 'ambiguous') {
                     continue;
                 }
 
                 $target = $site['target'];
-                // Helper-form `dispatch(new X)` / `Bus::dispatch(new X)` wins
-                // over ambiguous `X::dispatch()` — once one site proves X is a
-                // job unambiguously, that's the final answer for X.
+                // 'job' wins over 'ambiguous' — once proven unambiguously, lock in.
                 if ($kind === 'job' || ! isset($candidates[$target])) {
                     $candidates[$target] = $kind;
                 }
@@ -188,8 +167,6 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * Build schema-shaped entries, sorted by FQCN.
-     *
      * @param  array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>  $merged
      * @return array<int, array<string, mixed>>
      */

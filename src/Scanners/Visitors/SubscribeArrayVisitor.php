@@ -10,11 +10,7 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects subscriber FQCNs from `$subscribe` arrays declared on
- * EventServiceProvider classes.
- *
- * Mirrors ListenArrayVisitor's class-shape filter so domain-specific
- * service providers (extending EventServiceProvider) are also covered.
+ * Collects subscriber FQCNs from `$subscribe` on EventServiceProvider classes.
  */
 final class SubscribeArrayVisitor extends NodeVisitorAbstract
 {

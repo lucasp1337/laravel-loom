@@ -15,11 +15,8 @@ use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers mailable classes via a filesystem walk of app/Mail/ seeded by
- * dispatch sites whose target resolves via PSR-4 to a class anywhere
- * under app/.
- *
- * See docs/scanners/mailables.md for the full design.
+ * Discovers mailable classes under app/Mail/ plus dispatch-site targets
+ * that resolve via PSR-4.
  */
 final class MailableScanner implements Scanner
 {
@@ -94,16 +91,6 @@ final class MailableScanner implements Scanner
     }
 
     /**
-     * Collect dispatch targets whose provisional kind is `mailable`. Walks
-     * the whole `app/` tree with DispatchSiteVisitor — mirrors JobsScanner's
-     * self-contained discovery pattern rather than reading from
-     * `_dispatch_sites[]` (the cross-link pass owns that data).
-     *
-     * Ambiguous Dispatchable-form sites don't apply to mailables: mailables
-     * are dispatched via `Mail::send/queue/later(...)` and the
-     * `Mail::to/cc/bcc/locale/mailer(...)->send/queue/later(...)` chain,
-     * never via the `Dispatchable` trait.
-     *
      * @return array<string, 'mailable'>
      */
     private function discoverFromDispatchSites(string $appRoot): array

@@ -11,48 +11,19 @@ use PhpParser\NodeVisitorAbstract;
 use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 /**
- * Collects every statically recognisable dispatch site in a parsed file.
- *
- * The visitor is stateful: it maintains a class+method stack and a closure
- * depth counter so each recorded site carries its enclosing
- * `(classFqcn, methodName)` context. The cross-link pass joins these against
- * listeners[], observers[] and events[] to populate downstream relations.
- *
- * Unresolvable dispatch arguments produce structured unresolved entries
- * conforming to `$defs/unresolvedDispatch` (without the `file` field, which
- * the scanner fills in after traversal).
- *
- * See docs/scanners/dispatches.md for the full design.
+ * Collects statically resolvable dispatch sites in a parsed file.
  */
 final class DispatchSiteVisitor extends NodeVisitorAbstract
 {
-    /**
-     * Methods that, when called statically on the Mail facade, take the
-     * mailable as their first argument.
-     */
     private const MAIL_OUTERMOST_METHODS_ARG0 = ['send', 'queue'];
 
-    /**
-     * Methods that, when called statically on the Mail facade, take the
-     * mailable as their second argument (delay is index 0).
-     */
+    /** Mail::later($delay, $mailable) — target is at index 1. */
     private const MAIL_OUTERMOST_METHODS_ARG1 = ['later'];
 
-    /**
-     * Mail facade root methods that initiate a chain (e.g. `Mail::to(...)`).
-     */
     private const MAIL_CHAIN_ROOT_METHODS = ['to', 'cc', 'bcc', 'locale', 'mailer'];
 
-    /**
-     * Notification facade methods that take recipients as arg 0 and the
-     * notification as arg 1.
-     */
     private const NOTIFICATION_FACADE_METHODS = ['send', 'sendNow'];
 
-    /**
-     * Notification methods (instance form) that take the notification as
-     * their first argument.
-     */
     private const NOTIFY_METHODS = ['notify', 'notifyNow'];
 
     /** @var array<int, array{class: ?string, method: ?string}> */
@@ -99,7 +70,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     public function enterNode(Node $node): null
     {
-        // Treat Trait_ and Class_ identically (trait gap is documented).
         if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
             $fqcn = $node->namespacedName?->toString();
             $this->classStack[] = ['class' => $fqcn, 'method' => null];
@@ -125,8 +95,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read dispatches in leaveNode so NameResolver has resolved every child
-        // Name in the argument expressions before we inspect them.
         if ($node instanceof Node\Expr\FuncCall) {
             $this->handleFuncCall($node);
         } elseif ($node instanceof Node\Expr\StaticCall) {
@@ -190,9 +158,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $methodName = $node->name->toString();
         $className = $node->class->toString();
 
-        // Mail facade — static-only forms: Mail::send(...), Mail::queue(...),
-        // Mail::later($delay, ...). Chain-rooted forms (`Mail::to(...)->send`)
-        // are handled in handleMethodCall.
         if (Facades::MAIL->matches($className)) {
             if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)) {
                 $this->recordMailableSiteFromArg($node, $node->args, 0, 'mail_facade', 'Mail::'.$methodName);
@@ -205,13 +170,10 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 return;
             }
 
-            // Other Mail facade methods (to/cc/etc.) are chain roots — they
-            // don't carry a mailable target themselves.
+            // Chain roots (to/cc/etc.) have no target on the static call itself.
             return;
         }
 
-        // Notification facade — Notification::send($recipients, new X),
-        // Notification::sendNow($recipients, new X).
         if (Facades::NOTIFICATION->matches($className)) {
             if (in_array($methodName, self::NOTIFICATION_FACADE_METHODS, true)) {
                 $this->recordNotificationSiteFromArg($node, $node->args, 1, 'notification_facade', 'Notification::'.$methodName);
@@ -219,12 +181,11 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 return;
             }
 
-            // Notification::route(...) is a chain root — no target by itself.
             return;
         }
 
+        // dispatchSync / dispatchNow intentionally skipped.
         if ($methodName !== 'dispatch') {
-            // dispatchSync / dispatchNow intentionally skipped.
             return;
         }
 
@@ -240,7 +201,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // Dispatchable form: X::dispatch(...). Target is the class itself.
+        // Dispatchable form: X::dispatch(...).
         if ($this->shouldSkipEmission()) {
             return;
         }
@@ -257,18 +218,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         ];
     }
 
-    /**
-     * Handle MethodCall nodes for:
-     *  - $any->notify(new X) / $any->notifyNow(new X)
-     *  - Mail::to(...)->send(new X) / ->queue(new X) / ->later($delay, new X)
-     *    (and chained through cc/bcc/locale/mailer)
-     *  - Notification::route(...)->notify(new X)
-     *
-     * We act only when the current node is the outermost call of the
-     * relevant shape — i.e. the chain-root walk leads to a recognised
-     * Mail / Notification facade static call. For instance `notify` we
-     * trust the method name and act regardless of receiver shape.
-     */
     private function handleMethodCall(Node\Expr\MethodCall $node): void
     {
         if (! $node->name instanceof Node\Identifier) {
@@ -276,9 +225,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
         $methodName = $node->name->toString();
 
-        // Mail chain: ->send / ->queue / ->later whose receiver chain roots
-        // at a Mail facade static call (Mail::to / Mail::cc / Mail::bcc /
-        // Mail::locale / Mail::mailer).
         if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)
             || in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true)
         ) {
@@ -291,10 +237,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         if (in_array($methodName, self::NOTIFY_METHODS, true)) {
-            // Notification::route(...)->notify(new X) and longer route chains
-            // — opaque-receiver notify is accepted regardless, but we want
-            // the `notification_chain` form label when the root is the
-            // Notification facade.
+            // Opaque-receiver ->notify(...) is accepted; the chain-root walk
+            // only changes the `form` label when rooted at Notification::route.
             $form = $this->isRootedAtFacadeChainRoot($node->var, Facades::NOTIFICATION, ['route'])
                 ? 'notification_chain'
                 : 'notify_method';
@@ -304,9 +248,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Walk down `->var` of a MethodCall chain and check whether the deepest
-     * receiver is a static call on $facade with a method in $rootMethods.
-     *
      * @param  list<string>  $rootMethods
      */
     private function isRootedAtFacadeChainRoot(Node\Expr $receiver, Facades $facade, array $rootMethods): bool
@@ -333,8 +274,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Shared emission helper for mailable dispatch shapes.
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      * @param  'mail_facade'|'mail_chain'  $form
      */
@@ -344,8 +283,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Shared emission helper for notification dispatch shapes.
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      * @param  'notify_method'|'notification_facade'|'notification_chain'  $form
      */
@@ -355,10 +292,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Pull the target FQCN from $args[$argIndex] and emit either a resolved
-     * site or an unresolved entry. Mirrors recordHelperOrFacade but
-     * parameterised on the argument index and the (form, kind) labels.
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      * @param  'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain'  $form
      * @param  'mailable'|'notification'  $kind
@@ -409,10 +342,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Emit either a resolved site or an unresolved entry for the
-     * helper/facade/bus_facade/job_helper forms (those that take the target
-     * class in the first argument).
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      * @param  'helper'|'facade'|'job_helper'  $form
      * @param  'event'|'job'  $kind
@@ -420,7 +349,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     private function recordHelperOrFacade(Node\Expr $callNode, array $args, string $form, string $kind, string $callLabel): void
     {
         if ($args === []) {
-            // event() with zero args → silently skip (malformed).
             return;
         }
 
@@ -431,8 +359,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         $resolved = AstHelpers::resolveStaticClass($first->value);
 
-        // Special case: ternary whose branches both resolve statically →
-        // emit two sites instead of an unresolved.
+        // Ternary with two statically resolvable branches → emit both.
         if ($resolved === null && $first->value instanceof Node\Expr\Ternary) {
             $ternary = $first->value;
             $ifBranch = $ternary->if;
@@ -457,10 +384,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // Unresolved — classify reason.
         if ($this->shouldSkipEmission()) {
-            // Even unresolved entries are skipped for closure-internal sites
-            // and top-level-script sites (skipped during emission).
             return;
         }
 
@@ -580,7 +504,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $rendered = $callLabel.'(...)';
         }
 
-        // Collapse whitespace and truncate so we keep the schema entry compact.
         $rendered = trim((string) preg_replace('/\s+/', ' ', $rendered));
         if (strlen($rendered) > 80) {
             $rendered = substr($rendered, 0, 77).'...';

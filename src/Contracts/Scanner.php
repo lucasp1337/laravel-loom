@@ -7,13 +7,8 @@ namespace Lucasp\Loom\Contracts;
 interface Scanner
 {
     /**
-     * Scan the given application root and return partial index data,
-     * keyed by the schema section each subarray contributes to.
-     *
-     * Valid section keys: "events", "listeners", "observers",
-     * "model_events", "unresolved_dispatches". A single scanner may
-     * contribute to more than one section (e.g. ObserverScanner emits
-     * both `observers` and `model_events`).
+     * Return partial index data keyed by schema section name. A scanner
+     * may contribute to multiple sections.
      *
      * @return array<string, array<int, array<string, mixed>>>
      */

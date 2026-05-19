@@ -14,8 +14,6 @@ use PhpParser\Node;
 
 /**
  * Discovers entries declared in Laravel's task scheduler.
- *
- * See docs/scanners/schedule.md and docs/adr/0002-schedule-scanner.md.
  */
 final class ScheduleScanner implements Scanner
 {
@@ -33,29 +31,19 @@ final class ScheduleScanner implements Scanner
         'cron',
     ];
 
-    /**
-     * Day-of-week constraint helpers. These also exist as frequency helpers
-     * in Laravel (`->mondays()` configures `runsOn` constraint, not a cron),
-     * so we treat them as constraints only.
-     */
+    /** Day-of-week helpers configure runsOn constraints, not cron. */
     private const DAY_CONSTRAINTS = ['weekdays', 'weekends', 'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays'];
 
     /**
-     * Methods we know are NOT frequency setters. Anything outside both
-     * FREQUENCY_HELPERS and this set, when it appears after a recognised
-     * frequency helper, nulls the cron — a future Laravel frequency helper
-     * or a user-defined `Schedule::macro` could clobber the cron at runtime
-     * and Loom would misrepresent the schedule if it ignored it.
+     * Methods we know are NOT frequency setters. Anything else following a
+     * frequency helper nulls the cron — an unknown method could be a future
+     * Laravel helper or a user macro that clobbers the cron at runtime.
      */
     private const SAFE_MODIFIERS = [
-        // Modifiers we emit explicitly.
         'timezone', 'withoutOverlapping', 'onOneServer', 'runInBackground',
-        // Constraints we emit into constraints[].
         'weekdays', 'weekends',
         'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays',
         'between', 'unlessBetween', 'when', 'skip', 'environments',
-        // Informational / lifecycle methods we don't model — none of these
-        // change the cron expression.
         'name', 'description', 'user', 'evenInMaintenanceMode',
         'ping', 'pingBefore', 'pingBeforeIf', 'thenPing', 'thenPingIf',
         'pingOnSuccess', 'pingOnFailure',
@@ -98,8 +86,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Discover entries from `app/Console/Kernel.php`'s `schedule()` method.
-     *
      * @return list<array<string, mixed>>
      */
     private function discoverKernelForm(string $appRoot): array
@@ -118,11 +104,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Discover entries from `bootstrap/app.php`'s `withSchedule(...)` closure.
-     *
-     * The closure is walked by the same ScheduleChainVisitor, which is happy
-     * to accept any variable receiver for the chain root.
-     *
      * @return list<array<string, mixed>>
      */
     private function discoverBootstrapForm(string $appRoot): array
@@ -141,8 +122,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Discover Schedule-facade-rooted chains anywhere under `app/`.
-     *
      * @return list<array<string, mixed>>
      */
     private function discoverFacadeForm(string $appRoot): array
@@ -155,15 +134,8 @@ final class ScheduleScanner implements Scanner
         $entries = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
-            // Fresh visitor per file: if walk() returns null (read or parse
-            // failure) the visitor's beforeTraverse is never invoked and the
-            // previous file's entries would otherwise leak into this file's
-            // translate() call with the wrong file path.
-            //
-            // Walking the whole app/ tree means we cannot trust an arbitrary
-            // Variable receiver — only chains explicitly rooted at the
-            // Schedule facade count. Otherwise any
-            // `$builder->command(...)->daily()` DSL would be falsely emitted.
+            // Fresh visitor per file: walk()===null bypasses beforeTraverse,
+            // so reusing one would leak the previous file's entries.
             $visitor = new ScheduleChainVisitor(ScheduleChainVisitor::MODE_FACADE);
             if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
                 continue;
@@ -179,8 +151,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Translate raw visitor entries into schema-shaped entries.
-     *
      * @param  array<int, array{kind: 'command'|'job'|'closure'|'exec', root_method: string, root_args: array<int, Node\Arg|Node\VariadicPlaceholder>, chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>, line: int}>  $rawEntries
      * @return list<array<string, mixed>>
      */
@@ -198,7 +168,7 @@ final class ScheduleScanner implements Scanner
             $constraints = [];
             $cronWasSet = false;
 
-            // First link is the root call; modifiers start at index 1.
+            // Index 0 is the root call; modifiers start at index 1.
             $chain = $raw['chain'];
             for ($i = 1, $n = count($chain); $i < $n; $i++) {
                 $link = $chain[$i];
@@ -206,21 +176,15 @@ final class ScheduleScanner implements Scanner
                 $args = $link['args'];
 
                 if (in_array($method, self::FREQUENCY_HELPERS, true)) {
-                    // Last-wins: a recognised helper with an unresolvable
-                    // arg (e.g. `dailyAt($time)`) clobbers any earlier value
-                    // with null, mirroring Laravel's runtime "last cron
-                    // expression set" semantics.
+                    // Last-wins, including null when args are unresolvable.
                     $cron = $this->cronFromHelper($method, $args);
                     $cronWasSet = true;
 
                     continue;
                 }
 
-                // Anything outside FREQUENCY_HELPERS and SAFE_MODIFIERS that
-                // shows up *after* a recognised frequency helper might itself
-                // be a frequency-setter we don't know about (a future Laravel
-                // helper, a user-defined Schedule::macro). Mirror runtime
-                // last-wins by nulling the cron rather than misrepresent it.
+                // Unknown method after a frequency helper: could be a future
+                // helper or a Schedule::macro. Null the cron to avoid lying.
                 if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
                     $cron = null;
                 }
@@ -252,7 +216,6 @@ final class ScheduleScanner implements Scanner
                     continue;
                 }
 
-                // Constraint-shaped helpers.
                 $constraint = $this->constraintFor($method, $args);
                 if ($constraint !== null) {
                     $constraints[] = $constraint;
@@ -279,8 +242,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Resolve the entry's target string given the root method and its args.
-     *
      * @param  'command'|'job'|'closure'|'exec'  $kind
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
      */
@@ -311,8 +272,7 @@ final class ScheduleScanner implements Scanner
             return AstHelpers::scalarString($first);
         }
 
-        // closure: support callable tuple [Class::class, 'method']
-        // and Laravel callable strings 'App\\Cls@method'.
+        // closure: [Class::class, 'method'] tuple or 'App\\Cls@method' string.
         if ($value instanceof Node\Expr\Array_) {
             return $this->tupleCallableTarget($value);
         }
@@ -358,9 +318,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Read an array literal of integer scalars from an Arg. Used by helpers
-     * like `weeklyOn([1, 3, 5], '08:00')` whose first parameter is `int|array`.
-     *
      * @return list<int>|null
      */
     private function scalarIntArray(?Node $node): ?array
@@ -387,11 +344,8 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Convert a recognised frequency helper + args into a five-field cron
-     * expression. Returns null if the helper requires an arg we can't
-     * resolve statically.
-     *
-     * Cron output mirrors Laravel's `Illuminate\Console\Scheduling\ManagesFrequencies`.
+     * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
+     * null when an arg can't be resolved statically.
      *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      */
@@ -476,7 +430,7 @@ final class ScheduleScanner implements Scanner
                 if ($day !== null) {
                     return $minute.' '.$hour.' * * '.$day;
                 }
-                // Array literal of integer day numbers, e.g. weeklyOn([1, 3, 5], '08:00').
+                // weeklyOn([1, 3, 5], '08:00') form.
                 $days = $this->scalarIntArray($args[0] ?? null);
                 if ($days === null) {
                     return null;
@@ -514,9 +468,7 @@ final class ScheduleScanner implements Scanner
                     return null;
                 }
 
-                // Laravel emits the literal last day at runtime; we can't
-                // know the month statically. Use the same convention as
-                // Laravel's source by leaving "L" as the day-of-month token.
+                // "L" matches Laravel's runtime token for last-day-of-month.
                 return $minute.' '.$hour.' L * *';
 
             case 'quarterly':
@@ -543,8 +495,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Split a "H:M" string. Returns [null, null] on malformed input.
-     *
      * @return array{0: ?int, 1: ?int}
      */
     private function splitTime(string $time): array
@@ -557,9 +507,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Format a chain link as a constraint label, or null if the link is not
-     * a recognised constraint helper.
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      */
     private function constraintFor(string $method, array $args): ?string

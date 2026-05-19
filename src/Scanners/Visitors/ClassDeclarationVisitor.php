@@ -8,21 +8,8 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects every class, interface, and trait declaration in a parsed file.
- *
- * Used exclusively by {@see \Lucasp\Loom\Support\ClassHierarchyResolver} to
- * build a cross-file declaration index. Skips anonymous classes (which lack
- * a `namespacedName`).
- *
- * Reads on `leaveNode` so NameResolver has fully resolved every extends /
- * implements / use-trait name before we capture it. All FQCNs are returned
- * without a leading backslash.
- *
- * The visitor is stateful and reset per-file via `beforeTraverse`. The
- * enclosing file path is **not** known to the visitor; callers attach it
- * after traversal (mirrors `JobClassVisitor`).
- *
- * See `docs/support/class-hierarchy.md` for the resolver contract.
+ * Collects class/interface/trait declarations for ClassHierarchyResolver.
+ * Skips anonymous classes (no namespacedName).
  */
 final class ClassDeclarationVisitor extends NodeVisitorAbstract
 {
@@ -74,7 +61,6 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
 
     private function captureClass(Node\Stmt\Class_ $node): void
     {
-        // Anonymous classes have no namespacedName — skip.
         if (! isset($node->namespacedName)) {
             return;
         }

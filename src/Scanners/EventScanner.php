@@ -13,9 +13,8 @@ use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers event classes via a filesystem walk of app/Events/ seeded by
- * statically resolvable dispatch sites across app/. See
- * docs/scanners/events.md for the full design.
+ * Discovers event classes under app/Events/ plus targets reached from
+ * statically resolvable dispatch sites elsewhere in app/.
  */
 final class EventScanner implements Scanner
 {
@@ -58,8 +57,6 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Filesystem walk of app/Events/ — extract every top-level class.
-     *
      * @return array<string, array{file: string, line: int}>
      */
     private function discoverFromFilesystem(string $appRoot): array
@@ -88,10 +85,6 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Walk all of app/, collect dispatch-site targets, filter to ones that
-     * either map to a known filesystem class or to a viable PSR-4 path
-     * under app/Events/.
-     *
      * @param  array<string, array{file: string, line: int}>  $fsClasses
      * @return array<string, null>
      */
@@ -103,7 +96,7 @@ final class EventScanner implements Scanner
         }
 
         $visitor = new EventDispatchSiteVisitor;
-        /** @var array<string, bool> $candidates FQCN => true if seen via helper/facade (unambiguous) */
+        /** @var array<string, bool> $candidates true when seen via an unambiguous form */
         $candidates = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
@@ -121,7 +114,6 @@ final class EventScanner implements Scanner
 
         $kept = [];
         foreach ($candidates as $fqcn => $unambiguous) {
-            // Already known via filesystem walk under app/Events/ — keep.
             if (isset($fsClasses[$fqcn])) {
                 $kept[$fqcn] = null;
 
@@ -133,11 +125,8 @@ final class EventScanner implements Scanner
                 continue;
             }
 
-            // Helper (event(...)) and facade (Event::dispatch(...))
-            // forms are unambiguous event dispatches and bring the target in
-            // regardless of file location. The Dispatchable form
-            // (X::dispatch(...)) is ambiguous (could be a job) so it is only
-            // accepted when the resolved file lives under app/Events/.
+            // Dispatchable form is ambiguous with jobs — accept only when the
+            // resolved file is under app/Events/.
             if ($unambiguous || str_starts_with($located['file'], 'app/Events/')) {
                 $kept[$fqcn] = null;
             }
@@ -171,8 +160,6 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Build schema-shaped entries, sorted by FQCN.
-     *
      * @param  array<string, array{file: string, line: int}>  $merged
      * @return array<int, array<string, mixed>>
      */

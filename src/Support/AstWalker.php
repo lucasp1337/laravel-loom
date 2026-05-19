@@ -12,11 +12,8 @@ use PhpParser\Parser;
 use PhpParser\ParserFactory;
 
 /**
- * Thin convenience wrapper around nikic/php-parser.
- *
- * Owns a single Parser instance so scanners reuse it across files. Always
- * runs NameResolver first so visitors see fully qualified names — manual
- * name resolution is forbidden.
+ * Wrapper around nikic/php-parser. Always runs NameResolver before
+ * caller visitors so visitors see fully qualified names.
  */
 class AstWalker
 {
@@ -28,11 +25,8 @@ class AstWalker
     }
 
     /**
-     * Parse a file and traverse it with the given visitors.
-     *
-     * Returns the contents of the file (or null if it could not be read/parsed)
-     * so visitors can attach source-level context (e.g. raw expressions for
-     * unresolved_dispatches entries).
+     * Returns the file's source (or null on read/parse failure) so callers
+     * can attach source-level context.
      *
      * @param  array<int, NodeVisitor>  $visitors
      */

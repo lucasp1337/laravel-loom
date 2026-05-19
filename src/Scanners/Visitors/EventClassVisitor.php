@@ -8,10 +8,7 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects every top-level class declaration in a parsed file.
- *
- * Anonymous classes are skipped because they have no namespacedName.
- * Interfaces and traits are different node types and never match Stmt\Class_.
+ * Collects top-level class declarations (FQCN + line).
  */
 final class EventClassVisitor extends NodeVisitorAbstract
 {

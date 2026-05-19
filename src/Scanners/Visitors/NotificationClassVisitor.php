@@ -10,16 +10,8 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects concrete notification classes from a parsed file. Mirrors
- * MailableClassVisitor and additionally extracts statically resolvable
- * `via()` channels.
- *
- * Channel extraction is limited per ADR 0003: the `via()` body must be
- * a single `return [...];` whose array items are either literal strings
- * or `Class::class` constants. Anything else flips
- * `channels_dynamic: true` and emits `channels: []`.
- *
- * Skips abstract, interface, trait, and anonymous classes.
+ * Collects concrete notification classes and statically resolvable
+ * `via()` channels. Non-literal `via()` bodies set channels_dynamic: true.
  */
 final class NotificationClassVisitor extends NodeVisitorAbstract
 {
@@ -81,10 +73,7 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Parse a `via()` method body. Returns [channels, dynamic].
-     *
-     * No `via()` declared → ([], false): the class declared no channels.
-     * `via()` body that's not exactly `return [literal-items];` → ([], true).
+     * No `via()` → ([], false). Non-literal body → ([], true).
      *
      * @return array{0: list<string>, 1: bool}
      */
@@ -112,7 +101,6 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         $channels = [];
         foreach ($expr->items as $item) {
             if ($item->key !== null) {
-                // Keyed entries aren't valid channel arrays at runtime — bail.
                 return [[], true];
             }
 
@@ -131,7 +119,6 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
                 continue;
             }
 
-            // Variable, method call, conditional, anything else — bail.
             return [[], true];
         }
 

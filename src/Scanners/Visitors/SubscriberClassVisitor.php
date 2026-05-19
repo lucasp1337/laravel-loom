@@ -83,7 +83,6 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         $closureHandles = [];
         $foreignPairs = [];
 
-        // Return-array form.
         foreach ($method->stmts as $stmt) {
             if (! $stmt instanceof Node\Stmt\Return_) {
                 continue;
@@ -112,8 +111,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                     continue;
                 }
 
-                // Non-closure handlers under a string event key belong to
-                // ObserverScanner territory and must not flow into handles[].
+                // String-keyed handlers (e.g. 'eloquent.*') belong to ObserverScanner.
                 if (! $item->key instanceof Node\Expr\ClassConstFetch) {
                     continue;
                 }
@@ -129,7 +127,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             break;
         }
 
-        // Imperative form. Requires a first parameter to bind the dispatcher.
+        // Imperative form requires a first parameter (the dispatcher).
         if (count($method->params) === 0) {
             return [$handles, $closureHandles, $foreignPairs];
         }
@@ -149,10 +147,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Recursively walk subscribe() body statements looking for
-     * `$events->listen(event, listener)` calls. Descends into control-flow
-     * statements; does NOT descend into closures, arrow functions, nested
-     * methods, or nested functions.
+     * Descends into control-flow but not into closures or nested functions.
      *
      * @param  array<int, Node\Stmt>  $stmts
      * @param  array<int, array{event: string, method: string}>  $handles
@@ -173,7 +168,6 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
      */
     private function walkStmt(Node\Stmt $stmt, string $paramName, array &$handles, array &$closureHandles, array &$foreignPairs): void
     {
-        // Top-level expression statement — inspect for $events->listen(...).
         if ($stmt instanceof Node\Stmt\Expression) {
             $this->inspectExpr($stmt->expr, $paramName, $handles, $closureHandles, $foreignPairs);
 
@@ -261,7 +255,6 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 
         $listenerValue = $listenerArg->value;
 
-        // Closure / arrow function.
         if ($listenerValue instanceof Node\Expr\Closure
             || $listenerValue instanceof Node\Expr\ArrowFunction
         ) {
@@ -273,7 +266,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // Tuple form: [Class::class, 'method'].
+        // [Class::class, 'method'] tuple.
         if ($listenerValue instanceof Node\Expr\Array_) {
             if (count($listenerValue->items) < 2) {
                 return;
@@ -305,15 +298,13 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // Bare string method: $events->listen(Event::class, 'method') — Laravel
-        // binds bare-string callables to the subscriber instance.
+        // Bare string method: Laravel binds it to the subscriber instance.
         if ($listenerValue instanceof Node\Scalar\String_) {
             $handles[] = ['event' => $event, 'method' => $listenerValue->value];
 
             return;
         }
 
-        // Bare class-const fetch: $events->listen(Event::class, OtherClass::class).
         $bareFqcn = AstHelpers::classConstFqcn($listenerValue);
         if ($bareFqcn !== null) {
             if ($this->isOwnClass($bareFqcn)) {
@@ -361,7 +352,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 return null;
             }
 
-            // Accept self::class, static::class, or the subscriber's own FQCN.
+            // Accept self::, static::, or the subscriber's own FQCN.
             $classExpr = $value->items[0]->value;
             if ($classExpr instanceof Node\Expr\ClassConstFetch
                 && $classExpr->class instanceof Node\Name

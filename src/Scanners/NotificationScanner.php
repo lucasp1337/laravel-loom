@@ -15,11 +15,8 @@ use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers notification classes via a filesystem walk of app/Notifications/
- * seeded by dispatch sites whose target resolves via PSR-4 to a class
- * anywhere under app/.
- *
- * See docs/scanners/notifications.md for the full design.
+ * Discovers notification classes under app/Notifications/ plus
+ * dispatch-site targets that resolve via PSR-4.
  */
 final class NotificationScanner implements Scanner
 {
@@ -96,10 +93,6 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * Collect dispatch targets whose provisional kind is `notification`.
-     * Walks the whole `app/` tree with DispatchSiteVisitor — mirrors
-     * JobsScanner / MailableScanner self-contained discovery.
-     *
      * @return array<string, 'notification'>
      */
     private function discoverFromDispatchSites(string $appRoot): array
@@ -165,9 +158,7 @@ final class NotificationScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            // Preserve source order from the via() literal — that's the
-            // order Laravel uses at runtime when dispatching to channels,
-            // and it preserves user intent for ordered channel processing.
+            // Preserve via() source order — Laravel dispatches in that order.
             $channels = $location['channels'];
 
             $entries[] = [

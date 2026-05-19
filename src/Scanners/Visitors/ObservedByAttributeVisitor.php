@@ -30,8 +30,6 @@ final class ObservedByAttributeVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read on leaveNode so NameResolver has already rewritten Name nodes
-        // inside attribute arguments to their fully qualified forms.
         if (! $node instanceof Node\Stmt\Class_) {
             return null;
         }

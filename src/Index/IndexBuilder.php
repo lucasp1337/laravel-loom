@@ -10,15 +10,8 @@ use Lucasp\Loom\Support\Sorting;
 use RuntimeException;
 
 /**
- * Orchestrates scanners, merges their output, cross-links relationships,
- * and produces the final Index. Schema validation lives on
- * `SchemaValidator` — `validate()` here is a thin delegate.
- *
- * Cross-linking happens in five named phases (see `crossLink()`); each
- * phase has its own method so the high-level flow is readable at a
- * glance. Section names and dispatch kinds are string-backed enums
- * (`Sections`, `DispatchKinds`) — use `->value` when indexing into the
- * raw sections array.
+ * Runs registered scanners, merges their sections, cross-links relations,
+ * and produces an Index.
  */
 class IndexBuilder
 {
@@ -40,10 +33,8 @@ class IndexBuilder
     }
 
     /**
-     * Run every registered scanner against $appRoot and assemble the Index.
-     *
-     * Internal, underscore-prefixed sections (e.g. `_dispatch_sites`) flow
-     * through the merge but are stripped before the Index is constructed.
+     * Underscore-prefixed sections (e.g. `_dispatch_sites`) are merged but
+     * stripped before the Index is constructed.
      */
     public function build(string $appRoot, string $laravelVersion): Index
     {
@@ -72,9 +63,6 @@ class IndexBuilder
     }
 
     /**
-     * Validate an index payload against the canonical schema. Delegates to
-     * `SchemaValidator`; kept on the builder for call-site ergonomics.
-     *
      * @param  array<string, mixed>  $payload
      * @return array<int, string> validation errors; empty when valid
      */
@@ -84,8 +72,6 @@ class IndexBuilder
     }
 
     /**
-     * Initial sections array — one entry per public section, all empty.
-     *
      * @return array<string, array<int, array<string, mixed>>>
      */
     private function initialSections(): array
@@ -133,16 +119,8 @@ class IndexBuilder
     }
 
     /**
-     * Five-phase cross-link pass. Mutates $sections in place.
-     *
-     *  1. handled_by inversion (events ← listeners.handles)
-     *  2. ambiguous-site disambiguation (Dispatchable form)
-     *  3. dispatch attribution (listeners + jobs + observers dispatches[])
-     *  4. dispatched_from joins (events / jobs / mailables / notifications)
-     *  5. deterministic sort of every cross-linked array
-     *
-     * Phase 2 runs before 3-5 so downstream consumers read the
-     * disambiguated kind.
+     * Five-phase cross-link pass (handled_by, disambiguate, dispatches,
+     * dispatched_from, sort). Mutates $sections in place.
      *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      */
@@ -151,10 +129,7 @@ class IndexBuilder
         /** @var array<int, array<string, mixed>> $dispatchSites */
         $dispatchSites = $sections['_dispatch_sites'] ?? [];
 
-        // Single-FQCN indexes keyed by section value — uniform shape so
-        // downstream phases can look up by section without PHPStan losing
-        // type information. Observers indexed separately because they can
-        // have multiple entries per FQCN.
+        // Observers indexed separately — multiple entries per FQCN are allowed.
         $singleIndexes = [
             Sections::EVENTS->value => $this->indexByFqcn($sections[Sections::EVENTS->value]),
             Sections::LISTENERS->value => $this->indexByFqcn($sections[Sections::LISTENERS->value]),
@@ -172,10 +147,8 @@ class IndexBuilder
     }
 
     /**
-     * Phase 1: events[*].handled_by ← listeners[*].handles inversion.
-     *
-     * Also builds and returns a per-listener method set used by phase 3
-     * for dispatch attribution (avoids re-scanning listeners[]).
+     * Inverts listeners[*].handles into events[*].handled_by. Also returns
+     * a per-listener method set reused by phase 3.
      *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      * @param  array<string, int>  $eventIndex
@@ -216,9 +189,6 @@ class IndexBuilder
     }
 
     /**
-     * Append a (listener, method) pair to events[$idx].handled_by if it
-     * isn't already there.
-     *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      */
     private function appendHandledBy(array &$sections, int $eIdx, string $listenerFqcn, string $method): void
@@ -237,10 +207,8 @@ class IndexBuilder
     }
 
     /**
-     * Phase 2: resolve `provisionalKind: ambiguous` sites to either
-     * `event` or `job`. Ambiguous sites come from the `X::dispatch()`
-     * shape where the trait could be `Dispatchable` (event or job).
-     * Disambiguate by checking whether the target is a known event.
+     * `X::dispatch()` is ambiguous (Dispatchable trait covers events and
+     * jobs); resolve by checking whether the target is a known event.
      *
      * @param  array<int, array<string, mixed>>  $dispatchSites
      * @param  array<string, int>  $eventIndex
@@ -262,10 +230,6 @@ class IndexBuilder
     }
 
     /**
-     * Phases 3 & 4: append per-site dispatch attribution to
-     * listeners[*].dispatches, jobs[*].dispatches, and
-     * observers[*].dispatches.
-     *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      * @param  array<int, array<string, mixed>>  $dispatchSites
      * @param  array<string, array<string, int>>  $singleIndexes
@@ -304,11 +268,6 @@ class IndexBuilder
     }
 
     /**
-     * Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
-     * mailables[*].sent_from, notifications[*].notified_from. The kind
-     * → (section, from-field) mapping is exhaustive via `match()` so
-     * PHPStan flags any kind that's not handled.
-     *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      * @param  array<int, array<string, mixed>>  $dispatchSites
      * @param  array<string, array<string, int>>  $singleIndexes
@@ -358,9 +317,7 @@ class IndexBuilder
     }
 
     /**
-     * Map a finalised dispatch kind to its (section, from-field) target.
-     * Returns null for `AMBIGUOUS` (should never reach phase 5; phase 2
-     * resolves it). Exhaustive over `DispatchKinds`.
+     * Returns null for AMBIGUOUS (resolved in phase 2; shouldn't reach here).
      *
      * @return array{Sections, string}|null
      */
@@ -376,8 +333,6 @@ class IndexBuilder
     }
 
     /**
-     * Final pass: sort every cross-linked array deterministically.
-     *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      */
     private function sortCrossLinkedArrays(array &$sections): void
@@ -418,9 +373,8 @@ class IndexBuilder
     }
 
     /**
-     * Extract the listener/job/observer attribution payload from a
-     * dispatch site. Returns null when the site is shaped wrong for
-     * attribution (missing class/target, still ambiguous, etc).
+     * Returns null when the site is shaped wrong (missing class/target,
+     * still ambiguous, etc).
      *
      * @param  array<string, mixed>  $site
      * @return array{classFqcn: string, method: string, payload: array<string, mixed>}|null
@@ -457,9 +411,6 @@ class IndexBuilder
     }
 
     /**
-     * Append $payload to $sections[$section->value][$idx][$field],
-     * initialising the array on first write.
-     *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      * @param  array<string, mixed>  $payload
      */

@@ -10,11 +10,8 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects statically resolvable event-class targets from dispatch expressions.
- *
- * Emits only when the target FQCN is statically resolvable. Dynamic forms
- * (variables, conditionals, string interpolation) are silently ignored —
- * DispatchScanner records those as unresolved_dispatches entries.
+ * Collects statically resolvable event-class targets from dispatch sites.
+ * Dynamic forms are handled by DispatchScanner.
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {
@@ -33,8 +30,6 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read in leaveNode so NameResolver has already resolved every child
-        // Name (the inner New_->class or ClassConstFetch->class on the args).
         if ($node instanceof Node\Expr\FuncCall) {
             $this->handleFuncCall($node);
 
@@ -89,7 +84,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // Dispatchable trait pattern: X::dispatch(...) — the class itself is the target.
+        // X::dispatch(...) — the class itself is the target.
         $this->targets[] = ['fqcn' => $className, 'line' => $node->getStartLine(), 'form' => 'dispatchable'];
     }
 

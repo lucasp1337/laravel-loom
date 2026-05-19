@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index;
 
 /**
- * Immutable value object representing a complete Loom index.
- *
- * Holds the merged output of every scanner plus top-level metadata. Serializes
- * to the canonical JSON shape defined in schema/loom-index.schema.json.
+ * Immutable Loom index. Serializes to schema/loom-index.schema.json.
  */
 final class Index
 {

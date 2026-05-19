@@ -7,25 +7,8 @@ namespace Lucasp\Loom\Support;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 
 /**
- * Cross-file `extends` / `implements` / `use Trait` resolver.
- *
- * Shared support service for scanners that need transitive class-hierarchy
- * information (e.g. flagging a job as queued when `ShouldQueue` is declared
- * on an abstract parent). The resolver is constructed once per
- * `IndexBuilder::build()` call, bound to a single `$appRoot`.
- *
- * Indexing strategy: a single filesystem walk under `$appRoot/app/` (lazy,
- * triggered on first public call, memoised) parses every `.php` file via
- * the shared `AstWalker` and a `ClassDeclarationVisitor`, producing a flat
- * map of FQCN -> declaration record. Resolution methods walk this map.
- *
- * External / vendor classes are opaque leaves: when traversal encounters an
- * FQCN not in the index, the resolver records it in the return list and
- * stops traversing further up that branch. See
- * `docs/support/class-hierarchy.md` for the public contract and
- * `docs/adr/0001-class-hierarchy-resolver.md` for the rationale.
- *
- * All FQCNs are returned without a leading backslash.
+ * Cross-file extends/implements/use-trait resolver. Lazy index under
+ * `$appRoot/app/`; vendor classes are opaque leaves.
  */
 final class ClassHierarchyResolver
 {
@@ -73,8 +56,8 @@ final class ClassHierarchyResolver
     }
 
     /**
-     * Immediate-to-root parents. Stops at first unknown FQCN (which is
-     * still included in the returned list as an opaque leaf).
+     * Immediate-to-root parents. An unknown FQCN is included as an opaque
+     * leaf, then traversal stops.
      *
      * @return list<string>
      */
@@ -93,9 +76,6 @@ final class ClassHierarchyResolver
 
         while (true) {
             if (! isset($this->index[$current])) {
-                // Either the starting FQCN is unknown (return []) or we hit
-                // an opaque leaf during traversal — we only reach the latter
-                // by following a parent edge, which has already been pushed.
                 break;
             }
 
@@ -117,7 +97,6 @@ final class ClassHierarchyResolver
 
             $chain[] = $parent;
 
-            // Opaque leaf — record but stop.
             if (! isset($this->index[$parent])) {
                 break;
             }
@@ -129,13 +108,8 @@ final class ClassHierarchyResolver
     }
 
     /**
-     * Every interface implemented transitively: own interfaces + parents'
-     * interfaces + interface-extends closure. Order is deterministic:
-     * depth-first, parent before grandparent, declaration order preserved
-     * within a level, first occurrence wins on dedup.
-     *
-     * Also useful on an interface FQCN: returns the interface-extends
-     * closure.
+     * Transitive interfaces; depth-first, first occurrence wins on dedup.
+     * On an interface FQCN, returns the interface-extends closure.
      *
      * @return list<string>
      */
@@ -154,10 +128,8 @@ final class ClassHierarchyResolver
         $seen = [];
 
         if (isset($this->index[$fqcn]) && $this->index[$fqcn]['kind'] === 'interface') {
-            // Interface input: closure over its `extends` parents.
             $this->expandClosure($fqcn, 'interface', 'parents', $result, $seen);
         } else {
-            // Class input (known or unknown): direct interfaces + parents' interfaces.
             $chain = [$fqcn];
             foreach ($this->extendsChain($fqcn) as $ancestor) {
                 $chain[] = $ancestor;
@@ -181,9 +153,7 @@ final class ClassHierarchyResolver
     }
 
     /**
-     * Every trait used transitively: own traits + parents' traits + traits
-     * used by traits. Same ordering rules as `implementsAll`. Also useful
-     * on a trait FQCN: returns the trait-use closure.
+     * Transitive traits; same ordering as implementsAll.
      *
      * @return list<string>
      */
@@ -202,7 +172,6 @@ final class ClassHierarchyResolver
         $seen = [];
 
         if (isset($this->index[$fqcn]) && $this->index[$fqcn]['kind'] === 'trait') {
-            // Trait input: closure over its own used traits.
             $this->expandClosure($fqcn, 'trait', 'traits', $result, $seen);
         } else {
             $chain = [$fqcn];
@@ -227,12 +196,6 @@ final class ClassHierarchyResolver
         return $this->traitsAllCache[$fqcn] = $result;
     }
 
-    /**
-     * Convenience predicate: walks chain + interface graph + traits'
-     * implements. Matches succeed when the interface appears anywhere in
-     * the transitive set, even if the resolver has no declaration for the
-     * interface itself — the caller's string is authoritative.
-     */
     public function implementsInterface(string $fqcn, string $interface): bool
     {
         $fqcn = $this->normalize($fqcn);
@@ -247,9 +210,6 @@ final class ClassHierarchyResolver
         return $this->implementsInterfaceCache[$fqcn][$interface] = $found;
     }
 
-    /**
-     * Convenience predicate: extends-chain membership.
-     */
     public function isSubclassOf(string $fqcn, string $ancestor): bool
     {
         $fqcn = $this->normalize($fqcn);
@@ -264,9 +224,6 @@ final class ClassHierarchyResolver
         return $this->isSubclassOfCache[$fqcn][$ancestor] = $found;
     }
 
-    /**
-     * True when the resolver has indexed a declaration for $fqcn.
-     */
     public function knows(string $fqcn): bool
     {
         $fqcn = $this->normalize($fqcn);
@@ -276,9 +233,6 @@ final class ClassHierarchyResolver
     }
 
     /**
-     * Depth-first closure over a single edge type ('parents' for interfaces,
-     * 'traits' for traits). $seen doubles as cycle guard and dedup map.
-     *
      * @param  'interface'|'trait'  $expectKind
      * @param  'parents'|'traits'  $edgeField
      * @param  list<string>  $result
@@ -293,7 +247,7 @@ final class ClassHierarchyResolver
         $result[] = $fqcn;
 
         if (! isset($this->index[$fqcn])) {
-            return; // opaque leaf
+            return;
         }
 
         $decl = $this->index[$fqcn];
@@ -322,11 +276,8 @@ final class ClassHierarchyResolver
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
             $absolute = $file->getPathname();
+            // walk()===null skips beforeTraverse; visitor would leak prior state.
             if ($this->walker->walk($absolute, [$visitor]) === null) {
-                // File could not be read or parsed; the visitor's
-                // `beforeTraverse` was never invoked, so its state still
-                // reflects the previous file. Skip — do not mis-attribute
-                // the previous file's declarations to this path.
                 continue;
             }
 

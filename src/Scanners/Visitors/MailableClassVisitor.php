@@ -9,20 +9,8 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects concrete mailable classes from a parsed file, capturing the
- * queue-config properties declared directly on the class.
- *
- * Skips:
- *  - Abstract classes
- *  - Anonymous classes (no namespacedName)
- *  - Interfaces and traits (different node types — never match Stmt\Class_)
- *
- * `queued` is NOT computed here — the scanner calls the class hierarchy
- * resolver to decide. Mirrors JobClassVisitor's shape, minus the
- * `has_handle` field (mailables don't need it for any downstream decision).
- *
- * Reads on `leaveNode` so NameResolver has fully resolved every name
- * inside the class body before we inspect it.
+ * Collects concrete mailable classes with their queue-config properties.
+ * `queued` is resolved by the scanner via ClassHierarchyResolver.
  */
 final class MailableClassVisitor extends NodeVisitorAbstract
 {
