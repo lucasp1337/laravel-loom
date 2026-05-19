@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\MailableEntry;
 use Lucasp\Loom\Dto\MailableLocation;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\MailableClassVisitor;
@@ -33,7 +34,7 @@ final class MailableScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{mailables: list<MailableEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -143,7 +144,7 @@ final class MailableScanner implements Scanner
 
     /**
      * @param  array<string, MailableLocation>  $merged
-     * @return array<int, array<string, mixed>>
+     * @return list<MailableEntry>
      */
     private function emit(array $merged): array
     {
@@ -151,14 +152,13 @@ final class MailableScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            $entries[] = [
-                'fqcn' => $fqcn,
-                'file' => $location->file,
-                'line' => $location->line,
-                'queued' => $location->queued,
-                'queue_config' => $location->queued ? $location->queueConfig : null,
-                'sent_from' => [],
-            ];
+            $entries[] = new MailableEntry(
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+                queued: $location->queued,
+                queueConfig: $location->queued ? $location->queueConfig : null,
+            );
         }
 
         return $entries;

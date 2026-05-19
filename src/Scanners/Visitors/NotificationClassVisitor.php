@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\NotificationClassRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
@@ -15,15 +16,7 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class NotificationClassVisitor extends NodeVisitorAbstract
 {
-    /**
-     * @var array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queue_config: array<string, string|int|null>,
-     *     channels: list<string>,
-     *     channels_dynamic: bool,
-     * }>
-     */
+    /** @var list<NotificationClassRecord> */
     private array $classes = [];
 
     /**
@@ -50,13 +43,13 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
 
         [$channels, $dynamic] = $this->extractChannels($this->findViaMethod($node));
 
-        $this->classes[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'line' => $node->getStartLine(),
-            'queue_config' => QueueConfig::extractFrom($node),
-            'channels' => $channels,
-            'channels_dynamic' => $dynamic,
-        ];
+        $this->classes[] = new NotificationClassRecord(
+            fqcn: $node->namespacedName->toString(),
+            line: $node->getStartLine(),
+            queueConfig: QueueConfig::extractFrom($node),
+            channels: $channels,
+            channelsDynamic: $dynamic,
+        );
 
         return null;
     }
@@ -125,15 +118,7 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         return [$channels, false];
     }
 
-    /**
-     * @return array<int, array{
-     *     fqcn: string,
-     *     line: int,
-     *     queue_config: array<string, string|int|null>,
-     *     channels: list<string>,
-     *     channels_dynamic: bool,
-     * }>
-     */
+    /** @return list<NotificationClassRecord> */
     public function getClasses(): array
     {
         return $this->classes;

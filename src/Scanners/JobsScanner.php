@@ -7,7 +7,6 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\JobLocation;
-use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -180,25 +179,10 @@ final class JobsScanner implements Scanner
                 file: $location->file,
                 line: $location->line,
                 queued: $location->queued,
-                queueConfig: $location->queued ? $this->toQueueConfig($location->queueConfig) : null,
+                queueConfig: $location->queued ? $location->queueConfig : null,
             );
         }
 
         return $entries;
-    }
-
-    /**
-     * @param  array<string, string|int|null>  $raw
-     */
-    private function toQueueConfig(array $raw): QueueConfigData
-    {
-        return new QueueConfigData(
-            connection: $raw['connection'] ?? null,
-            queue: $raw['queue'] ?? null,
-            delay: $raw['delay'] ?? null,
-            tries: $raw['tries'] ?? null,
-            timeout: $raw['timeout'] ?? null,
-            backoff: $raw['backoff'] ?? null,
-        );
     }
 }

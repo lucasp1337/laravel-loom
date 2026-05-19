@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Lucasp\Loom\Dto\QueueConfigData;
 use PhpParser\Node;
 
 /**
@@ -16,25 +17,10 @@ final class QueueConfig
     /** @var list<string> */
     public const PROPERTIES = ['connection', 'queue', 'delay', 'tries', 'timeout', 'backoff'];
 
-    /**
-     * @return array<string, string|int|null>
-     */
-    public static function emptyConfig(): array
+    public static function extractFrom(Node\Stmt\Class_ $node): QueueConfigData
     {
-        $config = [];
-        foreach (self::PROPERTIES as $property) {
-            $config[$property] = null;
-        }
-
-        return $config;
-    }
-
-    /**
-     * @return array<string, string|int|null>
-     */
-    public static function extractFrom(Node\Stmt\Class_ $node): array
-    {
-        $config = self::emptyConfig();
+        /** @var array<string, string|int|null> $values */
+        $values = array_fill_keys(self::PROPERTIES, null);
         $names = array_flip(self::PROPERTIES);
 
         foreach ($node->stmts as $stmt) {
@@ -49,10 +35,17 @@ final class QueueConfig
                 if ($prop->default === null) {
                     continue;
                 }
-                $config[$name] = AstHelpers::scalarLiteral($prop->default);
+                $values[$name] = AstHelpers::scalarLiteral($prop->default);
             }
         }
 
-        return $config;
+        return new QueueConfigData(
+            connection: $values['connection'],
+            queue: $values['queue'],
+            delay: $values['delay'],
+            tries: $values['tries'],
+            timeout: $values['timeout'],
+            backoff: $values['backoff'],
+        );
     }
 }
