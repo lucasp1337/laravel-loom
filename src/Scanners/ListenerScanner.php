@@ -17,6 +17,7 @@ use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Sorting;
 
 /**
  * Discovers Laravel event listeners across three sources: auto-discovery via
@@ -376,9 +377,7 @@ final class ListenerScanner implements Scanner
             }
 
             $handles = array_values($entry['handles']);
-            usort($handles, function (array $a, array $b): int {
-                return [$a['event'], $a['method']] <=> [$b['event'], $b['method']];
-            });
+            usort($handles, Sorting::byKeys(['event', 'method']));
 
             $registration = $entry['registration'] ?? self::REGISTRATION_AUTO_DISCOVERED;
 
@@ -512,9 +511,7 @@ final class ListenerScanner implements Scanner
         }
 
         $entries = array_values($seen);
-        usort($entries, function (array $a, array $b): int {
-            return [$a['event'], $a['file'], $a['line']] <=> [$b['event'], $b['file'], $b['line']];
-        });
+        usort($entries, Sorting::byKeys(['event', 'file', 'line']));
 
         $result = [];
         foreach ($entries as $entry) {

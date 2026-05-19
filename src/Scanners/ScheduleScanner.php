@@ -9,6 +9,7 @@ use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Sorting;
 use PhpParser\Node;
 
 /**
@@ -91,14 +92,7 @@ final class ScheduleScanner implements Scanner
         }
 
         $result = array_values($entries);
-        usort($result, function (array $a, array $b): int {
-            $af = is_string($a['file'] ?? null) ? $a['file'] : '';
-            $bf = is_string($b['file'] ?? null) ? $b['file'] : '';
-            $al = is_int($a['line'] ?? null) ? $a['line'] : 0;
-            $bl = is_int($b['line'] ?? null) ? $b['line'] : 0;
-
-            return [$af, $al] <=> [$bf, $bl];
-        });
+        usort($result, Sorting::byKeys(['file', 'line']));
 
         return ['scheduled' => $result];
     }

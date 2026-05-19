@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Index;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
+use Lucasp\Loom\Support\Sorting;
 use RuntimeException;
 
 /**
@@ -409,7 +410,7 @@ class IndexBuilder
                 foreach ($fields as $field => $keys) {
                     /** @var array<int, array<string, mixed>> $list */
                     $list = $entry[$field] ?? [];
-                    usort($list, $this->makeComparator($keys));
+                    usort($list, Sorting::byKeys($keys));
                     $sections[$section][$idx][$field] = $list;
                 }
             }
@@ -468,29 +469,6 @@ class IndexBuilder
         $existing = $sections[$section->value][$idx][$field] ?? [];
         $existing[] = $payload;
         $sections[$section->value][$idx][$field] = $existing;
-    }
-
-    /**
-     * Build a deterministic comparator over a tuple of array keys.
-     * Missing keys default to '' (string) or 0 (line) so the comparator
-     * never sees a mixed-type comparison.
-     *
-     * @param  list<string>  $keys
-     * @return callable(array<string, mixed>, array<string, mixed>): int
-     */
-    private function makeComparator(array $keys): callable
-    {
-        return function (array $a, array $b) use ($keys): int {
-            $aTuple = [];
-            $bTuple = [];
-            foreach ($keys as $key) {
-                $default = $key === 'line' ? 0 : '';
-                $aTuple[] = $a[$key] ?? $default;
-                $bTuple[] = $b[$key] ?? $default;
-            }
-
-            return $aTuple <=> $bTuple;
-        };
     }
 
     /**

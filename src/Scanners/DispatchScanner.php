@@ -8,6 +8,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Sorting;
 
 /**
  * Walks the entire app/ tree collecting every statically recognisable
@@ -60,13 +61,8 @@ final class DispatchScanner implements Scanner
             }
         }
 
-        usort($unresolved, function (array $a, array $b): int {
-            return [$a['file'], $a['line']] <=> [$b['file'], $b['line']];
-        });
-
-        usort($sites, function (array $a, array $b): int {
-            return [$a['file'], $a['line'], $a['target']] <=> [$b['file'], $b['line'], $b['target']];
-        });
+        usort($unresolved, Sorting::byKeys(['file', 'line']));
+        usort($sites, Sorting::byKeys(['file', 'line', 'target']));
 
         return [
             'unresolved_dispatches' => $unresolved,

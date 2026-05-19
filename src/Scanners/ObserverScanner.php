@@ -13,6 +13,7 @@ use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Sorting;
 
 /**
  * Discovers Eloquent observers across three independent paths
@@ -244,9 +245,7 @@ final class ObserverScanner implements Scanner
     private function emitObservers(array $observers): array
     {
         $values = array_values($observers);
-        usort($values, function (array $a, array $b): int {
-            return [$a['fqcn'], $a['observes']] <=> [$b['fqcn'], $b['observes']];
-        });
+        usort($values, Sorting::byKeys(['fqcn', 'observes']));
 
         $entries = [];
         foreach ($values as $observer) {
@@ -283,7 +282,7 @@ final class ObserverScanner implements Scanner
             ];
         }
 
-        usort($entries, fn (array $a, array $b): int => strcmp((string) $a['id'], (string) $b['id']));
+        usort($entries, Sorting::byKeys(['id']));
 
         return $entries;
     }
