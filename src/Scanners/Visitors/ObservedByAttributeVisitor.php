@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ObserverPair;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -15,7 +16,7 @@ final class ObservedByAttributeVisitor extends NodeVisitorAbstract
 {
     private const OBSERVED_BY = 'Illuminate\\Database\\Eloquent\\Attributes\\ObservedBy';
 
-    /** @var array<int, array{model: string, observers: array<int, string>, line: int}> */
+    /** @var list<ObserverPair> */
     private array $pairs = [];
 
     /**
@@ -57,20 +58,18 @@ final class ObservedByAttributeVisitor extends NodeVisitorAbstract
                     continue;
                 }
 
-                $this->pairs[] = [
-                    'model' => $model,
-                    'observers' => $observers,
-                    'line' => $line,
-                ];
+                $this->pairs[] = new ObserverPair(
+                    model: $model,
+                    observers: $observers,
+                    line: $line,
+                );
             }
         }
 
         return null;
     }
 
-    /**
-     * @return array<int, array{model: string, observers: array<int, string>, line: int}>
-     */
+    /** @return list<ObserverPair> */
     public function getPairs(): array
     {
         return $this->pairs;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\EloquentListenRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -14,7 +15,7 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class EloquentListenStringVisitor extends NodeVisitorAbstract
 {
-    /** @var array<int, array{model: string, hook: string, handler: string, method: string, line: int}> */
+    /** @var list<EloquentListenRecord> */
     private array $entries = [];
 
     /**
@@ -77,13 +78,13 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->entries[] = [
-            'model' => ltrim($model, '\\'),
-            'hook' => $hook,
-            'handler' => $resolved['handler'],
-            'method' => $resolved['method'],
-            'line' => $node->getStartLine(),
-        ];
+        $this->entries[] = new EloquentListenRecord(
+            model: ltrim($model, '\\'),
+            hook: $hook,
+            handler: $resolved['handler'],
+            method: $resolved['method'],
+            line: $node->getStartLine(),
+        );
 
         return null;
     }
@@ -137,9 +138,7 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
         return null;
     }
 
-    /**
-     * @return array<int, array{model: string, hook: string, handler: string, method: string, line: int}>
-     */
+    /** @return list<EloquentListenRecord> */
     public function getEntries(): array
     {
         return $this->entries;

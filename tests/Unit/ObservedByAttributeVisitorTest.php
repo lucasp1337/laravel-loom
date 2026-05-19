@@ -44,8 +44,8 @@ it('extracts a single observer from a simple #[ObservedBy] attribute', function 
     $pairs = runObservedByAttributeVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['model'])->toBe('App\\Models\\User');
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\UserObserver']);
+    expect($pairs[0]->model)->toBe('App\\Models\\User');
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\UserObserver']);
 });
 
 it('extracts multiple observers from the array form of #[ObservedBy]', function () {
@@ -67,8 +67,8 @@ it('extracts multiple observers from the array form of #[ObservedBy]', function 
     $pairs = runObservedByAttributeVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['model'])->toBe('App\\Models\\Post');
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
+    expect($pairs[0]->model)->toBe('App\\Models\\Post');
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
 });
 
 it('resolves the fully qualified form of the ObservedBy attribute name', function () {
@@ -88,7 +88,7 @@ it('resolves the fully qualified form of the ObservedBy attribute name', functio
     $pairs = runObservedByAttributeVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\Foo']);
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\Foo']);
 });
 
 it('skips #[ObservedBy] attributes whose argument is not ::class', function () {

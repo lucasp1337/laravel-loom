@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ModelEventEntry;
+use Lucasp\Loom\Dto\ObserverEntry;
+use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
-use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -38,7 +40,7 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{observers: list<ObserverEntry>, model_events: list<ModelEventEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -47,7 +49,7 @@ final class ObserverScanner implements Scanner
             return ['observers' => [], 'model_events' => []];
         }
 
-        /** @var array<string, array{file: string, line: int, hooks: array<int, string>}> $classMap */
+        /** @var array<string, array{file: string, line: int, hooks: list<string>}> $classMap */
         $classMap = [];
 
         /** @var array<int, array{model: string, observer: string, registration: string}> $observerRegs */
@@ -72,18 +74,17 @@ final class ObserverScanner implements Scanner
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($classVisitor->getClasses() as $class) {
-                $fqcn = $class['fqcn'];
-                $classMap[$fqcn] = [
+                $classMap[$class->fqcn] = [
                     'file' => $relative,
-                    'line' => $class['line'],
-                    'hooks' => $classVisitor->getHooks($fqcn),
+                    'line' => $class->line,
+                    'hooks' => $classVisitor->getHooks($class->fqcn),
                 ];
             }
 
             foreach ($attrVisitor->getPairs() as $pair) {
-                foreach ($pair['observers'] as $observerFqcn) {
+                foreach ($pair->observers as $observerFqcn) {
                     $observerRegs[] = [
-                        'model' => $pair['model'],
+                        'model' => $pair->model,
                         'observer' => $observerFqcn,
                         'registration' => self::REGISTRATION_ATTRIBUTE,
                     ];
@@ -91,9 +92,9 @@ final class ObserverScanner implements Scanner
             }
 
             foreach ($observeVisitor->getPairs() as $pair) {
-                foreach ($pair['observers'] as $observerFqcn) {
+                foreach ($pair->observers as $observerFqcn) {
                     $observerRegs[] = [
-                        'model' => $pair['model'],
+                        'model' => $pair->model,
                         'observer' => $observerFqcn,
                         'registration' => self::REGISTRATION_OBSERVE_CALL,
                     ];
@@ -102,10 +103,10 @@ final class ObserverScanner implements Scanner
 
             foreach ($listenVisitor->getEntries() as $entry) {
                 $listenEntries[] = [
-                    'model' => $entry['model'],
-                    'hook' => $entry['hook'],
-                    'handler' => $entry['handler'],
-                    'method' => $entry['method'],
+                    'model' => $entry->model,
+                    'hook' => $entry->hook,
+                    'handler' => $entry->handler,
+                    'method' => $entry->method,
                 ];
             }
         }
@@ -123,8 +124,8 @@ final class ObserverScanner implements Scanner
      * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: string}>  $regs
-     * @param  array<string, array{file: string, line: int, hooks: array<int, string>}>  $classMap
-     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>
+     * @param  array<string, array{file: string, line: int, hooks: list<string>}>  $classMap
+     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>
      */
     private function mergeObservers(string $appRoot, array $regs, array $classMap): array
     {
@@ -156,9 +157,9 @@ final class ObserverScanner implements Scanner
             $result[$key] = [
                 'fqcn' => $observer,
                 'observes' => $model,
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'hooks' => $location['hooks'],
+                'file' => is_array($location) ? $location['file'] : $location->file,
+                'line' => is_array($location) ? $location['line'] : $location->line,
+                'hooks' => is_array($location) ? $location['hooks'] : [],
                 'registration' => $registration,
             ];
         }
@@ -176,9 +177,9 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>  $observers
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
      * @param  array<int, array{model: string, hook: string, handler: string, method: string}>  $listenEntries
-     * @return array<string, array{model: string, event: string, handled_by: array<int, string>}>
+     * @return array<string, array{model: string, event: string, handled_by: list<string>}>
      */
     private function buildModelEvents(array $observers, array $listenEntries): array
     {
@@ -229,8 +230,8 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>  $observers
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
+     * @return list<ObserverEntry>
      */
     private function emitObservers(array $observers): array
     {
@@ -241,46 +242,41 @@ final class ObserverScanner implements Scanner
         foreach ($values as $observer) {
             $hooks = $observer['hooks'];
             sort($hooks);
-            $entries[] = [
-                'fqcn' => $observer['fqcn'],
-                'file' => $observer['file'],
-                'line' => $observer['line'],
-                'observes' => $observer['observes'],
-                'registration' => $observer['registration'],
-                'hooks' => $hooks,
-                'dispatches' => [],
-            ];
+            $entries[] = new ObserverEntry(
+                fqcn: $observer['fqcn'],
+                file: $observer['file'],
+                line: $observer['line'],
+                observes: $observer['observes'],
+                registration: $observer['registration'],
+                hooks: $hooks,
+            );
         }
 
         return $entries;
     }
 
     /**
-     * @param  array<string, array{model: string, event: string, handled_by: array<int, string>}>  $modelEvents
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, array{model: string, event: string, handled_by: list<string>}>  $modelEvents
+     * @return list<ModelEventEntry>
      */
     private function emitModelEvents(array $modelEvents): array
     {
         $entries = [];
         foreach ($modelEvents as $data) {
-            $entries[] = [
-                'id' => 'eloquent.'.$data['event'].': '.$data['model'],
-                'kind' => 'model_event',
-                'model' => $data['model'],
-                'event' => $data['event'],
-                'handled_by' => $data['handled_by'],
-            ];
+            $entries[] = new ModelEventEntry(
+                id: 'eloquent.'.$data['event'].': '.$data['model'],
+                model: $data['model'],
+                event: $data['event'],
+                handledBy: $data['handled_by'],
+            );
         }
 
-        usort($entries, Sorting::byKeys(['id']));
+        usort($entries, fn (ModelEventEntry $a, ModelEventEntry $b): int => $a->id <=> $b->id);
 
         return $entries;
     }
 
-    /**
-     * @return array{file: string, line: int, hooks: array<int, string>}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -290,15 +286,17 @@ final class ObserverScanner implements Scanner
         $visitor = new ObserverClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
-        if ($class === null) {
-            return null;
+        foreach ($visitor->getClasses() as $class) {
+            if ($class->fqcn !== $fqcn) {
+                continue;
+            }
+
+            return new SourceLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+            );
         }
 
-        return [
-            'file' => $this->relativePath($appRoot, $absolute),
-            'line' => $class['line'],
-            'hooks' => $visitor->getHooks($fqcn),
-        ];
+        return null;
     }
 }

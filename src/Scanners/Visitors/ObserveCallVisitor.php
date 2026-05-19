@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ObserverPair;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -14,10 +15,10 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class ObserveCallVisitor extends NodeVisitorAbstract
 {
-    /** @var array<int, string> */
+    /** @var list<string> */
     private array $classStack = [];
 
-    /** @var array<int, array{model: string, observers: array<int, string>, line: int}> */
+    /** @var list<ObserverPair> */
     private array $pairs = [];
 
     /**
@@ -92,18 +93,16 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->pairs[] = [
-            'model' => $model,
-            'observers' => $observers,
-            'line' => $node->getStartLine(),
-        ];
+        $this->pairs[] = new ObserverPair(
+            model: $model,
+            observers: $observers,
+            line: $node->getStartLine(),
+        );
 
         return null;
     }
 
-    /**
-     * @return array<int, array{model: string, observers: array<int, string>, line: int}>
-     */
+    /** @return list<ObserverPair> */
     public function getPairs(): array
     {
         return $this->pairs;
