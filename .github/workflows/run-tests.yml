@@ -1,9 +1,13 @@
 name: run-tests
 
+# Temporarily manual-only (workflow_dispatch). The project is in early
+# development with a single maintainer running the full toolchain locally
+# via `just check`; auto-running the cross-platform matrix on every push
+# is not cost-effective at this stage. Restore the `push: branches: [main]`
+# and `pull_request:` triggers once contributor volume or release cadence
+# justifies it.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
