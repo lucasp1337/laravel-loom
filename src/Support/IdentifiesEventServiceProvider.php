@@ -13,8 +13,6 @@ use PhpParser\Node;
  */
 trait IdentifiesEventServiceProvider
 {
-    private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
-
     /** @var array<int, bool> */
     private array $eventServiceProviderStack = [];
 
@@ -50,6 +48,6 @@ trait IdentifiesEventServiceProvider
         }
 
         return $node->extends instanceof Node\Name
-            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE;
+            && $node->extends->toString() === LaravelClasses::EVENT_SERVICE_PROVIDER->value;
     }
 }

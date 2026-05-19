@@ -10,7 +10,7 @@ use Lucasp\Loom\Scanners\Visitors\NotificationClassVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
-use Lucasp\Loom\Support\LaravelContracts;
+use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
@@ -84,7 +84,7 @@ final class NotificationScanner implements Scanner
                 $results[$class['fqcn']] = [
                     'file' => $relative,
                     'line' => $class['line'],
-                    'queued' => $resolver->implementsInterface($class['fqcn'], LaravelContracts::SHOULD_QUEUE),
+                    'queued' => $resolver->implementsInterface($class['fqcn'], LaravelClasses::SHOULD_QUEUE->value),
                     'queue_config' => $class['queue_config'],
                     'channels' => $class['channels'],
                     'channels_dynamic' => $class['channels_dynamic'],
@@ -148,7 +148,7 @@ final class NotificationScanner implements Scanner
         return [
             'file' => $this->relativePath($appRoot, $absolute),
             'line' => $class['line'],
-            'queued' => $resolver->implementsInterface($fqcn, LaravelContracts::SHOULD_QUEUE),
+            'queued' => $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
             'queue_config' => $class['queue_config'],
             'channels' => $class['channels'],
             'channels_dynamic' => $class['channels_dynamic'],

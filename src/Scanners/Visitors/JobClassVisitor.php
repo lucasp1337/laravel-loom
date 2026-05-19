@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Support\AstHelpers;
-use Lucasp\Loom\Support\LaravelContracts;
+use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -64,7 +64,7 @@ final class JobClassVisitor extends NodeVisitorAbstract
         $this->classes[] = [
             'fqcn' => $node->namespacedName->toString(),
             'line' => $node->getStartLine(),
-            'queued' => AstHelpers::declaresInterface($node, LaravelContracts::SHOULD_QUEUE),
+            'queued' => AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value),
             'has_handle' => $this->declaresHandleMethod($node),
             'queue_config' => QueueConfig::extractFrom($node),
         ];
