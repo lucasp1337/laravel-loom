@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ClassDeclaration;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -13,17 +14,7 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class ClassDeclarationVisitor extends NodeVisitorAbstract
 {
-    /**
-     * @var array<int, array{
-     *     fqcn: string,
-     *     kind: 'class'|'interface'|'trait',
-     *     parent: ?string,
-     *     parents: list<string>,
-     *     interfaces: list<string>,
-     *     traits: list<string>,
-     *     line: int,
-     * }>
-     */
+    /** @var list<ClassDeclaration> */
     private array $declarations = [];
 
     /**
@@ -75,15 +66,15 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             $interfaces[] = $implements->toString();
         }
 
-        $this->declarations[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'kind' => 'class',
-            'parent' => $parent,
-            'parents' => [],
-            'interfaces' => $interfaces,
-            'traits' => $this->collectTraits($node->stmts),
-            'line' => $node->getStartLine(),
-        ];
+        $this->declarations[] = new ClassDeclaration(
+            fqcn: $node->namespacedName->toString(),
+            kind: 'class',
+            parent: $parent,
+            parents: [],
+            interfaces: $interfaces,
+            traits: $this->collectTraits($node->stmts),
+            line: $node->getStartLine(),
+        );
     }
 
     private function captureInterface(Node\Stmt\Interface_ $node): void
@@ -97,15 +88,15 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             $parents[] = $extends->toString();
         }
 
-        $this->declarations[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'kind' => 'interface',
-            'parent' => null,
-            'parents' => $parents,
-            'interfaces' => [],
-            'traits' => [],
-            'line' => $node->getStartLine(),
-        ];
+        $this->declarations[] = new ClassDeclaration(
+            fqcn: $node->namespacedName->toString(),
+            kind: 'interface',
+            parent: null,
+            parents: $parents,
+            interfaces: [],
+            traits: [],
+            line: $node->getStartLine(),
+        );
     }
 
     private function captureTrait(Node\Stmt\Trait_ $node): void
@@ -114,15 +105,15 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $this->declarations[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'kind' => 'trait',
-            'parent' => null,
-            'parents' => [],
-            'interfaces' => [],
-            'traits' => $this->collectTraits($node->stmts),
-            'line' => $node->getStartLine(),
-        ];
+        $this->declarations[] = new ClassDeclaration(
+            fqcn: $node->namespacedName->toString(),
+            kind: 'trait',
+            parent: null,
+            parents: [],
+            interfaces: [],
+            traits: $this->collectTraits($node->stmts),
+            line: $node->getStartLine(),
+        );
     }
 
     /**
@@ -144,17 +135,7 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
         return $traits;
     }
 
-    /**
-     * @return array<int, array{
-     *     fqcn: string,
-     *     kind: 'class'|'interface'|'trait',
-     *     parent: ?string,
-     *     parents: list<string>,
-     *     interfaces: list<string>,
-     *     traits: list<string>,
-     *     line: int,
-     * }>
-     */
+    /** @return list<ClassDeclaration> */
     public function getDeclarations(): array
     {
         return $this->declarations;

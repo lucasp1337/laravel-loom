@@ -283,15 +283,15 @@ final class ClassHierarchyResolver
 
             $relative = $this->relativePath($this->appRoot, $absolute);
             foreach ($visitor->getDeclarations() as $decl) {
-                $this->index[$decl['fqcn']] = [
-                    'fqcn' => $decl['fqcn'],
-                    'kind' => $decl['kind'],
-                    'parent' => $decl['parent'] !== null ? $this->normalize($decl['parent']) : null,
-                    'parents' => array_map([$this, 'normalize'], $decl['parents']),
-                    'interfaces' => array_map([$this, 'normalize'], $decl['interfaces']),
-                    'traits' => array_map([$this, 'normalize'], $decl['traits']),
+                $this->index[$decl->fqcn] = [
+                    'fqcn' => $decl->fqcn,
+                    'kind' => $decl->kind,
+                    'parent' => $decl->parent !== null ? $this->normalize($decl->parent) : null,
+                    'parents' => array_map([$this, 'normalize'], $decl->parents),
+                    'interfaces' => array_map([$this, 'normalize'], $decl->interfaces),
+                    'traits' => array_map([$this, 'normalize'], $decl->traits),
                     'file' => $relative,
-                    'line' => $decl['line'],
+                    'line' => $decl->line,
                 ];
             }
         }

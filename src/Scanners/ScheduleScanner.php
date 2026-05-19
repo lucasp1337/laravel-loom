@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ScheduleChainEntry;
+use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
-use Lucasp\Loom\Support\Sorting;
 use PhpParser\Node;
 
 /**
@@ -59,11 +60,11 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{scheduled: list<ScheduledEntry>}
      */
     public function scan(string $appRoot): array
     {
-        /** @var array<string, array<string, mixed>> $entries keyed by file|line|kind|target */
+        /** @var array<string, ScheduledEntry> $entries keyed by file|line|kind|target */
         $entries = [];
 
         foreach ($this->discoverKernelForm($appRoot) as $entry) {
@@ -80,13 +81,13 @@ final class ScheduleScanner implements Scanner
         }
 
         $result = array_values($entries);
-        usort($result, Sorting::byKeys(['file', 'line']));
+        usort($result, fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
 
         return ['scheduled' => $result];
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverKernelForm(string $appRoot): array
     {
@@ -104,7 +105,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverBootstrapForm(string $appRoot): array
     {
@@ -122,7 +123,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverFacadeForm(string $appRoot): array
     {
@@ -151,14 +152,14 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  array<int, array{kind: 'command'|'job'|'closure'|'exec', root_method: string, root_args: array<int, Node\Arg|Node\VariadicPlaceholder>, chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>, line: int}>  $rawEntries
-     * @return list<array<string, mixed>>
+     * @param  list<ScheduleChainEntry>  $rawEntries
+     * @return list<ScheduledEntry>
      */
     private function translate(array $rawEntries, string $relativeFile): array
     {
         $out = [];
         foreach ($rawEntries as $raw) {
-            $target = $this->resolveTarget($raw['kind'], $raw['root_args']);
+            $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
             $cron = null;
             $timezone = null;
@@ -169,11 +170,10 @@ final class ScheduleScanner implements Scanner
             $cronWasSet = false;
 
             // Index 0 is the root call; modifiers start at index 1.
-            $chain = $raw['chain'];
+            $chain = $raw->chain;
             for ($i = 1, $n = count($chain); $i < $n; $i++) {
-                $link = $chain[$i];
-                $method = $link['method'];
-                $args = $link['args'];
+                $method = $chain[$i]->method;
+                $args = $chain[$i]->args;
 
                 if (in_array($method, self::FREQUENCY_HELPERS, true)) {
                     // Last-wins, including null when args are unresolvable.
@@ -224,18 +224,18 @@ final class ScheduleScanner implements Scanner
 
             sort($constraints);
 
-            $out[] = [
-                'kind' => $raw['kind'],
-                'target' => $target,
-                'cron' => $cron,
-                'timezone' => $timezone,
-                'without_overlapping' => $withoutOverlapping,
-                'on_one_server' => $onOneServer,
-                'run_in_background' => $runInBackground,
-                'constraints' => $constraints,
-                'file' => $relativeFile,
-                'line' => $raw['line'],
-            ];
+            $out[] = new ScheduledEntry(
+                kind: $raw->kind,
+                target: $target,
+                cron: $cron,
+                timezone: $timezone,
+                withoutOverlapping: $withoutOverlapping,
+                onOneServer: $onOneServer,
+                runInBackground: $runInBackground,
+                constraints: $constraints,
+                file: $relativeFile,
+                line: $raw->line,
+            );
         }
 
         return $out;
@@ -556,16 +556,8 @@ final class ScheduleScanner implements Scanner
         return null;
     }
 
-    /**
-     * @param  array<string, mixed>  $entry
-     */
-    private function dedupeKey(array $entry): string
+    private function dedupeKey(ScheduledEntry $entry): string
     {
-        $file = is_string($entry['file'] ?? null) ? $entry['file'] : '';
-        $line = is_int($entry['line'] ?? null) ? $entry['line'] : 0;
-        $kind = is_string($entry['kind'] ?? null) ? $entry['kind'] : '';
-        $target = is_string($entry['target'] ?? null) ? $entry['target'] : '';
-
-        return $file.'|'.$line.'|'.$kind.'|'.$target;
+        return $entry->file.'|'.$entry->line.'|'.$entry->kind.'|'.($entry->target ?? '');
     }
 }

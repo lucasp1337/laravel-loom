@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ScheduleChainEntry;
+use Lucasp\Loom\Dto\ScheduleChainLink;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -37,15 +39,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         $this->mode = $mode;
     }
 
-    /**
-     * @var array<int, array{
-     *     kind: 'command'|'job'|'closure'|'exec',
-     *     root_method: string,
-     *     root_args: array<int, Node\Arg|Node\VariadicPlaceholder>,
-     *     chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>,
-     *     line: int
-     * }>
-     */
+    /** @var list<ScheduleChainEntry> */
     private array $entries = [];
 
     public function beforeTraverse(array $nodes): ?array
@@ -98,16 +92,16 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
 
         $chain = [];
         foreach ($links as $link) {
-            $chain[] = ['method' => $link['method'], 'args' => $link['args']];
+            $chain[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
         }
 
-        $this->entries[] = [
-            'kind' => $kind,
-            'root_method' => $root['method'],
-            'root_args' => $root['args'],
-            'chain' => $chain,
-            'line' => $root['line'],
-        ];
+        $this->entries[] = new ScheduleChainEntry(
+            kind: $kind,
+            rootMethod: $root['method'],
+            rootArgs: $root['args'],
+            chain: $chain,
+            line: $root['line'],
+        );
 
         return null;
     }
@@ -272,15 +266,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         return $this->parentStack[count($this->parentStack) - 1];
     }
 
-    /**
-     * @return array<int, array{
-     *     kind: 'command'|'job'|'closure'|'exec',
-     *     root_method: string,
-     *     root_args: array<int, Node\Arg|Node\VariadicPlaceholder>,
-     *     chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>,
-     *     line: int
-     * }>
-     */
+    /** @return list<ScheduleChainEntry> */
     public function getEntries(): array
     {
         return $this->entries;
