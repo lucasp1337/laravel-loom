@@ -27,6 +27,12 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class ScheduleChainVisitor extends NodeVisitorAbstract
 {
+    public const MODE_KERNEL = 'kernel';
+
+    public const MODE_BOOTSTRAP = 'bootstrap';
+
+    public const MODE_FACADE = 'facade';
+
     private const SCHEDULE_FACADE = 'Illuminate\\Support\\Facades\\Schedule';
 
     /** @var array<int, string> */
@@ -42,20 +48,23 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     private array $parentStack = [];
 
     /**
-     * When true, only chains rooted at the `Schedule` facade are emitted.
-     * Variable-rooted chains (`$x->command(...)->daily()`) are ignored.
+     * Discovery mode. Selects the trusted-scope shape:
      *
-     * Used by ScheduleScanner's facade-form discovery pass, which walks
-     * every file under `app/` and must not pick up arbitrary builders or
-     * DSLs that happen to share the `command`/`job`/`call`/`exec` + frequency
-     * helper shape. The kernel and bootstrap discovery passes leave this
-     * false so they can match the `$schedule->...` parameter convention.
+     * - `MODE_KERNEL`: only emit chains inside a `schedule(Schedule $schedule)`
+     *   method body — narrows file-level walks of `app/Console/Kernel.php`
+     *   so unrelated builder DSLs in helper methods don't leak in.
+     * - `MODE_BOOTSTRAP`: only emit chains inside a closure passed to
+     *   `withSchedule(...)` — narrows file-level walks of `bootstrap/app.php`.
+     * - `MODE_FACADE`: only emit chains whose root receiver is the
+     *   `Schedule` facade. Variable-rooted chains are ignored. Used by the
+     *   `app/`-wide facade pass to avoid false positives on arbitrary
+     *   builder DSLs.
      */
-    private bool $requireFacadeRoot;
+    private string $mode;
 
-    public function __construct(bool $requireFacadeRoot = false)
+    public function __construct(string $mode = self::MODE_KERNEL)
     {
-        $this->requireFacadeRoot = $requireFacadeRoot;
+        $this->mode = $mode;
     }
 
     /**
@@ -116,6 +125,14 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return null;
         }
         if (! $this->isScheduleReceiver($root['receiver'])) {
+            return null;
+        }
+
+        // Trusted-scope check: kernel/bootstrap modes only emit chains
+        // inside the relevant scope (the schedule() method body or the
+        // withSchedule() closure body). Facade mode trusts the receiver
+        // shape and emits anywhere.
+        if (! $this->inTrustedScope()) {
             return null;
         }
 
@@ -197,13 +214,18 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     /**
      * A chain root receiver is "schedule-shaped" when it is either:
      *   - A Variable (any name — chains live inside a closure or kernel
-     *     method whose `$schedule` parameter we trust by convention), or
+     *     method whose `$schedule` parameter we trust by convention,
+     *     gated further by the trusted-scope check), or
      *   - A Name resolving to the Schedule facade.
      */
     private function isScheduleReceiver(Node $receiver): bool
     {
         if ($receiver instanceof Node\Expr\Variable) {
-            return ! $this->requireFacadeRoot;
+            // In facade mode the only trust anchor is the receiver itself;
+            // variable-rooted chains are ignored. Kernel/bootstrap modes
+            // accept variables but the trusted-scope check still gates
+            // emission.
+            return $this->mode !== self::MODE_FACADE;
         }
 
         if ($receiver instanceof Node\Name) {
@@ -220,6 +242,82 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         }
 
         return false;
+    }
+
+    /**
+     * For kernel/bootstrap mode, the parent stack must contain the relevant
+     * ancestor scope (a `schedule(Schedule $schedule)` method body, or a
+     * closure passed as the first arg to a `withSchedule(...)` call).
+     * Facade mode trusts the receiver shape and skips this check.
+     */
+    private function inTrustedScope(): bool
+    {
+        if ($this->mode === self::MODE_FACADE) {
+            return true;
+        }
+
+        if ($this->mode === self::MODE_KERNEL) {
+            foreach ($this->parentStack as $ancestor) {
+                if ($this->isScheduleMethod($ancestor)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // MODE_BOOTSTRAP — look for a closure/arrow-function whose immediate
+        // parent on the stack is an Arg whose parent is a withSchedule call.
+        for ($i = count($this->parentStack) - 1; $i >= 2; $i--) {
+            $node = $this->parentStack[$i];
+            if (! $node instanceof Node\Expr\Closure && ! $node instanceof Node\Expr\ArrowFunction) {
+                continue;
+            }
+            $parent = $this->parentStack[$i - 1];
+            if (! $parent instanceof Node\Arg) {
+                continue;
+            }
+            $grand = $this->parentStack[$i - 2];
+            if (! $grand instanceof Node\Expr\MethodCall && ! $grand instanceof Node\Expr\StaticCall) {
+                continue;
+            }
+            if (! $grand->name instanceof Node\Identifier) {
+                continue;
+            }
+            if ($grand->name->toString() === 'withSchedule') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Match `function schedule(Schedule $schedule)` — method named `schedule`
+     * whose first parameter's type is `Schedule` (or any FQ name ending in
+     * `Schedule`). Loose on the leading namespace so both the imported
+     * (`use Illuminate\Console\Scheduling\Schedule`) and fully-qualified
+     * forms match.
+     */
+    private function isScheduleMethod(Node $node): bool
+    {
+        if (! $node instanceof Node\Stmt\ClassMethod) {
+            return false;
+        }
+        if ($node->name->toString() !== 'schedule') {
+            return false;
+        }
+        if ($node->params === []) {
+            return false;
+        }
+        $type = $node->params[0]->type;
+        if (! $type instanceof Node\Name) {
+            return false;
+        }
+        $resolved = $type->getAttribute('resolvedName');
+        $name = $resolved instanceof Node\Name ? $resolved->toString() : $type->toString();
+
+        return str_ends_with($name, 'Schedule');
     }
 
     /**

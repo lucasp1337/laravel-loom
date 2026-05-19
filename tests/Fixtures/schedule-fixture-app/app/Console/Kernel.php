@@ -59,5 +59,26 @@ class Kernel
         $schedule->command('cleanup:tmp')
             ->everyMinute()
             ->runInBackground();
+
+        // weeklyOn with an array of weekday integers.
+        $schedule->command('digest:weekly')
+            ->weeklyOn([1, 3, 5], '08:00');
+
+        // Unknown trailing modifier after a recognised frequency — must
+        // null the cron, mirroring runtime "last cron expression set".
+        $schedule->command('macro:sometime')
+            ->daily()
+            ->someUserMacro();
+    }
+
+    /**
+     * Sibling helper outside `schedule()`. Chains here must NOT emit as
+     * scheduled entries — the trusted-scope check narrows kernel-form
+     * discovery to the schedule method body.
+     */
+    protected function helper(Schedule $schedule): void
+    {
+        $schedule->command('decoy:command')
+            ->daily();
     }
 }

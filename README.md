@@ -81,6 +81,7 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
     "events": 1,
     "listeners": 1,
     "observers": 1,
+    "jobs": 1,
     "scheduled": 1,
     "unresolved_dispatches": 1,
     "closure_listeners": 1
@@ -138,6 +139,26 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
       "observes": "App\\Models\\User",
       "registration": "attribute",
       "hooks": ["created", "deleted", "updated"],
+      "dispatches": []
+    }
+  ],
+  "jobs": [
+    {
+      "fqcn": "App\\Jobs\\ProcessOrder",
+      "file": "app/Jobs/ProcessOrder.php",
+      "line": 14,
+      "queued": true,
+      "queue_config": {
+        "connection": "redis",
+        "queue": "high",
+        "delay": null,
+        "tries": 3,
+        "timeout": 60,
+        "backoff": null
+      },
+      "dispatched_from": [
+        { "file": "app/Services/Checkout.php", "line": 91, "method": "App\\Services\\Checkout::finalize" }
+      ],
       "dispatches": []
     }
   ],

@@ -299,6 +299,35 @@ it('sets cron to null when no frequency helper appears in the chain', function (
     expect($entry['cron'])->toBeNull();
 });
 
+it('nulls cron when an unknown method follows a recognised frequency helper', function () {
+    // ->daily()->someUserMacro() — the trailing macro could itself be a
+    // frequency-setter at runtime (Schedule::macro, future Laravel helper).
+    // Last-wins safety: null the cron rather than misrepresent the schedule.
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 69);
+
+    expect($entry)->not->toBeNull();
+    expect($entry['target'])->toBe('macro:sometime');
+    expect($entry['cron'])->toBeNull();
+});
+
+it('normalises ->weeklyOn([1, 3, 5], "08:00") to a comma-separated weekday field', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 64);
+
+    expect($entry)->not->toBeNull();
+    expect($entry['target'])->toBe('digest:weekly');
+    expect($entry['cron'])->toBe('0 8 * * 1,3,5');
+});
+
+it('does not emit chains declared outside the schedule() method', function () {
+    // Kernel.php has a `helper(Schedule $schedule)` method with a
+    // ->command('decoy:command')->daily() chain. The kernel-form discovery
+    // pass must narrow to the `schedule()` method body only.
+    $entries = scheduleEntries();
+    $targets = array_column($entries, 'target');
+
+    expect($targets)->not->toContain('decoy:command');
+});
+
 // ---------------------------------------------------------------------------
 // Flags
 // ---------------------------------------------------------------------------
