@@ -154,49 +154,13 @@ class IndexBuilder
         $dispatchSites = $sections['_dispatch_sites'] ?? [];
 
         // Index lookups by FQCN for O(1) joins.
-        $eventIndex = [];
-        foreach ($sections['events'] as $idx => $event) {
-            if (isset($event['fqcn']) && is_string($event['fqcn'])) {
-                $eventIndex[$event['fqcn']] = $idx;
-            }
-        }
-
-        $listenerIndex = [];
-        foreach ($sections['listeners'] as $idx => $listener) {
-            if (isset($listener['fqcn']) && is_string($listener['fqcn'])) {
-                $listenerIndex[$listener['fqcn']] = $idx;
-            }
-        }
-
-        $jobIndex = [];
-        foreach ($sections['jobs'] as $idx => $job) {
-            if (isset($job['fqcn']) && is_string($job['fqcn'])) {
-                $jobIndex[$job['fqcn']] = $idx;
-            }
-        }
-
-        $mailableIndex = [];
-        foreach ($sections['mailables'] as $idx => $mailable) {
-            if (isset($mailable['fqcn']) && is_string($mailable['fqcn'])) {
-                $mailableIndex[$mailable['fqcn']] = $idx;
-            }
-        }
-
-        $notificationIndex = [];
-        foreach ($sections['notifications'] as $idx => $notification) {
-            if (isset($notification['fqcn']) && is_string($notification['fqcn'])) {
-                $notificationIndex[$notification['fqcn']] = $idx;
-            }
-        }
-
+        $eventIndex = $this->indexByFqcn($sections['events']);
+        $listenerIndex = $this->indexByFqcn($sections['listeners']);
+        $jobIndex = $this->indexByFqcn($sections['jobs']);
+        $mailableIndex = $this->indexByFqcn($sections['mailables']);
+        $notificationIndex = $this->indexByFqcn($sections['notifications']);
         // Observers may have multiple entries per FQCN (one per observed model).
-        /** @var array<string, array<int, int>> $observerIndex */
-        $observerIndex = [];
-        foreach ($sections['observers'] as $idx => $observer) {
-            if (isset($observer['fqcn']) && is_string($observer['fqcn'])) {
-                $observerIndex[$observer['fqcn']][] = $idx;
-            }
-        }
+        $observerIndex = $this->indexByFqcnMulti($sections['observers']);
 
         // Phase 1: handled_by from listener.handles inversion.
         // Build per-listener method set for Phase 3 dispatch attribution while we're here.
@@ -321,11 +285,21 @@ class IndexBuilder
 
         // Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
         // mailables[*].sent_from, notifications[*].notified_from.
-        // Sites with classFqcn=null or method=null are skipped because the
-        // shared dispatchSite shape requires a method string.
+        // One join shape — one loop driven by the (kind → section, fqcn-index,
+        // from-field) table. Sites with classFqcn/method null are skipped
+        // because the shared dispatchSite shape requires a method string.
+        //
+        // @var array<string, array{0: string, 1: array<string, int>, 2: string}> $joinTable
+        $joinTable = [
+            'event' => ['events', $eventIndex, 'dispatched_from'],
+            'job' => ['jobs', $jobIndex, 'dispatched_from'],
+            'mailable' => ['mailables', $mailableIndex, 'sent_from'],
+            'notification' => ['notifications', $notificationIndex, 'notified_from'],
+        ];
+
         foreach ($dispatchSites as $site) {
             $kind = $site['provisionalKind'] ?? null;
-            if ($kind !== 'event' && $kind !== 'job' && $kind !== 'mailable' && $kind !== 'notification') {
+            if (! is_string($kind) || ! isset($joinTable[$kind])) {
                 continue;
             }
 
@@ -335,130 +309,131 @@ class IndexBuilder
             $file = $site['file'] ?? null;
             $line = $site['line'] ?? null;
 
-            if (! is_string($target)) {
-                continue;
-            }
-            if (! is_string($classFqcn) || ! is_string($method)) {
+            if (! is_string($target) || ! is_string($classFqcn) || ! is_string($method)) {
                 continue;
             }
             if (! is_string($file) || ! is_int($line)) {
                 continue;
             }
 
-            $entry = [
+            [$section, $fqcnIndex, $fromField] = $joinTable[$kind];
+            if (! isset($fqcnIndex[$target])) {
+                continue;
+            }
+
+            $idx = $fqcnIndex[$target];
+            /** @var array<int, array<string, mixed>> $existing */
+            $existing = $sections[$section][$idx][$fromField] ?? [];
+            $existing[] = [
                 'file' => $file,
                 'line' => $line,
                 'method' => $classFqcn.'::'.$method,
             ];
+            $sections[$section][$idx][$fromField] = $existing;
+        }
 
-            if ($kind === 'event' && isset($eventIndex[$target])) {
-                $eIdx = $eventIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['events'][$eIdx]['dispatched_from'] ?? [];
-                $existing[] = $entry;
-                $sections['events'][$eIdx]['dispatched_from'] = $existing;
+        // Sort all cross-linked arrays for deterministic output. Per-section
+        // table of (sectionName → list of fields to sort with their comparator
+        // tuple keys) — each $field is sorted by (file, line, <key>) for
+        // dispatch-site shapes and (listener, method) for handled_by.
+        $sortTable = [
+            'events' => [
+                'handled_by' => ['listener', 'method'],
+                'dispatched_from' => ['file', 'line', 'method'],
+            ],
+            'listeners' => [
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            'observers' => [
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            'jobs' => [
+                'dispatched_from' => ['file', 'line', 'method'],
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            'mailables' => [
+                'sent_from' => ['file', 'line', 'method'],
+            ],
+            'notifications' => [
+                'notified_from' => ['file', 'line', 'method'],
+            ],
+        ];
+
+        foreach ($sortTable as $section => $fields) {
+            foreach ($sections[$section] as $idx => $entry) {
+                foreach ($fields as $field => $keys) {
+                    /** @var array<int, array<string, mixed>> $list */
+                    $list = $entry[$field] ?? [];
+                    usort($list, $this->makeComparator($keys));
+                    $sections[$section][$idx][$field] = $list;
+                }
+            }
+        }
+    }
+
+    /**
+     * Build a deterministic comparator over a tuple of array keys. Missing
+     * keys are coerced to '' (string keys) or 0 (numeric keys via file/line
+     * convention) — usort can't tolerate mixed-type comparisons, so coerce
+     * to string by default and special-case `line` to int. This matches the
+     * pre-refactor inline comparators byte-for-byte.
+     *
+     * @param  list<string>  $keys
+     * @return callable(array<string, mixed>, array<string, mixed>): int
+     */
+    private function makeComparator(array $keys): callable
+    {
+        return function (array $a, array $b) use ($keys): int {
+            $aTuple = [];
+            $bTuple = [];
+            foreach ($keys as $key) {
+                $default = $key === 'line' ? 0 : '';
+                $aTuple[] = $a[$key] ?? $default;
+                $bTuple[] = $b[$key] ?? $default;
             }
 
-            if ($kind === 'job' && isset($jobIndex[$target])) {
-                $jIdx = $jobIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['jobs'][$jIdx]['dispatched_from'] ?? [];
-                $existing[] = $entry;
-                $sections['jobs'][$jIdx]['dispatched_from'] = $existing;
-            }
+            return $aTuple <=> $bTuple;
+        };
+    }
 
-            if ($kind === 'mailable' && isset($mailableIndex[$target])) {
-                $mIdx = $mailableIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['mailables'][$mIdx]['sent_from'] ?? [];
-                $existing[] = $entry;
-                $sections['mailables'][$mIdx]['sent_from'] = $existing;
-            }
-
-            if ($kind === 'notification' && isset($notificationIndex[$target])) {
-                $nIdx = $notificationIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['notifications'][$nIdx]['notified_from'] ?? [];
-                $existing[] = $entry;
-                $sections['notifications'][$nIdx]['notified_from'] = $existing;
+    /**
+     * Build an FQCN-to-array-index map from a section's entries. Skips
+     * entries whose `fqcn` field is missing or not a string. One entry
+     * per FQCN — last write wins (no collisions expected; FQCNs are
+     * unique per section).
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<string, int>
+     */
+    private function indexByFqcn(array $entries): array
+    {
+        $index = [];
+        foreach ($entries as $idx => $entry) {
+            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
+                $index[$entry['fqcn']] = $idx;
             }
         }
 
-        // Sort all cross-linked arrays for deterministic output.
-        foreach ($sections['events'] as $idx => $event) {
-            /** @var array<int, array{listener: string, method: string}> $handledBy */
-            $handledBy = $event['handled_by'] ?? [];
-            usort($handledBy, function (array $a, array $b): int {
-                return [$a['listener'], $a['method']] <=>
-                    [$b['listener'], $b['method']];
-            });
-            $sections['events'][$idx]['handled_by'] = $handledBy;
+        return $index;
+    }
 
-            /** @var array<int, array<string, mixed>> $dispatchedFrom */
-            $dispatchedFrom = $event['dispatched_from'] ?? [];
-            usort($dispatchedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['events'][$idx]['dispatched_from'] = $dispatchedFrom;
+    /**
+     * Multi-valued variant: maps each FQCN to the list of indexes that
+     * carry it. Used by `observers[]` where a single class can be observed
+     * against multiple models, producing several entries per FQCN.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<string, list<int>>
+     */
+    private function indexByFqcnMulti(array $entries): array
+    {
+        $index = [];
+        foreach ($entries as $idx => $entry) {
+            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
+                $index[$entry['fqcn']][] = $idx;
+            }
         }
 
-        foreach ($sections['listeners'] as $idx => $listener) {
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $listener['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['listeners'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['observers'] as $idx => $observer) {
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $observer['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['observers'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['jobs'] as $idx => $job) {
-            /** @var array<int, array<string, mixed>> $dispatchedFrom */
-            $dispatchedFrom = $job['dispatched_from'] ?? [];
-            usort($dispatchedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['jobs'][$idx]['dispatched_from'] = $dispatchedFrom;
-
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $job['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['jobs'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['mailables'] as $idx => $mailable) {
-            /** @var array<int, array<string, mixed>> $sentFrom */
-            $sentFrom = $mailable['sent_from'] ?? [];
-            usort($sentFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['mailables'][$idx]['sent_from'] = $sentFrom;
-        }
-
-        foreach ($sections['notifications'] as $idx => $notification) {
-            /** @var array<int, array<string, mixed>> $notifiedFrom */
-            $notifiedFrom = $notification['notified_from'] ?? [];
-            usort($notifiedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['notifications'][$idx]['notified_from'] = $notifiedFrom;
-        }
+        return $index;
     }
 }
