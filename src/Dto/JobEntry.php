@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-final class JobClassRecord
+/** Schema-shape DTO for an entry in the `jobs[]` section. */
+final class JobEntry
 {
-    /**
-     * @param  array<string, string|int|null>  $queueConfig
-     */
     public function __construct(
         public readonly string $fqcn,
+        public readonly string $file,
         public readonly int $line,
         public readonly bool $queued,
-        public readonly bool $hasHandle,
-        public readonly array $queueConfig,
+        public readonly ?QueueConfigData $queueConfig,
     ) {
     }
 }

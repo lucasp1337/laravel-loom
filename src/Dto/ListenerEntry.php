@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** Internal scanner state: a discovered mailable enriched with file path + queued. */
-final class MailableLocation
+final class ListenerEntry
 {
     /**
-     * @param  array<string, string|int|null>  $queueConfig
+     * @param  list<ListenerHandle>  $handles
      */
     public function __construct(
+        public readonly string $fqcn,
         public readonly string $file,
         public readonly int $line,
+        public readonly array $handles,
+        public readonly string $registration,
         public readonly bool $queued,
-        public readonly array $queueConfig,
     ) {
     }
 }

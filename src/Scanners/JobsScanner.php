@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\JobLocation;
+use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -33,7 +35,7 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{jobs: list<JobEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -165,7 +167,7 @@ final class JobsScanner implements Scanner
 
     /**
      * @param  array<string, JobLocation>  $merged
-     * @return array<int, array<string, mixed>>
+     * @return list<JobEntry>
      */
     private function emit(array $merged): array
     {
@@ -173,17 +175,30 @@ final class JobsScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            $entries[] = [
-                'fqcn' => $fqcn,
-                'file' => $location->file,
-                'line' => $location->line,
-                'queued' => $location->queued,
-                'queue_config' => $location->queued ? $location->queueConfig : null,
-                'dispatched_from' => [],
-                'dispatches' => [],
-            ];
+            $entries[] = new JobEntry(
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+                queued: $location->queued,
+                queueConfig: $location->queued ? $this->toQueueConfig($location->queueConfig) : null,
+            );
         }
 
         return $entries;
+    }
+
+    /**
+     * @param  array<string, string|int|null>  $raw
+     */
+    private function toQueueConfig(array $raw): QueueConfigData
+    {
+        return new QueueConfigData(
+            connection: $raw['connection'] ?? null,
+            queue: $raw['queue'] ?? null,
+            delay: $raw['delay'] ?? null,
+            tries: $raw['tries'] ?? null,
+            timeout: $raw['timeout'] ?? null,
+            backoff: $raw['backoff'] ?? null,
+        );
     }
 }

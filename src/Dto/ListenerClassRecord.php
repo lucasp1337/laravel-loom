@@ -15,5 +15,6 @@ final class ListenerClassRecord
         public readonly bool $queued,
         public readonly bool $hasHandle,
         public readonly array $handles,
-    ) {}
+    ) {
+    }
 }

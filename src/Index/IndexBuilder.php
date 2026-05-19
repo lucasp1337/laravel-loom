@@ -22,9 +22,12 @@ class IndexBuilder
 
     private SchemaValidator $validator;
 
-    public function __construct(?SchemaValidator $validator = null)
+    private IndexSerializer $serializer;
+
+    public function __construct(?SchemaValidator $validator = null, ?IndexSerializer $serializer = null)
     {
         $this->validator = $validator ?? new SchemaValidator;
+        $this->serializer = $serializer ?? new IndexSerializer;
     }
 
     public function register(Scanner $scanner): void
@@ -56,6 +59,9 @@ class IndexBuilder
             }
         }
 
+        $this->serializeSections($sections);
+
+        /** @var array<string, array<int, array<string, mixed>>> $sections */
         $this->crossLink($sections);
         $this->stripInternalSections($sections);
 
@@ -82,6 +88,23 @@ class IndexBuilder
         }
 
         return $sections;
+    }
+
+    /**
+     * Convert scanner-emitted DTO entries into schema-shaped arrays. Internal
+     * sections (e.g. `_dispatch_sites`) pass through — those are consumed by
+     * the cross-link pass in their producer-defined shape.
+     *
+     * @param  array<string, array<int, object|array<string, mixed>>>  $sections
+     */
+    private function serializeSections(array &$sections): void
+    {
+        foreach ($sections as $name => $entries) {
+            if (str_starts_with($name, '_')) {
+                continue;
+            }
+            $sections[$name] = $this->serializer->section($name, array_values($entries));
+        }
     }
 
     /**
