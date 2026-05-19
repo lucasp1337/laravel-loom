@@ -121,65 +121,55 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             // [Listener::class]) belong to ObserverScanner and must NOT leak
             // into listeners[]; only their closure values are captured.
             $keyIsClass = $item->key instanceof Node\Expr\ClassConstFetch;
-
             $value = $item->value;
 
+            // Array-of-listeners: route each element through the same emit
+            // helper. Single listener (uncommon but legal): emit the value
+            // directly. Both paths share emission semantics.
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $listenerItem) {
-                    $listenerValue = $listenerItem->value;
-                    if ($listenerValue instanceof Node\Expr\Closure
-                        || $listenerValue instanceof Node\Expr\ArrowFunction
-                    ) {
-                        $this->closurePairs[] = [
-                            'event' => $eventFqcn,
-                            'line' => $listenerValue->getStartLine(),
-                            'registration' => 'listen_array',
-                        ];
-
-                        continue;
-                    }
-
-                    if (! $keyIsClass) {
-                        continue;
-                    }
-
-                    $resolved = $this->listenerFromValue($listenerValue);
-                    if ($resolved !== null) {
-                        $this->pairs[] = [
-                            'event' => $eventFqcn,
-                            'listener' => $resolved['listener'],
-                            'method' => $resolved['method'],
-                        ];
-                    }
+                    $this->emitListenerEntry($eventFqcn, $keyIsClass, $listenerItem->value);
                 }
 
                 continue;
             }
 
-            if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
-                $this->closurePairs[] = [
-                    'event' => $eventFqcn,
-                    'line' => $value->getStartLine(),
-                    'registration' => 'listen_array',
-                ];
-
-                continue;
-            }
-
-            if (! $keyIsClass) {
-                continue;
-            }
-
-            // Single listener written without an enclosing array — uncommon but legal.
-            $resolved = $this->listenerFromValue($value);
-            if ($resolved !== null) {
-                $this->pairs[] = [
-                    'event' => $eventFqcn,
-                    'listener' => $resolved['listener'],
-                    'method' => $resolved['method'],
-                ];
-            }
+            $this->emitListenerEntry($eventFqcn, $keyIsClass, $value);
         }
+    }
+
+    /**
+     * Emit one entry from a single listener-position expression. Routes
+     * closures to closurePairs[] and class-keyed class refs to pairs[];
+     * string-keyed entries skip the regular pair slot (their closure
+     * values still flow to closurePairs).
+     */
+    private function emitListenerEntry(string $eventFqcn, bool $keyIsClass, Node\Expr $value): void
+    {
+        if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
+            $this->closurePairs[] = [
+                'event' => $eventFqcn,
+                'line' => $value->getStartLine(),
+                'registration' => 'listen_array',
+            ];
+
+            return;
+        }
+
+        if (! $keyIsClass) {
+            return;
+        }
+
+        $resolved = $this->listenerFromValue($value);
+        if ($resolved === null) {
+            return;
+        }
+
+        $this->pairs[] = [
+            'event' => $eventFqcn,
+            'listener' => $resolved['listener'],
+            'method' => $resolved['method'],
+        ];
     }
 
     private function eventFromKey(Node\Expr $expr): ?string
