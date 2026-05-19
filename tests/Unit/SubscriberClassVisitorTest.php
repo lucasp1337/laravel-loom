@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ListenerHandle;
+use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -50,11 +52,11 @@ it('extracts handles from the return-array form of subscribe()', function () {
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Listeners\\OrderEventSubscriber');
-    expect($classes[0]['queued'])->toBeFalse();
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handleOrderPlaced'],
-        ['event' => 'App\\Events\\StockLow', 'method' => 'handleStockLow'],
+    expect($classes[0]->fqcn)->toBe('App\\Listeners\\OrderEventSubscriber');
+    expect($classes[0]->queued)->toBeFalse();
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handleOrderPlaced'),
+        new ListenerHandle(event: 'App\\Events\\StockLow', method: 'handleStockLow'),
     ]);
 });
 
@@ -82,9 +84,9 @@ it('extracts handles from [self::class, method] tuple values', function () {
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
-        ['event' => 'App\\Events\\StockLow', 'method' => 'onLow'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
+        new ListenerHandle(event: 'App\\Events\\StockLow', method: 'onLow'),
     ]);
 });
 
@@ -110,8 +112,8 @@ it('accepts the [Subscriber::class, method] tuple form using the subscriber FQCN
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -137,8 +139,8 @@ it('drops the handler pair when the tuple method is non-string but still emits t
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Listeners\\DynamicMethodSubscriber');
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->fqcn)->toBe('App\\Listeners\\DynamicMethodSubscriber');
+    expect($classes[0]->handles)->toBe([]);
 });
 
 it('flags queued when the subscriber implements ShouldQueue', function () {
@@ -162,7 +164,7 @@ it('flags queued when the subscriber implements ShouldQueue', function () {
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queued'])->toBeTrue();
+    expect($classes[0]->queued)->toBeTrue();
 });
 
 it('skips classes without a subscribe() method', function () {
@@ -204,12 +206,12 @@ it('routes closure values in subscribe() return array to closureHandles', functi
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handleOrderPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handleOrderPlaced'),
     ]);
-    expect($classes[0]['closureHandles'])->toHaveCount(1);
-    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\StockLow');
-    expect($classes[0]['closureHandles'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+    expect($classes[0]->closureHandles)->toHaveCount(1);
+    expect($classes[0]->closureHandles[0]->event)->toBe('App\\Events\\StockLow');
+    expect($classes[0]->closureHandles[0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
 it('routes long-form closure values in subscribe() return array to closureHandles', function () {
@@ -236,9 +238,9 @@ it('routes long-form closure values in subscribe() return array to closureHandle
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toHaveCount(1);
-    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toHaveCount(1);
+    expect($classes[0]->closureHandles[0]->event)->toBe('App\\Events\\OrderPlaced');
 });
 
 it('drops non-closure handlers under string event keys and keeps closure handlers under string keys', function () {
@@ -264,9 +266,9 @@ it('drops non-closure handlers under string event keys and keeps closure handler
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toHaveCount(1);
-    expect($classes[0]['closureHandles'][0]['event'])->toBe('user.created');
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toHaveCount(1);
+    expect($classes[0]->closureHandles[0]->event)->toBe('user.created');
 });
 
 it('discovers imperative $events->listen() calls with a bare-string method (binds to self)', function () {
@@ -287,11 +289,11 @@ it('discovers imperative $events->listen() calls with a bare-string method (bind
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'event', 'method' => 'handler'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'event', method: 'handler'),
     ]);
-    expect($classes[0]['closureHandles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->closureHandles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative [self::class, method] tuples to handles[]', function () {
@@ -314,10 +316,10 @@ it('routes imperative [self::class, method] tuples to handles[]', function () {
     $classes = runSubscriberClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative [static::class, method] tuples to handles[]', function () {
@@ -339,10 +341,10 @@ it('routes imperative [static::class, method] tuples to handles[]', function () 
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative [OwnSubscriber::class, method] tuples (by own FQCN) to handles[]', function () {
@@ -364,10 +366,10 @@ it('routes imperative [OwnSubscriber::class, method] tuples (by own FQCN) to han
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative bare-string method to handles[] (binds to self)', function () {
@@ -389,10 +391,10 @@ it('routes imperative bare-string method to handles[] (binds to self)', function
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative bare self::class (no tuple) to handles[] with method handle', function () {
@@ -414,10 +416,10 @@ it('routes imperative bare self::class (no tuple) to handles[] with method handl
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
     ]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('routes imperative [ForeignClass::class, method] tuples to foreignPairs[] (not handles)', function () {
@@ -440,9 +442,9 @@ it('routes imperative [ForeignClass::class, method] tuples to foreignPairs[] (no
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Support\\AuditLogger', 'method' => 'log'],
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toEqual([
+        new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Support\\AuditLogger', method: 'log'),
     ]);
 });
 
@@ -466,9 +468,9 @@ it('routes imperative bare ForeignClass::class (no tuple) to foreignPairs[] with
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'listener' => 'App\\Support\\AuditLogger', 'method' => 'handle'],
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toEqual([
+        new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Support\\AuditLogger', method: 'handle'),
     ]);
 });
 
@@ -491,10 +493,10 @@ it('routes imperative short-closure listeners to closureHandles[]', function () 
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toHaveCount(1);
-    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\OrderPlaced');
-    expect($classes[0]['closureHandles'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toHaveCount(1);
+    expect($classes[0]->closureHandles[0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($classes[0]->closureHandles[0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
 it('routes imperative long-form closure listeners to closureHandles[]', function () {
@@ -518,9 +520,9 @@ it('routes imperative long-form closure listeners to closureHandles[]', function
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toHaveCount(1);
-    expect($classes[0]['closureHandles'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toHaveCount(1);
+    expect($classes[0]->closureHandles[0]->event)->toBe('App\\Events\\OrderPlaced');
 });
 
 it('accepts a string event with imperative tuple listener', function () {
@@ -540,8 +542,8 @@ it('accepts a string event with imperative tuple listener', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'user.created', 'method' => 'onUserCreated'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'user.created', method: 'onUserCreated'),
     ]);
 });
 
@@ -562,9 +564,9 @@ it('drops imperative calls whose event arg is a variable', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('drops imperative calls whose listener tuple method is a variable', function () {
@@ -586,8 +588,8 @@ it('drops imperative calls whose listener tuple method is a variable', function 
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('drops imperative calls whose listener is a bare variable', function () {
@@ -609,8 +611,8 @@ it('drops imperative calls whose listener is a bare variable', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('unions both return-array and imperative discoveries on the same subscriber', function () {
@@ -637,12 +639,8 @@ it('unions both return-array and imperative discoveries on the same subscriber',
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toContain(
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handleOrderPlaced'],
-    );
-    expect($classes[0]['handles'])->toContain(
-        ['event' => 'App\\Events\\StockLow', 'method' => 'onStockLow'],
-    );
+    expect($classes[0]->handles)->toContainEqual(new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handleOrderPlaced'));
+    expect($classes[0]->handles)->toContainEqual(new ListenerHandle(event: 'App\\Events\\StockLow', method: 'onStockLow'));
 });
 
 it('binds the dispatcher to whatever name the first parameter uses', function () {
@@ -664,8 +662,8 @@ it('binds the dispatcher to whatever name the first parameter uses', function ()
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -688,8 +686,8 @@ it('discovers imperative calls even when the first parameter has no type hint', 
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -714,8 +712,8 @@ it('skips imperative discovery when subscribe() has zero parameters but still pa
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -738,8 +736,8 @@ it('drops calls on a receiver that is not the bound dispatcher variable', functi
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('does not recurse into nested closures even when the receiver matches the param name', function () {
@@ -761,8 +759,8 @@ it('does not recurse into nested closures even when the receiver matches the par
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });
 
 it('captures imperative calls inside an if statement', function () {
@@ -786,8 +784,8 @@ it('captures imperative calls inside an if statement', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -812,8 +810,8 @@ it('captures imperative calls inside a foreach', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'),
     ]);
 });
 
@@ -841,12 +839,8 @@ it('captures imperative calls inside a try/catch', function () {
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toContain(
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'onPlaced'],
-    );
-    expect($classes[0]['handles'])->toContain(
-        ['event' => 'App\\Events\\StockLow', 'method' => 'onStockLow'],
-    );
+    expect($classes[0]->handles)->toContainEqual(new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'onPlaced'));
+    expect($classes[0]->handles)->toContainEqual(new ListenerHandle(event: 'App\\Events\\StockLow', method: 'onStockLow'));
 });
 
 it('ignores $events->subscribe(...) calls inside subscribe() body', function () {
@@ -866,7 +860,7 @@ it('ignores $events->subscribe(...) calls inside subscribe() body', function () 
 
     $classes = runSubscriberClassVisitor($source);
 
-    expect($classes[0]['handles'])->toBe([]);
-    expect($classes[0]['closureHandles'])->toBe([]);
-    expect($classes[0]['foreignPairs'])->toBe([]);
+    expect($classes[0]->handles)->toBe([]);
+    expect($classes[0]->closureHandles)->toBe([]);
+    expect($classes[0]->foreignPairs)->toBe([]);
 });

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -63,16 +64,8 @@ it('extracts pairs from a class literally named EventServiceProvider', function 
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(2);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'handle',
-    ]);
-    expect($pairs[1])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\UpdateInventory',
-        'method' => 'handle',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
+    expect($pairs[1])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\UpdateInventory', method: 'handle'));
 });
 
 it('extracts pairs from a class extending the EventServiceProvider base FQCN under a different short name', function () {
@@ -97,11 +90,7 @@ it('extracts pairs from a class extending the EventServiceProvider base FQCN und
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'handle',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
 });
 
 it('ignores $listen on a class that is neither named nor extending EventServiceProvider', function () {
@@ -150,11 +139,7 @@ it('extracts the listener FQCN and method from a tuple value', function () {
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\PsrOnly',
-        'method' => 'someMethod',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\PsrOnly', method: 'someMethod'));
 });
 
 it('defaults the method to "handle" for a bare Listener::class value', function () {
@@ -179,11 +164,7 @@ it('defaults the method to "handle" for a bare Listener::class value', function 
     $pairs = runListenArrayVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'handle',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
 });
 
 it('skips closure listener values', function () {
@@ -254,9 +235,9 @@ it('emits a closure pair when the $listen value is an arrow function', function 
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
-    expect($result['closurePairs'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
+    expect($result['closurePairs'][0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
 it('emits a closure pair when the $listen value is a long-form Closure', function () {
@@ -281,8 +262,8 @@ it('emits a closure pair when the $listen value is a long-form Closure', functio
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
 });
 
 it('routes class listeners to getPairs() and closures to getClosurePairs() in a mixed array', function () {
@@ -308,9 +289,9 @@ it('routes class listeners to getPairs() and closures to getClosurePairs() in a 
     $result = runListenArrayVisitorFull($source);
 
     expect($result['pairs'])->toHaveCount(1);
-    expect($result['pairs'][0]['listener'])->toBe('App\\Listeners\\SendOrderConfirmation');
+    expect($result['pairs'][0]->listener)->toBe('App\\Listeners\\SendOrderConfirmation');
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
 });
 
 it('emits a closure pair with a string event key', function () {
@@ -335,8 +316,8 @@ it('emits a closure pair with a string event key', function () {
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('user.created');
-    expect($result['closurePairs'][0]['registration'])->toBe('listen_array');
+    expect($result['closurePairs'][0]->event)->toBe('user.created');
+    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
 });
 
 it('drops both pair and closure-pair when the key is a variable', function () {

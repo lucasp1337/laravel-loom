@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ClosurePairRecord;
+use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
@@ -17,10 +19,10 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
 {
     use IdentifiesEventServiceProvider;
 
-    /** @var array<int, array{event: string, listener: string, method: string}> */
+    /** @var list<ListenerPair> */
     private array $pairs = [];
 
-    /** @var array<int, array{event: string, line: int, registration: string}> */
+    /** @var list<ClosurePairRecord> */
     private array $closurePairs = [];
 
     /**
@@ -105,11 +107,11 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     private function emitListenerEntry(string $eventFqcn, bool $keyIsClass, Node\Expr $value): void
     {
         if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
-            $this->closurePairs[] = [
-                'event' => $eventFqcn,
-                'line' => $value->getStartLine(),
-                'registration' => 'listen_array',
-            ];
+            $this->closurePairs[] = new ClosurePairRecord(
+                event: $eventFqcn,
+                line: $value->getStartLine(),
+                registration: 'listen_array',
+            );
 
             return;
         }
@@ -123,11 +125,11 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $this->pairs[] = [
-            'event' => $eventFqcn,
-            'listener' => $resolved['listener'],
-            'method' => $resolved['method'],
-        ];
+        $this->pairs[] = new ListenerPair(
+            event: $eventFqcn,
+            listener: $resolved['listener'],
+            method: $resolved['method'],
+        );
     }
 
     private function eventFromKey(Node\Expr $expr): ?string
@@ -169,17 +171,13 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
         return null;
     }
 
-    /**
-     * @return array<int, array{event: string, listener: string, method: string}>
-     */
+    /** @return list<ListenerPair> */
     public function getPairs(): array
     {
         return $this->pairs;
     }
 
-    /**
-     * @return array<int, array{event: string, line: int, registration: string}>
-     */
+    /** @return list<ClosurePairRecord> */
     public function getClosurePairs(): array
     {
         return $this->closurePairs;

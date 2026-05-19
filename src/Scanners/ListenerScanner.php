@@ -5,19 +5,23 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ClosureListenerEntry;
+use Lucasp\Loom\Dto\ClosureListenerRecord;
+use Lucasp\Loom\Dto\ListenerEntry;
+use Lucasp\Loom\Dto\ListenerHandle;
+use Lucasp\Loom\Dto\ListenerLocation;
+use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
-use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
-use Lucasp\Loom\Support\Sorting;
 
 /**
  * Discovers event listeners from auto-discovery (app/Listeners/),
@@ -46,7 +50,7 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{listeners: list<ListenerEntry>, closure_listeners: list<ClosureListenerEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -60,20 +64,18 @@ final class ListenerScanner implements Scanner
 
         $merged = $this->merge($appRoot, $autoDiscovered, $listenArrayPairs, $eventListenPairs, $subscribers, $subscriberForeignPairs);
 
-        $closureListeners = $this->buildClosureListeners(
-            $listenArrayClosures,
-            $eventListenClosures,
-            $subscriberClosures,
-        );
-
         return [
             'listeners' => $this->emit($merged, $resolver),
-            'closure_listeners' => $closureListeners,
+            'closure_listeners' => $this->buildClosureListeners(
+                $listenArrayClosures,
+                $eventListenClosures,
+                $subscriberClosures,
+            ),
         ];
     }
 
     /**
-     * @return array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
+     * @return array<string, ListenerLocation>
      */
     private function discoverFromAutoDiscovery(string $appRoot): array
     {
@@ -90,17 +92,20 @@ final class ListenerScanner implements Scanner
 
             foreach ($visitor->getClasses() as $class) {
                 // Auto-discovery requires a literal handle() method.
-                if (! $class['has_handle']) {
+                if (! $class->hasHandle) {
                     continue;
                 }
 
-                $results[$class['fqcn']] = [
-                    'file' => $this->relativePath($appRoot, $file->getPathname()),
-                    'line' => $class['line'],
-                    'queued' => $class['queued'],
-                    'has_handle' => $class['has_handle'],
-                    'handles' => $class['handles'],
-                ];
+                $location = new ListenerLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                    queued: $class->queued,
+                    registration: self::REGISTRATION_AUTO_DISCOVERED,
+                );
+                foreach ($class->handles as $handle) {
+                    $location->handles[$handle->event.'::'.$handle->method] = $handle;
+                }
+                $results[$class->fqcn] = $location;
             }
         }
 
@@ -108,10 +113,7 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Walks the whole app/ tree — custom providers can live outside
-     * app/Providers/; the visitor filters by class shape.
-     *
-     * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
+     * @return array{0: list<ListenerPair>, 1: list<ClosureListenerRecord>}
      */
     private function discoverFromListenArray(string $appRoot): array
     {
@@ -131,12 +133,12 @@ final class ListenerScanner implements Scanner
                 $pairs[] = $pair;
             }
             foreach ($visitor->getClosurePairs() as $closure) {
-                $closures[] = [
-                    'event' => $closure['event'],
-                    'file' => $relative,
-                    'line' => $closure['line'],
-                    'registration' => $closure['registration'],
-                ];
+                $closures[] = new ClosureListenerRecord(
+                    event: $closure->event,
+                    file: $relative,
+                    line: $closure->line,
+                    registration: $closure->registration,
+                );
             }
         }
 
@@ -144,7 +146,7 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * @return array{0: array<int, array{event: string, listener: string, method: string}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>}
+     * @return array{0: list<ListenerPair>, 1: list<ClosureListenerRecord>}
      */
     private function discoverFromEventListenCalls(string $appRoot): array
     {
@@ -164,12 +166,12 @@ final class ListenerScanner implements Scanner
                 $pairs[] = $pair;
             }
             foreach ($visitor->getClosurePairs() as $closure) {
-                $closures[] = [
-                    'event' => $closure['event'],
-                    'file' => $relative,
-                    'line' => $closure['line'],
-                    'registration' => $closure['registration'],
-                ];
+                $closures[] = new ClosureListenerRecord(
+                    event: $closure->event,
+                    file: $relative,
+                    line: $closure->line,
+                    registration: $closure->registration,
+                );
             }
         }
 
@@ -177,7 +179,7 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * @return array<int, string>
+     * @return list<string>
      */
     private function discoverSubscriberFqcns(string $appRoot): array
     {
@@ -205,11 +207,8 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * Returns (subscriber self-handles, closure registrations, foreign pairs).
-     * Dropped if PSR-4 cannot locate the source file.
-     *
-     * @param  array<int, string>  $fqcns
-     * @return array{0: array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>, 1: array<int, array{event: string, file: string, line: int, registration: string}>, 2: array<int, array{event: string, listener: string, method: string}>}
+     * @param  list<string>  $fqcns
+     * @return array{0: array<string, ListenerLocation>, 1: list<ClosureListenerRecord>, 2: list<ListenerPair>}
      */
     private function resolveSubscribers(string $appRoot, array $fqcns): array
     {
@@ -229,24 +228,29 @@ final class ListenerScanner implements Scanner
             $relative = $this->relativePath($appRoot, $absolute);
 
             foreach ($visitor->getClasses() as $class) {
-                if ($class['fqcn'] !== $fqcn) {
+                if ($class->fqcn !== $fqcn) {
                     continue;
                 }
-                $result[$fqcn] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                    'queued' => $class['queued'],
-                    'handles' => $class['handles'],
-                ];
-                foreach ($class['closureHandles'] as $handle) {
-                    $closures[] = [
-                        'event' => $handle['event'],
-                        'file' => $relative,
-                        'line' => $handle['line'],
-                        'registration' => 'subscriber',
-                    ];
+                $location = new ListenerLocation(
+                    file: $relative,
+                    line: $class->line,
+                    queued: $class->queued,
+                    registration: self::REGISTRATION_SUBSCRIBER,
+                );
+                foreach ($class->handles as $handle) {
+                    $location->handles[$handle->event.'::'.$handle->method] = $handle;
                 }
-                foreach ($class['foreignPairs'] as $pair) {
+                $result[$fqcn] = $location;
+
+                foreach ($class->closureHandles as $closure) {
+                    $closures[] = new ClosureListenerRecord(
+                        event: $closure->event,
+                        file: $relative,
+                        line: $closure->line,
+                        registration: 'subscriber',
+                    );
+                }
+                foreach ($class->foreignPairs as $pair) {
                     $foreignPairs[] = $pair;
                 }
                 break;
@@ -260,32 +264,16 @@ final class ListenerScanner implements Scanner
      * Precedence: subscriber > listen_array > event_listen_call > auto_discovered.
      * `handles` is the union across sources.
      *
-     * @param  array<string, array{file: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>  $autoDiscovered
-     * @param  array<int, array{event: string, listener: string, method: string}>  $listenArrayPairs
-     * @param  array<int, array{event: string, listener: string, method: string}>  $eventListenPairs
-     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>}>  $subscribers
-     * @param  array<int, array{event: string, listener: string, method: string}>  $subscriberForeignPairs
-     * @return array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>
+     * @param  array<string, ListenerLocation>  $autoDiscovered
+     * @param  list<ListenerPair>  $listenArrayPairs
+     * @param  list<ListenerPair>  $eventListenPairs
+     * @param  array<string, ListenerLocation>  $subscribers
+     * @param  list<ListenerPair>  $subscriberForeignPairs
+     * @return array<string, ListenerLocation>
      */
     private function merge(string $appRoot, array $autoDiscovered, array $listenArrayPairs, array $eventListenPairs, array $subscribers, array $subscriberForeignPairs = []): array
     {
-        /** @var array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}> $acc */
-        $acc = [];
-
-        foreach ($autoDiscovered as $fqcn => $data) {
-            $handlesSet = [];
-            foreach ($data['handles'] as $pair) {
-                $key = $pair['event'].'::'.$pair['method'];
-                $handlesSet[$key] = $pair;
-            }
-            $acc[$fqcn] = [
-                'file' => $data['file'],
-                'line' => $data['line'],
-                'queued' => $data['queued'],
-                'handles' => $handlesSet,
-                'registration' => self::REGISTRATION_AUTO_DISCOVERED,
-            ];
-        }
+        $acc = $autoDiscovered;
 
         foreach ($eventListenPairs as $pair) {
             $this->applyPair($acc, $pair, self::REGISTRATION_EVENT_LISTEN_CALL);
@@ -295,28 +283,20 @@ final class ListenerScanner implements Scanner
             $this->applyPair($acc, $pair, self::REGISTRATION_LISTEN_ARRAY);
         }
 
-        foreach ($subscribers as $fqcn => $data) {
+        foreach ($subscribers as $fqcn => $sub) {
             if (! isset($acc[$fqcn])) {
-                $acc[$fqcn] = [
-                    'file' => $data['file'],
-                    'line' => $data['line'],
-                    'queued' => $data['queued'],
-                    'handles' => [],
-                    'registration' => self::REGISTRATION_SUBSCRIBER,
-                ];
+                $acc[$fqcn] = $sub;
             } else {
                 // Subscriber precedence wins — point at the subscriber class.
-                $acc[$fqcn]['file'] = $data['file'];
-                $acc[$fqcn]['line'] = $data['line'];
-                $acc[$fqcn]['queued'] = $data['queued'];
-                if ($this->precedence(self::REGISTRATION_SUBSCRIBER) > $this->precedence($acc[$fqcn]['registration'])) {
-                    $acc[$fqcn]['registration'] = self::REGISTRATION_SUBSCRIBER;
+                $acc[$fqcn]->file = $sub->file;
+                $acc[$fqcn]->line = $sub->line;
+                $acc[$fqcn]->queued = $sub->queued;
+                if ($this->precedence(self::REGISTRATION_SUBSCRIBER) > $this->precedence($acc[$fqcn]->registration)) {
+                    $acc[$fqcn]->registration = self::REGISTRATION_SUBSCRIBER;
                 }
-            }
-
-            foreach ($data['handles'] as $pair) {
-                $key = $pair['event'].'::'.$pair['method'];
-                $acc[$fqcn]['handles'][$key] = $pair;
+                foreach ($sub->handles as $key => $handle) {
+                    $acc[$fqcn]->handles[$key] = $handle;
+                }
             }
         }
 
@@ -326,63 +306,44 @@ final class ListenerScanner implements Scanner
         }
 
         $result = [];
-        foreach ($acc as $fqcn => $entry) {
-            // $listen/Event::listen-only entries lack a file hit; PSR-4 guess
-            // or drop (documented v0.1 gap).
-            if ($entry['file'] === null || $entry['line'] === null) {
+        foreach ($acc as $fqcn => $loc) {
+            // $listen/Event::listen-only entries lack a file hit; PSR-4 guess or drop.
+            if ($loc->file === null || $loc->line === null) {
                 $located = $this->locateByPsr4Guess($appRoot, $fqcn);
                 if ($located === null) {
                     continue;
                 }
-                $entry['file'] = $located['file'];
-                $entry['line'] = $located['line'];
-                $entry['queued'] = $located['queued'];
+                $loc->file = $located->file;
+                $loc->line = $located->line;
+                $loc->queued = $located->queued;
             }
 
-            $handles = array_values($entry['handles']);
-            usort($handles, Sorting::byKeys(['event', 'method']));
-
-            $registration = $entry['registration'] ?? self::REGISTRATION_AUTO_DISCOVERED;
-
-            $result[$fqcn] = [
-                'file' => $entry['file'],
-                'line' => $entry['line'],
-                'queued' => $entry['queued'],
-                'handles' => $handles,
-                'registration' => $registration,
-            ];
+            $result[$fqcn] = $loc;
         }
 
         return $result;
     }
 
     /**
-     * @param  array<string, array{file: ?string, line: ?int, queued: bool, handles: array<string, array{event: string, method: string}>, registration: ?string}>  $acc
-     * @param  array{event: string, listener: string, method: string}  $pair
+     * @param  array<string, ListenerLocation>  $acc
      */
-    private function applyPair(array &$acc, array $pair, string $registration): void
+    private function applyPair(array &$acc, ListenerPair $pair, string $registration): void
     {
-        $fqcn = $pair['listener'];
+        $fqcn = $pair->listener;
 
         if (! isset($acc[$fqcn])) {
-            $acc[$fqcn] = [
-                'file' => null,
-                'line' => null,
-                'queued' => false,
-                'handles' => [],
-                'registration' => $registration,
-            ];
+            $acc[$fqcn] = new ListenerLocation(file: null, line: null, queued: false, registration: $registration);
         }
 
-        $key = $pair['event'].'::'.$pair['method'];
-        $acc[$fqcn]['handles'][$key] = ['event' => $pair['event'], 'method' => $pair['method']];
+        $key = $pair->event.'::'.$pair->method;
+        $acc[$fqcn]->handles[$key] = new ListenerHandle(event: $pair->event, method: $pair->method);
 
-        if ($this->precedence($registration) > $this->precedence($acc[$fqcn]['registration'])) {
-            $acc[$fqcn]['registration'] = $registration;
+        if ($this->precedence($registration) > $this->precedence($acc[$fqcn]->registration)) {
+            $acc[$fqcn]->registration = $registration;
         }
     }
 
-    private function precedence(?string $registration): int
+    private function precedence(string $registration): int
     {
         return match ($registration) {
             self::REGISTRATION_SUBSCRIBER => 4,
@@ -393,10 +354,7 @@ final class ListenerScanner implements Scanner
         };
     }
 
-    /**
-     * @return array{file: string, line: int, queued: bool}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?ListenerLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -406,37 +364,44 @@ final class ListenerScanner implements Scanner
         $visitor = new ListenerClassVisitor;
         $this->walker->walk($absolute, [$visitor]);
 
-        $class = AstHelpers::findClass($visitor->getClasses(), $fqcn);
-        if ($class === null) {
-            return null;
+        foreach ($visitor->getClasses() as $class) {
+            if ($class->fqcn !== $fqcn) {
+                continue;
+            }
+
+            return new ListenerLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+                queued: $class->queued,
+                registration: self::REGISTRATION_AUTO_DISCOVERED,
+            );
         }
 
-        return [
-            'file' => $this->relativePath($appRoot, $absolute),
-            'line' => $class['line'],
-            'queued' => $class['queued'],
-        ];
+        return null;
     }
 
     /**
-     * @param  array<string, array{file: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, registration: string}>  $merged
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, ListenerLocation>  $merged
+     * @return list<ListenerEntry>
      */
     private function emit(array $merged, ClassHierarchyResolver $resolver): array
     {
         ksort($merged);
 
         $entries = [];
-        foreach ($merged as $fqcn => $data) {
-            $entries[] = [
-                'fqcn' => $fqcn,
-                'file' => $data['file'],
-                'line' => $data['line'],
-                'handles' => $data['handles'],
-                'registration' => $data['registration'],
-                'queued' => $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
-                'dispatches' => [],
-            ];
+        foreach ($merged as $fqcn => $loc) {
+            $handles = array_values($loc->handles);
+            usort($handles, fn (ListenerHandle $a, ListenerHandle $b): int => [$a->event, $a->method] <=> [$b->event, $b->method]);
+
+            // file/line are non-null at emit time — guaranteed by merge()'s PSR-4 guess.
+            $entries[] = new ListenerEntry(
+                fqcn: $fqcn,
+                file: (string) $loc->file,
+                line: (int) $loc->line,
+                handles: $handles,
+                registration: $loc->registration,
+                queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
+            );
         }
 
         return $entries;
@@ -445,41 +410,39 @@ final class ListenerScanner implements Scanner
     /**
      * Dedup by (event, file, line, registration); sort by (event, file, line).
      *
-     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $listenArrayClosures
-     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $eventListenClosures
-     * @param  array<int, array{event: string, file: string, line: int, registration: string}>  $subscriberClosures
-     * @return array<int, array<string, mixed>>
+     * @param  list<ClosureListenerRecord>  $listenArrayClosures
+     * @param  list<ClosureListenerRecord>  $eventListenClosures
+     * @param  list<ClosureListenerRecord>  $subscriberClosures
+     * @return list<ClosureListenerEntry>
      */
     private function buildClosureListeners(
         array $listenArrayClosures,
         array $eventListenClosures,
         array $subscriberClosures,
     ): array {
-        /** @var array<string, array{event: string, file: string, line: int, registration: string}> $seen */
+        /** @var array<string, ClosureListenerRecord> $seen */
         $seen = [];
 
         foreach ([$listenArrayClosures, $eventListenClosures, $subscriberClosures] as $bucket) {
             foreach ($bucket as $entry) {
-                $key = $entry['event'].'|'.$entry['file'].'|'.$entry['line'].'|'.$entry['registration'];
+                $key = $entry->event.'|'.$entry->file.'|'.$entry->line.'|'.$entry->registration;
                 $seen[$key] = $entry;
             }
         }
 
-        $entries = array_values($seen);
-        usort($entries, Sorting::byKeys(['event', 'file', 'line']));
+        $records = array_values($seen);
+        usort($records, fn (ClosureListenerRecord $a, ClosureListenerRecord $b): int => [$a->event, $a->file, $a->line] <=> [$b->event, $b->file, $b->line]);
 
-        $result = [];
-        foreach ($entries as $entry) {
-            $result[] = [
-                'event' => $entry['event'],
-                'file' => $entry['file'],
-                'line' => $entry['line'],
-                'registration' => $entry['registration'],
-                'queued' => false,
-                'dispatches' => [],
-            ];
-        }
-
-        return $result;
+        // Cross-link populates dispatches[]; emitting empty here matches the schema.
+        return array_map(
+            fn (ClosureListenerRecord $r): ClosureListenerEntry => new ClosureListenerEntry(
+                event: $r->event,
+                file: $r->file,
+                line: $r->line,
+                registration: $r->registration,
+                queued: false,
+            ),
+            $records,
+        );
     }
 }

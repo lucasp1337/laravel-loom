@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -61,11 +62,7 @@ it('extracts a pair from Event::listen with the facade imported via use, default
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'handle',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
 });
 
 it('extracts the explicit method from a [Listener::class, method] tuple', function () {
@@ -90,11 +87,7 @@ it('extracts the explicit method from a [Listener::class, method] tuple', functi
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'onPlaced',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'onPlaced'));
 });
 
 it('skips Event::listen calls whose event argument is a variable', function () {
@@ -164,11 +157,7 @@ it('extracts a pair when the Event facade is referenced via its FQCN with no use
     $pairs = runEventListenCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0])->toBe([
-        'event' => 'App\\Events\\OrderPlaced',
-        'listener' => 'App\\Listeners\\SendOrderConfirmation',
-        'method' => 'handle',
-    ]);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
 });
 
 it('emits a closure pair from Event::listen(Foo::class, fn ($e) => …)', function () {
@@ -193,9 +182,9 @@ it('emits a closure pair from Event::listen(Foo::class, fn ($e) => …)', functi
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
-    expect($result['closurePairs'][0]['line'])->toBeInt()->toBeGreaterThan(0);
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
 it('emits a closure pair with a string event from Event::listen(\'string.event\', fn () => …)', function () {
@@ -219,8 +208,8 @@ it('emits a closure pair with a string event from Event::listen(\'string.event\'
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('user.created');
-    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->event)->toBe('user.created');
+    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
 });
 
 it('drops Event::listen($var, fn () => …) entirely', function () {
@@ -270,8 +259,8 @@ it('emits a closure pair from Event::listen(Foo::class, function () { … }) lon
 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
-    expect($result['closurePairs'][0]['event'])->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]['registration'])->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
 });
 
 it('ignores static listen calls on classes other than the Event facade', function () {
