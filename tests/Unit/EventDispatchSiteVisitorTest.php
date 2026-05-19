@@ -45,8 +45,8 @@ it('resolves event(new App\\Events\\Foo())', function () {
     $targets = runEventDispatchSiteVisitor($source);
 
     expect($targets)->toHaveCount(1);
-    expect($targets[0]['fqcn'])->toBe('App\\Events\\Foo');
-    expect($targets[0]['form'])->toBe('helper');
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe('helper');
 });
 
 it('resolves event(App\\Events\\Foo::class)', function () {
@@ -66,8 +66,8 @@ it('resolves event(App\\Events\\Foo::class)', function () {
     $targets = runEventDispatchSiteVisitor($source);
 
     expect($targets)->toHaveCount(1);
-    expect($targets[0]['fqcn'])->toBe('App\\Events\\Foo');
-    expect($targets[0]['form'])->toBe('helper');
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe('helper');
 });
 
 it('resolves Event::dispatch(Foo::class) with the Event facade imported', function () {
@@ -88,8 +88,8 @@ it('resolves Event::dispatch(Foo::class) with the Event facade imported', functi
     $targets = runEventDispatchSiteVisitor($source);
 
     expect($targets)->toHaveCount(1);
-    expect($targets[0]['fqcn'])->toBe('App\\Events\\Foo');
-    expect($targets[0]['form'])->toBe('facade');
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe('facade');
 });
 
 it('resolves App\\Events\\Foo::dispatch($payload) as a Dispatchable trait call', function () {
@@ -109,8 +109,8 @@ it('resolves App\\Events\\Foo::dispatch($payload) as a Dispatchable trait call',
     $targets = runEventDispatchSiteVisitor($source);
 
     expect($targets)->toHaveCount(1);
-    expect($targets[0]['fqcn'])->toBe('App\\Events\\Foo');
-    expect($targets[0]['form'])->toBe('dispatchable');
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe('dispatchable');
 });
 
 it('ignores event($variable)', function () {

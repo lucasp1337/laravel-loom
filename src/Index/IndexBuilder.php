@@ -92,17 +92,14 @@ class IndexBuilder
 
     /**
      * Convert scanner-emitted DTO entries into schema-shaped arrays. Internal
-     * sections (e.g. `_dispatch_sites`) pass through — those are consumed by
-     * the cross-link pass in their producer-defined shape.
+     * sections (underscore-prefixed) are serialized too — cross-link reads
+     * them as arrays — and stripped after cross-link.
      *
      * @param  array<string, array<int, object|array<string, mixed>>>  $sections
      */
     private function serializeSections(array &$sections): void
     {
         foreach ($sections as $name => $entries) {
-            if (str_starts_with($name, '_')) {
-                continue;
-            }
             $sections[$name] = $this->serializer->section($name, array_values($entries));
         }
     }

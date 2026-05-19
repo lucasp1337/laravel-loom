@@ -101,11 +101,11 @@ final class EventScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getTargets() as $target) {
-                $isUnambiguous = $target['form'] !== 'dispatchable';
-                if (! isset($candidates[$target['fqcn']])) {
-                    $candidates[$target['fqcn']] = $isUnambiguous;
+                $isUnambiguous = $target->form !== 'dispatchable';
+                if (! isset($candidates[$target->fqcn])) {
+                    $candidates[$target->fqcn] = $isUnambiguous;
                 } elseif ($isUnambiguous) {
-                    $candidates[$target['fqcn']] = true;
+                    $candidates[$target->fqcn] = true;
                 }
             }
         }

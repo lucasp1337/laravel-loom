@@ -48,12 +48,12 @@ it('recognises event(new Foo()) as helper + event', function () {
 
     expect($unresolved)->toBe([]);
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
-    expect($sites[0]['form'])->toBe('helper');
-    expect($sites[0]['provisionalKind'])->toBe('event');
-    expect($sites[0]['classFqcn'])->toBe('App\\Services\\Svc');
-    expect($sites[0]['method'])->toBe('go');
-    expect($sites[0]['confidence'])->toBe('high');
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe('helper');
+    expect($sites[0]->provisionalKind)->toBe('event');
+    expect($sites[0]->classFqcn)->toBe('App\\Services\\Svc');
+    expect($sites[0]->method)->toBe('go');
+    expect($sites[0]->confidence)->toBe('high');
 });
 
 it('recognises event(Foo::class) as helper + event', function () {
@@ -71,9 +71,9 @@ it('recognises event(Foo::class) as helper + event', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
-    expect($sites[0]['form'])->toBe('helper');
-    expect($sites[0]['provisionalKind'])->toBe('event');
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe('helper');
+    expect($sites[0]->provisionalKind)->toBe('event');
 });
 
 it('recognises Event::dispatch(Foo::class) as facade + event', function () {
@@ -92,9 +92,9 @@ it('recognises Event::dispatch(Foo::class) as facade + event', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
-    expect($sites[0]['form'])->toBe('facade');
-    expect($sites[0]['provisionalKind'])->toBe('event');
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe('facade');
+    expect($sites[0]->provisionalKind)->toBe('event');
 });
 
 it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
@@ -112,9 +112,9 @@ it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Events\\Foo');
-    expect($sites[0]['form'])->toBe('dispatchable');
-    expect($sites[0]['provisionalKind'])->toBe('ambiguous');
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe('dispatchable');
+    expect($sites[0]->provisionalKind)->toBe('ambiguous');
 });
 
 it('recognises dispatch(new Bar()) as job_helper + job', function () {
@@ -132,9 +132,9 @@ it('recognises dispatch(new Bar()) as job_helper + job', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Jobs\\Bar');
-    expect($sites[0]['form'])->toBe('job_helper');
-    expect($sites[0]['provisionalKind'])->toBe('job');
+    expect($sites[0]->target)->toBe('App\\Jobs\\Bar');
+    expect($sites[0]->form)->toBe('job_helper');
+    expect($sites[0]->provisionalKind)->toBe('job');
 });
 
 it('recognises Bus::dispatch(new Bar()) as job_helper + job', function () {
@@ -153,9 +153,9 @@ it('recognises Bus::dispatch(new Bar()) as job_helper + job', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['target'])->toBe('App\\Jobs\\Bar');
-    expect($sites[0]['form'])->toBe('job_helper');
-    expect($sites[0]['provisionalKind'])->toBe('job');
+    expect($sites[0]->target)->toBe('App\\Jobs\\Bar');
+    expect($sites[0]->form)->toBe('job_helper');
+    expect($sites[0]->provisionalKind)->toBe('job');
 });
 
 // -----------------------------------------------------------------------------
@@ -177,8 +177,8 @@ it('captures handle() method context for an enclosing class', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['classFqcn'])->toBe('App\\Listeners\\Send');
-    expect($sites[0]['method'])->toBe('handle');
+    expect($sites[0]->classFqcn)->toBe('App\\Listeners\\Send');
+    expect($sites[0]->method)->toBe('handle');
 });
 
 it('captures __construct method context', function () {
@@ -196,7 +196,7 @@ it('captures __construct method context', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['method'])->toBe('__construct');
+    expect($sites[0]->method)->toBe('__construct');
 });
 
 it('captures observer-hook method names like created', function () {
@@ -214,7 +214,7 @@ it('captures observer-hook method names like created', function () {
     [$sites] = runDispatchSiteVisitor($source);
 
     expect($sites)->toHaveCount(1);
-    expect($sites[0]['method'])->toBe('created');
+    expect($sites[0]->method)->toBe('created');
 });
 
 it('records two sites in a single method with shared context', function () {
@@ -235,8 +235,8 @@ it('records two sites in a single method with shared context', function () {
 
     expect($sites)->toHaveCount(2);
     foreach ($sites as $s) {
-        expect($s['classFqcn'])->toBe('App\\Services\\Svc');
-        expect($s['method'])->toBe('go');
+        expect($s->classFqcn)->toBe('App\\Services\\Svc');
+        expect($s->method)->toBe('go');
     }
 });
 
@@ -257,7 +257,7 @@ it('captures distinct method names across methods in one class', function () {
     expect($sites)->toHaveCount(2);
     $byMethod = [];
     foreach ($sites as $s) {
-        $byMethod[$s['method']] = $s['target'];
+        $byMethod[$s->method] = $s->target;
     }
     expect($byMethod)->toBe([
         'a' => 'App\\Events\\Foo',
@@ -340,8 +340,8 @@ it('records event($variable) as dynamic_class_name unresolved', function () {
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('dynamic_class_name');
-    expect($unresolved[0]['expression'])->toContain('event(');
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+    expect($unresolved[0]->expression)->toContain('event(');
 });
 
 it('records string interpolation as string_concatenation unresolved', function () {
@@ -359,7 +359,7 @@ it('records string interpolation as string_concatenation unresolved', function (
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('string_concatenation');
+    expect($unresolved[0]->reason)->toBe('string_concatenation');
 });
 
 it('records string concatenation as string_concatenation unresolved', function () {
@@ -377,7 +377,7 @@ it('records string concatenation as string_concatenation unresolved', function (
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('string_concatenation');
+    expect($unresolved[0]->reason)->toBe('string_concatenation');
 });
 
 it('records app() resolution as container_resolution unresolved', function () {
@@ -395,7 +395,7 @@ it('records app() resolution as container_resolution unresolved', function () {
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('container_resolution');
+    expect($unresolved[0]->reason)->toBe('container_resolution');
 });
 
 it('records resolve() as container_resolution unresolved', function () {
@@ -413,7 +413,7 @@ it('records resolve() as container_resolution unresolved', function () {
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('container_resolution');
+    expect($unresolved[0]->reason)->toBe('container_resolution');
 });
 
 it('records $container->make() as container_resolution unresolved', function () {
@@ -431,7 +431,7 @@ it('records $container->make() as container_resolution unresolved', function () 
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('container_resolution');
+    expect($unresolved[0]->reason)->toBe('container_resolution');
 });
 
 it('records ternary with non-resolvable branches as conditional_dispatch', function () {
@@ -449,7 +449,7 @@ it('records ternary with non-resolvable branches as conditional_dispatch', funct
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]['reason'])->toBe('conditional_dispatch');
+    expect($unresolved[0]->reason)->toBe('conditional_dispatch');
 });
 
 it('expands ternary with resolvable branches into two sites', function () {

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\DispatchSiteRecord;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
-use Lucasp\Loom\Support\Sorting;
 
 /**
  * Collects dispatch sites under app/ and emits `unresolved_dispatches`
@@ -26,7 +27,7 @@ final class DispatchScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{unresolved_dispatches: list<UnresolvedDispatchEntry>, _dispatch_sites: list<DispatchSiteRecord>}
      */
     public function scan(string $appRoot): array
     {
@@ -35,9 +36,9 @@ final class DispatchScanner implements Scanner
             return ['unresolved_dispatches' => [], '_dispatch_sites' => []];
         }
 
-        /** @var array<int, array<string, mixed>> $sites */
+        /** @var list<DispatchSiteRecord> $sites */
         $sites = [];
-        /** @var array<int, array<string, mixed>> $unresolved */
+        /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
@@ -47,18 +48,22 @@ final class DispatchScanner implements Scanner
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($visitor->getSites() as $site) {
-                $site['file'] = $relative;
+                $site->file = $relative;
                 $sites[] = $site;
             }
 
             foreach ($visitor->getUnresolved() as $entry) {
-                $entry['file'] = $relative;
-                $unresolved[] = $entry;
+                $unresolved[] = new UnresolvedDispatchEntry(
+                    file: $relative,
+                    line: $entry->line,
+                    expression: $entry->expression,
+                    reason: $entry->reason,
+                );
             }
         }
 
-        usort($unresolved, Sorting::byKeys(['file', 'line']));
-        usort($sites, Sorting::byKeys(['file', 'line', 'target']));
+        usort($unresolved, fn (UnresolvedDispatchEntry $a, UnresolvedDispatchEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
+        usort($sites, fn (DispatchSiteRecord $a, DispatchSiteRecord $b): int => [$a->file, $a->line, $a->target] <=> [$b->file, $b->line, $b->target]);
 
         return [
             'unresolved_dispatches' => $unresolved,

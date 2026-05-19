@@ -105,11 +105,11 @@ final class MailableScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                if ($site['provisionalKind'] !== 'mailable') {
+                if ($site->provisionalKind !== 'mailable') {
                     continue;
                 }
 
-                $candidates[$site['target']] = 'mailable';
+                $candidates[$site->target] = 'mailable';
             }
         }
 

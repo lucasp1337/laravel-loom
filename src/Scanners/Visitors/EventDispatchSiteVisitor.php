@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\EventDispatchTarget;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -15,7 +16,7 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {
-    /** @var array<int, array{fqcn: string, line: int, form: 'helper'|'facade'|'dispatchable'}> */
+    /** @var list<EventDispatchTarget> */
     private array $targets = [];
 
     /**
@@ -55,7 +56,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 
         $fqcn = $this->resolveFirstArgClass($node->args);
         if ($fqcn !== null) {
-            $this->targets[] = ['fqcn' => $fqcn, 'line' => $node->getStartLine(), 'form' => 'helper'];
+            $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: 'helper');
         }
     }
 
@@ -78,14 +79,14 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
         if (Facades::EVENT->matches($className)) {
             $fqcn = $this->resolveFirstArgClass($node->args);
             if ($fqcn !== null) {
-                $this->targets[] = ['fqcn' => $fqcn, 'line' => $node->getStartLine(), 'form' => 'facade'];
+                $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: 'facade');
             }
 
             return;
         }
 
         // X::dispatch(...) — the class itself is the target.
-        $this->targets[] = ['fqcn' => $className, 'line' => $node->getStartLine(), 'form' => 'dispatchable'];
+        $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: 'dispatchable');
     }
 
     /**
@@ -102,7 +103,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return array<int, array{fqcn: string, line: int, form: 'helper'|'facade'|'dispatchable'}>
+     * @return list<EventDispatchTarget>
      */
     public function getTargets(): array
     {

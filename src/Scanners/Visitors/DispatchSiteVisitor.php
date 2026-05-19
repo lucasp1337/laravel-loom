@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\DispatchSiteRecord;
+use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -31,21 +33,10 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     private int $closureDepth = 0;
 
-    /**
-     * @var array<int, array{
-     *     classFqcn: ?string,
-     *     method: ?string,
-     *     target: string,
-     *     form: 'helper'|'facade'|'job_helper'|'dispatchable'|'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain',
-     *     provisionalKind: 'event'|'job'|'ambiguous'|'mailable'|'notification',
-     *     file: ?string,
-     *     line: int,
-     *     confidence: 'high'
-     * }>
-     */
+    /** @var list<DispatchSiteRecord> */
     private array $sites = [];
 
-    /** @var array<int, array{file: ?string, line: int, expression: string, reason: string}> */
+    /** @var list<UnresolvedDispatchRecord> */
     private array $unresolved = [];
 
     private PrettyPrinter $printer;
@@ -206,16 +197,16 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $this->sites[] = [
-            'classFqcn' => $this->currentClassFqcn(),
-            'method' => $this->currentMethod(),
-            'target' => $className,
-            'form' => 'dispatchable',
-            'provisionalKind' => 'ambiguous',
-            'file' => null,
-            'line' => $node->getStartLine(),
-            'confidence' => 'high',
-        ];
+        $this->sites[] = new DispatchSiteRecord(
+            classFqcn: $this->currentClassFqcn(),
+            method: $this->currentMethod(),
+            target: $className,
+            form: 'dispatchable',
+            provisionalKind: 'ambiguous',
+            file: null,
+            line: $node->getStartLine(),
+            confidence: 'high',
+        );
     }
 
     private function handleMethodCall(Node\Expr\MethodCall $node): void
@@ -312,16 +303,16 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             if ($this->shouldSkipEmission()) {
                 return;
             }
-            $this->sites[] = [
-                'classFqcn' => $this->currentClassFqcn(),
-                'method' => $this->currentMethod(),
-                'target' => $resolved,
-                'form' => $form,
-                'provisionalKind' => $kind,
-                'file' => null,
-                'line' => $callNode->getStartLine(),
-                'confidence' => 'high',
-            ];
+            $this->sites[] = new DispatchSiteRecord(
+                classFqcn: $this->currentClassFqcn(),
+                method: $this->currentMethod(),
+                target: $resolved,
+                form: $form,
+                provisionalKind: $kind,
+                file: null,
+                line: $callNode->getStartLine(),
+                confidence: 'high',
+            );
 
             return;
         }
@@ -333,12 +324,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $reason = $this->classifyUnresolvedReason($arg->value);
         $expression = $this->renderExpression($callNode, $callLabel);
 
-        $this->unresolved[] = [
-            'file' => null,
-            'line' => $callNode->getStartLine(),
-            'expression' => $expression,
-            'reason' => $reason,
-        ];
+        $this->unresolved[] = new UnresolvedDispatchRecord(
+            file: null,
+            line: $callNode->getStartLine(),
+            expression: $expression,
+            reason: $reason,
+        );
     }
 
     /**
@@ -391,12 +382,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $reason = $this->classifyUnresolvedReason($first->value);
         $expression = $this->renderExpression($callNode, $callLabel);
 
-        $this->unresolved[] = [
-            'file' => null,
-            'line' => $callNode->getStartLine(),
-            'expression' => $expression,
-            'reason' => $reason,
-        ];
+        $this->unresolved[] = new UnresolvedDispatchRecord(
+            file: null,
+            line: $callNode->getStartLine(),
+            expression: $expression,
+            reason: $reason,
+        );
     }
 
     /**
@@ -409,16 +400,16 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        $this->sites[] = [
-            'classFqcn' => $this->currentClassFqcn(),
-            'method' => $this->currentMethod(),
-            'target' => $targetFqcn,
-            'form' => $form,
-            'provisionalKind' => $kind,
-            'file' => null,
-            'line' => $callNode->getStartLine(),
-            'confidence' => 'high',
-        ];
+        $this->sites[] = new DispatchSiteRecord(
+            classFqcn: $this->currentClassFqcn(),
+            method: $this->currentMethod(),
+            target: $targetFqcn,
+            form: $form,
+            provisionalKind: $kind,
+            file: null,
+            line: $callNode->getStartLine(),
+            confidence: 'high',
+        );
     }
 
     private function shouldSkipEmission(): bool
@@ -453,6 +444,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         return $this->classStack[count($this->classStack) - 1]['method'];
     }
 
+    /** @return 'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch' */
     private function classifyUnresolvedReason(Node $expr): string
     {
         if ($expr instanceof Node\Expr\Variable) {
@@ -512,26 +504,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         return $rendered;
     }
 
-    /**
-     * @return array<int, array{
-     *     classFqcn: ?string,
-     *     method: ?string,
-     *     target: string,
-     *     form: 'helper'|'facade'|'job_helper'|'dispatchable'|'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain',
-     *     provisionalKind: 'event'|'job'|'ambiguous'|'mailable'|'notification',
-     *     file: ?string,
-     *     line: int,
-     *     confidence: 'high'
-     * }>
-     */
+    /** @return list<DispatchSiteRecord> */
     public function getSites(): array
     {
         return $this->sites;
     }
 
-    /**
-     * @return array<int, array{file: ?string, line: int, expression: string, reason: string}>
-     */
+    /** @return list<UnresolvedDispatchRecord> */
     public function getUnresolved(): array
     {
         return $this->unresolved;

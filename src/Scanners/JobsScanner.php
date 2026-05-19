@@ -122,12 +122,12 @@ final class JobsScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                $kind = $site['provisionalKind'];
+                $kind = $site->provisionalKind;
                 if ($kind !== 'job' && $kind !== 'ambiguous') {
                     continue;
                 }
 
-                $target = $site['target'];
+                $target = $site->target;
                 // 'job' wins over 'ambiguous' — once proven unambiguously, lock in.
                 if ($kind === 'job' || ! isset($candidates[$target])) {
                     $candidates[$target] = $kind;

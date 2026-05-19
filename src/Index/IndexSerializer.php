@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index;
 
 use Lucasp\Loom\Dto\ClosureListenerEntry;
+use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\ListenerEntry;
@@ -57,8 +58,24 @@ final class IndexSerializer
             $entry instanceof ClosureListenerEntry => $this->closureListener($entry),
             $entry instanceof ScheduledEntry => $this->scheduled($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
+            $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
             default => throw new \RuntimeException('IndexSerializer cannot serialize '.$entry::class),
         };
+    }
+
+    /** @return array<string, mixed> */
+    public function dispatchSiteRecord(DispatchSiteRecord $e): array
+    {
+        return [
+            'classFqcn' => $e->classFqcn,
+            'method' => $e->method,
+            'target' => $e->target,
+            'form' => $e->form,
+            'provisionalKind' => $e->provisionalKind,
+            'file' => $e->file,
+            'line' => $e->line,
+            'confidence' => $e->confidence,
+        ];
     }
 
     /** @return array<string, mixed> */

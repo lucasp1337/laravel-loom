@@ -107,11 +107,11 @@ final class NotificationScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                if ($site['provisionalKind'] !== 'notification') {
+                if ($site->provisionalKind !== 'notification') {
                     continue;
                 }
 
-                $candidates[$site['target']] = 'notification';
+                $candidates[$site->target] = 'notification';
             }
         }
 
