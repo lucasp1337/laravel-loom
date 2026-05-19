@@ -163,9 +163,9 @@ it('flags channels_dynamic=true and channels=[] for DynamicChannelNotification',
 });
 
 it('emits channels=[] and channels_dynamic=false when no via() method is declared', function () {
-    // Task instructions mandate channels_dynamic=false for NoViaNotification.
-    // The scanner doc ambiguously claims channels_dynamic=true for the same
-    // case; pinning the task-mandated behaviour here. Flagged for review.
+    // Absence of via() means "no channels declared" — an intentional zero,
+    // not unknown. channels_dynamic is true only when via() exists but its
+    // body isn't statically resolvable. See docs/scanners/notifications.md.
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
     $entry = notificationByFqcn($entries, 'App\\Notifications\\NoViaNotification');

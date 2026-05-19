@@ -95,6 +95,7 @@ it('populates notifications[InvoicePaid].notified_from for $user->notify(...) an
 
     expect($lines)->toContain(19); // $user->notify(new InvoicePaid())
     expect($lines)->toContain(23); // Notification::send($users, new InvoicePaid())
+    expect($lines)->toContain(40); // $user->notify(InvoicePaid::class) — class-constant form
 });
 
 it('populates notifications[PasswordReset].notified_from for notifyNow + Notification::sendNow', function () {
@@ -109,6 +110,7 @@ it('populates notifications[PasswordReset].notified_from for notifyNow + Notific
 
     expect($lines)->toContain(21); // $user->notifyNow(new PasswordReset())
     expect($lines)->toContain(25); // Notification::sendNow($users, new PasswordReset())
+    expect($lines)->toContain(42); // Notification::send($users, PasswordReset::class) — class-constant form
 });
 
 it('populates notifications[InvitedNotification].notified_from for the Notification::route(...)->notify(...) chain', function () {

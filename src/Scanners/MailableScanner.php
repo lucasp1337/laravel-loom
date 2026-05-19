@@ -101,8 +101,9 @@ final class MailableScanner implements Scanner
      * `_dispatch_sites[]` (the cross-link pass owns that data).
      *
      * Ambiguous Dispatchable-form sites don't apply to mailables: mailables
-     * are dispatched via `Mail::send(...)` / `->notify(...)`, not via the
-     * `Dispatchable` trait.
+     * are dispatched via `Mail::send/queue/later(...)` and the
+     * `Mail::to/cc/bcc/locale/mailer(...)->send/queue/later(...)` chain,
+     * never via the `Dispatchable` trait.
      *
      * @return array<string, 'mailable'>
      */

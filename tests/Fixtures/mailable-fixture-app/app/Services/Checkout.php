@@ -27,6 +27,11 @@ class Checkout
 
         Mail::send(new InvoiceMailable());
 
+        // Class-constant target form: Mail::send(X::class). Locks parity
+        // with the new X() form — DispatchSiteVisitor::resolveStaticClass
+        // accepts both shapes.
+        Mail::send(OrderShipped::class);
+
         /** @var \Illuminate\Mail\Mailable $dynamicMailable */
         $dynamicMailable = $this->resolveDynamic();
         Mail::send($dynamicMailable);

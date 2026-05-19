@@ -101,6 +101,7 @@ it('populates mailables[OrderShipped].sent_from with every recognised dispatch s
     // MUST appear in sent_from, not just the direct facade calls.
     expect($lines)->toContain(22); // Mail::to($user)->send(new OrderShipped())
     expect($lines)->toContain(24); // Mail::to($user)->cc(...)->bcc(...)->send(...)
+    expect($lines)->toContain(33); // Mail::send(OrderShipped::class) — class-constant form
 });
 
 it('populates mailables[WelcomeEmail].sent_from for queue and chain-with-locale forms', function () {

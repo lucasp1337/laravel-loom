@@ -20,7 +20,7 @@ merges them by FQCN:
 2. **Dispatch-site seeding.** Any class targeted by a recognised
    mail-dispatch call shape is located via the PSR-4 guess (leading
    `App\` → `app/`) and parsed. This lets mailables in DDD-style
-   layouts like `app/Domain/Billing/Mail/InvoiceMail.php` get picked
+   layouts like `app/Domain/Billing/Mail/InvoiceMailable.php` get picked
    up even though they live outside `app/Mail/`.
 
    Recognised call shapes (resolved via NameResolver):

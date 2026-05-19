@@ -34,6 +34,13 @@ class Billing
             ->route('vonage', '+15555555555')
             ->notify(new InvitedNotification());
 
+        // Class-constant target form. Locks parity with the new Y() form
+        // across both the Notifiable-trait instance method and the
+        // Notification facade.
+        $user->notify(InvoicePaid::class);
+
+        Notification::send($users, PasswordReset::class);
+
         /** @var \Illuminate\Notifications\Notification $dynamic */
         $dynamic = $this->resolveDynamic();
         $user->notify($dynamic);
