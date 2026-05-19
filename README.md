@@ -65,6 +65,8 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
 - **Observers** — `Model::observe()` calls, the `#[ObservedBy]` attribute, plus model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`.
 - **Jobs** — classes under `app/Jobs/` (recursive), plus any class dispatched via `dispatch()`, `Bus::dispatch()`, or the Dispatchable form `X::dispatch()` (located via PSR-4, so jobs in DDD layouts get picked up). Records `queued` and `queue_config` (connection, queue, delay, tries, timeout, backoff) when declared as class properties.
 - **Schedule** — entries declared via the `schedule(Schedule $schedule)` method on `app/Console/Kernel.php`, the `->withSchedule(...)` callback on `Application::configure(...)` in `bootstrap/app.php`, and `Schedule::call/command/job/exec(...)` chains anywhere under `app/`. Records `kind`, resolved `target`, a five-field `cron` expression normalized from Laravel's frequency helpers, `timezone`, the `without_overlapping` / `on_one_server` / `run_in_background` flags, and a sorted list of opaque `constraints[]` labels (`weekdays`, `between(8:00,17:00)`, `when(closure)`, `environments(production)`, …).
+- **Mailables** — classes under `app/Mail/` (recursive), plus any class dispatched via `Mail::send/queue/later(...)` and the `Mail::to(...)->send/queue/later(...)` chain (including chains through `->cc/->bcc/->locale/->mailer`), located via PSR-4 so mailables in DDD layouts get picked up. Records `queued`, `queue_config` (same six-field shape as jobs), and `sent_from[]` (populated by cross-link).
+- **Notifications** — classes under `app/Notifications/` (recursive), plus any class dispatched via `$x->notify/notifyNow(...)`, `Notification::send/sendNow(...)`, and `Notification::route(...)->notify(...)` chains. Records `queued`, `queue_config`, `channels[]` (extracted in source order from a statically resolvable `via()` literal — strings stored lowercased, `Class::class` constants stored as FQCN), `channels_dynamic` (true only when `via()` exists but its body isn't statically resolvable), and `notified_from[]` (populated by cross-link).
 - **Dispatches** — every method body scanned for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()`. Cross-linked back to listeners and observers by handler method.
 
 ## Sample output
@@ -83,6 +85,8 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
     "observers": 1,
     "jobs": 1,
     "scheduled": 1,
+    "mailables": 1,
+    "notifications": 1,
     "unresolved_dispatches": 1,
     "closure_listeners": 1
   },
@@ -176,6 +180,46 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
       "line": 28
     }
   ],
+  "mailables": [
+    {
+      "fqcn": "App\\Mail\\OrderShipped",
+      "file": "app/Mail/OrderShipped.php",
+      "line": 18,
+      "queued": true,
+      "queue_config": {
+        "connection": null,
+        "queue": "mail",
+        "delay": null,
+        "tries": 3,
+        "timeout": null,
+        "backoff": null
+      },
+      "sent_from": [
+        { "file": "app/Services/Checkout.php", "line": 94, "method": "App\\Services\\Checkout::finalize" }
+      ]
+    }
+  ],
+  "notifications": [
+    {
+      "fqcn": "App\\Notifications\\InvoicePaid",
+      "file": "app/Notifications/InvoicePaid.php",
+      "line": 22,
+      "queued": true,
+      "queue_config": {
+        "connection": null,
+        "queue": "notifications",
+        "delay": null,
+        "tries": null,
+        "timeout": null,
+        "backoff": null
+      },
+      "channels": ["mail", "database", "slack"],
+      "channels_dynamic": false,
+      "notified_from": [
+        { "file": "app/Services/Billing.php", "line": 51, "method": "App\\Services\\Billing::charge" }
+      ]
+    }
+  ],
   "unresolved_dispatches": [
     {
       "file": "app/Services/Notifier.php",
@@ -209,7 +253,7 @@ On a fresh `laravel new` app, the scan finishes in well under a second. A medium
 
 Tracked at the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1). Highlights:
 
-- More sections: [mailables and notifications](https://github.com/lucasp1337/laravel-loom/issues/6), [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
+- More sections: [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
 - A [browser UI](https://github.com/lucasp1337/laravel-loom/issues/19) for clicking through the index — events, listeners, dispatch chains.
 - An [MCP server](https://github.com/lucasp1337/laravel-loom/issues/20) so AI coding assistants can query the index instead of grepping.
 - [`loom:diff`](https://github.com/lucasp1337/laravel-loom/issues/9) and [`loom:check`](https://github.com/lucasp1337/laravel-loom/issues/10) for CI.

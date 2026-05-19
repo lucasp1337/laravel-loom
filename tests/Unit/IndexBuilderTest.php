@@ -12,11 +12,13 @@ it('produces an empty index that validates against the schema', function () {
 
     expect($builder->validate($payload))->toBe([]);
     expect($payload)
-        ->toHaveKeys(['loom_version', 'scanned_at', 'laravel_version', 'stats', 'events', 'listeners', 'observers', 'model_events', 'jobs', 'unresolved_dispatches', 'closure_listeners', 'scheduled'])
+        ->toHaveKeys(['loom_version', 'scanned_at', 'laravel_version', 'stats', 'events', 'listeners', 'observers', 'model_events', 'jobs', 'unresolved_dispatches', 'closure_listeners', 'scheduled', 'mailables', 'notifications'])
         ->and($payload['loom_version'])->toBe('0.2.0')
         ->and($payload['closure_listeners'])->toBe([])
         ->and($payload['jobs'])->toBe([])
         ->and($payload['scheduled'])->toBe([])
+        ->and($payload['mailables'])->toBe([])
+        ->and($payload['notifications'])->toBe([])
         ->and($payload['stats'])->toBe([
             'events' => 0,
             'listeners' => 0,
@@ -25,6 +27,8 @@ it('produces an empty index that validates against the schema', function () {
             'unresolved_dispatches' => 0,
             'closure_listeners' => 0,
             'scheduled' => 0,
+            'mailables' => 0,
+            'notifications' => 0,
         ]);
 });
 

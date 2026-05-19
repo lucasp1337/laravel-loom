@@ -49,6 +49,8 @@ class IndexBuilder
             'unresolved_dispatches' => [],
             'closure_listeners' => [],
             'scheduled' => [],
+            'mailables' => [],
+            'notifications' => [],
         ];
 
         foreach ($this->scanners as $scanner) {
@@ -91,6 +93,8 @@ class IndexBuilder
             unresolvedDispatches: $sections['unresolved_dispatches'],
             closureListeners: $sections['closure_listeners'],
             scheduled: $sections['scheduled'],
+            mailables: $sections['mailables'],
+            notifications: $sections['notifications'],
         );
     }
 
@@ -134,9 +138,10 @@ class IndexBuilder
      * Phase 4: observers[*].dispatches from sites whose (class, method∈hook
      *          enum) matches an observer. Also populates jobs[*].dispatches
      *          from sites whose (class, method=handle) matches a job.
-     * Phase 5: events[*].dispatched_from and jobs[*].dispatched_from from
-     *          sites whose target matches a known event/job FQCN (kind
-     *          after disambiguation).
+     * Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
+     *          mailables[*].sent_from, notifications[*].notified_from
+     *          from sites whose target matches a known event/job/mailable/
+     *          notification FQCN (kind after disambiguation).
      *
      * Disambiguation runs before phases 3/4/5 so every consumer reads the
      * final kind.
@@ -167,6 +172,20 @@ class IndexBuilder
         foreach ($sections['jobs'] as $idx => $job) {
             if (isset($job['fqcn']) && is_string($job['fqcn'])) {
                 $jobIndex[$job['fqcn']] = $idx;
+            }
+        }
+
+        $mailableIndex = [];
+        foreach ($sections['mailables'] as $idx => $mailable) {
+            if (isset($mailable['fqcn']) && is_string($mailable['fqcn'])) {
+                $mailableIndex[$mailable['fqcn']] = $idx;
+            }
+        }
+
+        $notificationIndex = [];
+        foreach ($sections['notifications'] as $idx => $notification) {
+            if (isset($notification['fqcn']) && is_string($notification['fqcn'])) {
+                $notificationIndex[$notification['fqcn']] = $idx;
             }
         }
 
@@ -300,12 +319,13 @@ class IndexBuilder
             }
         }
 
-        // Phase 5: events[*].dispatched_from and jobs[*].dispatched_from.
+        // Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
+        // mailables[*].sent_from, notifications[*].notified_from.
         // Sites with classFqcn=null or method=null are skipped because the
         // shared dispatchSite shape requires a method string.
         foreach ($dispatchSites as $site) {
             $kind = $site['provisionalKind'] ?? null;
-            if ($kind !== 'event' && $kind !== 'job') {
+            if ($kind !== 'event' && $kind !== 'job' && $kind !== 'mailable' && $kind !== 'notification') {
                 continue;
             }
 
@@ -345,6 +365,22 @@ class IndexBuilder
                 $existing = $sections['jobs'][$jIdx]['dispatched_from'] ?? [];
                 $existing[] = $entry;
                 $sections['jobs'][$jIdx]['dispatched_from'] = $existing;
+            }
+
+            if ($kind === 'mailable' && isset($mailableIndex[$target])) {
+                $mIdx = $mailableIndex[$target];
+                /** @var array<int, array<string, mixed>> $existing */
+                $existing = $sections['mailables'][$mIdx]['sent_from'] ?? [];
+                $existing[] = $entry;
+                $sections['mailables'][$mIdx]['sent_from'] = $existing;
+            }
+
+            if ($kind === 'notification' && isset($notificationIndex[$target])) {
+                $nIdx = $notificationIndex[$target];
+                /** @var array<int, array<string, mixed>> $existing */
+                $existing = $sections['notifications'][$nIdx]['notified_from'] ?? [];
+                $existing[] = $entry;
+                $sections['notifications'][$nIdx]['notified_from'] = $existing;
             }
         }
 
@@ -403,6 +439,26 @@ class IndexBuilder
                     [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
             });
             $sections['jobs'][$idx]['dispatches'] = $dispatches;
+        }
+
+        foreach ($sections['mailables'] as $idx => $mailable) {
+            /** @var array<int, array<string, mixed>> $sentFrom */
+            $sentFrom = $mailable['sent_from'] ?? [];
+            usort($sentFrom, function (array $a, array $b): int {
+                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
+                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
+            });
+            $sections['mailables'][$idx]['sent_from'] = $sentFrom;
+        }
+
+        foreach ($sections['notifications'] as $idx => $notification) {
+            /** @var array<int, array<string, mixed>> $notifiedFrom */
+            $notifiedFrom = $notification['notified_from'] ?? [];
+            usort($notifiedFrom, function (array $a, array $b): int {
+                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
+                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
+            });
+            $sections['notifications'][$idx]['notified_from'] = $notifiedFrom;
         }
     }
 }

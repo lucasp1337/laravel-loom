@@ -17,6 +17,8 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
   "scheduled": array,             // task-scheduler entries
+  "mailables": array,             // discovered mailable classes
+  "notifications": array,         // discovered notification classes
   "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
 }
 ```
@@ -255,6 +257,61 @@ Cross-link is one-directional: `scheduled[*].target` with `kind: "job"` carries 
 
 See [docs/scanners/schedule.md](scanners/schedule.md) for behaviour details and known limitations.
 
+## `mailables[]`
+
+Mailable classes discovered by `MailableScanner`. One entry per FQCN.
+
+```
+{
+  "fqcn": string,
+  "file": string,
+  "line": integer,
+  "queued": boolean,              // transitively implements ShouldQueue (resolver-backed)
+  "queue_config": object | null,  // null when queued is false; $defs/queueConfig otherwise
+  "sent_from": array              // populated by cross-link; $defs/dispatchSite entries
+}
+```
+
+`$defs/mailable`. All fields are required. `queue_config` uses the same `$defs/queueConfig` six-field shape as `jobs[*].queue_config` (`connection`, `queue`, `delay`, `tries`, `timeout`, `backoff`, each a scalar literal from a class property or `null` when not declared).
+
+`sent_from[]` uses `$defs/dispatchSite` (same shape as `events[*].dispatched_from` and `jobs[*].dispatched_from`). It is populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` whose `target` matches the mailable's FQCN. Sorted by `(file, line)`.
+
+Entries are sorted by `fqcn` ascending.
+
+See [docs/scanners/mailables.md](scanners/mailables.md) for discovery paths and known limitations.
+
+## `notifications[]`
+
+Notification classes discovered by `NotificationScanner`. One entry per FQCN.
+
+```
+{
+  "fqcn": string,
+  "file": string,
+  "line": integer,
+  "queued": boolean,
+  "queue_config": object | null,  // null when queued is false; $defs/queueConfig otherwise
+  "channels": array<string>,      // from a statically resolvable via() literal; source order
+  "channels_dynamic": boolean,    // true only when via() exists but isn't statically resolvable
+  "notified_from": array          // populated by cross-link; $defs/dispatchSite entries
+}
+```
+
+`$defs/notification`. All fields are required.
+
+`channels[]` is extracted from a `via()` method whose body is a single `return [...];` of literal strings (stored lowercased: `"mail"`, `"database"`, `"slack"`, `"broadcast"`, `"vonage"`) and / or `Class::class` constants (stored as FQCN: `"Illuminate\\Notifications\\Channels\\SlackChannel"`). Items are emitted in **source order** — Laravel dispatches over them in declaration order, and preserving source order keeps the index honest to what the file says.
+
+`channels_dynamic` distinguishes:
+
+- `true` — `via()` exists but its body isn't the recognised single-return-literal-array shape (conditional return, property access, variable items, keyed entries, missing). Channels exist at runtime; static analysis can't see them. `channels: []`.
+- `false` — either `via()` resolved to a literal channel list (in which case `channels[]` is populated), or `via()` is not declared on the class at all (in which case `channels: []` — an intentional zero, not unknown). Method-level resolution across parents / traits is out of scope (per [ADR 0001 §3](adr/0001-class-hierarchy-resolver.md)), so an inherited `via()` reads as "no `via()` declared".
+
+`notified_from[]` uses `$defs/dispatchSite`. Populated by the cross-link pass from dispatch sites with finalized `kind === 'notification'` whose `target` matches the notification's FQCN. Sorted by `(file, line)`.
+
+Entries are sorted by `fqcn` ascending.
+
+See [docs/scanners/notifications.md](scanners/notifications.md) for discovery paths and known limitations.
+
 ## `unresolved_dispatches[]`
 
 ```
@@ -283,6 +340,8 @@ See [docs/scanners/schedule.md](scanners/schedule.md) for behaviour details and 
   "jobs": integer,
   "observers": integer,
   "scheduled": integer,
+  "mailables": integer,
+  "notifications": integer,
   "unresolved_dispatches": integer
 }
 ```

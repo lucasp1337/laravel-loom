@@ -11,6 +11,8 @@ use Lucasp\Loom\Scanners\DispatchScanner;
 use Lucasp\Loom\Scanners\EventScanner;
 use Lucasp\Loom\Scanners\JobsScanner;
 use Lucasp\Loom\Scanners\ListenerScanner;
+use Lucasp\Loom\Scanners\MailableScanner;
+use Lucasp\Loom\Scanners\NotificationScanner;
 use Lucasp\Loom\Scanners\ObserverScanner;
 use Lucasp\Loom\Scanners\ScheduleScanner;
 
@@ -30,6 +32,8 @@ class ScanCommand extends Command
         $builder->register(new ListenerScanner);
         $builder->register(new ObserverScanner);
         $builder->register(new JobsScanner);
+        $builder->register(new MailableScanner);
+        $builder->register(new NotificationScanner);
         $builder->register(new DispatchScanner);
         $builder->register(new ScheduleScanner);
 

@@ -8,7 +8,7 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ## Scope
 
-Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `unresolved_dispatches`. Planned for v1.0: mailables, notifications, routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
+Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `mailables`, `notifications`, `unresolved_dispatches`. Planned for v1.0: routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
 
 Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
 
@@ -45,6 +45,8 @@ src/
     ObserverScanner.php
     JobsScanner.php
     ScheduleScanner.php
+    MailableScanner.php
+    NotificationScanner.php
     DispatchScanner.php
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
@@ -77,6 +79,7 @@ These have caused regressions. Don't rediscover them.
 - `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
 - `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
 - `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
+- `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; cross-link phase 5 joins them.
 - `closure_listeners[*].dispatches` — reserved; currently always `[]`. Line-span-based attribution from DispatchScanner is a planned follow-up.
 - `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
 

@@ -21,6 +21,8 @@ final class Index
      * @param  array<int, array<string, mixed>>  $unresolvedDispatches
      * @param  array<int, array<string, mixed>>  $closureListeners
      * @param  array<int, array<string, mixed>>  $scheduled
+     * @param  array<int, array<string, mixed>>  $mailables
+     * @param  array<int, array<string, mixed>>  $notifications
      */
     public function __construct(
         public readonly string $loomVersion,
@@ -34,6 +36,8 @@ final class Index
         public readonly array $unresolvedDispatches = [],
         public readonly array $closureListeners = [],
         public readonly array $scheduled = [],
+        public readonly array $mailables = [],
+        public readonly array $notifications = [],
     ) {
     }
 
@@ -54,6 +58,8 @@ final class Index
                 'unresolved_dispatches' => count($this->unresolvedDispatches),
                 'closure_listeners' => count($this->closureListeners),
                 'scheduled' => count($this->scheduled),
+                'mailables' => count($this->mailables),
+                'notifications' => count($this->notifications),
             ],
             'events' => $this->events,
             'model_events' => $this->modelEvents,
@@ -63,6 +69,8 @@ final class Index
             'unresolved_dispatches' => $this->unresolvedDispatches,
             'closure_listeners' => $this->closureListeners,
             'scheduled' => $this->scheduled,
+            'mailables' => $this->mailables,
+            'notifications' => $this->notifications,
         ];
     }
 }

@@ -28,6 +28,39 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     private const BUS_FACADE = 'Illuminate\\Support\\Facades\\Bus';
 
+    private const MAIL_FACADE = 'Illuminate\\Support\\Facades\\Mail';
+
+    private const NOTIFICATION_FACADE = 'Illuminate\\Support\\Facades\\Notification';
+
+    /**
+     * Methods that, when called statically on the Mail facade, take the
+     * mailable as their first argument.
+     */
+    private const MAIL_OUTERMOST_METHODS_ARG0 = ['send', 'queue'];
+
+    /**
+     * Methods that, when called statically on the Mail facade, take the
+     * mailable as their second argument (delay is index 0).
+     */
+    private const MAIL_OUTERMOST_METHODS_ARG1 = ['later'];
+
+    /**
+     * Mail facade root methods that initiate a chain (e.g. `Mail::to(...)`).
+     */
+    private const MAIL_CHAIN_ROOT_METHODS = ['to', 'cc', 'bcc', 'locale', 'mailer'];
+
+    /**
+     * Notification facade methods that take recipients as arg 0 and the
+     * notification as arg 1.
+     */
+    private const NOTIFICATION_FACADE_METHODS = ['send', 'sendNow'];
+
+    /**
+     * Notification methods (instance form) that take the notification as
+     * their first argument.
+     */
+    private const NOTIFY_METHODS = ['notify', 'notifyNow'];
+
     /** @var array<int, array{class: ?string, method: ?string}> */
     private array $classStack = [];
 
@@ -38,8 +71,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      *     classFqcn: ?string,
      *     method: ?string,
      *     target: string,
-     *     form: 'helper'|'facade'|'job_helper'|'dispatchable',
-     *     provisionalKind: 'event'|'job'|'ambiguous',
+     *     form: 'helper'|'facade'|'job_helper'|'dispatchable'|'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain',
+     *     provisionalKind: 'event'|'job'|'ambiguous'|'mailable'|'notification',
      *     file: ?string,
      *     line: int,
      *     confidence: 'high'
@@ -104,6 +137,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $this->handleFuncCall($node);
         } elseif ($node instanceof Node\Expr\StaticCall) {
             $this->handleStaticCall($node);
+        } elseif ($node instanceof Node\Expr\MethodCall) {
+            $this->handleMethodCall($node);
         }
 
         if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
@@ -159,12 +194,45 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         $methodName = $node->name->toString();
+        $className = $node->class->toString();
+
+        // Mail facade — static-only forms: Mail::send(...), Mail::queue(...),
+        // Mail::later($delay, ...). Chain-rooted forms (`Mail::to(...)->send`)
+        // are handled in handleMethodCall.
+        if ($className === self::MAIL_FACADE || $className === 'Mail') {
+            if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)) {
+                $this->recordMailableSiteFromArg($node, $node->args, 0, 'mail_facade', 'Mail::'.$methodName);
+
+                return;
+            }
+            if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true)) {
+                $this->recordMailableSiteFromArg($node, $node->args, 1, 'mail_facade', 'Mail::'.$methodName);
+
+                return;
+            }
+
+            // Other Mail facade methods (to/cc/etc.) are chain roots — they
+            // don't carry a mailable target themselves.
+            return;
+        }
+
+        // Notification facade — Notification::send($recipients, new X),
+        // Notification::sendNow($recipients, new X).
+        if ($className === self::NOTIFICATION_FACADE || $className === 'Notification') {
+            if (in_array($methodName, self::NOTIFICATION_FACADE_METHODS, true)) {
+                $this->recordNotificationSiteFromArg($node, $node->args, 1, 'notification_facade', 'Notification::'.$methodName);
+
+                return;
+            }
+
+            // Notification::route(...) is a chain root — no target by itself.
+            return;
+        }
+
         if ($methodName !== 'dispatch') {
             // dispatchSync / dispatchNow intentionally skipped.
             return;
         }
-
-        $className = $node->class->toString();
 
         if ($className === self::EVENT_FACADE || $className === 'Event') {
             $this->recordHelperOrFacade($node, $node->args, 'facade', 'event', 'Event::dispatch');
@@ -192,6 +260,188 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             'file' => null,
             'line' => $node->getStartLine(),
             'confidence' => 'high',
+        ];
+    }
+
+    /**
+     * Handle MethodCall nodes for:
+     *  - $any->notify(new X) / $any->notifyNow(new X)
+     *  - Mail::to(...)->send(new X) / ->queue(new X) / ->later($delay, new X)
+     *    (and chained through cc/bcc/locale/mailer)
+     *  - Notification::route(...)->notify(new X)
+     *
+     * We act only when the current node is the outermost call of the
+     * relevant shape — i.e. the chain-root walk leads to a recognised
+     * Mail / Notification facade static call. For instance `notify` we
+     * trust the method name and act regardless of receiver shape.
+     */
+    private function handleMethodCall(Node\Expr\MethodCall $node): void
+    {
+        if (! $node->name instanceof Node\Identifier) {
+            return;
+        }
+        $methodName = $node->name->toString();
+
+        // Mail chain: ->send / ->queue / ->later whose receiver chain roots
+        // at a Mail facade static call (Mail::to / Mail::cc / Mail::bcc /
+        // Mail::locale / Mail::mailer).
+        if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)
+            || in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true)
+        ) {
+            if ($this->isRootedAtMailFacadeChainRoot($node->var)) {
+                $argIndex = in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true) ? 1 : 0;
+                $this->recordMailableSiteFromArg($node, $node->args, $argIndex, 'mail_chain', 'Mail::...->'.$methodName);
+
+                return;
+            }
+        }
+
+        if (in_array($methodName, self::NOTIFY_METHODS, true)) {
+            // Notification::route(...)->notify(new X) and longer route chains
+            // — opaque-receiver notify is accepted regardless, but we want
+            // the `notification_chain` form label when the root is the
+            // Notification facade.
+            $form = $this->isRootedAtNotificationFacadeChainRoot($node->var)
+                ? 'notification_chain'
+                : 'notify_method';
+
+            $this->recordNotificationSiteFromArg($node, $node->args, 0, $form, '->'.$methodName);
+        }
+    }
+
+    /**
+     * Walk down `->var` of a MethodCall chain. Returns true if the deepest
+     * receiver is a StaticCall on the Mail facade whose method is one of
+     * the chain-root methods (to/cc/bcc/locale/mailer).
+     */
+    private function isRootedAtMailFacadeChainRoot(Node\Expr $receiver): bool
+    {
+        $current = $receiver;
+        while ($current instanceof Node\Expr\MethodCall) {
+            $current = $current->var;
+        }
+
+        if (! $current instanceof Node\Expr\StaticCall) {
+            return false;
+        }
+        if (! $current->class instanceof Node\Name) {
+            return false;
+        }
+        if (! $current->name instanceof Node\Identifier) {
+            return false;
+        }
+
+        $className = $current->class->toString();
+        if ($className !== self::MAIL_FACADE && $className !== 'Mail') {
+            return false;
+        }
+
+        return in_array($current->name->toString(), self::MAIL_CHAIN_ROOT_METHODS, true);
+    }
+
+    /**
+     * Walk down `->var` of a MethodCall chain. Returns true if the deepest
+     * receiver is a StaticCall on the Notification facade with method
+     * `route` (possibly preceded by further `->route(...)` links).
+     */
+    private function isRootedAtNotificationFacadeChainRoot(Node\Expr $receiver): bool
+    {
+        $current = $receiver;
+        while ($current instanceof Node\Expr\MethodCall) {
+            $current = $current->var;
+        }
+
+        if (! $current instanceof Node\Expr\StaticCall) {
+            return false;
+        }
+        if (! $current->class instanceof Node\Name) {
+            return false;
+        }
+        if (! $current->name instanceof Node\Identifier) {
+            return false;
+        }
+
+        $className = $current->class->toString();
+        if ($className !== self::NOTIFICATION_FACADE && $className !== 'Notification') {
+            return false;
+        }
+
+        return $current->name->toString() === 'route';
+    }
+
+    /**
+     * Shared emission helper for mailable dispatch shapes.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  'mail_facade'|'mail_chain'  $form
+     */
+    private function recordMailableSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $callLabel): void
+    {
+        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, 'mailable', $callLabel);
+    }
+
+    /**
+     * Shared emission helper for notification dispatch shapes.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  'notify_method'|'notification_facade'|'notification_chain'  $form
+     */
+    private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $callLabel): void
+    {
+        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, 'notification', $callLabel);
+    }
+
+    /**
+     * Pull the target FQCN from $args[$argIndex] and emit either a resolved
+     * site or an unresolved entry. Mirrors recordHelperOrFacade but
+     * parameterised on the argument index and the (form, kind) labels.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain'  $form
+     * @param  'mailable'|'notification'  $kind
+     */
+    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $kind, string $callLabel): void
+    {
+        if (! isset($args[$argIndex])) {
+            return;
+        }
+        $arg = $args[$argIndex];
+        if (! $arg instanceof Node\Arg) {
+            return;
+        }
+
+        $resolved = $this->resolveStaticClass($arg->value);
+
+        if ($resolved !== null) {
+            if ($this->shouldSkipEmission()) {
+                return;
+            }
+            $this->sites[] = [
+                'classFqcn' => $this->currentClassFqcn(),
+                'method' => $this->currentMethod(),
+                'target' => $resolved,
+                'form' => $form,
+                'provisionalKind' => $kind,
+                'file' => null,
+                'line' => $callNode->getStartLine(),
+                'confidence' => 'high',
+            ];
+
+            return;
+        }
+
+        if ($this->shouldSkipEmission()) {
+            return;
+        }
+
+        $reason = $this->classifyUnresolvedReason($arg->value);
+        $expression = $this->renderExpression($callNode, $callLabel);
+
+        $this->unresolved[] = [
+            'file' => null,
+            'line' => $callNode->getStartLine(),
+            'expression' => $expression,
+            'reason' => $reason,
         ];
     }
 
@@ -406,8 +656,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      *     classFqcn: ?string,
      *     method: ?string,
      *     target: string,
-     *     form: 'helper'|'facade'|'job_helper'|'dispatchable',
-     *     provisionalKind: 'event'|'job'|'ambiguous',
+     *     form: 'helper'|'facade'|'job_helper'|'dispatchable'|'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain',
+     *     provisionalKind: 'event'|'job'|'ambiguous'|'mailable'|'notification',
      *     file: ?string,
      *     line: int,
      *     confidence: 'high'

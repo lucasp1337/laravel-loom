@@ -16,7 +16,9 @@
         "jobs",
         "unresolved_dispatches",
         "closure_listeners",
-        "scheduled"
+        "scheduled",
+        "mailables",
+        "notifications"
     ],
     "additionalProperties": false,
     "properties": {
@@ -25,7 +27,7 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled", "mailables", "notifications"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -34,7 +36,9 @@
                 "jobs": { "type": "integer", "minimum": 0 },
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
                 "closure_listeners": { "type": "integer", "minimum": 0 },
-                "scheduled": { "type": "integer", "minimum": 0 }
+                "scheduled": { "type": "integer", "minimum": 0 },
+                "mailables": { "type": "integer", "minimum": 0 },
+                "notifications": { "type": "integer", "minimum": 0 }
             }
         },
         "events": {
@@ -68,6 +72,14 @@
         "scheduled": {
             "type": "array",
             "items": { "$ref": "#/$defs/scheduleEntry" }
+        },
+        "mailables": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/mailable" }
+        },
+        "notifications": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/notification" }
         }
     },
     "$defs": {
@@ -278,6 +290,53 @@
                 },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 }
+            }
+        },
+        "mailable": {
+            "type": "object",
+            "required": ["fqcn", "file", "line", "queued", "queue_config", "sent_from"],
+            "additionalProperties": false,
+            "properties": {
+                "fqcn": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "queued": { "type": "boolean" },
+                "queue_config": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/queueConfig" }
+                    ]
+                },
+                "sent_from": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatchSite" }
+                }
+            }
+        },
+        "notification": {
+            "type": "object",
+            "required": ["fqcn", "file", "line", "queued", "queue_config", "notified_from", "channels", "channels_dynamic"],
+            "additionalProperties": false,
+            "properties": {
+                "fqcn": { "type": "string" },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 },
+                "queued": { "type": "boolean" },
+                "queue_config": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/queueConfig" }
+                    ]
+                },
+                "notified_from": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatchSite" }
+                },
+                "channels": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "channels_dynamic": { "type": "boolean" }
             }
         },
         "unresolvedDispatch": {
