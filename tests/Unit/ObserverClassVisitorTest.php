@@ -40,7 +40,7 @@ it('extracts only canonical hook methods from a mixed class', function () {
     $visitor = runObserverClassVisitor($source);
 
     expect($visitor->getClasses())->toHaveCount(1);
-    expect($visitor->getClasses()[0]['fqcn'])->toBe('App\\Observers\\UserObserver');
+    expect($visitor->getClasses()[0]->fqcn)->toBe('App\\Observers\\UserObserver');
     expect($visitor->getHooks('App\\Observers\\UserObserver'))->toBe(['creating', 'updated']);
 });
 

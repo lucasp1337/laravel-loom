@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ClosurePairRecord;
+use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects (event, listener) pairs from Event::listen(...) static calls.
- *
- * Only matches the `Illuminate\Support\Facades\Event` facade form. Container
- * forms (`$this->app['events']->listen(...)`) are a documented v0.1 gap.
+ * Collects (event, listener) pairs from Event::listen(...) calls.
+ * Container forms (`$this->app['events']->listen(...)`) are not matched.
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
-
-    /** @var array<int, array{event: string, listener: string, method: string}> */
+    /** @var list<ListenerPair> */
     private array $pairs = [];
 
-    /** @var array<int, array{event: string, line: int, registration: string}> */
+    /** @var list<ClosurePairRecord> */
     private array $closurePairs = [];
 
     /**
@@ -36,8 +36,6 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // Read on leaveNode so NameResolver has rewritten the Name nodes inside
-        // each argument's ClassConstFetch expressions to their FQCNs.
         if (! $node instanceof Node\Expr\StaticCall) {
             return null;
         }
@@ -45,7 +43,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if (! $node->class instanceof Node\Name) {
             return null;
         }
-        if ($node->class->toString() !== self::EVENT_FACADE) {
+        if ($node->class->toString() !== Facades::EVENT->value) {
             return null;
         }
         if (! $node->name instanceof Node\Identifier) {
@@ -73,18 +71,16 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if ($second->value instanceof Node\Expr\Closure
             || $second->value instanceof Node\Expr\ArrowFunction
         ) {
-            $this->closurePairs[] = [
-                'event' => $event,
-                'line' => $second->value->getStartLine(),
-                'registration' => 'event_listen_call',
-            ];
+            $this->closurePairs[] = new ClosurePairRecord(
+                event: $event,
+                line: $second->value->getStartLine(),
+                registration: 'event_listen_call',
+            );
 
             return null;
         }
 
-        // Class-only listeners under string events (e.g. 'eloquent.*') belong
-        // to ObserverScanner territory; only class-keyed events emit into
-        // listeners[].
+        // String events (e.g. 'eloquent.*') belong to ObserverScanner.
         if (! $first->value instanceof Node\Expr\ClassConstFetch) {
             return null;
         }
@@ -94,18 +90,18 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->pairs[] = [
-            'event' => $event,
-            'listener' => $resolved['listener'],
-            'method' => $resolved['method'],
-        ];
+        $this->pairs[] = new ListenerPair(
+            event: $event,
+            listener: $resolved['listener'],
+            method: $resolved['method'],
+        );
 
         return null;
     }
 
     private function eventFromValue(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -122,13 +118,13 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = $this->classConstFqcn($value);
+        $direct = AstHelpers::classConstFqcn($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
         if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
+            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
             if ($listener === null) {
                 return null;
             }
@@ -141,7 +137,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         }
 
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
+            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
             if ($listener !== null) {
                 return ['listener' => $listener, 'method' => 'handle'];
             }
@@ -150,35 +146,13 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         return null;
     }
 
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
-    }
-
-    /**
-     * @return array<int, array{event: string, listener: string, method: string}>
-     */
+    /** @return list<ListenerPair> */
     public function getPairs(): array
     {
         return $this->pairs;
     }
 
-    /**
-     * @return array<int, array{event: string, line: int, registration: string}>
-     */
+    /** @return list<ClosurePairRecord> */
     public function getClosurePairs(): array
     {
         return $this->closurePairs;

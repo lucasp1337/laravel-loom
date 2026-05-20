@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ModelEventEntry;
+use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Scanners\ObserverScanner;
 
 function observerFixturePath(): string
@@ -10,12 +12,12 @@ function observerFixturePath(): string
 }
 
 /**
- * @param  array<int, array<string, mixed>>  $entries
+ * @param  list<ObserverEntry>  $entries
  */
-function observerByPair(array $entries, string $fqcn, string $observes): ?array
+function observerByPair(array $entries, string $fqcn, string $observes): ?ObserverEntry
 {
     foreach ($entries as $entry) {
-        if (($entry['fqcn'] ?? null) === $fqcn && ($entry['observes'] ?? null) === $observes) {
+        if ($entry->fqcn === $fqcn && $entry->observes === $observes) {
             return $entry;
         }
     }
@@ -24,12 +26,12 @@ function observerByPair(array $entries, string $fqcn, string $observes): ?array
 }
 
 /**
- * @param  array<int, array<string, mixed>>  $entries
+ * @param  list<ModelEventEntry>  $entries
  */
-function modelEventById(array $entries, string $id): ?array
+function modelEventById(array $entries, string $id): ?ModelEventEntry
 {
     foreach ($entries as $entry) {
-        if (($entry['id'] ?? null) === $id) {
+        if ($entry->id === $id) {
             return $entry;
         }
     }
@@ -60,7 +62,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
         expect($observers)->toHaveCount(4);
 
         $pairs = array_map(
-            fn (array $e): array => [$e['fqcn'], $e['observes']],
+            fn (ObserverEntry $e): array => [$e->fqcn, $e->observes],
             $observers,
         );
 
@@ -73,7 +75,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
     it('does not include InvoiceHandler in observers (path C only contributes to model_events)', function () {
         $observers = (new ObserverScanner)->scan(observerFixturePath())['observers'];
 
-        $fqcns = array_column($observers, 'fqcn');
+        $fqcns = array_map(fn (ObserverEntry $e): string => $e->fqcn, $observers);
         expect($fqcns)->not->toContain('App\\Handlers\\InvoiceHandler');
     });
 
@@ -83,11 +85,10 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\UserObserver', 'App\\Models\\User');
 
         expect($entry)->not->toBeNull();
-        expect($entry['registration'])->toBe('attribute');
-        expect($entry['hooks'])->toBe(['creating', 'deleted', 'updated']);
-        expect($entry['file'])->toBe('app/Observers/UserObserver.php');
-        expect($entry['line'])->toBe(7);
-        expect($entry['dispatches'])->toBe([]);
+        expect($entry->registration)->toBe('attribute');
+        expect($entry->hooks)->toBe(['creating', 'deleted', 'updated']);
+        expect($entry->file)->toBe('app/Observers/UserObserver.php');
+        expect($entry->line)->toBe(7);
     });
 
     it('records the PostObserver registration as observe_call (visibility-agnostic hooks)', function () {
@@ -96,11 +97,10 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\PostObserver', 'App\\Models\\Post');
 
         expect($entry)->not->toBeNull();
-        expect($entry['registration'])->toBe('observe_call');
-        // private creating() must still be counted.
-        expect($entry['hooks'])->toBe(['creating', 'saved']);
-        expect($entry['file'])->toBe('app/Observers/PostObserver.php');
-        expect($entry['line'])->toBe(7);
+        expect($entry->registration)->toBe('observe_call');
+        expect($entry->hooks)->toBe(['creating', 'saved']);
+        expect($entry->file)->toBe('app/Observers/PostObserver.php');
+        expect($entry->line)->toBe(7);
     });
 
     it('records the CommentObserver as observe_call', function () {
@@ -109,10 +109,10 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\CommentObserver', 'App\\Models\\Comment');
 
         expect($entry)->not->toBeNull();
-        expect($entry['registration'])->toBe('observe_call');
-        expect($entry['hooks'])->toBe(['deleting', 'restored']);
-        expect($entry['file'])->toBe('app/Observers/CommentObserver.php');
-        expect($entry['line'])->toBe(7);
+        expect($entry->registration)->toBe('observe_call');
+        expect($entry->hooks)->toBe(['deleting', 'restored']);
+        expect($entry->file)->toBe('app/Observers/CommentObserver.php');
+        expect($entry->line)->toBe(7);
     });
 
     it('prefers attribute over observe_call for the DualObserver/Widget pair', function () {
@@ -121,17 +121,17 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\DualObserver', 'App\\Models\\Widget');
 
         expect($entry)->not->toBeNull();
-        expect($entry['registration'])->toBe('attribute');
-        expect($entry['hooks'])->toBe(['created', 'updated']);
-        expect($entry['file'])->toBe('app/Observers/DualObserver.php');
-        expect($entry['line'])->toBe(7);
+        expect($entry->registration)->toBe('attribute');
+        expect($entry->hooks)->toBe(['created', 'updated']);
+        expect($entry->file)->toBe('app/Observers/DualObserver.php');
+        expect($entry->line)->toBe(7);
     });
 
     it('sorts observer entries by fqcn then observes ascending', function () {
         $observers = (new ObserverScanner)->scan(observerFixturePath())['observers'];
 
         $keys = array_map(
-            fn (array $e): string => $e['fqcn'].'|'.$e['observes'],
+            fn (ObserverEntry $e): string => $e->fqcn.'|'.$e->observes,
             $observers,
         );
 
@@ -145,17 +145,8 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $observers = (new ObserverScanner)->scan(observerFixturePath())['observers'];
 
         foreach ($observers as $entry) {
-            expect($entry['file'])->not->toContain('\\');
-            expect($entry['file'])->toStartWith('app/Observers/');
-        }
-    });
-
-    it('emits dispatches: [] on every observer entry', function () {
-        $observers = (new ObserverScanner)->scan(observerFixturePath())['observers'];
-
-        expect($observers)->not->toBe([]);
-        foreach ($observers as $entry) {
-            expect($entry['dispatches'])->toBe([]);
+            expect($entry->file)->not->toContain('\\');
+            expect($entry->file)->toStartWith('app/Observers/');
         }
     });
 });
@@ -164,11 +155,6 @@ describe('ObserverScanner model_events output', function () {
     it('emits exactly the expected number of model_event entries', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
-        // User: 3 (creating, updated, deleted)
-        // Post: 2 (creating, saved)
-        // Comment: 2 (deleting, restored)
-        // Widget: 2 (created, updated)
-        // Product: 1 (deleted, path C only)
         expect($modelEvents)->toHaveCount(10);
     });
 
@@ -176,7 +162,7 @@ describe('ObserverScanner model_events output', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
         foreach ($modelEvents as $entry) {
-            expect($entry['id'])->toMatch('/^eloquent\.[a-zA-Z]+: App\\\\Models\\\\/');
+            expect($entry->id)->toMatch('/^eloquent\.[a-zA-Z]+: App\\\\Models\\\\/');
         }
     });
 
@@ -190,15 +176,7 @@ describe('ObserverScanner model_events output', function () {
             'booting', 'booted',
         ];
         foreach ($modelEvents as $entry) {
-            expect($valid)->toContain($entry['event']);
-        }
-    });
-
-    it('emits kind=model_event for every entry', function () {
-        $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
-
-        foreach ($modelEvents as $entry) {
-            expect($entry['kind'])->toBe('model_event');
+            expect($valid)->toContain($entry->event);
         }
     });
 
@@ -208,9 +186,9 @@ describe('ObserverScanner model_events output', function () {
         $entry = modelEventById($modelEvents, 'eloquent.deleted: App\\Models\\Product');
 
         expect($entry)->not->toBeNull();
-        expect($entry['model'])->toBe('App\\Models\\Product');
-        expect($entry['event'])->toBe('deleted');
-        expect($entry['handled_by'])->toBe(['App\\Handlers\\InvoiceHandler::deleted']);
+        expect($entry->model)->toBe('App\\Models\\Product');
+        expect($entry->event)->toBe('deleted');
+        expect($entry->handledBy)->toBe(['App\\Handlers\\InvoiceHandler::deleted']);
     });
 
     it('dedupes (User, creating) from observer hook + path C listen string', function () {
@@ -219,25 +197,23 @@ describe('ObserverScanner model_events output', function () {
         $entry = modelEventById($modelEvents, 'eloquent.creating: App\\Models\\User');
 
         expect($entry)->not->toBeNull();
-        // Should appear once even though it's covered by both UserObserver's
-        // hook and the Event::listen('eloquent.creating: User', ...) string.
-        expect($entry['handled_by'])->toBe(['App\\Observers\\UserObserver::creating']);
+        expect($entry->handledBy)->toBe(['App\\Observers\\UserObserver::creating']);
     });
 
     it('sorts handled_by entries inside each model_event', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
         foreach ($modelEvents as $entry) {
-            $sorted = $entry['handled_by'];
+            $sorted = $entry->handledBy;
             sort($sorted, SORT_STRING);
-            expect($entry['handled_by'])->toBe($sorted);
+            expect($entry->handledBy)->toBe($sorted);
         }
     });
 
     it('sorts the model_events list by id ascending', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
-        $ids = array_column($modelEvents, 'id');
+        $ids = array_map(fn (ModelEventEntry $e): string => $e->id, $modelEvents);
         $sorted = $ids;
         sort($sorted, SORT_STRING);
         expect($ids)->toBe($sorted);

@@ -4,26 +4,14 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ScheduleChainEntry;
+use Lucasp\Loom\Dto\ScheduleChainLink;
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Captures Laravel task-scheduler chains.
- *
- * A chain is recognised in three shapes (the visitor handles all three):
- *
- *   1. Variable-rooted:   `$schedule->command(...)->daily()`
- *   2. Facade-rooted:     `Schedule::command(...)->daily()` where Schedule
- *      resolves to `Illuminate\Support\Facades\Schedule`.
- *   3. Aliased facade:    bare `Schedule::command(...)` with the Schedule
- *      facade imported (NameResolver attaches the FQCN).
- *
- * Detection happens on `leaveNode` for outermost `Expr\MethodCall` /
- * `Expr\StaticCall` nodes — by walking down `->var` to find the chain root
- * and skipping nodes whose parent is also part of the same chain we emit
- * exactly one entry per chain.
- *
- * See docs/scanners/schedule.md and docs/adr/0002-schedule-scanner.md.
+ * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
  */
 final class ScheduleChainVisitor extends NodeVisitorAbstract
 {
@@ -33,32 +21,16 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
 
     public const MODE_FACADE = 'facade';
 
-    private const SCHEDULE_FACADE = 'Illuminate\\Support\\Facades\\Schedule';
-
     /** @var array<int, string> */
     private const ROOT_METHODS = ['command', 'job', 'call', 'exec'];
 
-    /**
-     * Stack of parent nodes for the node currently being processed in
-     * `leaveNode`. Used to detect whether the current MethodCall is the
-     * outermost call in its chain.
-     *
-     * @var array<int, Node>
-     */
+    /** @var array<int, Node> */
     private array $parentStack = [];
 
     /**
-     * Discovery mode. Selects the trusted-scope shape:
-     *
-     * - `MODE_KERNEL`: only emit chains inside a `schedule(Schedule $schedule)`
-     *   method body — narrows file-level walks of `app/Console/Kernel.php`
-     *   so unrelated builder DSLs in helper methods don't leak in.
-     * - `MODE_BOOTSTRAP`: only emit chains inside a closure passed to
-     *   `withSchedule(...)` — narrows file-level walks of `bootstrap/app.php`.
-     * - `MODE_FACADE`: only emit chains whose root receiver is the
-     *   `Schedule` facade. Variable-rooted chains are ignored. Used by the
-     *   `app/`-wide facade pass to avoid false positives on arbitrary
-     *   builder DSLs.
+     * MODE_KERNEL: emit only inside `schedule(Schedule $schedule)`.
+     * MODE_BOOTSTRAP: emit only inside a `withSchedule(...)` closure.
+     * MODE_FACADE: only chains rooted at the Schedule facade.
      */
     private string $mode;
 
@@ -67,22 +39,9 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         $this->mode = $mode;
     }
 
-    /**
-     * @var array<int, array{
-     *     kind: 'command'|'job'|'closure'|'exec',
-     *     root_method: string,
-     *     root_args: array<int, Node\Arg|Node\VariadicPlaceholder>,
-     *     chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>,
-     *     line: int
-     * }>
-     */
+    /** @var list<ScheduleChainEntry> */
     private array $entries = [];
 
-    /**
-     * Set to true while traversing inside a chain we've already emitted from
-     * the outermost call. We don't actually skip subtree traversal (parent
-     * tracking handles emission), but parent tracking does the work.
-     */
     public function beforeTraverse(array $nodes): ?array
     {
         $this->parentStack = [];
@@ -106,8 +65,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        // Only emit at the outermost call. If the parent is a MethodCall
-        // whose `->var` is the current node, we're inside a longer chain.
+        // Emit only at the outermost call in a chain.
         $parent = $this->currentParent();
         if ($parent instanceof Node\Expr\MethodCall && $parent->var === $node) {
             return null;
@@ -118,8 +76,6 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        // The root link is the first (deepest) link. It must be a recognised
-        // root method and a recognised receiver.
         $root = $links[0];
         if (! in_array($root['method'], self::ROOT_METHODS, true)) {
             return null;
@@ -128,39 +84,30 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        // Trusted-scope check: kernel/bootstrap modes only emit chains
-        // inside the relevant scope (the schedule() method body or the
-        // withSchedule() closure body). Facade mode trusts the receiver
-        // shape and emits anywhere.
         if (! $this->inTrustedScope()) {
             return null;
         }
 
         $kind = $this->kindFromRootMethod($root['method']);
 
-        // Strip the receiver field for the public chain shape.
         $chain = [];
         foreach ($links as $link) {
-            $chain[] = ['method' => $link['method'], 'args' => $link['args']];
+            $chain[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
         }
 
-        $this->entries[] = [
-            'kind' => $kind,
-            'root_method' => $root['method'],
-            'root_args' => $root['args'],
-            'chain' => $chain,
-            'line' => $root['line'],
-        ];
+        $this->entries[] = new ScheduleChainEntry(
+            kind: $kind,
+            rootMethod: $root['method'],
+            rootArgs: $root['args'],
+            chain: $chain,
+            line: $root['line'],
+        );
 
         return null;
     }
 
     /**
-     * Walk down `->var` (for MethodCall) collecting `(method, args, receiver)`
-     * for each link. Returns null if the chain is malformed (e.g. a Name
-     * call that isn't a method/static call on a recognised root).
-     *
-     * The returned list is ordered root-first (deepest call → outermost call).
+     * Returns links root-first, or null if malformed.
      *
      * @return list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
      */
@@ -169,8 +116,6 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         $links = [];
         $current = $outer;
 
-        // Walk outermost → innermost, prepending each link so the final list
-        // is root-first.
         while (true) {
             if ($current instanceof Node\Expr\MethodCall) {
                 if (! $current->name instanceof Node\Identifier) {
@@ -204,52 +149,34 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
                 break;
             }
 
-            // Reached a non-call receiver (Variable, etc.) — done walking.
+            // Non-call receiver (Variable, etc.) — done.
             break;
         }
 
         return $links === [] ? null : $links;
     }
 
-    /**
-     * A chain root receiver is "schedule-shaped" when it is either:
-     *   - A Variable (any name — chains live inside a closure or kernel
-     *     method whose `$schedule` parameter we trust by convention,
-     *     gated further by the trusted-scope check), or
-     *   - A Name resolving to the Schedule facade.
-     */
     private function isScheduleReceiver(Node $receiver): bool
     {
         if ($receiver instanceof Node\Expr\Variable) {
-            // In facade mode the only trust anchor is the receiver itself;
-            // variable-rooted chains are ignored. Kernel/bootstrap modes
-            // accept variables but the trusted-scope check still gates
-            // emission.
+            // Facade mode ignores variable receivers; kernel/bootstrap modes
+            // still gate on the trusted-scope check below.
             return $this->mode !== self::MODE_FACADE;
         }
 
         if ($receiver instanceof Node\Name) {
             $resolved = $receiver->getAttribute('resolvedName');
             if ($resolved instanceof Node\Name) {
-                return $resolved->toString() === self::SCHEDULE_FACADE;
+                return $resolved->toString() === Facades::SCHEDULE->value;
             }
 
-            // Fallback — should not happen post-NameResolver, but if a file
-            // is parsed outside a namespace and the name is already FQ, match
-            // directly.
-            return $receiver->toString() === self::SCHEDULE_FACADE
-                || $receiver->toString() === 'Schedule';
+            // Fallback when NameResolver didn't attach a resolved name.
+            return Facades::SCHEDULE->matches($receiver->toString());
         }
 
         return false;
     }
 
-    /**
-     * For kernel/bootstrap mode, the parent stack must contain the relevant
-     * ancestor scope (a `schedule(Schedule $schedule)` method body, or a
-     * closure passed as the first arg to a `withSchedule(...)` call).
-     * Facade mode trusts the receiver shape and skips this check.
-     */
     private function inTrustedScope(): bool
     {
         if ($this->mode === self::MODE_FACADE) {
@@ -266,8 +193,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return false;
         }
 
-        // MODE_BOOTSTRAP — look for a closure/arrow-function whose immediate
-        // parent on the stack is an Arg whose parent is a withSchedule call.
+        // MODE_BOOTSTRAP: closure/arrow-function passed as an Arg to withSchedule(...).
         for ($i = count($this->parentStack) - 1; $i >= 2; $i--) {
             $node = $this->parentStack[$i];
             if (! $node instanceof Node\Expr\Closure && ! $node instanceof Node\Expr\ArrowFunction) {
@@ -293,11 +219,8 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Match `function schedule(Schedule $schedule)` — method named `schedule`
-     * whose first parameter's type is `Schedule` (or any FQ name ending in
-     * `Schedule`). Loose on the leading namespace so both the imported
-     * (`use Illuminate\Console\Scheduling\Schedule`) and fully-qualified
-     * forms match.
+     * Matches `function schedule(Schedule $schedule)` — first param type
+     * must end in `Schedule` (loose so both imported and FQ forms match).
      */
     private function isScheduleMethod(Node $node): bool
     {
@@ -343,15 +266,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         return $this->parentStack[count($this->parentStack) - 1];
     }
 
-    /**
-     * @return array<int, array{
-     *     kind: 'command'|'job'|'closure'|'exec',
-     *     root_method: string,
-     *     root_args: array<int, Node\Arg|Node\VariadicPlaceholder>,
-     *     chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>,
-     *     line: int
-     * }>
-     */
+    /** @return list<ScheduleChainEntry> */
     public function getEntries(): array
     {
         return $this->entries;

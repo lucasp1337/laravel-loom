@@ -4,24 +4,21 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\DispatchSiteRecord;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Walks the entire app/ tree collecting every statically recognisable
- * dispatch site (event/job/dispatchable) and emits both the public
- * `unresolved_dispatches` section and the internal `_dispatch_sites`
- * section consumed by IndexBuilder's cross-link pass.
- *
- * See docs/scanners/dispatches.md for the full design.
+ * Collects dispatch sites under app/ and emits `unresolved_dispatches`
+ * plus the internal `_dispatch_sites` section.
  */
 final class DispatchScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private AstWalker $walker;
 
     public function __construct(?AstWalker $walker = null)
@@ -30,7 +27,7 @@ final class DispatchScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{unresolved_dispatches: list<UnresolvedDispatchEntry>, _dispatch_sites: list<DispatchSiteRecord>}
      */
     public function scan(string $appRoot): array
     {
@@ -39,9 +36,9 @@ final class DispatchScanner implements Scanner
             return ['unresolved_dispatches' => [], '_dispatch_sites' => []];
         }
 
-        /** @var array<int, array<string, mixed>> $sites */
+        /** @var list<DispatchSiteRecord> $sites */
         $sites = [];
-        /** @var array<int, array<string, mixed>> $unresolved */
+        /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
@@ -51,61 +48,26 @@ final class DispatchScanner implements Scanner
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($visitor->getSites() as $site) {
-                $site['file'] = $relative;
+                $site->file = $relative;
                 $sites[] = $site;
             }
 
             foreach ($visitor->getUnresolved() as $entry) {
-                $entry['file'] = $relative;
-                $unresolved[] = $entry;
+                $unresolved[] = new UnresolvedDispatchEntry(
+                    file: $relative,
+                    line: $entry->line,
+                    expression: $entry->expression,
+                    reason: $entry->reason,
+                );
             }
         }
 
-        usort($unresolved, function (array $a, array $b): int {
-            return [$a['file'], $a['line']] <=> [$b['file'], $b['line']];
-        });
-
-        usort($sites, function (array $a, array $b): int {
-            return [$a['file'], $a['line'], $a['target']] <=> [$b['file'], $b['line'], $b['target']];
-        });
+        usort($unresolved, fn (UnresolvedDispatchEntry $a, UnresolvedDispatchEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
+        usort($sites, fn (DispatchSiteRecord $a, DispatchSiteRecord $b): int => [$a->file, $a->line, $a->target] <=> [$b->file, $b->line, $b->target]);
 
         return [
             'unresolved_dispatches' => $unresolved,
             '_dispatch_sites' => $sites,
         ];
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

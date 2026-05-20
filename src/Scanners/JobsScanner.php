@@ -4,27 +4,24 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\JobEntry;
+use Lucasp\Loom\Dto\JobLocation;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers job classes via a filesystem walk of app/Jobs/ seeded by
- * dispatch sites whose target resolves via PSR-4 to a class anywhere
- * under app/.
- *
- * See docs/scanners/jobs.md for the full design.
+ * Discovers job classes under app/Jobs/ plus dispatch-site targets that
+ * resolve via PSR-4 to a class under app/.
  */
 final class JobsScanner implements Scanner
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
+    use ScannerFilesystem;
 
     private AstWalker $walker;
 
@@ -37,16 +34,14 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{jobs: list<JobEntry>}
      */
     public function scan(string $appRoot): array
     {
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
 
-        $fsClasses = $this->discoverFromFilesystem($appRoot, $resolver);
+        $merged = $this->discoverFromFilesystem($appRoot, $resolver);
         $dispatchTargets = $this->discoverFromDispatchSites($appRoot);
-
-        $merged = $fsClasses;
 
         foreach ($dispatchTargets as $fqcn => $kind) {
             if (isset($merged[$fqcn])) {
@@ -58,17 +53,12 @@ final class JobsScanner implements Scanner
                 continue;
             }
 
-            // Ambiguous Dispatchable-form sites (`X::dispatch()`) don't prove
-            // X is a job — events use the same trait. EventScanner gates the
-            // symmetric case to classes under `app/Events/`; mirror that here:
-            // for ambiguous targets, only keep the entry if the file is under
-            // `app/Jobs/` or the class transitively implements ShouldQueue
-            // (via its own `implements` clause or any ancestor indexed under
-            // `app/`). The helper form `dispatch(new X)` / `Bus::dispatch(new X)`
-            // is unambiguous and bypasses the guard.
+            // Dispatchable-form sites are ambiguous with events. Accept only
+            // when the file is under app/Jobs/ or the class implements
+            // ShouldQueue (mirrors EventScanner's symmetric guard).
             if ($kind === 'ambiguous'
-                && ! $this->isUnderAppJobs($located['file'])
-                && ! $located['queued']
+                && ! $this->isUnderAppJobs($located->file)
+                && ! $located->queued
             ) {
                 continue;
             }
@@ -79,17 +69,13 @@ final class JobsScanner implements Scanner
         return ['jobs' => $this->emit($merged)];
     }
 
-    /**
-     * The located file's relative path is forward-slashed by `relativePath()`,
-     * so a simple prefix check is portable.
-     */
     private function isUnderAppJobs(string $relativeFile): bool
     {
         return str_starts_with($relativeFile, 'app/Jobs/');
     }
 
     /**
-     * @return array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>
+     * @return array<string, JobLocation>
      */
     private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
@@ -105,13 +91,12 @@ final class JobsScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                $relative = $this->relativePath($appRoot, $file->getPathname());
-                $results[$class['fqcn']] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                    'queued' => $resolver->implementsInterface($class['fqcn'], self::SHOULD_QUEUE),
-                    'queue_config' => $class['queue_config'],
-                ];
+                $results[$class->fqcn] = new JobLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                    queued: $resolver->implementsInterface($class->fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                    queueConfig: $class->queueConfig,
+                );
             }
         }
 
@@ -119,11 +104,7 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * Collect dispatch targets that look like job dispatches: helper form
-     * `dispatch(new X)` / `Bus::dispatch(new X)` (provisionalKind=job) and
-     * ambiguous Dispatchable form (`X::dispatch()`). The kind is preserved
-     * so the caller can apply a stricter guard for ambiguous targets — a
-     * Dispatchable static call alone doesn't prove the target is a job.
+     * Kind is preserved so the caller can guard ambiguous targets.
      *
      * @return array<string, 'job'|'ambiguous'>
      */
@@ -141,18 +122,13 @@ final class JobsScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                $kind = $site['provisionalKind'];
-                // Only job-shaped and ambiguous (Dispatchable-form) sites
-                // can seed jobs[]. Event, mailable, and notification kinds
-                // belong to their own scanners.
+                $kind = $site->provisionalKind;
                 if ($kind !== 'job' && $kind !== 'ambiguous') {
                     continue;
                 }
 
-                $target = $site['target'];
-                // Helper-form `dispatch(new X)` / `Bus::dispatch(new X)` wins
-                // over ambiguous `X::dispatch()` — once one site proves X is a
-                // job unambiguously, that's the final answer for X.
+                $target = $site->target;
+                // 'job' wins over 'ambiguous' — once proven unambiguously, lock in.
                 if ($kind === 'job' || ! isset($candidates[$target])) {
                     $candidates[$target] = $kind;
                 }
@@ -162,10 +138,7 @@ final class JobsScanner implements Scanner
         return $candidates;
     }
 
-    /**
-     * @return array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?JobLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -176,26 +149,24 @@ final class JobsScanner implements Scanner
         $this->walker->walk($absolute, [$visitor]);
 
         foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] !== $fqcn) {
+            if ($class->fqcn !== $fqcn) {
                 continue;
             }
 
-            return [
-                'file' => $this->relativePath($appRoot, $absolute),
-                'line' => $class['line'],
-                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
-                'queue_config' => $class['queue_config'],
-            ];
+            return new JobLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+                queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queueConfig: $class->queueConfig,
+            );
         }
 
         return null;
     }
 
     /**
-     * Build schema-shaped entries, sorted by FQCN.
-     *
-     * @param  array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>}>  $merged
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, JobLocation>  $merged
+     * @return list<JobEntry>
      */
     private function emit(array $merged): array
     {
@@ -203,51 +174,15 @@ final class JobsScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            $entries[] = [
-                'fqcn' => $fqcn,
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'queued' => $location['queued'],
-                'queue_config' => $location['queued'] ? $location['queue_config'] : null,
-                'dispatched_from' => [],
-                'dispatches' => [],
-            ];
+            $entries[] = new JobEntry(
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+                queued: $location->queued,
+                queueConfig: $location->queued ? $location->queueConfig : null,
+            );
         }
 
         return $entries;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

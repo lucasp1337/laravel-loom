@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\JobEntry;
+use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\JobsScanner;
 
 function jobsFixturePath(): string
@@ -10,12 +12,12 @@ function jobsFixturePath(): string
 }
 
 /**
- * @param  array<int, array<string, mixed>>  $entries
+ * @param  list<JobEntry>  $entries
  */
-function jobByFqcn(array $entries, string $fqcn): ?array
+function jobByFqcn(array $entries, string $fqcn): ?JobEntry
 {
     foreach ($entries as $entry) {
-        if (($entry['fqcn'] ?? null) === $fqcn) {
+        if ($entry->fqcn === $fqcn) {
             return $entry;
         }
     }
@@ -32,7 +34,7 @@ it('returns an empty jobs array when neither app/Jobs nor app/ exist', function 
 it('discovers the expected set of jobs from the fixture app', function () {
     $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (JobEntry $e): string => $e->fqcn, $entries);
 
     expect($fqcns)->toContain('App\\Jobs\\ProcessOrder');
     expect($fqcns)->toContain('App\\Jobs\\SendInvoice');
@@ -48,18 +50,15 @@ it('detects indirect ShouldQueue via a parent abstract class', function () {
     $entry = jobByFqcn($entries, 'App\\Jobs\\IndirectlyQueued');
 
     expect($entry)->not->toBeNull();
-    // IndirectlyQueued does NOT implement ShouldQueue directly — it extends
-    // AbstractJob which does. The resolver-driven queued detection should
-    // walk the extends chain and surface the indirect implementation.
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => null,
-        'queue' => 'reports',
-        'delay' => null,
-        'tries' => null,
-        'timeout' => null,
-        'backoff' => null,
-    ]);
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: null,
+        queue: 'reports',
+        delay: null,
+        tries: null,
+        timeout: null,
+        backoff: null,
+    ));
 });
 
 it('skips abstract job classes', function () {
@@ -68,15 +67,23 @@ it('skips abstract job classes', function () {
     expect(jobByFqcn($entries, 'App\\Jobs\\AbstractJob'))->toBeNull();
 });
 
-it('emits each entry with all required top-level keys', function () {
+it('emits each entry as a JobEntry DTO carrying every schema field', function () {
     $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
 
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        expect($entry)->toHaveKeys(['fqcn', 'file', 'line', 'queued', 'queue_config', 'dispatched_from', 'dispatches']);
-        expect($entry['dispatched_from'])->toBe([]);
-        expect($entry['dispatches'])->toBe([]);
+        expect($entry)->toBeInstanceOf(JobEntry::class);
+        expect($entry->fqcn)->toBeString();
+        expect($entry->file)->toBeString();
+        expect($entry->line)->toBeInt();
+        expect($entry->queued)->toBeBool();
+        // queue_config is null when queued is false (per schema oneOf).
+        if ($entry->queued) {
+            expect($entry->queueConfig)->toBeInstanceOf(QueueConfigData::class);
+        } else {
+            expect($entry->queueConfig)->toBeNull();
+        }
     }
 });
 
@@ -86,16 +93,16 @@ it('records queued=true and a populated queue_config for ProcessOrder', function
     $entry = jobByFqcn($entries, 'App\\Jobs\\ProcessOrder');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => 'redis',
-        'queue' => 'high',
-        'delay' => 30,
-        'tries' => 5,
-        'timeout' => 120,
-        'backoff' => 10,
-    ]);
-    expect($entry['file'])->toBe('app/Jobs/ProcessOrder.php');
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: 'redis',
+        queue: 'high',
+        delay: 30,
+        tries: 5,
+        timeout: 120,
+        backoff: 10,
+    ));
+    expect($entry->file)->toBe('app/Jobs/ProcessOrder.php');
 });
 
 it('records queued=true and a partial queue_config for SendInvoice', function () {
@@ -104,15 +111,15 @@ it('records queued=true and a partial queue_config for SendInvoice', function ()
     $entry = jobByFqcn($entries, 'App\\Jobs\\SendInvoice');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => null,
-        'queue' => 'invoices',
-        'delay' => null,
-        'tries' => 3,
-        'timeout' => null,
-        'backoff' => null,
-    ]);
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: null,
+        queue: 'invoices',
+        delay: null,
+        tries: 3,
+        timeout: null,
+        backoff: null,
+    ));
 });
 
 it('records queued=false and queue_config=null for RunReport', function () {
@@ -121,8 +128,8 @@ it('records queued=false and queue_config=null for RunReport', function () {
     $entry = jobByFqcn($entries, 'App\\Jobs\\RunReport');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeFalse();
-    expect($entry['queue_config'])->toBeNull();
+    expect($entry->queued)->toBeFalse();
+    expect($entry->queueConfig)->toBeNull();
 });
 
 it('discovers ChargeCustomer outside app/Jobs/ via dispatch-site seeding', function () {
@@ -131,22 +138,22 @@ it('discovers ChargeCustomer outside app/Jobs/ via dispatch-site seeding', funct
     $entry = jobByFqcn($entries, 'App\\Domain\\Billing\\Jobs\\ChargeCustomer');
 
     expect($entry)->not->toBeNull();
-    expect($entry['file'])->toBe('app/Domain/Billing/Jobs/ChargeCustomer.php');
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => 'sqs',
-        'queue' => 'billing',
-        'delay' => null,
-        'tries' => null,
-        'timeout' => null,
-        'backoff' => null,
-    ]);
+    expect($entry->file)->toBe('app/Domain/Billing/Jobs/ChargeCustomer.php');
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: 'sqs',
+        queue: 'billing',
+        delay: null,
+        tries: null,
+        timeout: null,
+        backoff: null,
+    ));
 });
 
 it('sorts job entries by FQCN ascending', function () {
     $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (JobEntry $e): string => $e->fqcn, $entries);
     $sorted = $fqcns;
     sort($sorted, SORT_STRING);
 
@@ -157,8 +164,8 @@ it('reports file paths relative to the fixture root with forward slashes', funct
     $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
 
     foreach ($entries as $entry) {
-        expect($entry['file'])->not->toContain('\\');
-        expect($entry['file'])->toStartWith('app/');
+        expect($entry->file)->not->toContain('\\');
+        expect($entry->file)->toStartWith('app/');
     }
 });
 

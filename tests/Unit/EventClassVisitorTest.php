@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ClassRecord;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -10,7 +11,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run EventClassVisitor (after NameResolver) over it.
  *
- * @return array<int, array{fqcn: string, line: int}>
+ * @return list<ClassRecord>
  */
 function runEventClassVisitor(string $source): array
 {
@@ -42,8 +43,8 @@ it('extracts a single namespaced class declaration', function () {
     $classes = runEventClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Events\\OrderPlaced');
-    expect($classes[0]['line'])->toBe(5);
+    expect($classes[0]->fqcn)->toBe('App\\Events\\OrderPlaced');
+    expect($classes[0]->line)->toBe(5);
 });
 
 it('extracts two top-level classes in a single file', function () {
@@ -64,8 +65,8 @@ it('extracts two top-level classes in a single file', function () {
     $classes = runEventClassVisitor($source);
 
     expect($classes)->toHaveCount(2);
-    expect($classes[0]['fqcn'])->toBe('App\\Events\\OrderPlaced');
-    expect($classes[1]['fqcn'])->toBe('App\\Events\\OrderShipped');
+    expect($classes[0]->fqcn)->toBe('App\\Events\\OrderPlaced');
+    expect($classes[1]->fqcn)->toBe('App\\Events\\OrderShipped');
 });
 
 it('skips anonymous class expressions', function () {
@@ -133,6 +134,6 @@ it('includes abstract classes', function () {
     $classes = runEventClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Events\\AbstractDomainEvent');
-    expect($classes[0]['line'])->toBe(5);
+    expect($classes[0]->fqcn)->toBe('App\\Events\\AbstractDomainEvent');
+    expect($classes[0]->line)->toBe(5);
 });

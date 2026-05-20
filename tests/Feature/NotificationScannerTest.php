@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\NotificationEntry;
+use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\NotificationScanner;
 
 function notificationFixturePath(): string
@@ -10,13 +12,12 @@ function notificationFixturePath(): string
 }
 
 /**
- * @param  array<int, array<string, mixed>>  $entries
- * @return array<string, mixed>|null
+ * @param  list<NotificationEntry>  $entries
  */
-function notificationByFqcn(array $entries, string $fqcn): ?array
+function notificationByFqcn(array $entries, string $fqcn): ?NotificationEntry
 {
     foreach ($entries as $entry) {
-        if (($entry['fqcn'] ?? null) === $fqcn) {
+        if ($entry->fqcn === $fqcn) {
             return $entry;
         }
     }
@@ -24,24 +25,16 @@ function notificationByFqcn(array $entries, string $fqcn): ?array
     return null;
 }
 
-// ---------------------------------------------------------------------------
-// Empty-path behaviour
-// ---------------------------------------------------------------------------
-
 it('returns an empty notifications array when neither app/Notifications nor app/ exist', function () {
     $entries = (new NotificationScanner)->scan(sys_get_temp_dir())['notifications'];
 
     expect($entries)->toBe([]);
 });
 
-// ---------------------------------------------------------------------------
-// Discovery
-// ---------------------------------------------------------------------------
-
 it('discovers the expected set of notifications from the fixture app', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (NotificationEntry $e): string => $e->fqcn, $entries);
 
     expect($fqcns)->toContain('App\\Notifications\\InvoicePaid');
     expect($fqcns)->toContain('App\\Notifications\\PasswordReset');
@@ -62,37 +55,29 @@ it('discovers InvitedNotification outside app/Notifications/ via dispatch-site s
     $entry = notificationByFqcn($entries, 'App\\Domain\\Accounts\\Notifications\\InvitedNotification');
 
     expect($entry)->not->toBeNull();
-    expect($entry['file'])->toBe('app/Domain/Accounts/Notifications/InvitedNotification.php');
+    expect($entry->file)->toBe('app/Domain/Accounts/Notifications/InvitedNotification.php');
 });
 
-// ---------------------------------------------------------------------------
-// Required top-level keys + scanner-default notified_from
-// ---------------------------------------------------------------------------
-
-it('emits each entry with all required top-level keys', function () {
+it('emits each entry as a NotificationEntry DTO carrying every schema field', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        expect($entry)->toHaveKeys([
-            'fqcn',
-            'file',
-            'line',
-            'queued',
-            'queue_config',
-            'channels',
-            'channels_dynamic',
-            'notified_from',
-        ]);
-        // Scanner emits notified_from empty; cross-link fills it.
-        expect($entry['notified_from'])->toBe([]);
+        expect($entry)->toBeInstanceOf(NotificationEntry::class);
+        expect($entry->fqcn)->toBeString();
+        expect($entry->file)->toBeString();
+        expect($entry->line)->toBeInt();
+        expect($entry->queued)->toBeBool();
+        if ($entry->queued) {
+            expect($entry->queueConfig)->toBeInstanceOf(QueueConfigData::class);
+        } else {
+            expect($entry->queueConfig)->toBeNull();
+        }
+        expect($entry->channels)->toBeArray();
+        expect($entry->channelsDynamic)->toBeBool();
     }
 });
-
-// ---------------------------------------------------------------------------
-// Queue detection
-// ---------------------------------------------------------------------------
 
 it('records queued=true and a populated queue_config for InvoicePaid', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
@@ -100,16 +85,16 @@ it('records queued=true and a populated queue_config for InvoicePaid', function 
     $entry = notificationByFqcn($entries, 'App\\Notifications\\InvoicePaid');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => 'redis',
-        'queue' => 'notifications',
-        'delay' => null,
-        'tries' => 5,
-        'timeout' => 90,
-        'backoff' => null,
-    ]);
-    expect($entry['file'])->toBe('app/Notifications/InvoicePaid.php');
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: 'redis',
+        queue: 'notifications',
+        delay: null,
+        tries: 5,
+        timeout: 90,
+        backoff: null,
+    ));
+    expect($entry->file)->toBe('app/Notifications/InvoicePaid.php');
 });
 
 it('records queued=false and queue_config=null for PasswordReset', function () {
@@ -118,13 +103,9 @@ it('records queued=false and queue_config=null for PasswordReset', function () {
     $entry = notificationByFqcn($entries, 'App\\Notifications\\PasswordReset');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeFalse();
-    expect($entry['queue_config'])->toBeNull();
+    expect($entry->queued)->toBeFalse();
+    expect($entry->queueConfig)->toBeNull();
 });
-
-// ---------------------------------------------------------------------------
-// Channel extraction
-// ---------------------------------------------------------------------------
 
 it('extracts string + FQCN class-constant channels for InvoicePaid', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
@@ -132,10 +113,8 @@ it('extracts string + FQCN class-constant channels for InvoicePaid', function ()
     $entry = notificationByFqcn($entries, 'App\\Notifications\\InvoicePaid');
 
     expect($entry)->not->toBeNull();
-    expect($entry['channels_dynamic'])->toBeFalse();
-    // Order matches the source-code order of the literal array; the per-doc
-    // contract: bare strings lowercased, class-constants emitted as FQCN.
-    expect($entry['channels'])->toBe([
+    expect($entry->channelsDynamic)->toBeFalse();
+    expect($entry->channels)->toBe([
         'mail',
         'database',
         'App\\Channels\\SlackChannel',
@@ -148,8 +127,8 @@ it('extracts the single mail channel for PasswordReset', function () {
     $entry = notificationByFqcn($entries, 'App\\Notifications\\PasswordReset');
 
     expect($entry)->not->toBeNull();
-    expect($entry['channels'])->toBe(['mail']);
-    expect($entry['channels_dynamic'])->toBeFalse();
+    expect($entry->channels)->toBe(['mail']);
+    expect($entry->channelsDynamic)->toBeFalse();
 });
 
 it('flags channels_dynamic=true and channels=[] for DynamicChannelNotification', function () {
@@ -158,31 +137,24 @@ it('flags channels_dynamic=true and channels=[] for DynamicChannelNotification',
     $entry = notificationByFqcn($entries, 'App\\Notifications\\DynamicChannelNotification');
 
     expect($entry)->not->toBeNull();
-    expect($entry['channels'])->toBe([]);
-    expect($entry['channels_dynamic'])->toBeTrue();
+    expect($entry->channels)->toBe([]);
+    expect($entry->channelsDynamic)->toBeTrue();
 });
 
 it('emits channels=[] and channels_dynamic=false when no via() method is declared', function () {
-    // Absence of via() means "no channels declared" — an intentional zero,
-    // not unknown. channels_dynamic is true only when via() exists but its
-    // body isn't statically resolvable. See docs/scanners/notifications.md.
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
     $entry = notificationByFqcn($entries, 'App\\Notifications\\NoViaNotification');
 
     expect($entry)->not->toBeNull();
-    expect($entry['channels'])->toBe([]);
-    expect($entry['channels_dynamic'])->toBeFalse();
+    expect($entry->channels)->toBe([]);
+    expect($entry->channelsDynamic)->toBeFalse();
 });
-
-// ---------------------------------------------------------------------------
-// Sorting + path normalisation
-// ---------------------------------------------------------------------------
 
 it('sorts notification entries by FQCN ascending', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (NotificationEntry $e): string => $e->fqcn, $entries);
     $sorted = $fqcns;
     sort($sorted, SORT_STRING);
 
@@ -195,7 +167,7 @@ it('reports file paths relative to the fixture root with forward slashes', funct
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        $file = str_replace(DIRECTORY_SEPARATOR, '/', (string) $entry['file']);
+        $file = str_replace(DIRECTORY_SEPARATOR, '/', $entry->file);
         expect($file)->not->toContain('\\');
         expect($file)->not->toStartWith('/');
         expect($file)->toStartWith('app/');

@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
-use JsonSchema\Validator;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
+use Lucasp\Loom\Support\Sorting;
 use RuntimeException;
 
 /**
- * Orchestrates scanners, merges their output, cross-links relationships,
- * validates against the canonical schema, and produces the final Index.
- *
- * Scanners are registered in deterministic order. v0.1 ships with four:
- * EventScanner, ListenerScanner, ObserverScanner, DispatchScanner.
+ * Runs registered scanners, merges their sections, cross-links relations,
+ * and produces an Index.
  */
 class IndexBuilder
 {
@@ -23,43 +20,33 @@ class IndexBuilder
     /** @var array<int, Scanner> */
     private array $scanners = [];
 
+    private SchemaValidator $validator;
+
+    private IndexSerializer $serializer;
+
+    public function __construct(?SchemaValidator $validator = null, ?IndexSerializer $serializer = null)
+    {
+        $this->validator = $validator ?? new SchemaValidator;
+        $this->serializer = $serializer ?? new IndexSerializer;
+    }
+
     public function register(Scanner $scanner): void
     {
         $this->scanners[] = $scanner;
     }
 
     /**
-     * Run every registered scanner against $appRoot and assemble the Index.
-     *
-     * Cross-linking (events ↔ listeners, listener/observer dispatches,
-     * event dispatched_from) happens after all scanners run. Internal,
-     * underscore-prefixed sections (e.g. `_dispatch_sites`) flow through
-     * the merge but are stripped before the Index is constructed and
-     * before schema validation runs.
+     * Underscore-prefixed sections (e.g. `_dispatch_sites`) are merged but
+     * stripped before the Index is constructed.
      */
     public function build(string $appRoot, string $laravelVersion): Index
     {
-        /** @var array<string, array<int, array<string, mixed>>> $sections */
-        $sections = [
-            'events' => [],
-            'listeners' => [],
-            'observers' => [],
-            'model_events' => [],
-            'jobs' => [],
-            'unresolved_dispatches' => [],
-            'closure_listeners' => [],
-            'scheduled' => [],
-            'mailables' => [],
-            'notifications' => [],
-        ];
+        $sections = $this->initialSections();
 
         foreach ($this->scanners as $scanner) {
             foreach ($scanner->scan($appRoot) as $section => $entries) {
                 if (str_starts_with($section, '_')) {
-                    // Internal section — initialise on first sight, then merge.
-                    if (! array_key_exists($section, $sections)) {
-                        $sections[$section] = [];
-                    }
+                    $sections[$section] ??= [];
                     $sections[$section] = array_merge($sections[$section], $entries);
 
                     continue;
@@ -72,79 +59,88 @@ class IndexBuilder
             }
         }
 
+        $this->serializeSections($sections);
+
+        /** @var array<string, array<int, array<string, mixed>>> $sections */
         $this->crossLink($sections);
+        $this->stripInternalSections($sections);
 
-        // Strip internal sections before constructing the Index value object.
-        foreach (array_keys($sections) as $key) {
-            if (str_starts_with($key, '_')) {
-                unset($sections[$key]);
-            }
-        }
-
-        return new Index(
-            loomVersion: self::LOOM_VERSION,
-            scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
-            laravelVersion: $laravelVersion,
-            events: $sections['events'],
-            modelEvents: $sections['model_events'],
-            listeners: $sections['listeners'],
-            observers: $sections['observers'],
-            jobs: $sections['jobs'],
-            unresolvedDispatches: $sections['unresolved_dispatches'],
-            closureListeners: $sections['closure_listeners'],
-            scheduled: $sections['scheduled'],
-            mailables: $sections['mailables'],
-            notifications: $sections['notifications'],
-        );
+        return $this->buildIndex($sections, $laravelVersion);
     }
 
     /**
-     * Validate an index payload against schema/loom-index.schema.json.
-     *
      * @param  array<string, mixed>  $payload
      * @return array<int, string> validation errors; empty when valid
      */
     public function validate(array $payload): array
     {
-        $schemaPath = dirname(__DIR__, 2).'/schema/loom-index.schema.json';
-        if (! is_file($schemaPath)) {
-            throw new RuntimeException("Schema not found at {$schemaPath}");
-        }
-
-        $validator = new Validator;
-        $data = json_decode((string) json_encode($payload));
-        $validator->validate($data, (object) ['$ref' => 'file://'.$schemaPath]);
-
-        if ($validator->isValid()) {
-            return [];
-        }
-
-        $errors = [];
-        foreach ($validator->getErrors() as $error) {
-            $errors[] = sprintf('[%s] %s', $error['property'] ?? '', $error['message'] ?? '');
-        }
-
-        return $errors;
+        return $this->validator->validate($payload);
     }
 
     /**
-     * Five-phase cross-link pass. Mutates $sections in place.
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function initialSections(): array
+    {
+        $sections = [];
+        foreach (Sections::cases() as $section) {
+            $sections[$section->value] = [];
+        }
+
+        return $sections;
+    }
+
+    /**
+     * Convert scanner-emitted DTO entries into schema-shaped arrays. Internal
+     * sections (underscore-prefixed) are serialized too — cross-link reads
+     * them as arrays — and stripped after cross-link.
      *
-     * Phase 1: events[*].handled_by ← listeners[*].handles inversion.
-     * Phase 2: disambiguate _dispatch_sites whose provisionalKind is
-     *          'ambiguous' (Dispatchable form) against events[].
-     * Phase 3: listeners[*].dispatches from sites whose (class, method=handle)
-     *          matches a listener.
-     * Phase 4: observers[*].dispatches from sites whose (class, method∈hook
-     *          enum) matches an observer. Also populates jobs[*].dispatches
-     *          from sites whose (class, method=handle) matches a job.
-     * Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
-     *          mailables[*].sent_from, notifications[*].notified_from
-     *          from sites whose target matches a known event/job/mailable/
-     *          notification FQCN (kind after disambiguation).
-     *
-     * Disambiguation runs before phases 3/4/5 so every consumer reads the
-     * final kind.
+     * @param  array<string, array<int, object|array<string, mixed>>>  $sections
+     */
+    private function serializeSections(array &$sections): void
+    {
+        foreach ($sections as $name => $entries) {
+            $sections[$name] = $this->serializer->section($name, array_values($entries));
+        }
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     */
+    private function stripInternalSections(array &$sections): void
+    {
+        foreach (array_keys($sections) as $key) {
+            if (str_starts_with($key, '_')) {
+                unset($sections[$key]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     */
+    private function buildIndex(array $sections, string $laravelVersion): Index
+    {
+        return new Index(
+            loomVersion: self::LOOM_VERSION,
+            scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
+            laravelVersion: $laravelVersion,
+            events: $sections[Sections::EVENTS->value],
+            modelEvents: $sections[Sections::MODEL_EVENTS->value],
+            listeners: $sections[Sections::LISTENERS->value],
+            observers: $sections[Sections::OBSERVERS->value],
+            jobs: $sections[Sections::JOBS->value],
+            unresolvedDispatches: $sections[Sections::UNRESOLVED_DISPATCHES->value],
+            closureListeners: $sections[Sections::CLOSURE_LISTENERS->value],
+            scheduled: $sections[Sections::SCHEDULED->value],
+            mailables: $sections[Sections::MAILABLES->value],
+            notifications: $sections[Sections::NOTIFICATIONS->value],
+        );
+    }
+
+    /**
+     * Five-phase cross-link pass (handled_by, disambiguate, dispatches,
+     * dispatched_from, sort). Mutates $sections in place.
      *
      * @param  array<string, array<int, array<string, mixed>>>  $sections
      */
@@ -153,57 +149,37 @@ class IndexBuilder
         /** @var array<int, array<string, mixed>> $dispatchSites */
         $dispatchSites = $sections['_dispatch_sites'] ?? [];
 
-        // Index lookups by FQCN for O(1) joins.
-        $eventIndex = [];
-        foreach ($sections['events'] as $idx => $event) {
-            if (isset($event['fqcn']) && is_string($event['fqcn'])) {
-                $eventIndex[$event['fqcn']] = $idx;
-            }
-        }
+        // Observers indexed separately — multiple entries per FQCN are allowed.
+        $singleIndexes = [
+            Sections::EVENTS->value => $this->indexByFqcn($sections[Sections::EVENTS->value]),
+            Sections::LISTENERS->value => $this->indexByFqcn($sections[Sections::LISTENERS->value]),
+            Sections::JOBS->value => $this->indexByFqcn($sections[Sections::JOBS->value]),
+            Sections::MAILABLES->value => $this->indexByFqcn($sections[Sections::MAILABLES->value]),
+            Sections::NOTIFICATIONS->value => $this->indexByFqcn($sections[Sections::NOTIFICATIONS->value]),
+        ];
+        $observerIndex = $this->indexByFqcnMulti($sections[Sections::OBSERVERS->value]);
 
-        $listenerIndex = [];
-        foreach ($sections['listeners'] as $idx => $listener) {
-            if (isset($listener['fqcn']) && is_string($listener['fqcn'])) {
-                $listenerIndex[$listener['fqcn']] = $idx;
-            }
-        }
+        $listenerMethods = $this->applyHandledBy($sections, $singleIndexes[Sections::EVENTS->value]);
+        $this->disambiguateAmbiguousSites($dispatchSites, $singleIndexes[Sections::EVENTS->value]);
+        $this->applyDispatchAttribution($sections, $dispatchSites, $singleIndexes, $observerIndex, $listenerMethods);
+        $this->applyDispatchedFrom($sections, $dispatchSites, $singleIndexes);
+        $this->sortCrossLinkedArrays($sections);
+    }
 
-        $jobIndex = [];
-        foreach ($sections['jobs'] as $idx => $job) {
-            if (isset($job['fqcn']) && is_string($job['fqcn'])) {
-                $jobIndex[$job['fqcn']] = $idx;
-            }
-        }
-
-        $mailableIndex = [];
-        foreach ($sections['mailables'] as $idx => $mailable) {
-            if (isset($mailable['fqcn']) && is_string($mailable['fqcn'])) {
-                $mailableIndex[$mailable['fqcn']] = $idx;
-            }
-        }
-
-        $notificationIndex = [];
-        foreach ($sections['notifications'] as $idx => $notification) {
-            if (isset($notification['fqcn']) && is_string($notification['fqcn'])) {
-                $notificationIndex[$notification['fqcn']] = $idx;
-            }
-        }
-
-        // Observers may have multiple entries per FQCN (one per observed model).
-        /** @var array<string, array<int, int>> $observerIndex */
-        $observerIndex = [];
-        foreach ($sections['observers'] as $idx => $observer) {
-            if (isset($observer['fqcn']) && is_string($observer['fqcn'])) {
-                $observerIndex[$observer['fqcn']][] = $idx;
-            }
-        }
-
-        // Phase 1: handled_by from listener.handles inversion.
-        // Build per-listener method set for Phase 3 dispatch attribution while we're here.
+    /**
+     * Inverts listeners[*].handles into events[*].handled_by. Also returns
+     * a per-listener method set reused by phase 3.
+     *
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     * @param  array<string, int>  $eventIndex
+     * @return array<string, array<string, true>>
+     */
+    private function applyHandledBy(array &$sections, array $eventIndex): array
+    {
         /** @var array<string, array<string, true>> $listenerMethods */
         $listenerMethods = [];
 
-        foreach ($sections['listeners'] as $listener) {
+        foreach ($sections[Sections::LISTENERS->value] as $listener) {
             $listenerFqcn = $listener['fqcn'] ?? null;
             $handles = $listener['handles'] ?? [];
             if (! is_string($listenerFqcn) || ! is_array($handles)) {
@@ -225,109 +201,114 @@ class IndexBuilder
                 if (! isset($eventIndex[$eventFqcn])) {
                     continue;
                 }
-                $eIdx = $eventIndex[$eventFqcn];
-                /** @var array<int, array{listener: string, method: string}> $handledBy */
-                $handledBy = $sections['events'][$eIdx]['handled_by'] ?? [];
-
-                $alreadyPresent = false;
-                foreach ($handledBy as $existing) {
-                    if ($existing['listener'] === $listenerFqcn
-                        && $existing['method'] === $method
-                    ) {
-                        $alreadyPresent = true;
-                        break;
-                    }
-                }
-                if (! $alreadyPresent) {
-                    $handledBy[] = ['listener' => $listenerFqcn, 'method' => $method];
-                }
-                $sections['events'][$eIdx]['handled_by'] = $handledBy;
+                $this->appendHandledBy($sections, $eventIndex[$eventFqcn], $listenerFqcn, $method);
             }
         }
 
-        // Phase 2: disambiguate ambiguous (Dispatchable) sites.
+        return $listenerMethods;
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     */
+    private function appendHandledBy(array &$sections, int $eIdx, string $listenerFqcn, string $method): void
+    {
+        /** @var array<int, array{listener: string, method: string}> $handledBy */
+        $handledBy = $sections[Sections::EVENTS->value][$eIdx]['handled_by'] ?? [];
+
+        foreach ($handledBy as $existing) {
+            if ($existing['listener'] === $listenerFqcn && $existing['method'] === $method) {
+                return;
+            }
+        }
+
+        $handledBy[] = ['listener' => $listenerFqcn, 'method' => $method];
+        $sections[Sections::EVENTS->value][$eIdx]['handled_by'] = $handledBy;
+    }
+
+    /**
+     * `X::dispatch()` is ambiguous (Dispatchable trait covers events and
+     * jobs); resolve by checking whether the target is a known event.
+     *
+     * @param  array<int, array<string, mixed>>  $dispatchSites
+     * @param  array<string, int>  $eventIndex
+     */
+    private function disambiguateAmbiguousSites(array &$dispatchSites, array $eventIndex): void
+    {
         foreach ($dispatchSites as $i => $site) {
-            if (($site['provisionalKind'] ?? null) !== 'ambiguous') {
+            if (($site['provisionalKind'] ?? null) !== DispatchKinds::AMBIGUOUS->value) {
                 continue;
             }
             $target = $site['target'] ?? null;
             if (! is_string($target)) {
                 continue;
             }
-            $dispatchSites[$i]['provisionalKind'] = isset($eventIndex[$target]) ? 'event' : 'job';
+            $dispatchSites[$i]['provisionalKind'] = isset($eventIndex[$target])
+                ? DispatchKinds::EVENT->value
+                : DispatchKinds::JOB->value;
         }
+    }
 
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     * @param  array<int, array<string, mixed>>  $dispatchSites
+     * @param  array<string, array<string, int>>  $singleIndexes
+     * @param  array<string, list<int>>  $observerIndex
+     * @param  array<string, array<string, true>>  $listenerMethods
+     */
+    private function applyDispatchAttribution(array &$sections, array $dispatchSites, array $singleIndexes, array $observerIndex, array $listenerMethods): void
+    {
         $observerHooks = array_flip(ObserverClassVisitor::HOOKS);
 
-        // Phases 3 & 4: append to listeners[*].dispatches and observers[*].dispatches.
         foreach ($dispatchSites as $site) {
-            $classFqcn = $site['classFqcn'] ?? null;
-            $method = $site['method'] ?? null;
-            $kind = $site['provisionalKind'] ?? null;
-            $target = $site['target'] ?? null;
-            $file = $site['file'] ?? null;
-            $line = $site['line'] ?? null;
-            $confidence = $site['confidence'] ?? 'high';
-
-            if (! is_string($classFqcn) || ! is_string($target)
-                || ! is_string($file) || ! is_int($line)
-                || ! is_string($kind) || $kind === 'ambiguous'
-            ) {
+            $entry = $this->dispatchEntryFromSite($site);
+            if ($entry === null) {
                 continue;
             }
+            $classFqcn = $entry['classFqcn'];
+            $method = $entry['method'];
+            $payload = $entry['payload'];
 
-            $entry = [
-                'target' => $target,
-                'kind' => $kind,
-                'confidence' => $confidence,
-                'file' => $file,
-                'line' => $line,
-            ];
-
-            // Listener dispatch attribution: enclosing method must be one of the
-            // listener's registered handler methods (handle, handleFoo, etc.).
-            if (is_string($method)
-                && isset($listenerIndex[$classFqcn])
-                && isset($listenerMethods[$classFqcn][$method])
-            ) {
-                $lIdx = $listenerIndex[$classFqcn];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['listeners'][$lIdx]['dispatches'] ?? [];
-                $existing[] = $entry;
-                $sections['listeners'][$lIdx]['dispatches'] = $existing;
+            $listenerIndex = $singleIndexes[Sections::LISTENERS->value];
+            if (isset($listenerIndex[$classFqcn], $listenerMethods[$classFqcn][$method])) {
+                $this->appendToEntry($sections, Sections::LISTENERS, $listenerIndex[$classFqcn], 'dispatches', $payload);
             }
 
-            // Job dispatch attribution: enclosing class must be a known job,
-            // enclosing method must be exactly `handle` (v1 strict gate —
-            // utility-method dispatches are a documented gap).
-            if (is_string($method) && $method === 'handle' && isset($jobIndex[$classFqcn])) {
-                $jIdx = $jobIndex[$classFqcn];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['jobs'][$jIdx]['dispatches'] ?? [];
-                $existing[] = $entry;
-                $sections['jobs'][$jIdx]['dispatches'] = $existing;
+            $jobIndex = $singleIndexes[Sections::JOBS->value];
+            if ($method === 'handle' && isset($jobIndex[$classFqcn])) {
+                $this->appendToEntry($sections, Sections::JOBS, $jobIndex[$classFqcn], 'dispatches', $payload);
             }
 
-            // Observer dispatch attribution: method must be a canonical hook.
-            if (is_string($method) && isset($observerHooks[$method]) && isset($observerIndex[$classFqcn])) {
+            if (isset($observerHooks[$method], $observerIndex[$classFqcn])) {
                 foreach ($observerIndex[$classFqcn] as $oIdx) {
-                    /** @var array<int, array<string, mixed>> $existing */
-                    $existing = $sections['observers'][$oIdx]['dispatches'] ?? [];
-                    $existing[] = $entry;
-                    $sections['observers'][$oIdx]['dispatches'] = $existing;
+                    $this->appendToEntry($sections, Sections::OBSERVERS, $oIdx, 'dispatches', $payload);
                 }
             }
         }
+    }
 
-        // Phase 5: events[*].dispatched_from, jobs[*].dispatched_from,
-        // mailables[*].sent_from, notifications[*].notified_from.
-        // Sites with classFqcn=null or method=null are skipped because the
-        // shared dispatchSite shape requires a method string.
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     * @param  array<int, array<string, mixed>>  $dispatchSites
+     * @param  array<string, array<string, int>>  $singleIndexes
+     */
+    private function applyDispatchedFrom(array &$sections, array $dispatchSites, array $singleIndexes): void
+    {
         foreach ($dispatchSites as $site) {
-            $kind = $site['provisionalKind'] ?? null;
-            if ($kind !== 'event' && $kind !== 'job' && $kind !== 'mailable' && $kind !== 'notification') {
+            $rawKind = $site['provisionalKind'] ?? null;
+            if (! is_string($rawKind)) {
                 continue;
             }
+            $kind = DispatchKinds::tryFrom($rawKind);
+            if ($kind === null) {
+                continue;
+            }
+
+            $mapping = $this->dispatchedFromMapping($kind);
+            if ($mapping === null) {
+                continue;
+            }
+            [$section, $fromField] = $mapping;
 
             $target = $site['target'] ?? null;
             $classFqcn = $site['classFqcn'] ?? null;
@@ -335,130 +316,161 @@ class IndexBuilder
             $file = $site['file'] ?? null;
             $line = $site['line'] ?? null;
 
-            if (! is_string($target)) {
-                continue;
-            }
-            if (! is_string($classFqcn) || ! is_string($method)) {
+            if (! is_string($target) || ! is_string($classFqcn) || ! is_string($method)) {
                 continue;
             }
             if (! is_string($file) || ! is_int($line)) {
                 continue;
             }
 
-            $entry = [
+            $fqcnIndex = $singleIndexes[$section->value];
+            if (! isset($fqcnIndex[$target])) {
+                continue;
+            }
+
+            $this->appendToEntry($sections, $section, $fqcnIndex[$target], $fromField, [
                 'file' => $file,
                 'line' => $line,
                 'method' => $classFqcn.'::'.$method,
-            ];
+            ]);
+        }
+    }
 
-            if ($kind === 'event' && isset($eventIndex[$target])) {
-                $eIdx = $eventIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['events'][$eIdx]['dispatched_from'] ?? [];
-                $existing[] = $entry;
-                $sections['events'][$eIdx]['dispatched_from'] = $existing;
+    /**
+     * Returns null for AMBIGUOUS (resolved in phase 2; shouldn't reach here).
+     *
+     * @return array{Sections, string}|null
+     */
+    private function dispatchedFromMapping(DispatchKinds $kind): ?array
+    {
+        return match ($kind) {
+            DispatchKinds::EVENT => [Sections::EVENTS, 'dispatched_from'],
+            DispatchKinds::JOB => [Sections::JOBS, 'dispatched_from'],
+            DispatchKinds::MAILABLE => [Sections::MAILABLES, 'sent_from'],
+            DispatchKinds::NOTIFICATION => [Sections::NOTIFICATIONS, 'notified_from'],
+            DispatchKinds::AMBIGUOUS => null,
+        };
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     */
+    private function sortCrossLinkedArrays(array &$sections): void
+    {
+        $sortTable = [
+            Sections::EVENTS->value => [
+                'handled_by' => ['listener', 'method'],
+                'dispatched_from' => ['file', 'line', 'method'],
+            ],
+            Sections::LISTENERS->value => [
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            Sections::OBSERVERS->value => [
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            Sections::JOBS->value => [
+                'dispatched_from' => ['file', 'line', 'method'],
+                'dispatches' => ['file', 'line', 'target'],
+            ],
+            Sections::MAILABLES->value => [
+                'sent_from' => ['file', 'line', 'method'],
+            ],
+            Sections::NOTIFICATIONS->value => [
+                'notified_from' => ['file', 'line', 'method'],
+            ],
+        ];
+
+        foreach ($sortTable as $section => $fields) {
+            foreach ($sections[$section] as $idx => $entry) {
+                foreach ($fields as $field => $keys) {
+                    /** @var array<int, array<string, mixed>> $list */
+                    $list = $entry[$field] ?? [];
+                    usort($list, Sorting::byKeys($keys));
+                    $sections[$section][$idx][$field] = $list;
+                }
             }
+        }
+    }
 
-            if ($kind === 'job' && isset($jobIndex[$target])) {
-                $jIdx = $jobIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['jobs'][$jIdx]['dispatched_from'] ?? [];
-                $existing[] = $entry;
-                $sections['jobs'][$jIdx]['dispatched_from'] = $existing;
+    /**
+     * Returns null when the site is shaped wrong (missing class/target,
+     * still ambiguous, etc).
+     *
+     * @param  array<string, mixed>  $site
+     * @return array{classFqcn: string, method: string, payload: array<string, mixed>}|null
+     */
+    private function dispatchEntryFromSite(array $site): ?array
+    {
+        $classFqcn = $site['classFqcn'] ?? null;
+        $method = $site['method'] ?? null;
+        $kind = $site['provisionalKind'] ?? null;
+        $target = $site['target'] ?? null;
+        $file = $site['file'] ?? null;
+        $line = $site['line'] ?? null;
+        $confidence = $site['confidence'] ?? 'high';
+
+        if (! is_string($classFqcn) || ! is_string($target)
+            || ! is_string($file) || ! is_int($line)
+            || ! is_string($kind) || $kind === DispatchKinds::AMBIGUOUS->value
+            || ! is_string($method)
+        ) {
+            return null;
+        }
+
+        return [
+            'classFqcn' => $classFqcn,
+            'method' => $method,
+            'payload' => [
+                'target' => $target,
+                'kind' => $kind,
+                'confidence' => $confidence,
+                'file' => $file,
+                'line' => $line,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $sections
+     * @param  array<string, mixed>  $payload
+     */
+    private function appendToEntry(array &$sections, Sections $section, int $idx, string $field, array $payload): void
+    {
+        /** @var array<int, array<string, mixed>> $existing */
+        $existing = $sections[$section->value][$idx][$field] ?? [];
+        $existing[] = $payload;
+        $sections[$section->value][$idx][$field] = $existing;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<string, int>
+     */
+    private function indexByFqcn(array $entries): array
+    {
+        $index = [];
+        foreach ($entries as $idx => $entry) {
+            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
+                $index[$entry['fqcn']] = $idx;
             }
+        }
 
-            if ($kind === 'mailable' && isset($mailableIndex[$target])) {
-                $mIdx = $mailableIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['mailables'][$mIdx]['sent_from'] ?? [];
-                $existing[] = $entry;
-                $sections['mailables'][$mIdx]['sent_from'] = $existing;
+        return $index;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<string, list<int>>
+     */
+    private function indexByFqcnMulti(array $entries): array
+    {
+        $index = [];
+        foreach ($entries as $idx => $entry) {
+            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
+                $index[$entry['fqcn']][] = $idx;
             }
-
-            if ($kind === 'notification' && isset($notificationIndex[$target])) {
-                $nIdx = $notificationIndex[$target];
-                /** @var array<int, array<string, mixed>> $existing */
-                $existing = $sections['notifications'][$nIdx]['notified_from'] ?? [];
-                $existing[] = $entry;
-                $sections['notifications'][$nIdx]['notified_from'] = $existing;
-            }
         }
 
-        // Sort all cross-linked arrays for deterministic output.
-        foreach ($sections['events'] as $idx => $event) {
-            /** @var array<int, array{listener: string, method: string}> $handledBy */
-            $handledBy = $event['handled_by'] ?? [];
-            usort($handledBy, function (array $a, array $b): int {
-                return [$a['listener'], $a['method']] <=>
-                    [$b['listener'], $b['method']];
-            });
-            $sections['events'][$idx]['handled_by'] = $handledBy;
-
-            /** @var array<int, array<string, mixed>> $dispatchedFrom */
-            $dispatchedFrom = $event['dispatched_from'] ?? [];
-            usort($dispatchedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['events'][$idx]['dispatched_from'] = $dispatchedFrom;
-        }
-
-        foreach ($sections['listeners'] as $idx => $listener) {
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $listener['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['listeners'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['observers'] as $idx => $observer) {
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $observer['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['observers'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['jobs'] as $idx => $job) {
-            /** @var array<int, array<string, mixed>> $dispatchedFrom */
-            $dispatchedFrom = $job['dispatched_from'] ?? [];
-            usort($dispatchedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['jobs'][$idx]['dispatched_from'] = $dispatchedFrom;
-
-            /** @var array<int, array<string, mixed>> $dispatches */
-            $dispatches = $job['dispatches'] ?? [];
-            usort($dispatches, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['target'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['target'] ?? ''];
-            });
-            $sections['jobs'][$idx]['dispatches'] = $dispatches;
-        }
-
-        foreach ($sections['mailables'] as $idx => $mailable) {
-            /** @var array<int, array<string, mixed>> $sentFrom */
-            $sentFrom = $mailable['sent_from'] ?? [];
-            usort($sentFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['mailables'][$idx]['sent_from'] = $sentFrom;
-        }
-
-        foreach ($sections['notifications'] as $idx => $notification) {
-            /** @var array<int, array<string, mixed>> $notifiedFrom */
-            $notifiedFrom = $notification['notified_from'] ?? [];
-            usort($notifiedFrom, function (array $a, array $b): int {
-                return [$a['file'] ?? '', $a['line'] ?? 0, $a['method'] ?? ''] <=>
-                    [$b['file'] ?? '', $b['line'] ?? 0, $b['method'] ?? ''];
-            });
-            $sections['notifications'][$idx]['notified_from'] = $notifiedFrom;
-        }
+        return $index;
     }
 }

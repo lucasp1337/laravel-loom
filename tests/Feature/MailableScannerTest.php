@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\MailableEntry;
+use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\MailableScanner;
 
 function mailableFixturePath(): string
@@ -10,13 +12,12 @@ function mailableFixturePath(): string
 }
 
 /**
- * @param  array<int, array<string, mixed>>  $entries
- * @return array<string, mixed>|null
+ * @param  list<MailableEntry>  $entries
  */
-function mailableByFqcn(array $entries, string $fqcn): ?array
+function mailableByFqcn(array $entries, string $fqcn): ?MailableEntry
 {
     foreach ($entries as $entry) {
-        if (($entry['fqcn'] ?? null) === $fqcn) {
+        if ($entry->fqcn === $fqcn) {
             return $entry;
         }
     }
@@ -24,24 +25,16 @@ function mailableByFqcn(array $entries, string $fqcn): ?array
     return null;
 }
 
-// ---------------------------------------------------------------------------
-// Empty-path behaviour
-// ---------------------------------------------------------------------------
-
 it('returns an empty mailables array when neither app/Mail nor app/ exist', function () {
     $entries = (new MailableScanner)->scan(sys_get_temp_dir())['mailables'];
 
     expect($entries)->toBe([]);
 });
 
-// ---------------------------------------------------------------------------
-// Discovery
-// ---------------------------------------------------------------------------
-
 it('discovers the expected set of mailables from the fixture app', function () {
     $entries = (new MailableScanner)->scan(mailableFixturePath())['mailables'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (MailableEntry $e): string => $e->fqcn, $entries);
 
     expect($fqcns)->toContain('App\\Mail\\OrderShipped');
     expect($fqcns)->toContain('App\\Mail\\WelcomeEmail');
@@ -62,28 +55,27 @@ it('discovers InvoiceMailable outside app/Mail/ via dispatch-site seeding', func
     $entry = mailableByFqcn($entries, 'App\\Domain\\Billing\\Mail\\InvoiceMailable');
 
     expect($entry)->not->toBeNull();
-    expect($entry['file'])->toBe('app/Domain/Billing/Mail/InvoiceMailable.php');
+    expect($entry->file)->toBe('app/Domain/Billing/Mail/InvoiceMailable.php');
 });
 
-// ---------------------------------------------------------------------------
-// Required top-level keys + scanner-default sent_from
-// ---------------------------------------------------------------------------
-
-it('emits each entry with all required top-level keys', function () {
+it('emits each entry as a MailableEntry DTO carrying every schema field', function () {
     $entries = (new MailableScanner)->scan(mailableFixturePath())['mailables'];
 
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        expect($entry)->toHaveKeys(['fqcn', 'file', 'line', 'queued', 'queue_config', 'sent_from']);
-        // Scanner emits sent_from empty; cross-link fills it.
-        expect($entry['sent_from'])->toBe([]);
+        expect($entry)->toBeInstanceOf(MailableEntry::class);
+        expect($entry->fqcn)->toBeString();
+        expect($entry->file)->toBeString();
+        expect($entry->line)->toBeInt();
+        expect($entry->queued)->toBeBool();
+        if ($entry->queued) {
+            expect($entry->queueConfig)->toBeInstanceOf(QueueConfigData::class);
+        } else {
+            expect($entry->queueConfig)->toBeNull();
+        }
     }
 });
-
-// ---------------------------------------------------------------------------
-// Queue detection + queue_config
-// ---------------------------------------------------------------------------
 
 it('records queued=true and a populated queue_config for OrderShipped', function () {
     $entries = (new MailableScanner)->scan(mailableFixturePath())['mailables'];
@@ -91,16 +83,16 @@ it('records queued=true and a populated queue_config for OrderShipped', function
     $entry = mailableByFqcn($entries, 'App\\Mail\\OrderShipped');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => 'redis',
-        'queue' => 'mail',
-        'delay' => null,
-        'tries' => 3,
-        'timeout' => 60,
-        'backoff' => null,
-    ]);
-    expect($entry['file'])->toBe('app/Mail/OrderShipped.php');
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: 'redis',
+        queue: 'mail',
+        delay: null,
+        tries: 3,
+        timeout: 60,
+        backoff: null,
+    ));
+    expect($entry->file)->toBe('app/Mail/OrderShipped.php');
 });
 
 it('records queued=false and queue_config=null for WelcomeEmail', function () {
@@ -109,8 +101,8 @@ it('records queued=false and queue_config=null for WelcomeEmail', function () {
     $entry = mailableByFqcn($entries, 'App\\Mail\\WelcomeEmail');
 
     expect($entry)->not->toBeNull();
-    expect($entry['queued'])->toBeFalse();
-    expect($entry['queue_config'])->toBeNull();
+    expect($entry->queued)->toBeFalse();
+    expect($entry->queueConfig)->toBeNull();
 });
 
 it('detects indirect ShouldQueue via a parent abstract mailable', function () {
@@ -119,28 +111,21 @@ it('detects indirect ShouldQueue via a parent abstract mailable', function () {
     $entry = mailableByFqcn($entries, 'App\\Mail\\IndirectlyQueuedMail');
 
     expect($entry)->not->toBeNull();
-    // IndirectlyQueuedMail does NOT implement ShouldQueue directly — it extends
-    // AbstractQueuedMail (abstract, in app/) which does. Resolver-driven detection
-    // should walk the extends chain and surface the indirect implementation.
-    expect($entry['queued'])->toBeTrue();
-    expect($entry['queue_config'])->toBe([
-        'connection' => null,
-        'queue' => 'mail-indirect',
-        'delay' => null,
-        'tries' => null,
-        'timeout' => null,
-        'backoff' => null,
-    ]);
+    expect($entry->queued)->toBeTrue();
+    expect($entry->queueConfig)->toEqual(new QueueConfigData(
+        connection: null,
+        queue: 'mail-indirect',
+        delay: null,
+        tries: null,
+        timeout: null,
+        backoff: null,
+    ));
 });
-
-// ---------------------------------------------------------------------------
-// Sorting + path normalisation
-// ---------------------------------------------------------------------------
 
 it('sorts mailable entries by FQCN ascending', function () {
     $entries = (new MailableScanner)->scan(mailableFixturePath())['mailables'];
 
-    $fqcns = array_column($entries, 'fqcn');
+    $fqcns = array_map(fn (MailableEntry $e): string => $e->fqcn, $entries);
     $sorted = $fqcns;
     sort($sorted, SORT_STRING);
 
@@ -153,7 +138,7 @@ it('reports file paths relative to the fixture root with forward slashes', funct
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        $file = str_replace(DIRECTORY_SEPARATOR, '/', (string) $entry['file']);
+        $file = str_replace(DIRECTORY_SEPARATOR, '/', $entry->file);
         expect($file)->not->toContain('\\');
         expect($file)->not->toStartWith('/');
         expect($file)->toStartWith('app/');

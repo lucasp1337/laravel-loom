@@ -4,34 +4,26 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ClosurePairRecord;
+use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects (event, listener) pairs from `$listen` arrays declared on
- * EventServiceProvider classes.
- *
- * Skips closure values, dynamic keys, and string-keyed entries (e.g.
- * 'eloquent.*' belongs to ObserverScanner).
+ * Collects (event, listener) pairs from `$listen` on EventServiceProvider classes.
+ * String-keyed entries (e.g. 'eloquent.*') belong to ObserverScanner.
  */
 final class ListenArrayVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_SERVICE_PROVIDER_BASE = 'Illuminate\\Foundation\\Support\\Providers\\EventServiceProvider';
+    use IdentifiesEventServiceProvider;
 
-    /** @var array<int, array{event: string, listener: string, method: string}> */
+    /** @var list<ListenerPair> */
     private array $pairs = [];
 
-    /** @var array<int, array{event: string, line: int, registration: string}> */
+    /** @var list<ClosurePairRecord> */
     private array $closurePairs = [];
-
-    /**
-     * Depth-1 enclosing-class stack. PHP allows nested class declarations in
-     * conditional blocks; we only treat the outermost qualifying class as a
-     * potential event service provider.
-     *
-     * @var array<int, bool>
-     */
-    private array $classStack = [];
 
     /**
      * @param  array<int, Node>  $nodes
@@ -40,55 +32,34 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     {
         $this->pairs = [];
         $this->closurePairs = [];
-        $this->classStack = [];
+        $this->resetEventServiceProviderStack();
 
         return null;
     }
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Stmt\Class_) {
-            $this->classStack[] = $this->isEventServiceProvider($node);
-        }
+        $this->pushClassNode($node);
 
         return null;
     }
 
     public function leaveNode(Node $node): null
     {
-        // Handle the property on leaveNode so that NameResolver has rewritten
-        // every ClassConstFetch->class Name inside the default array literal.
         if ($node instanceof Node\Stmt\Property) {
             $this->handleProperty($node);
 
             return null;
         }
 
-        if ($node instanceof Node\Stmt\Class_) {
-            array_pop($this->classStack);
-        }
+        $this->popClassNode($node);
 
         return null;
     }
 
-    private function isEventServiceProvider(Node\Stmt\Class_ $node): bool
-    {
-        if ($node->name !== null && $node->name->toString() === 'EventServiceProvider') {
-            return true;
-        }
-
-        if ($node->extends instanceof Node\Name
-            && $node->extends->toString() === self::EVENT_SERVICE_PROVIDER_BASE
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
     private function handleProperty(Node\Stmt\Property $node): void
     {
-        if ($this->classStack === [] || end($this->classStack) !== true) {
+        if (! $this->inEventServiceProvider()) {
             return;
         }
 
@@ -116,84 +87,59 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
                 continue;
             }
 
-            // Class-keyed entries flow into both the regular pair slot AND the
-            // closure-pair slot. String-keyed entries (e.g. 'eloquent.*' =>
-            // [Listener::class]) belong to ObserverScanner and must NOT leak
-            // into listeners[]; only their closure values are captured.
+            // String-keyed entries skip the regular pair slot; only their
+            // closure values are captured.
             $keyIsClass = $item->key instanceof Node\Expr\ClassConstFetch;
-
             $value = $item->value;
 
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $listenerItem) {
-                    $listenerValue = $listenerItem->value;
-                    if ($listenerValue instanceof Node\Expr\Closure
-                        || $listenerValue instanceof Node\Expr\ArrowFunction
-                    ) {
-                        $this->closurePairs[] = [
-                            'event' => $eventFqcn,
-                            'line' => $listenerValue->getStartLine(),
-                            'registration' => 'listen_array',
-                        ];
-
-                        continue;
-                    }
-
-                    if (! $keyIsClass) {
-                        continue;
-                    }
-
-                    $resolved = $this->listenerFromValue($listenerValue);
-                    if ($resolved !== null) {
-                        $this->pairs[] = [
-                            'event' => $eventFqcn,
-                            'listener' => $resolved['listener'],
-                            'method' => $resolved['method'],
-                        ];
-                    }
+                    $this->emitListenerEntry($eventFqcn, $keyIsClass, $listenerItem->value);
                 }
 
                 continue;
             }
 
-            if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
-                $this->closurePairs[] = [
-                    'event' => $eventFqcn,
-                    'line' => $value->getStartLine(),
-                    'registration' => 'listen_array',
-                ];
-
-                continue;
-            }
-
-            if (! $keyIsClass) {
-                continue;
-            }
-
-            // Single listener written without an enclosing array — uncommon but legal.
-            $resolved = $this->listenerFromValue($value);
-            if ($resolved !== null) {
-                $this->pairs[] = [
-                    'event' => $eventFqcn,
-                    'listener' => $resolved['listener'],
-                    'method' => $resolved['method'],
-                ];
-            }
+            $this->emitListenerEntry($eventFqcn, $keyIsClass, $value);
         }
+    }
+
+    private function emitListenerEntry(string $eventFqcn, bool $keyIsClass, Node\Expr $value): void
+    {
+        if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
+            $this->closurePairs[] = new ClosurePairRecord(
+                event: $eventFqcn,
+                line: $value->getStartLine(),
+                registration: 'listen_array',
+            );
+
+            return;
+        }
+
+        if (! $keyIsClass) {
+            return;
+        }
+
+        $resolved = $this->listenerFromValue($value);
+        if ($resolved === null) {
+            return;
+        }
+
+        $this->pairs[] = new ListenerPair(
+            event: $eventFqcn,
+            listener: $resolved['listener'],
+            method: $resolved['method'],
+        );
     }
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
 
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        return null;
+        return $expr instanceof Node\Scalar\String_ ? $expr->value : null;
     }
 
     /**
@@ -201,65 +147,37 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = $this->classConstFqcn($value);
+        $direct = AstHelpers::classConstFqcn($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
-        // Tuple form: [ListenerClass::class, 'method'].
-        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
-            if ($listener === null) {
-                return null;
-            }
-            $methodNode = $value->items[1]->value;
-            if (! $methodNode instanceof Node\Scalar\String_) {
-                return null;
-            }
-
-            return ['listener' => $listener, 'method' => $methodNode->value];
+        if (! $value instanceof Node\Expr\Array_ || $value->items === []) {
+            return null;
         }
 
-        // Bare-tuple case with a single class element behaves like a direct ::class.
-        if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = $this->classConstFqcn($value->items[0]->value);
-            if ($listener !== null) {
-                return ['listener' => $listener, 'method' => 'handle'];
-            }
+        // [ListenerClass::class, 'method'] tuple.
+        $tuple = AstHelpers::tupleCallable($value);
+        if ($tuple !== null) {
+            return ['listener' => $tuple['class'], 'method' => $tuple['method']];
+        }
+
+        // Single-element array acts like a bare ::class.
+        $first = AstHelpers::classConstFqcn($value->items[0]->value);
+        if ($first !== null) {
+            return ['listener' => $first, 'method' => 'handle'];
         }
 
         return null;
     }
 
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
-    }
-
-    /**
-     * @return array<int, array{event: string, listener: string, method: string}>
-     */
+    /** @return list<ListenerPair> */
     public function getPairs(): array
     {
         return $this->pairs;
     }
 
-    /**
-     * @return array<int, array{event: string, line: int, registration: string}>
-     */
+    /** @return list<ClosurePairRecord> */
     public function getClosurePairs(): array
     {
         return $this->closurePairs;

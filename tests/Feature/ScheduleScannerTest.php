@@ -9,21 +9,19 @@ function scheduleFixturePath(): string
     return dirname(__DIR__).'/Fixtures/schedule-fixture-app';
 }
 
+use Lucasp\Loom\Dto\ScheduledEntry;
+
 /**
- * Locate a scheduled entry by its (file, line) tuple. `file` is the
- * fixture-root-relative forward-slashed path emitted by the scanner.
+ * Locate a scheduled entry by its (file, line) tuple.
  *
- * @param  array<int, array<string, mixed>>  $entries
- * @return array<string, mixed>|null
+ * @param  list<ScheduledEntry>  $entries
  */
-function scheduleEntryAt(array $entries, string $file, int $line): ?array
+function scheduleEntryAt(array $entries, string $file, int $line): ?ScheduledEntry
 {
     foreach ($entries as $entry) {
-        $entryFile = is_string($entry['file'] ?? null)
-            ? str_replace(DIRECTORY_SEPARATOR, '/', (string) $entry['file'])
-            : null;
+        $entryFile = str_replace(DIRECTORY_SEPARATOR, '/', $entry->file);
 
-        if ($entryFile === $file && (int) ($entry['line'] ?? -1) === $line) {
+        if ($entryFile === $file && $entry->line === $line) {
             return $entry;
         }
     }
@@ -66,8 +64,8 @@ it('discovers entries declared inside Console\\Kernel::schedule()', function () 
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 16);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('command');
-    expect($entry['target'])->toBe('mail:send');
+    expect($entry->kind)->toBe('command');
+    expect($entry->target)->toBe('mail:send');
 });
 
 it('discovers entries declared inside bootstrap/app.php withSchedule(...)', function () {
@@ -76,8 +74,8 @@ it('discovers entries declared inside bootstrap/app.php withSchedule(...)', func
     $entry = scheduleEntryAt($entries, 'bootstrap/app.php', 10);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('command');
-    expect($entry['target'])->toBe('queue:prune-batches');
+    expect($entry->kind)->toBe('command');
+    expect($entry->target)->toBe('queue:prune-batches');
 });
 
 it('discovers entries declared via the Schedule facade in a provider', function () {
@@ -86,8 +84,8 @@ it('discovers entries declared via the Schedule facade in a provider', function 
     $entry = scheduleEntryAt($entries, 'app/Providers/ScheduleServiceProvider.php', 13);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('command');
-    expect($entry['target'])->toBe('horizon:snapshot');
+    expect($entry->kind)->toBe('command');
+    expect($entry->target)->toBe('horizon:snapshot');
 });
 
 // ---------------------------------------------------------------------------
@@ -105,7 +103,7 @@ it('classifies kind per root method', function () {
             return null;
         }
 
-        return is_string($entry['kind'] ?? null) ? $entry['kind'] : null;
+        return is_string($entry->kind ?? null) ? $entry->kind : null;
     };
 
     expect($kindAt(16))->toBe('command');
@@ -128,7 +126,7 @@ it('resolves SendMail::class as a command target FQCN', function () {
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 21);
 
     expect($entry)->not->toBeNull();
-    expect($entry['target'])->toBe('App\\Console\\Commands\\SendMail');
+    expect($entry->target)->toBe('App\\Console\\Commands\\SendMail');
 });
 
 it('resolves new SendInvoice() in ->job to the FQCN target', function () {
@@ -137,7 +135,7 @@ it('resolves new SendInvoice() in ->job to the FQCN target', function () {
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 24);
 
     expect($entry)->not->toBeNull();
-    expect($entry['target'])->toBe('App\\Jobs\\SendInvoice');
+    expect($entry->target)->toBe('App\\Jobs\\SendInvoice');
 });
 
 it('resolves SendInvoice::class in ->job to the FQCN target', function () {
@@ -146,7 +144,7 @@ it('resolves SendInvoice::class in ->job to the FQCN target', function () {
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 27);
 
     expect($entry)->not->toBeNull();
-    expect($entry['target'])->toBe('App\\Jobs\\SendInvoice');
+    expect($entry->target)->toBe('App\\Jobs\\SendInvoice');
 });
 
 it('normalises tuple-form ->call([Cls::class, "method"]) to FQCN::method', function () {
@@ -155,8 +153,8 @@ it('normalises tuple-form ->call([Cls::class, "method"]) to FQCN::method', funct
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 34);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('closure');
-    expect($entry['target'])->toBe('App\\Reports::generate');
+    expect($entry->kind)->toBe('closure');
+    expect($entry->target)->toBe('App\\Reports::generate');
 });
 
 it('normalises Laravel-callable string ->call("App\\Cls@method") to FQCN::method', function () {
@@ -165,8 +163,8 @@ it('normalises Laravel-callable string ->call("App\\Cls@method") to FQCN::method
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 37);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('closure');
-    expect($entry['target'])->toBe('App\\Maintenance::run');
+    expect($entry->kind)->toBe('closure');
+    expect($entry->target)->toBe('App\\Maintenance::run');
 });
 
 it('leaves inline closures with a null target (file:line is the identity)', function () {
@@ -175,8 +173,8 @@ it('leaves inline closures with a null target (file:line is the identity)', func
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 31);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('closure');
-    expect($entry['target'])->toBeNull();
+    expect($entry->kind)->toBe('closure');
+    expect($entry->target)->toBeNull();
 });
 
 it('keeps exec shell command strings verbatim as target', function () {
@@ -185,8 +183,8 @@ it('keeps exec shell command strings verbatim as target', function () {
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 40);
 
     expect($entry)->not->toBeNull();
-    expect($entry['kind'])->toBe('exec');
-    expect($entry['target'])->toBe('php artisan some:thing');
+    expect($entry->kind)->toBe('exec');
+    expect($entry->target)->toBe('php artisan some:thing');
 });
 
 // ---------------------------------------------------------------------------
@@ -197,70 +195,70 @@ it('normalises ->dailyAt("13:00") to "0 13 * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 16);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 13 * * *');
+    expect($entry->cron)->toBe('0 13 * * *');
 });
 
 it('normalises ->everyFifteenMinutes() to "*/15 * * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 21);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('*/15 * * * *');
+    expect($entry->cron)->toBe('*/15 * * * *');
 });
 
 it('normalises ->daily() to "0 0 * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 0 * * *');
+    expect($entry->cron)->toBe('0 0 * * *');
 });
 
 it('normalises ->hourly() to "0 * * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 27);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 * * * *');
+    expect($entry->cron)->toBe('0 * * * *');
 });
 
 it('normalises ->everyTenMinutes() to "*/10 * * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 31);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('*/10 * * * *');
+    expect($entry->cron)->toBe('*/10 * * * *');
 });
 
 it('normalises ->weeklyOn(1, "08:00") to "0 8 * * 1"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 34);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 8 * * 1');
+    expect($entry->cron)->toBe('0 8 * * 1');
 });
 
 it('normalises ->monthly() to "0 0 1 * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 37);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 0 1 * *');
+    expect($entry->cron)->toBe('0 0 1 * *');
 });
 
 it('passes cron("5 * * * *") through verbatim', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 40);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('5 * * * *');
+    expect($entry->cron)->toBe('5 * * * *');
 });
 
 it('normalises ->everyFiveMinutes() to "*/5 * * * *" (bootstrap form)', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'bootstrap/app.php', 13);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('*/5 * * * *');
+    expect($entry->cron)->toBe('*/5 * * * *');
 });
 
 it('normalises ->everyMinute() to "* * * * *"', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 59);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('* * * * *');
+    expect($entry->cron)->toBe('* * * * *');
 });
 
 // ---------------------------------------------------------------------------
@@ -271,7 +269,7 @@ it('applies last-wins on multiple frequency helpers in a chain (->daily()->hourl
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 48);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBe('0 * * * *');
+    expect($entry->cron)->toBe('0 * * * *');
 });
 
 // ---------------------------------------------------------------------------
@@ -282,7 +280,7 @@ it('sets cron to null when an unrecognised frequency helper is used', function (
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 44);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBeNull();
+    expect($entry->cron)->toBeNull();
 });
 
 it('sets cron to null when no frequency helper appears in the chain', function () {
@@ -296,7 +294,7 @@ it('sets cron to null when no frequency helper appears in the chain', function (
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 44);
 
     expect($entry)->not->toBeNull();
-    expect($entry['cron'])->toBeNull();
+    expect($entry->cron)->toBeNull();
 });
 
 it('nulls cron when an unknown method follows a recognised frequency helper', function () {
@@ -306,16 +304,16 @@ it('nulls cron when an unknown method follows a recognised frequency helper', fu
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 69);
 
     expect($entry)->not->toBeNull();
-    expect($entry['target'])->toBe('macro:sometime');
-    expect($entry['cron'])->toBeNull();
+    expect($entry->target)->toBe('macro:sometime');
+    expect($entry->cron)->toBeNull();
 });
 
 it('normalises ->weeklyOn([1, 3, 5], "08:00") to a comma-separated weekday field', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 64);
 
     expect($entry)->not->toBeNull();
-    expect($entry['target'])->toBe('digest:weekly');
-    expect($entry['cron'])->toBe('0 8 * * 1,3,5');
+    expect($entry->target)->toBe('digest:weekly');
+    expect($entry->cron)->toBe('0 8 * * 1,3,5');
 });
 
 it('does not emit chains declared outside the schedule() method', function () {
@@ -336,36 +334,36 @@ it('sets without_overlapping=true when ->withoutOverlapping() appears in the cha
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 16);
 
     expect($entry)->not->toBeNull();
-    expect($entry['without_overlapping'])->toBeTrue();
-    expect($entry['on_one_server'])->toBeFalse();
-    expect($entry['run_in_background'])->toBeFalse();
+    expect($entry->withoutOverlapping)->toBeTrue();
+    expect($entry->onOneServer)->toBeFalse();
+    expect($entry->runInBackground)->toBeFalse();
 });
 
 it('sets on_one_server=true when ->onOneServer() appears in the chain', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 27);
 
     expect($entry)->not->toBeNull();
-    expect($entry['on_one_server'])->toBeTrue();
-    expect($entry['without_overlapping'])->toBeFalse();
-    expect($entry['run_in_background'])->toBeFalse();
+    expect($entry->onOneServer)->toBeTrue();
+    expect($entry->withoutOverlapping)->toBeFalse();
+    expect($entry->runInBackground)->toBeFalse();
 });
 
 it('sets run_in_background=true when ->runInBackground() appears in the chain', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 59);
 
     expect($entry)->not->toBeNull();
-    expect($entry['run_in_background'])->toBeTrue();
-    expect($entry['without_overlapping'])->toBeFalse();
-    expect($entry['on_one_server'])->toBeFalse();
+    expect($entry->runInBackground)->toBeTrue();
+    expect($entry->withoutOverlapping)->toBeFalse();
+    expect($entry->onOneServer)->toBeFalse();
 });
 
 it('defaults all three flags to false when no flag link appears in the chain', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
 
     expect($entry)->not->toBeNull();
-    expect($entry['without_overlapping'])->toBeFalse();
-    expect($entry['on_one_server'])->toBeFalse();
-    expect($entry['run_in_background'])->toBeFalse();
+    expect($entry->withoutOverlapping)->toBeFalse();
+    expect($entry->onOneServer)->toBeFalse();
+    expect($entry->runInBackground)->toBeFalse();
 });
 
 // ---------------------------------------------------------------------------
@@ -376,14 +374,14 @@ it('extracts timezone from ->timezone("America/Chicago")', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 16);
 
     expect($entry)->not->toBeNull();
-    expect($entry['timezone'])->toBe('America/Chicago');
+    expect($entry->timezone)->toBe('America/Chicago');
 });
 
 it('leaves timezone null when no ->timezone() link appears', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
 
     expect($entry)->not->toBeNull();
-    expect($entry['timezone'])->toBeNull();
+    expect($entry->timezone)->toBeNull();
 });
 
 // ---------------------------------------------------------------------------
@@ -394,39 +392,28 @@ it('emits "weekdays" and "between(08:00,17:00)" as constraints', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 53);
 
     expect($entry)->not->toBeNull();
-    expect($entry['constraints'])->toContain('weekdays');
-    expect($entry['constraints'])->toContain('between(08:00,17:00)');
+    expect($entry->constraints)->toContain('weekdays');
+    expect($entry->constraints)->toContain('between(08:00,17:00)');
 });
 
 it('emits an empty constraints array when no constraint link appears', function () {
     $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
 
     expect($entry)->not->toBeNull();
-    expect($entry['constraints'])->toBe([]);
+    expect($entry->constraints)->toBe([]);
 });
 
 // ---------------------------------------------------------------------------
 // Required top-level keys
 // ---------------------------------------------------------------------------
 
-it('emits every entry with the full top-level key set', function () {
+it('emits every entry as a ScheduledEntry DTO', function () {
     $entries = scheduleEntries();
 
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        expect($entry)->toHaveKeys([
-            'kind',
-            'target',
-            'cron',
-            'timezone',
-            'without_overlapping',
-            'on_one_server',
-            'run_in_background',
-            'constraints',
-            'file',
-            'line',
-        ]);
+        expect($entry)->toBeInstanceOf(ScheduledEntry::class);
     }
 });
 
@@ -438,9 +425,9 @@ it('sorts entries by (file, line) ascending', function () {
     $entries = scheduleEntries();
 
     $tuples = array_map(
-        static fn (array $e): array => [
-            str_replace(DIRECTORY_SEPARATOR, '/', (string) $e['file']),
-            (int) $e['line'],
+        static fn (ScheduledEntry $e): array => [
+            str_replace(DIRECTORY_SEPARATOR, '/', $e->file),
+            $e->line,
         ],
         $entries,
     );
@@ -463,7 +450,7 @@ it('reports file paths relative to the fixture root with forward slashes', funct
     expect($entries)->not->toBe([]);
 
     foreach ($entries as $entry) {
-        $file = str_replace(DIRECTORY_SEPARATOR, '/', (string) $entry['file']);
+        $file = str_replace(DIRECTORY_SEPARATOR, '/', (string) $entry->file);
 
         expect($file)->not->toContain('\\');
         expect($file)->not->toStartWith('/');

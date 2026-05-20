@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -47,13 +48,13 @@ it('extracts a listener with a typed handle() parameter', function () {
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['fqcn'])->toBe('App\\Listeners\\SendOrderConfirmation');
-    expect($classes[0]['line'])->toBe(7);
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle'],
+    expect($classes[0]->fqcn)->toBe('App\\Listeners\\SendOrderConfirmation');
+    expect($classes[0]->line)->toBe(7);
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
     ]);
-    expect($classes[0]['queued'])->toBeFalse();
-    expect($classes[0]['has_handle'])->toBeTrue();
+    expect($classes[0]->queued)->toBeFalse();
+    expect($classes[0]->hasHandle)->toBeTrue();
 });
 
 it('marks the listener as queued when implementing ShouldQueue via a use import', function () {
@@ -76,9 +77,9 @@ it('marks the listener as queued when implementing ShouldQueue via a use import'
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queued'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe([
-        ['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle'],
+    expect($classes[0]->queued)->toBeTrue();
+    expect($classes[0]->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
     ]);
 });
 
@@ -99,7 +100,7 @@ it('marks the listener as queued when implementing the ShouldQueue FQCN directly
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['queued'])->toBeTrue();
+    expect($classes[0]->queued)->toBeTrue();
 });
 
 it('emits a hit for a listener class with no handle() method', function () {
@@ -119,8 +120,8 @@ it('emits a hit for a listener class with no handle() method', function () {
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeFalse();
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->hasHandle)->toBeFalse();
+    expect($classes[0]->handles)->toBe([]);
 });
 
 it('records empty handles for an untyped handle() first parameter', function () {
@@ -140,8 +141,8 @@ it('records empty handles for an untyped handle() first parameter', function () 
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->hasHandle)->toBeTrue();
+    expect($classes[0]->handles)->toBe([]);
 });
 
 it('records empty handles for a nullable handle() type-hint', function () {
@@ -163,8 +164,8 @@ it('records empty handles for a nullable handle() type-hint', function () {
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->hasHandle)->toBeTrue();
+    expect($classes[0]->handles)->toBe([]);
 });
 
 it('records empty handles for a union-typed handle()', function () {
@@ -187,8 +188,8 @@ it('records empty handles for a union-typed handle()', function () {
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->hasHandle)->toBeTrue();
+    expect($classes[0]->handles)->toBe([]);
 });
 
 it('records empty handles for a builtin-typed handle()', function () {
@@ -208,6 +209,6 @@ it('records empty handles for a builtin-typed handle()', function () {
     $classes = runListenerClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]['has_handle'])->toBeTrue();
-    expect($classes[0]['handles'])->toBe([]);
+    expect($classes[0]->hasHandle)->toBeTrue();
+    expect($classes[0]->handles)->toBe([]);
 });

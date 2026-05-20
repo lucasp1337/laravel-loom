@@ -47,8 +47,8 @@ it('resolves Model::observe(Observer::class) outside any class body', function (
     $pairs = runObserveCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['model'])->toBe('App\\Models\\User');
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\UserObserver']);
+    expect($pairs[0]->model)->toBe('App\\Models\\User');
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\UserObserver']);
 });
 
 it('resolves static::observe(...) to the enclosing class', function () {
@@ -71,8 +71,8 @@ it('resolves static::observe(...) to the enclosing class', function () {
     $pairs = runObserveCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['model'])->toBe('App\\Models\\User');
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\UserObserver']);
+    expect($pairs[0]->model)->toBe('App\\Models\\User');
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\UserObserver']);
 });
 
 it('resolves self::observe(...) to the enclosing class', function () {
@@ -95,7 +95,7 @@ it('resolves self::observe(...) to the enclosing class', function () {
     $pairs = runObserveCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['model'])->toBe('App\\Models\\User');
+    expect($pairs[0]->model)->toBe('App\\Models\\User');
 });
 
 it('skips parent::observe(...) calls', function () {
@@ -142,7 +142,7 @@ it('flattens an array argument to multiple observers', function () {
     $pairs = runObserveCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
 });
 
 it('skips Model::observe($var) with a variable argument', function () {
@@ -191,5 +191,5 @@ it('drops non-conforming items inside a mixed array argument', function () {
     $pairs = runObserveCallVisitor($source);
 
     expect($pairs)->toHaveCount(1);
-    expect($pairs[0]['observers'])->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
+    expect($pairs[0]->observers)->toBe(['App\\Observers\\Foo', 'App\\Observers\\Bar']);
 });

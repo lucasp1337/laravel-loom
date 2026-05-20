@@ -4,27 +4,24 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\NotificationEntry;
+use Lucasp\Loom\Dto\NotificationLocation;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\NotificationClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers notification classes via a filesystem walk of app/Notifications/
- * seeded by dispatch sites whose target resolves via PSR-4 to a class
- * anywhere under app/.
- *
- * See docs/scanners/notifications.md for the full design.
+ * Discovers notification classes under app/Notifications/ plus
+ * dispatch-site targets that resolve via PSR-4.
  */
 final class NotificationScanner implements Scanner
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
+    use ScannerFilesystem;
 
     private AstWalker $walker;
 
@@ -37,16 +34,14 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{notifications: list<NotificationEntry>}
      */
     public function scan(string $appRoot): array
     {
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
 
-        $fsClasses = $this->discoverFromFilesystem($appRoot, $resolver);
+        $merged = $this->discoverFromFilesystem($appRoot, $resolver);
         $dispatchTargets = $this->discoverFromDispatchSites($appRoot);
-
-        $merged = $fsClasses;
 
         foreach (array_keys($dispatchTargets) as $fqcn) {
             if (isset($merged[$fqcn])) {
@@ -65,7 +60,7 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * @return array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>, channels: list<string>, channels_dynamic: bool}>
+     * @return array<string, NotificationLocation>
      */
     private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
@@ -81,15 +76,14 @@ final class NotificationScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                $relative = $this->relativePath($appRoot, $file->getPathname());
-                $results[$class['fqcn']] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                    'queued' => $resolver->implementsInterface($class['fqcn'], self::SHOULD_QUEUE),
-                    'queue_config' => $class['queue_config'],
-                    'channels' => $class['channels'],
-                    'channels_dynamic' => $class['channels_dynamic'],
-                ];
+                $results[$class->fqcn] = new NotificationLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                    queued: $resolver->implementsInterface($class->fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                    queueConfig: $class->queueConfig,
+                    channels: $class->channels,
+                    channelsDynamic: $class->channelsDynamic,
+                );
             }
         }
 
@@ -97,10 +91,6 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * Collect dispatch targets whose provisional kind is `notification`.
-     * Walks the whole `app/` tree with DispatchSiteVisitor — mirrors
-     * JobsScanner / MailableScanner self-contained discovery.
-     *
      * @return array<string, 'notification'>
      */
     private function discoverFromDispatchSites(string $appRoot): array
@@ -117,21 +107,18 @@ final class NotificationScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                if ($site['provisionalKind'] !== 'notification') {
+                if ($site->provisionalKind !== 'notification') {
                     continue;
                 }
 
-                $candidates[$site['target']] = 'notification';
+                $candidates[$site->target] = 'notification';
             }
         }
 
         return $candidates;
     }
 
-    /**
-     * @return array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>, channels: list<string>, channels_dynamic: bool}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?NotificationLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -142,26 +129,26 @@ final class NotificationScanner implements Scanner
         $this->walker->walk($absolute, [$visitor]);
 
         foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] !== $fqcn) {
+            if ($class->fqcn !== $fqcn) {
                 continue;
             }
 
-            return [
-                'file' => $this->relativePath($appRoot, $absolute),
-                'line' => $class['line'],
-                'queued' => $resolver->implementsInterface($fqcn, self::SHOULD_QUEUE),
-                'queue_config' => $class['queue_config'],
-                'channels' => $class['channels'],
-                'channels_dynamic' => $class['channels_dynamic'],
-            ];
+            return new NotificationLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+                queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queueConfig: $class->queueConfig,
+                channels: $class->channels,
+                channelsDynamic: $class->channelsDynamic,
+            );
         }
 
         return null;
     }
 
     /**
-     * @param  array<string, array{file: string, line: int, queued: bool, queue_config: array<string, string|int|null>, channels: list<string>, channels_dynamic: bool}>  $merged
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, NotificationLocation>  $merged
+     * @return list<NotificationEntry>
      */
     private function emit(array $merged): array
     {
@@ -169,57 +156,17 @@ final class NotificationScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            // Preserve source order from the via() literal — that's the
-            // order Laravel uses at runtime when dispatching to channels,
-            // and it preserves user intent for ordered channel processing.
-            $channels = $location['channels'];
-
-            $entries[] = [
-                'fqcn' => $fqcn,
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'queued' => $location['queued'],
-                'queue_config' => $location['queued'] ? $location['queue_config'] : null,
-                'channels' => $channels,
-                'channels_dynamic' => $location['channels_dynamic'],
-                'notified_from' => [],
-            ];
+            $entries[] = new NotificationEntry(
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+                queued: $location->queued,
+                queueConfig: $location->queued ? $location->queueConfig : null,
+                channels: $location->channels,
+                channelsDynamic: $location->channelsDynamic,
+            );
         }
 
         return $entries;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

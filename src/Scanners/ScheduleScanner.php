@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ScheduleChainEntry;
+use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ScannerFilesystem;
 use PhpParser\Node;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 
 /**
  * Discovers entries declared in Laravel's task scheduler.
- *
- * See docs/scanners/schedule.md and docs/adr/0002-schedule-scanner.md.
  */
 final class ScheduleScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private const FREQUENCY_HELPERS = [
         'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
         'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
@@ -32,29 +32,19 @@ final class ScheduleScanner implements Scanner
         'cron',
     ];
 
-    /**
-     * Day-of-week constraint helpers. These also exist as frequency helpers
-     * in Laravel (`->mondays()` configures `runsOn` constraint, not a cron),
-     * so we treat them as constraints only.
-     */
+    /** Day-of-week helpers configure runsOn constraints, not cron. */
     private const DAY_CONSTRAINTS = ['weekdays', 'weekends', 'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays'];
 
     /**
-     * Methods we know are NOT frequency setters. Anything outside both
-     * FREQUENCY_HELPERS and this set, when it appears after a recognised
-     * frequency helper, nulls the cron — a future Laravel frequency helper
-     * or a user-defined `Schedule::macro` could clobber the cron at runtime
-     * and Loom would misrepresent the schedule if it ignored it.
+     * Methods we know are NOT frequency setters. Anything else following a
+     * frequency helper nulls the cron — an unknown method could be a future
+     * Laravel helper or a user macro that clobbers the cron at runtime.
      */
     private const SAFE_MODIFIERS = [
-        // Modifiers we emit explicitly.
         'timezone', 'withoutOverlapping', 'onOneServer', 'runInBackground',
-        // Constraints we emit into constraints[].
         'weekdays', 'weekends',
         'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays',
         'between', 'unlessBetween', 'when', 'skip', 'environments',
-        // Informational / lifecycle methods we don't model — none of these
-        // change the cron expression.
         'name', 'description', 'user', 'evenInMaintenanceMode',
         'ping', 'pingBefore', 'pingBeforeIf', 'thenPing', 'thenPingIf',
         'pingOnSuccess', 'pingOnFailure',
@@ -70,11 +60,11 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{scheduled: list<ScheduledEntry>}
      */
     public function scan(string $appRoot): array
     {
-        /** @var array<string, array<string, mixed>> $entries keyed by file|line|kind|target */
+        /** @var array<string, ScheduledEntry> $entries keyed by file|line|kind|target */
         $entries = [];
 
         foreach ($this->discoverKernelForm($appRoot) as $entry) {
@@ -91,22 +81,13 @@ final class ScheduleScanner implements Scanner
         }
 
         $result = array_values($entries);
-        usort($result, function (array $a, array $b): int {
-            $af = is_string($a['file'] ?? null) ? $a['file'] : '';
-            $bf = is_string($b['file'] ?? null) ? $b['file'] : '';
-            $al = is_int($a['line'] ?? null) ? $a['line'] : 0;
-            $bl = is_int($b['line'] ?? null) ? $b['line'] : 0;
-
-            return [$af, $al] <=> [$bf, $bl];
-        });
+        usort($result, fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
 
         return ['scheduled' => $result];
     }
 
     /**
-     * Discover entries from `app/Console/Kernel.php`'s `schedule()` method.
-     *
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverKernelForm(string $appRoot): array
     {
@@ -124,12 +105,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Discover entries from `bootstrap/app.php`'s `withSchedule(...)` closure.
-     *
-     * The closure is walked by the same ScheduleChainVisitor, which is happy
-     * to accept any variable receiver for the chain root.
-     *
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverBootstrapForm(string $appRoot): array
     {
@@ -147,9 +123,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Discover Schedule-facade-rooted chains anywhere under `app/`.
-     *
-     * @return list<array<string, mixed>>
+     * @return list<ScheduledEntry>
      */
     private function discoverFacadeForm(string $appRoot): array
     {
@@ -161,15 +135,8 @@ final class ScheduleScanner implements Scanner
         $entries = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
-            // Fresh visitor per file: if walk() returns null (read or parse
-            // failure) the visitor's beforeTraverse is never invoked and the
-            // previous file's entries would otherwise leak into this file's
-            // translate() call with the wrong file path.
-            //
-            // Walking the whole app/ tree means we cannot trust an arbitrary
-            // Variable receiver — only chains explicitly rooted at the
-            // Schedule facade count. Otherwise any
-            // `$builder->command(...)->daily()` DSL would be falsely emitted.
+            // Fresh visitor per file: walk()===null bypasses beforeTraverse,
+            // so reusing one would leak the previous file's entries.
             $visitor = new ScheduleChainVisitor(ScheduleChainVisitor::MODE_FACADE);
             if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
                 continue;
@@ -185,16 +152,14 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Translate raw visitor entries into schema-shaped entries.
-     *
-     * @param  array<int, array{kind: 'command'|'job'|'closure'|'exec', root_method: string, root_args: array<int, Node\Arg|Node\VariadicPlaceholder>, chain: list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>}>, line: int}>  $rawEntries
-     * @return list<array<string, mixed>>
+     * @param  list<ScheduleChainEntry>  $rawEntries
+     * @return list<ScheduledEntry>
      */
     private function translate(array $rawEntries, string $relativeFile): array
     {
         $out = [];
         foreach ($rawEntries as $raw) {
-            $target = $this->resolveTarget($raw['kind'], $raw['root_args']);
+            $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
             $cron = null;
             $timezone = null;
@@ -204,35 +169,28 @@ final class ScheduleScanner implements Scanner
             $constraints = [];
             $cronWasSet = false;
 
-            // First link is the root call; modifiers start at index 1.
-            $chain = $raw['chain'];
+            // Index 0 is the root call; modifiers start at index 1.
+            $chain = $raw->chain;
             for ($i = 1, $n = count($chain); $i < $n; $i++) {
-                $link = $chain[$i];
-                $method = $link['method'];
-                $args = $link['args'];
+                $method = $chain[$i]->method;
+                $args = $chain[$i]->args;
 
                 if (in_array($method, self::FREQUENCY_HELPERS, true)) {
-                    // Last-wins: a recognised helper with an unresolvable
-                    // arg (e.g. `dailyAt($time)`) clobbers any earlier value
-                    // with null, mirroring Laravel's runtime "last cron
-                    // expression set" semantics.
+                    // Last-wins, including null when args are unresolvable.
                     $cron = $this->cronFromHelper($method, $args);
                     $cronWasSet = true;
 
                     continue;
                 }
 
-                // Anything outside FREQUENCY_HELPERS and SAFE_MODIFIERS that
-                // shows up *after* a recognised frequency helper might itself
-                // be a frequency-setter we don't know about (a future Laravel
-                // helper, a user-defined Schedule::macro). Mirror runtime
-                // last-wins by nulling the cron rather than misrepresent it.
+                // Unknown method after a frequency helper: could be a future
+                // helper or a Schedule::macro. Null the cron to avoid lying.
                 if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
                     $cron = null;
                 }
 
                 if ($method === 'timezone') {
-                    $tz = $this->scalarString($args[0] ?? null);
+                    $tz = AstHelpers::scalarString($args[0] ?? null);
                     if ($tz !== null) {
                         $timezone = $tz;
                     }
@@ -258,7 +216,6 @@ final class ScheduleScanner implements Scanner
                     continue;
                 }
 
-                // Constraint-shaped helpers.
                 $constraint = $this->constraintFor($method, $args);
                 if ($constraint !== null) {
                     $constraints[] = $constraint;
@@ -267,26 +224,24 @@ final class ScheduleScanner implements Scanner
 
             sort($constraints);
 
-            $out[] = [
-                'kind' => $raw['kind'],
-                'target' => $target,
-                'cron' => $cron,
-                'timezone' => $timezone,
-                'without_overlapping' => $withoutOverlapping,
-                'on_one_server' => $onOneServer,
-                'run_in_background' => $runInBackground,
-                'constraints' => $constraints,
-                'file' => $relativeFile,
-                'line' => $raw['line'],
-            ];
+            $out[] = new ScheduledEntry(
+                kind: $raw->kind,
+                target: $target,
+                cron: $cron,
+                timezone: $timezone,
+                withoutOverlapping: $withoutOverlapping,
+                onOneServer: $onOneServer,
+                runInBackground: $runInBackground,
+                constraints: $constraints,
+                file: $relativeFile,
+                line: $raw->line,
+            );
         }
 
         return $out;
     }
 
     /**
-     * Resolve the entry's target string given the root method and its args.
-     *
      * @param  'command'|'job'|'closure'|'exec'  $kind
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
      */
@@ -300,30 +255,29 @@ final class ScheduleScanner implements Scanner
         $value = $first->value;
 
         if ($kind === 'command') {
-            $string = $this->scalarString($first);
+            $string = AstHelpers::scalarString($first);
             if ($string !== null) {
                 return $string;
             }
-            $fqcn = $this->resolveStaticClass($value);
+            $fqcn = AstHelpers::resolveStaticClass($value);
 
             return $fqcn;
         }
 
         if ($kind === 'job') {
-            return $this->resolveStaticClass($value);
+            return AstHelpers::resolveStaticClass($value);
         }
 
         if ($kind === 'exec') {
-            return $this->scalarString($first);
+            return AstHelpers::scalarString($first);
         }
 
-        // closure: support callable tuple [Class::class, 'method']
-        // and Laravel callable strings 'App\\Cls@method'.
+        // closure: [Class::class, 'method'] tuple or 'App\\Cls@method' string.
         if ($value instanceof Node\Expr\Array_) {
             return $this->tupleCallableTarget($value);
         }
 
-        $string = $this->scalarString($first);
+        $string = AstHelpers::scalarString($first);
         if ($string !== null) {
             return $this->normaliseAtCallable($string);
         }
@@ -339,7 +293,7 @@ final class ScheduleScanner implements Scanner
         $classItem = $array->items[0];
         $methodItem = $array->items[1];
 
-        $fqcn = $this->resolveStaticClass($classItem->value);
+        $fqcn = AstHelpers::resolveStaticClass($classItem->value);
         $method = null;
         if ($methodItem->value instanceof Node\Scalar\String_) {
             $method = $methodItem->value->value;
@@ -363,63 +317,7 @@ final class ScheduleScanner implements Scanner
         return $value;
     }
 
-    private function resolveStaticClass(?Node $expr): ?string
-    {
-        if ($expr === null) {
-            return null;
-        }
-
-        if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name) {
-            return $expr->class->toString();
-        }
-
-        if ($expr instanceof Node\Expr\ClassConstFetch
-            && $expr->class instanceof Node\Name
-            && $expr->name instanceof Node\Identifier
-            && $expr->name->toString() === 'class'
-        ) {
-            return $expr->class->toString();
-        }
-
-        return null;
-    }
-
     /**
-     * Read a scalar string from an Arg whose value is a String_ literal.
-     */
-    private function scalarString(?Node $node): ?string
-    {
-        if ($node instanceof Node\Arg) {
-            $node = $node->value;
-        }
-        if ($node instanceof Node\Scalar\String_) {
-            return $node->value;
-        }
-
-        return null;
-    }
-
-    /**
-     * Read an integer scalar from an Arg.
-     */
-    private function scalarInt(?Node $node): ?int
-    {
-        if ($node instanceof Node\Arg) {
-            $node = $node->value;
-        }
-        if ($node instanceof Node\Scalar\LNumber) {
-            return $node->value;
-        }
-
-        return null;
-    }
-
-    /**
-     * Read an array literal of integer scalars from an Arg. Used by helpers
-     * like `weeklyOn([1, 3, 5], '08:00')` whose first parameter is `int|array`.
-     * Returns null when the arg is not an array literal or contains anything
-     * that isn't a bare integer.
-     *
      * @return list<int>|null
      */
     private function scalarIntArray(?Node $node): ?array
@@ -432,10 +330,11 @@ final class ScheduleScanner implements Scanner
         }
         $values = [];
         foreach ($node->items as $item) {
-            if (! $item->value instanceof Node\Scalar\LNumber) {
+            $int = AstHelpers::scalarInt($item->value);
+            if ($int === null) {
                 return null;
             }
-            $values[] = $item->value->value;
+            $values[] = $int;
         }
         if ($values === []) {
             return null;
@@ -445,11 +344,8 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Convert a recognised frequency helper + args into a five-field cron
-     * expression. Returns null if the helper requires an arg we can't
-     * resolve statically.
-     *
-     * Cron output mirrors Laravel's `Illuminate\Console\Scheduling\ManagesFrequencies`.
+     * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
+     * null when an arg can't be resolved statically.
      *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      */
@@ -457,7 +353,7 @@ final class ScheduleScanner implements Scanner
     {
         switch ($method) {
             case 'cron':
-                return $this->scalarString($args[0] ?? null);
+                return AstHelpers::scalarString($args[0] ?? null);
 
             case 'everyMinute':
                 return '* * * * *';
@@ -479,7 +375,7 @@ final class ScheduleScanner implements Scanner
             case 'hourly':
                 return '0 * * * *';
             case 'hourlyAt':
-                $minute = $this->scalarInt($args[0] ?? null);
+                $minute = AstHelpers::scalarInt($args[0] ?? null);
 
                 return $minute === null ? null : $minute.' * * * *';
 
@@ -495,7 +391,7 @@ final class ScheduleScanner implements Scanner
             case 'daily':
                 return '0 0 * * *';
             case 'dailyAt':
-                $time = $this->scalarString($args[0] ?? null);
+                $time = AstHelpers::scalarString($args[0] ?? null);
                 if ($time === null) {
                     return null;
                 }
@@ -507,15 +403,15 @@ final class ScheduleScanner implements Scanner
                 return $minute.' '.$hour.' * * *';
 
             case 'twiceDaily':
-                $first = $this->scalarInt($args[0] ?? null) ?? 1;
-                $second = $this->scalarInt($args[1] ?? null) ?? 13;
+                $first = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
+                $second = AstHelpers::scalarInt($args[1] ?? null) ?? 13;
 
                 return '0 '.$first.','.$second.' * * *';
 
             case 'twiceDailyAt':
-                $first = $this->scalarInt($args[0] ?? null);
-                $second = $this->scalarInt($args[1] ?? null);
-                $minute = $this->scalarInt($args[2] ?? null) ?? 0;
+                $first = AstHelpers::scalarInt($args[0] ?? null);
+                $second = AstHelpers::scalarInt($args[1] ?? null);
+                $minute = AstHelpers::scalarInt($args[2] ?? null) ?? 0;
                 if ($first === null || $second === null) {
                     return null;
                 }
@@ -525,16 +421,16 @@ final class ScheduleScanner implements Scanner
             case 'weekly':
                 return '0 0 * * 0';
             case 'weeklyOn':
-                $time = $this->scalarString($args[1] ?? null) ?? '0:00';
+                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
                 }
-                $day = $this->scalarInt($args[0] ?? null);
+                $day = AstHelpers::scalarInt($args[0] ?? null);
                 if ($day !== null) {
                     return $minute.' '.$hour.' * * '.$day;
                 }
-                // Array literal of integer day numbers, e.g. weeklyOn([1, 3, 5], '08:00').
+                // weeklyOn([1, 3, 5], '08:00') form.
                 $days = $this->scalarIntArray($args[0] ?? null);
                 if ($days === null) {
                     return null;
@@ -545,8 +441,8 @@ final class ScheduleScanner implements Scanner
             case 'monthly':
                 return '0 0 1 * *';
             case 'monthlyOn':
-                $day = $this->scalarInt($args[0] ?? null) ?? 1;
-                $time = $this->scalarString($args[1] ?? null) ?? '0:00';
+                $day = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
+                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -555,9 +451,9 @@ final class ScheduleScanner implements Scanner
                 return $minute.' '.$hour.' '.$day.' * *';
 
             case 'twiceMonthly':
-                $first = $this->scalarInt($args[0] ?? null) ?? 1;
-                $second = $this->scalarInt($args[1] ?? null) ?? 16;
-                $time = $this->scalarString($args[2] ?? null) ?? '0:00';
+                $first = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
+                $second = AstHelpers::scalarInt($args[1] ?? null) ?? 16;
+                $time = AstHelpers::scalarString($args[2] ?? null) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -566,15 +462,13 @@ final class ScheduleScanner implements Scanner
                 return $minute.' '.$hour.' '.$first.','.$second.' * *';
 
             case 'lastDayOfMonth':
-                $time = $this->scalarString($args[0] ?? null) ?? '0:00';
+                $time = AstHelpers::scalarString($args[0] ?? null) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
                 }
 
-                // Laravel emits the literal last day at runtime; we can't
-                // know the month statically. Use the same convention as
-                // Laravel's source by leaving "L" as the day-of-month token.
+                // "L" matches Laravel's runtime token for last-day-of-month.
                 return $minute.' '.$hour.' L * *';
 
             case 'quarterly':
@@ -582,10 +476,10 @@ final class ScheduleScanner implements Scanner
             case 'yearly':
                 return '0 0 1 1 *';
             case 'yearlyOn':
-                $month = $this->scalarInt($args[0] ?? null) ?? 1;
+                $month = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
                 $day = $args[1] ?? null;
-                $time = $this->scalarString($args[2] ?? null) ?? '0:00';
-                $dayInt = $this->scalarInt($day);
+                $time = AstHelpers::scalarString($args[2] ?? null) ?? '0:00';
+                $dayInt = AstHelpers::scalarInt($day);
                 if ($dayInt === null) {
                     $dayInt = 1;
                 }
@@ -601,8 +495,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Split a "H:M" string. Returns [null, null] on malformed input.
-     *
      * @return array{0: ?int, 1: ?int}
      */
     private function splitTime(string $time): array
@@ -615,9 +507,6 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * Format a chain link as a constraint label, or null if the link is not
-     * a recognised constraint helper.
-     *
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
      */
     private function constraintFor(string $method, array $args): ?string
@@ -627,8 +516,8 @@ final class ScheduleScanner implements Scanner
         }
 
         if ($method === 'between' || $method === 'unlessBetween') {
-            $a = $this->scalarString($args[0] ?? null);
-            $b = $this->scalarString($args[1] ?? null);
+            $a = AstHelpers::scalarString($args[0] ?? null);
+            $b = AstHelpers::scalarString($args[1] ?? null);
             if ($a !== null && $b !== null) {
                 return $method.'('.$a.','.$b.')';
             }
@@ -646,7 +535,7 @@ final class ScheduleScanner implements Scanner
                 if (! $arg instanceof Node\Arg) {
                     continue;
                 }
-                $s = $this->scalarString($arg);
+                $s = AstHelpers::scalarString($arg);
                 if ($s !== null) {
                     $values[] = $s;
 
@@ -667,50 +556,8 @@ final class ScheduleScanner implements Scanner
         return null;
     }
 
-    /**
-     * @param  array<string, mixed>  $entry
-     */
-    private function dedupeKey(array $entry): string
+    private function dedupeKey(ScheduledEntry $entry): string
     {
-        $file = is_string($entry['file'] ?? null) ? $entry['file'] : '';
-        $line = is_int($entry['line'] ?? null) ? $entry['line'] : 0;
-        $kind = is_string($entry['kind'] ?? null) ? $entry['kind'] : '';
-        $target = is_string($entry['target'] ?? null) ? $entry['target'] : '';
-
-        return $file.'|'.$line.'|'.$kind.'|'.$target;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
+        return $entry->file.'|'.$entry->line.'|'.$entry->kind.'|'.($entry->target ?? '');
     }
 }

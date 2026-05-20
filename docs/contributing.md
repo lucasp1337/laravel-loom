@@ -146,6 +146,21 @@ If you fork the repo to build a different Laravel introspection tool, the agents
 - One scanner per Laravel primitive; resist merging scanners even when they share visitors
 - Cite the relevant schema section in commit messages when changing scanner output: `feat(observers): emit hooks alphabetically (cites $defs/observer)`
 
+## Data transfer: DTOs, not arrays
+
+Structured data passed between components (visitor → scanner, scanner → cross-link) **must** be a typed DTO, never an associative array. Arrays have no contract: a field rename is silent, a typo crashes at the consumer instead of the producer, and PHPStan can only verify shapes through fragile `array{}` annotations.
+
+Rules:
+
+- Every multi-field record gets a class in `src/Dto/`. Construct with constructor-promoted `public readonly` properties (PHP 8.1+).
+- Visitors expose collected records as `list<SomeDto>`. Never `array<int, array{...}>`.
+- Scanners consume DTOs from visitors and build the schema-shaped output array **only at the emit boundary** (the last step before returning from `scan()`).
+- IndexBuilder's cross-link pass operates on the schema-shaped arrays — that's the public JSON contract and must stay an array. Anything *before* that boundary stays typed.
+- Don't add `toArray()` for ergonomics. The conversion is a deliberate boundary, not a frequent operation. Build the schema-shaped row inline at the emit step where the schema field names are visible.
+- Single-value tuples (one string, one int) don't need a DTO. Two or more fields do.
+
+When in doubt, ask: "could a typo in a key silently produce wrong output here?" If yes, it's a DTO.
+
 ## Releasing
 
 The release workflow is the `/prep-release` slash command:

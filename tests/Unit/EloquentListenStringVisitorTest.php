@@ -46,10 +46,10 @@ it('extracts a Class@method handler from a space-form event string', function ()
     $entries = runEloquentListenStringVisitor($source);
 
     expect($entries)->toHaveCount(1);
-    expect($entries[0]['model'])->toBe('App\\Models\\User');
-    expect($entries[0]['hook'])->toBe('creating');
-    expect($entries[0]['handler'])->toBe('App\\Observers\\UserObserver');
-    expect($entries[0]['method'])->toBe('creating');
+    expect($entries[0]->model)->toBe('App\\Models\\User');
+    expect($entries[0]->hook)->toBe('creating');
+    expect($entries[0]->handler)->toBe('App\\Observers\\UserObserver');
+    expect($entries[0]->method)->toBe('creating');
 });
 
 it('extracts a no-space-form event string', function () {
@@ -72,8 +72,8 @@ it('extracts a no-space-form event string', function () {
     $entries = runEloquentListenStringVisitor($source);
 
     expect($entries)->toHaveCount(1);
-    expect($entries[0]['model'])->toBe('App\\Models\\Post');
-    expect($entries[0]['hook'])->toBe('deleted');
+    expect($entries[0]->model)->toBe('App\\Models\\Post');
+    expect($entries[0]->hook)->toBe('deleted');
 });
 
 it('extracts a tuple handler [Class::class, method]', function () {
@@ -97,8 +97,8 @@ it('extracts a tuple handler [Class::class, method]', function () {
     $entries = runEloquentListenStringVisitor($source);
 
     expect($entries)->toHaveCount(1);
-    expect($entries[0]['handler'])->toBe('App\\Observers\\UserObserver');
-    expect($entries[0]['method'])->toBe('creating');
+    expect($entries[0]->handler)->toBe('App\\Observers\\UserObserver');
+    expect($entries[0]->method)->toBe('creating');
 });
 
 it('defaults method to the hook name when handler is Class::class with no method', function () {
@@ -122,8 +122,8 @@ it('defaults method to the hook name when handler is Class::class with no method
     $entries = runEloquentListenStringVisitor($source);
 
     expect($entries)->toHaveCount(1);
-    expect($entries[0]['handler'])->toBe('App\\Observers\\UserObserver');
-    expect($entries[0]['method'])->toBe('saved');
+    expect($entries[0]->handler)->toBe('App\\Observers\\UserObserver');
+    expect($entries[0]->method)->toBe('saved');
 });
 
 it('skips closure handlers', function () {

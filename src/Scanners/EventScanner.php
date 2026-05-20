@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\EventEntry;
+use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Discovers event classes via a filesystem walk of app/Events/ seeded by
- * statically resolvable dispatch sites across app/. See
- * docs/scanners/events.md for the full design.
+ * Discovers event classes under app/Events/ plus targets reached from
+ * statically resolvable dispatch sites elsewhere in app/.
  */
 final class EventScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private AstWalker $walker;
 
     private Psr4ClassLocator $locator;
@@ -32,14 +32,12 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{events: list<EventEntry>}
      */
     public function scan(string $appRoot): array
     {
-        $fsClasses = $this->discoverFromFilesystem($appRoot);
-        $dispatchTargets = $this->discoverFromDispatchSites($appRoot, $fsClasses);
-
-        $merged = $fsClasses;
+        $merged = $this->discoverFromFilesystem($appRoot);
+        $dispatchTargets = $this->discoverFromDispatchSites($appRoot, $merged);
 
         foreach (array_keys($dispatchTargets) as $fqcn) {
             if (isset($merged[$fqcn])) {
@@ -58,9 +56,7 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Filesystem walk of app/Events/ — extract every top-level class.
-     *
-     * @return array<string, array{file: string, line: int}>
+     * @return array<string, SourceLocation>
      */
     private function discoverFromFilesystem(string $appRoot): array
     {
@@ -76,11 +72,10 @@ final class EventScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                $relative = $this->relativePath($appRoot, $file->getPathname());
-                $results[$class['fqcn']] = [
-                    'file' => $relative,
-                    'line' => $class['line'],
-                ];
+                $results[$class->fqcn] = new SourceLocation(
+                    file: $this->relativePath($appRoot, $file->getPathname()),
+                    line: $class->line,
+                );
             }
         }
 
@@ -88,11 +83,7 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * Walk all of app/, collect dispatch-site targets, filter to ones that
-     * either map to a known filesystem class or to a viable PSR-4 path
-     * under app/Events/.
-     *
-     * @param  array<string, array{file: string, line: int}>  $fsClasses
+     * @param  array<string, SourceLocation>  $fsClasses
      * @return array<string, null>
      */
     private function discoverFromDispatchSites(string $appRoot, array $fsClasses): array
@@ -103,25 +94,24 @@ final class EventScanner implements Scanner
         }
 
         $visitor = new EventDispatchSiteVisitor;
-        /** @var array<string, bool> $candidates FQCN => true if seen via helper/facade (unambiguous) */
+        /** @var array<string, bool> $candidates true when seen via an unambiguous form */
         $candidates = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getTargets() as $target) {
-                $isUnambiguous = $target['form'] !== 'dispatchable';
-                if (! isset($candidates[$target['fqcn']])) {
-                    $candidates[$target['fqcn']] = $isUnambiguous;
+                $isUnambiguous = $target->form !== 'dispatchable';
+                if (! isset($candidates[$target->fqcn])) {
+                    $candidates[$target->fqcn] = $isUnambiguous;
                 } elseif ($isUnambiguous) {
-                    $candidates[$target['fqcn']] = true;
+                    $candidates[$target->fqcn] = true;
                 }
             }
         }
 
         $kept = [];
         foreach ($candidates as $fqcn => $unambiguous) {
-            // Already known via filesystem walk under app/Events/ — keep.
             if (isset($fsClasses[$fqcn])) {
                 $kept[$fqcn] = null;
 
@@ -133,12 +123,9 @@ final class EventScanner implements Scanner
                 continue;
             }
 
-            // Helper (event(...)) and facade (Event::dispatch(...))
-            // forms are unambiguous event dispatches and bring the target in
-            // regardless of file location. The Dispatchable form
-            // (X::dispatch(...)) is ambiguous (could be a job) so it is only
-            // accepted when the resolved file lives under app/Events/.
-            if ($unambiguous || str_starts_with($located['file'], 'app/Events/')) {
+            // Dispatchable form is ambiguous with jobs — accept only when the
+            // resolved file is under app/Events/.
+            if ($unambiguous || str_starts_with($located->file, 'app/Events/')) {
                 $kept[$fqcn] = null;
             }
         }
@@ -146,13 +133,7 @@ final class EventScanner implements Scanner
         return $kept;
     }
 
-    /**
-     * Convert an FQCN to a guessed app/Events PSR-4 path. Returns null if
-     * the file does not exist or cannot be parsed for the class.
-     *
-     * @return array{file: string, line: int}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
         if ($absolute === null) {
@@ -163,22 +144,22 @@ final class EventScanner implements Scanner
         $this->walker->walk($absolute, [$visitor]);
 
         foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] === $fqcn) {
-                return [
-                    'file' => $this->relativePath($appRoot, $absolute),
-                    'line' => $class['line'],
-                ];
+            if ($class->fqcn !== $fqcn) {
+                continue;
             }
+
+            return new SourceLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+            );
         }
 
         return null;
     }
 
     /**
-     * Build schema-shaped entries, sorted by FQCN.
-     *
-     * @param  array<string, array{file: string, line: int}>  $merged
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, SourceLocation>  $merged
+     * @return list<EventEntry>
      */
     private function emit(array $merged): array
     {
@@ -186,53 +167,14 @@ final class EventScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {
-            $entries[] = [
-                'id' => $fqcn,
-                'fqcn' => $fqcn,
-                'kind' => 'class',
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'dispatched_from' => [],
-                'handled_by' => [],
-            ];
+            $entries[] = new EventEntry(
+                id: $fqcn,
+                fqcn: $fqcn,
+                file: $location->file,
+                line: $location->line,
+            );
         }
 
         return $entries;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-
-            if (! $entry->isFile()) {
-                continue;
-            }
-
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

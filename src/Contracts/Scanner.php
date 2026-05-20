@@ -7,15 +7,14 @@ namespace Lucasp\Loom\Contracts;
 interface Scanner
 {
     /**
-     * Scan the given application root and return partial index data,
-     * keyed by the schema section each subarray contributes to.
+     * Return partial index data keyed by schema section name. Entries are
+     * either section-output DTOs from `src/Dto/` or raw schema-shaped
+     * associative arrays. `IndexBuilder` serializes DTOs before cross-link.
      *
-     * Valid section keys: "events", "listeners", "observers",
-     * "model_events", "unresolved_dispatches". A single scanner may
-     * contribute to more than one section (e.g. ObserverScanner emits
-     * both `observers` and `model_events`).
+     * Internal sections (underscore-prefixed, e.g. `_dispatch_sites`) bypass
+     * serialization and stay in the producer's shape.
      *
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array<int, object|array<string, mixed>>>
      */
     public function scan(string $appRoot): array;
 }

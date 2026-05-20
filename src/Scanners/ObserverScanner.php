@@ -4,39 +4,43 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
-use FilesystemIterator;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ModelEventEntry;
+use Lucasp\Loom\Dto\ObserverEntry;
+use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
+use Lucasp\Loom\Support\Psr4ClassLocator;
+use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Sorting;
 
 /**
- * Discovers Eloquent observers across three independent paths
- * (`#[ObservedBy]`, `Model::observe()`, `Event::listen('eloquent.*')`) and
- * emits both `observers[]` and `model_events[]` payloads.
- *
- * See docs/scanners/observers.md for the full design.
+ * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
+ * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
  */
 final class ObserverScanner implements Scanner
 {
+    use ScannerFilesystem;
+
     private const REGISTRATION_ATTRIBUTE = 'attribute';
 
     private const REGISTRATION_OBSERVE_CALL = 'observe_call';
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    private Psr4ClassLocator $locator;
+
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->locator = $locator ?? new Psr4ClassLocator;
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array{observers: list<ObserverEntry>, model_events: list<ModelEventEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -45,7 +49,7 @@ final class ObserverScanner implements Scanner
             return ['observers' => [], 'model_events' => []];
         }
 
-        /** @var array<string, array{file: string, line: int, hooks: array<int, string>}> $classMap */
+        /** @var array<string, array{file: string, line: int, hooks: list<string>}> $classMap */
         $classMap = [];
 
         /** @var array<int, array{model: string, observer: string, registration: string}> $observerRegs */
@@ -70,18 +74,17 @@ final class ObserverScanner implements Scanner
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($classVisitor->getClasses() as $class) {
-                $fqcn = $class['fqcn'];
-                $classMap[$fqcn] = [
+                $classMap[$class->fqcn] = [
                     'file' => $relative,
-                    'line' => $class['line'],
-                    'hooks' => $classVisitor->getHooks($fqcn),
+                    'line' => $class->line,
+                    'hooks' => $classVisitor->getHooks($class->fqcn),
                 ];
             }
 
             foreach ($attrVisitor->getPairs() as $pair) {
-                foreach ($pair['observers'] as $observerFqcn) {
+                foreach ($pair->observers as $observerFqcn) {
                     $observerRegs[] = [
-                        'model' => $pair['model'],
+                        'model' => $pair->model,
                         'observer' => $observerFqcn,
                         'registration' => self::REGISTRATION_ATTRIBUTE,
                     ];
@@ -89,9 +92,9 @@ final class ObserverScanner implements Scanner
             }
 
             foreach ($observeVisitor->getPairs() as $pair) {
-                foreach ($pair['observers'] as $observerFqcn) {
+                foreach ($pair->observers as $observerFqcn) {
                     $observerRegs[] = [
-                        'model' => $pair['model'],
+                        'model' => $pair->model,
                         'observer' => $observerFqcn,
                         'registration' => self::REGISTRATION_OBSERVE_CALL,
                     ];
@@ -100,10 +103,10 @@ final class ObserverScanner implements Scanner
 
             foreach ($listenVisitor->getEntries() as $entry) {
                 $listenEntries[] = [
-                    'model' => $entry['model'],
-                    'hook' => $entry['hook'],
-                    'handler' => $entry['handler'],
-                    'method' => $entry['method'],
+                    'model' => $entry->model,
+                    'hook' => $entry->hook,
+                    'handler' => $entry->handler,
+                    'method' => $entry->method,
                 ];
             }
         }
@@ -118,18 +121,15 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Dedupe `(observer, model)` registration tuples and resolve observer file
-     * locations. Precedence: `attribute > observe_call`. Observers whose file
-     * cannot be located on disk are silently dropped.
+     * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: string}>  $regs
-     * @param  array<string, array{file: string, line: int, hooks: array<int, string>}>  $classMap
-     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>
-     *                                                                                                                                        keyed by "{observer}|{model}"
+     * @param  array<string, array{file: string, line: int, hooks: list<string>}>  $classMap
+     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>
      */
     private function mergeObservers(string $appRoot, array $regs, array $classMap): array
     {
-        /** @var array<string, string> $registrationByPair pair-key => registration */
+        /** @var array<string, string> $registrationByPair */
         $registrationByPair = [];
 
         foreach ($regs as $reg) {
@@ -151,16 +151,15 @@ final class ObserverScanner implements Scanner
 
             $location = $classMap[$observer] ?? $this->locateByPsr4Guess($appRoot, $observer);
             if ($location === null) {
-                // Observer file unlocatable — schema requires file/line; drop.
                 continue;
             }
 
             $result[$key] = [
                 'fqcn' => $observer,
                 'observes' => $model,
-                'file' => $location['file'],
-                'line' => $location['line'],
-                'hooks' => $location['hooks'],
+                'file' => is_array($location) ? $location['file'] : $location->file,
+                'line' => is_array($location) ? $location['line'] : $location->line,
+                'hooks' => is_array($location) ? $location['hooks'] : [],
                 'registration' => $registration,
             ];
         }
@@ -178,12 +177,9 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Build `(model, hook) => handled_by[]` from observer hooks (one entry per
-     * matching observer hook) plus path C handlers (always one entry each).
-     *
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>  $observers
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
      * @param  array<int, array{model: string, hook: string, handler: string, method: string}>  $listenEntries
-     * @return array<string, array{model: string, event: string, handled_by: array<int, string>}>
+     * @return array<string, array{model: string, event: string, handled_by: list<string>}>
      */
     private function buildModelEvents(array $observers, array $listenEntries): array
     {
@@ -234,76 +230,56 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: array<int, string>, registration: string}>  $observers
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
+     * @return list<ObserverEntry>
      */
     private function emitObservers(array $observers): array
     {
         $values = array_values($observers);
-        usort($values, function (array $a, array $b): int {
-            return [$a['fqcn'], $a['observes']] <=> [$b['fqcn'], $b['observes']];
-        });
+        usort($values, Sorting::byKeys(['fqcn', 'observes']));
 
         $entries = [];
         foreach ($values as $observer) {
             $hooks = $observer['hooks'];
             sort($hooks);
-            $entries[] = [
-                'fqcn' => $observer['fqcn'],
-                'file' => $observer['file'],
-                'line' => $observer['line'],
-                'observes' => $observer['observes'],
-                'registration' => $observer['registration'],
-                'hooks' => $hooks,
-                'dispatches' => [],
-            ];
+            $entries[] = new ObserverEntry(
+                fqcn: $observer['fqcn'],
+                file: $observer['file'],
+                line: $observer['line'],
+                observes: $observer['observes'],
+                registration: $observer['registration'],
+                hooks: $hooks,
+            );
         }
 
         return $entries;
     }
 
     /**
-     * @param  array<string, array{model: string, event: string, handled_by: array<int, string>}>  $modelEvents
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, array{model: string, event: string, handled_by: list<string>}>  $modelEvents
+     * @return list<ModelEventEntry>
      */
     private function emitModelEvents(array $modelEvents): array
     {
         $entries = [];
         foreach ($modelEvents as $data) {
-            $entries[] = [
-                'id' => 'eloquent.'.$data['event'].': '.$data['model'],
-                'kind' => 'model_event',
-                'model' => $data['model'],
-                'event' => $data['event'],
-                'handled_by' => $data['handled_by'],
-            ];
+            $entries[] = new ModelEventEntry(
+                id: 'eloquent.'.$data['event'].': '.$data['model'],
+                model: $data['model'],
+                event: $data['event'],
+                handledBy: $data['handled_by'],
+            );
         }
 
-        usort($entries, fn (array $a, array $b): int => strcmp((string) $a['id'], (string) $b['id']));
+        usort($entries, fn (ModelEventEntry $a, ModelEventEntry $b): int => $a->id <=> $b->id);
 
         return $entries;
     }
 
-    /**
-     * Map an observer FQCN to its source file via the `App\` → `app/` PSR-4
-     * convention, then re-parse to recover hooks. Used only when the whole-app
-     * classMap missed the class (observer outside `app/`, autoload edge case).
-     *
-     * @return array{file: string, line: int, hooks: array<int, string>}|null
-     */
-    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?array
+    private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
-        $trimmed = ltrim($fqcn, '\\');
-        if ($trimmed === '') {
-            return null;
-        }
-        $segments = explode('\\', $trimmed);
-        $segments[0] = $segments[0] === 'App' ? 'app' : strtolower($segments[0]);
-
-        $relative = implode('/', $segments).'.php';
-        $absolute = $appRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
-
-        if (! is_file($absolute)) {
+        $absolute = $this->locator->locate($appRoot, $fqcn);
+        if ($absolute === null) {
             return null;
         }
 
@@ -311,49 +287,16 @@ final class ObserverScanner implements Scanner
         $this->walker->walk($absolute, [$visitor]);
 
         foreach ($visitor->getClasses() as $class) {
-            if ($class['fqcn'] === $fqcn) {
-                return [
-                    'file' => $this->relativePath($appRoot, $absolute),
-                    'line' => $class['line'],
-                    'hooks' => $visitor->getHooks($fqcn),
-                ];
+            if ($class->fqcn !== $fqcn) {
+                continue;
             }
+
+            return new SourceLocation(
+                file: $this->relativePath($appRoot, $absolute),
+                line: $class->line,
+            );
         }
 
         return null;
-    }
-
-    /**
-     * @return iterable<SplFileInfo>
-     */
-    private function iteratePhpFiles(string $dir): iterable
-    {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $entry) {
-            if (! $entry instanceof SplFileInfo) {
-                continue;
-            }
-            if (! $entry->isFile()) {
-                continue;
-            }
-            if (strtolower($entry->getExtension()) !== 'php') {
-                continue;
-            }
-
-            yield $entry;
-        }
-    }
-
-    private function relativePath(string $appRoot, string $absolute): string
-    {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
-
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
     }
 }

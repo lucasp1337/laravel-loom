@@ -4,40 +4,22 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ClosurePairRecord;
+use Lucasp\Loom\Dto\ListenerHandle;
+use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Dto\SubscriberClassRecord;
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Parses subscriber classes — those that expose a `subscribe()` method whose
- * first parameter is a dispatcher — and extracts the events they subscribe to.
- * The dispatcher is bound by parameter position; its name and type-hint are
- * irrelevant.
- *
- * Supports two forms:
- *
- * 1. Return-array form:
- *
- *     public function subscribe($events): array
- *     {
- *         return [
- *             OrderShipped::class => 'handleOrderShipped',
- *             OrderPaid::class => [self::class, 'handleOrderPaid'],
- *         ];
- *     }
- *
- * 2. Imperative form (matched against the first parameter of `subscribe()`):
- *
- *     public function subscribe($events): void
- *     {
- *         $events->listen(OrderShipped::class, [self::class, 'handleOrderShipped']);
- *         $events->listen(OrderPaid::class, [AuditLogger::class, 'log']);
- *     }
+ * Extracts events handled by a class's `subscribe()` method — either via the
+ * returned event=>handler map or imperative `$events->listen(...)` calls.
  */
 final class SubscriberClassVisitor extends NodeVisitorAbstract
 {
-    private const SHOULD_QUEUE = 'Illuminate\\Contracts\\Queue\\ShouldQueue';
-
-    /** @var array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>, foreignPairs: array<int, array{event: string, listener: string, method: string}>}> */
+    /** @var list<SubscriberClassRecord> */
     private array $classes = [];
 
     private ?string $currentClassFqcn = null;
@@ -74,32 +56,26 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $queued = false;
-        foreach ($node->implements as $implements) {
-            if ($implements->toString() === self::SHOULD_QUEUE) {
-                $queued = true;
-                break;
-            }
-        }
+        $queued = AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
 
         $this->currentClassFqcn = $node->namespacedName->toString();
         [$handles, $closureHandles, $foreignPairs] = $this->extractMethodBody($subscribeMethod);
         $this->currentClassFqcn = null;
 
-        $this->classes[] = [
-            'fqcn' => $node->namespacedName->toString(),
-            'line' => $node->getStartLine(),
-            'queued' => $queued,
-            'handles' => $handles,
-            'closureHandles' => $closureHandles,
-            'foreignPairs' => $foreignPairs,
-        ];
+        $this->classes[] = new SubscriberClassRecord(
+            fqcn: $node->namespacedName->toString(),
+            line: $node->getStartLine(),
+            queued: $queued,
+            handles: $handles,
+            closureHandles: $closureHandles,
+            foreignPairs: $foreignPairs,
+        );
 
         return null;
     }
 
     /**
-     * @return array{0: array<int, array{event: string, method: string}>, 1: array<int, array{event: string, line: int}>, 2: array<int, array{event: string, listener: string, method: string}>}
+     * @return array{0: list<ListenerHandle>, 1: list<ClosurePairRecord>, 2: list<ListenerPair>}
      */
     private function extractMethodBody(Node\Stmt\ClassMethod $method): array
     {
@@ -111,7 +87,6 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         $closureHandles = [];
         $foreignPairs = [];
 
-        // Return-array form.
         foreach ($method->stmts as $stmt) {
             if (! $stmt instanceof Node\Stmt\Return_) {
                 continue;
@@ -132,16 +107,12 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 if ($item->value instanceof Node\Expr\Closure
                     || $item->value instanceof Node\Expr\ArrowFunction
                 ) {
-                    $closureHandles[] = [
-                        'event' => $event,
-                        'line' => $item->value->getStartLine(),
-                    ];
+                    $closureHandles[] = new ClosurePairRecord(event: $event, line: $item->value->getStartLine(), registration: 'subscriber');
 
                     continue;
                 }
 
-                // Non-closure handlers under a string event key belong to
-                // ObserverScanner territory and must not flow into handles[].
+                // String-keyed handlers (e.g. 'eloquent.*') belong to ObserverScanner.
                 if (! $item->key instanceof Node\Expr\ClassConstFetch) {
                     continue;
                 }
@@ -151,13 +122,13 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                     continue;
                 }
 
-                $handles[] = ['event' => $event, 'method' => $methodName];
+                $handles[] = new ListenerHandle(event: $event, method: $methodName);
             }
 
             break;
         }
 
-        // Imperative form. Requires a first parameter to bind the dispatcher.
+        // Imperative form requires a first parameter (the dispatcher).
         if (count($method->params) === 0) {
             return [$handles, $closureHandles, $foreignPairs];
         }
@@ -177,15 +148,12 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Recursively walk subscribe() body statements looking for
-     * `$events->listen(event, listener)` calls. Descends into control-flow
-     * statements; does NOT descend into closures, arrow functions, nested
-     * methods, or nested functions.
+     * Descends into control-flow but not into closures or nested functions.
      *
      * @param  array<int, Node\Stmt>  $stmts
-     * @param  array<int, array{event: string, method: string}>  $handles
-     * @param  array<int, array{event: string, line: int}>  $closureHandles
-     * @param  array<int, array{event: string, listener: string, method: string}>  $foreignPairs
+     * @param  list<ListenerHandle>  $handles
+     * @param  list<ClosurePairRecord>  $closureHandles
+     * @param  list<ListenerPair>  $foreignPairs
      */
     private function walkBody(array $stmts, string $paramName, array &$handles, array &$closureHandles, array &$foreignPairs): void
     {
@@ -195,13 +163,12 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, array{event: string, method: string}>  $handles
-     * @param  array<int, array{event: string, line: int}>  $closureHandles
-     * @param  array<int, array{event: string, listener: string, method: string}>  $foreignPairs
+     * @param  list<ListenerHandle>  $handles
+     * @param  list<ClosurePairRecord>  $closureHandles
+     * @param  list<ListenerPair>  $foreignPairs
      */
     private function walkStmt(Node\Stmt $stmt, string $paramName, array &$handles, array &$closureHandles, array &$foreignPairs): void
     {
-        // Top-level expression statement — inspect for $events->listen(...).
         if ($stmt instanceof Node\Stmt\Expression) {
             $this->inspectExpr($stmt->expr, $paramName, $handles, $closureHandles, $foreignPairs);
 
@@ -250,9 +217,9 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, array{event: string, method: string}>  $handles
-     * @param  array<int, array{event: string, line: int}>  $closureHandles
-     * @param  array<int, array{event: string, listener: string, method: string}>  $foreignPairs
+     * @param  list<ListenerHandle>  $handles
+     * @param  list<ClosurePairRecord>  $closureHandles
+     * @param  list<ListenerPair>  $foreignPairs
      */
     private function inspectExpr(Node\Expr $expr, string $paramName, array &$handles, array &$closureHandles, array &$foreignPairs): void
     {
@@ -289,19 +256,15 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 
         $listenerValue = $listenerArg->value;
 
-        // Closure / arrow function.
         if ($listenerValue instanceof Node\Expr\Closure
             || $listenerValue instanceof Node\Expr\ArrowFunction
         ) {
-            $closureHandles[] = [
-                'event' => $event,
-                'line' => $listenerValue->getStartLine(),
-            ];
+            $closureHandles[] = new ClosurePairRecord(event: $event, line: $listenerValue->getStartLine(), registration: 'subscriber');
 
             return;
         }
 
-        // Tuple form: [Class::class, 'method'].
+        // [Class::class, 'method'] tuple.
         if ($listenerValue instanceof Node\Expr\Array_) {
             if (count($listenerValue->items) < 2) {
                 return;
@@ -309,7 +272,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             $classItem = $listenerValue->items[0];
             $methodItem = $listenerValue->items[1];
 
-            $classFqcn = $this->classConstFqcn($classItem->value);
+            $classFqcn = AstHelpers::classConstFqcn($classItem->value);
             if ($classFqcn === null) {
                 return;
             }
@@ -319,42 +282,32 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
             $methodName = $methodItem->value->value;
 
             if ($this->isOwnClass($classFqcn)) {
-                $handles[] = ['event' => $event, 'method' => $methodName];
+                $handles[] = new ListenerHandle(event: $event, method: $methodName);
 
                 return;
             }
 
-            $foreignPairs[] = [
-                'event' => $event,
-                'listener' => $classFqcn,
-                'method' => $methodName,
-            ];
+            $foreignPairs[] = new ListenerPair(event: $event, listener: $classFqcn, method: $methodName);
 
             return;
         }
 
-        // Bare string method: $events->listen(Event::class, 'method') — Laravel
-        // binds bare-string callables to the subscriber instance.
+        // Bare string method: Laravel binds it to the subscriber instance.
         if ($listenerValue instanceof Node\Scalar\String_) {
-            $handles[] = ['event' => $event, 'method' => $listenerValue->value];
+            $handles[] = new ListenerHandle(event: $event, method: $listenerValue->value);
 
             return;
         }
 
-        // Bare class-const fetch: $events->listen(Event::class, OtherClass::class).
-        $bareFqcn = $this->classConstFqcn($listenerValue);
+        $bareFqcn = AstHelpers::classConstFqcn($listenerValue);
         if ($bareFqcn !== null) {
             if ($this->isOwnClass($bareFqcn)) {
-                $handles[] = ['event' => $event, 'method' => 'handle'];
+                $handles[] = new ListenerHandle(event: $event, method: 'handle');
 
                 return;
             }
 
-            $foreignPairs[] = [
-                'event' => $event,
-                'listener' => $bareFqcn,
-                'method' => 'handle',
-            ];
+            $foreignPairs[] = new ListenerPair(event: $event, listener: $bareFqcn, method: 'handle');
         }
     }
 
@@ -365,7 +318,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = $this->classConstFqcn($expr);
+        $direct = AstHelpers::classConstFqcn($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -389,7 +342,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 return null;
             }
 
-            // Accept self::class, static::class, or the subscriber's own FQCN.
+            // Accept self::, static::, or the subscriber's own FQCN.
             $classExpr = $value->items[0]->value;
             if ($classExpr instanceof Node\Expr\ClassConstFetch
                 && $classExpr->class instanceof Node\Name
@@ -408,27 +361,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         return null;
     }
 
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
-    }
-
-    /**
-     * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>, foreignPairs: array<int, array{event: string, listener: string, method: string}>}>
-     */
+    /** @return list<SubscriberClassRecord> */
     public function getClasses(): array
     {
         return $this->classes;

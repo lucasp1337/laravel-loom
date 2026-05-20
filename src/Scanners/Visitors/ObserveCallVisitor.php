@@ -4,23 +4,21 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ObserverPair;
+use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Finds `Model::observe(Observer::class)` and `static::observe(...)` calls.
- *
- * Maintains a class-context stack so `static::` / `self::` resolve to the
- * enclosing class declaration's FQCN. `parent::observe(...)` is skipped:
- * Laravel semantics dispatch via late-static-binding, so `parent` would
- * misrepresent the intended target.
+ * Finds `Model::observe(Observer::class)` calls. Tracks enclosing class so
+ * `self::` / `static::` resolve to the declaring class; `parent::` is skipped.
  */
 final class ObserveCallVisitor extends NodeVisitorAbstract
 {
-    /** @var array<int, string> */
+    /** @var list<string> */
     private array $classStack = [];
 
-    /** @var array<int, array{model: string, observers: array<int, string>, line: int}> */
+    /** @var list<ObserverPair> */
     private array $pairs = [];
 
     /**
@@ -40,8 +38,7 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
             if ($node->namespacedName !== null) {
                 $this->classStack[] = $node->namespacedName->toString();
             } else {
-                // Push a sentinel so the leaveNode pop stays balanced for
-                // anonymous classes (which have no namespacedName).
+                // Sentinel keeps leaveNode pop balanced for anonymous classes.
                 $this->classStack[] = '';
             }
         }
@@ -51,8 +48,6 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): null
     {
-        // StaticCall handling lives in leaveNode so NameResolver has resolved
-        // the Name nodes inside the call's argument expressions before we read.
         if (! $node instanceof Node\Expr\StaticCall) {
             if ($node instanceof Node\Stmt\Class_) {
                 array_pop($this->classStack);
@@ -93,66 +88,21 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $observers = $this->extractObservers($firstArg->value);
+        $observers = AstHelpers::classConstList($firstArg->value);
         if ($observers === []) {
             return null;
         }
 
-        $this->pairs[] = [
-            'model' => $model,
-            'observers' => $observers,
-            'line' => $node->getStartLine(),
-        ];
+        $this->pairs[] = new ObserverPair(
+            model: $model,
+            observers: $observers,
+            line: $node->getStartLine(),
+        );
 
         return null;
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function extractObservers(Node\Expr $value): array
-    {
-        $direct = $this->classConstFqcn($value);
-        if ($direct !== null) {
-            return [$direct];
-        }
-
-        if ($value instanceof Node\Expr\Array_) {
-            $out = [];
-            foreach ($value->items as $item) {
-                $fqcn = $this->classConstFqcn($item->value);
-                if ($fqcn !== null) {
-                    $out[] = $fqcn;
-                }
-            }
-
-            return $out;
-        }
-
-        return [];
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
-    }
-
-    /**
-     * @return array<int, array{model: string, observers: array<int, string>, line: int}>
-     */
+    /** @return list<ObserverPair> */
     public function getPairs(): array
     {
         return $this->pairs;

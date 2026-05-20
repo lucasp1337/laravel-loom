@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects subscriber FQCNs from Event::subscribe(...) static calls.
- *
- * Only matches the `Illuminate\Support\Facades\Event` facade form. Container
- * forms (`$this->app['events']->subscribe(...)`) are a documented gap.
  */
 final class EventSubscribeCallVisitor extends NodeVisitorAbstract
 {
-    private const EVENT_FACADE = 'Illuminate\\Support\\Facades\\Event';
-
     /** @var array<int, string> */
     private array $subscribers = [];
 
@@ -38,7 +35,7 @@ final class EventSubscribeCallVisitor extends NodeVisitorAbstract
         if (! $node->class instanceof Node\Name) {
             return null;
         }
-        if ($node->class->toString() !== self::EVENT_FACADE) {
+        if ($node->class->toString() !== Facades::EVENT->value) {
             return null;
         }
         if (! $node->name instanceof Node\Identifier) {
@@ -56,7 +53,7 @@ final class EventSubscribeCallVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $fqcn = $this->classConstFqcn($first->value);
+        $fqcn = AstHelpers::classConstFqcn($first->value);
         if ($fqcn === null) {
             return null;
         }
@@ -64,24 +61,6 @@ final class EventSubscribeCallVisitor extends NodeVisitorAbstract
         $this->subscribers[] = $fqcn;
 
         return null;
-    }
-
-    private function classConstFqcn(Node\Expr $expr): ?string
-    {
-        if (! $expr instanceof Node\Expr\ClassConstFetch) {
-            return null;
-        }
-        if (! $expr->class instanceof Node\Name) {
-            return null;
-        }
-        if (! $expr->name instanceof Node\Identifier) {
-            return null;
-        }
-        if ($expr->name->toString() !== 'class') {
-            return null;
-        }
-
-        return $expr->class->toString();
     }
 
     /**

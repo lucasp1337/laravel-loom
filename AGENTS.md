@@ -93,6 +93,8 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 **Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
 
+**DTOs, not associative arrays, for inter-component data.** Visitors emit `list<SomeDto>` from `src/Dto/`, never `array<int, array{...}>`. Scanners consume DTOs and only build the schema-shaped associative arrays at the emit boundary (the final step of `scan()`). The cross-link pass operates on the schema-shape since that IS the JSON contract — but everything before that boundary is typed. See `docs/contributing.md#data-transfer-dtos-not-arrays`.
+
 ---
 
 ## The cross-link pass
