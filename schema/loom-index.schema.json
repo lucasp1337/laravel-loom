@@ -229,7 +229,12 @@
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 },
                 "method": { "type": "string" },
-                "overrides": { "$ref": "#/$defs/dispatchOverrides" }
+                "overrides": { "$ref": "#/$defs/dispatchOverrides" },
+                "channels": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string" }
+                }
             }
         },
         "dispatchOverrides": {

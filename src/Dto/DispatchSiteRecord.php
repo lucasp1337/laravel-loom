@@ -27,6 +27,13 @@ final class DispatchSiteRecord
         public readonly int $line,
         public readonly string $confidence = 'high',
         public readonly DispatchOverrides $overrides = new DispatchOverrides,
+        /**
+         * Dispatch-time channel filter from Notification::send/sendNow arg 2;
+         * null when absent or non-literal.
+         *
+         * @var list<string>|null
+         */
+        public readonly ?array $channels = null,
     ) {
     }
 }

@@ -63,6 +63,14 @@ final class DispatchedFromPhase implements CrossLinkPhase
                 $payload['overrides'] = $overrides;
             }
 
+            // Only surface `channels` when the site carried a static channel
+            // filter (NOTIFICATION sites only); omitting it keeps existing
+            // entries' JSON byte-identical.
+            $channels = $site['channels'] ?? null;
+            if (is_array($channels) && $channels !== []) {
+                $payload['channels'] = $channels;
+            }
+
             $context->appendToEntry($section, $fqcnIndex[$target], $fromField, $payload);
         }
     }

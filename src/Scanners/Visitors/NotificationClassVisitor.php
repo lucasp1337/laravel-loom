@@ -87,31 +87,12 @@ final class NotificationClassVisitor extends NodeVisitorAbstract
         }
 
         $expr = $only->expr;
-        if (! $expr instanceof Node\Expr\Array_) {
+        if ($expr === null) {
             return [[], true];
         }
 
-        $channels = [];
-        foreach ($expr->items as $item) {
-            if ($item->key !== null) {
-                return [[], true];
-            }
-
-            $value = $item->value;
-
-            if ($value instanceof Node\Scalar\String_) {
-                $channels[] = strtolower($value->value);
-
-                continue;
-            }
-
-            $fqcn = AstHelpers::classConstFqcn($value);
-            if ($fqcn !== null) {
-                $channels[] = $fqcn;
-
-                continue;
-            }
-
+        $channels = AstHelpers::channelList($expr);
+        if ($channels === null) {
             return [[], true];
         }
 

@@ -143,6 +143,50 @@ final class AstHelpers
         return $result;
     }
 
+    /**
+     * Extract a notification channel list from an array literal whose items are
+     * string literals (lowercased to match Laravel channel naming) and/or
+     * `Class::class` constants (resolved to FQCN).
+     *
+     * Returns null when $expr is not an array literal, or any item is keyed or
+     * not a static literal — signalling the channel set cannot be resolved
+     * statically. Callers decide what null means (absent vs. dynamic).
+     *
+     * @return list<string>|null
+     */
+    public static function channelList(Node\Expr $expr): ?array
+    {
+        if (! $expr instanceof Node\Expr\Array_) {
+            return null;
+        }
+
+        $channels = [];
+        foreach ($expr->items as $item) {
+            if ($item->key !== null) {
+                return null;
+            }
+
+            $value = $item->value;
+
+            if ($value instanceof Node\Scalar\String_) {
+                $channels[] = strtolower($value->value);
+
+                continue;
+            }
+
+            $fqcn = self::classConstFqcn($value);
+            if ($fqcn !== null) {
+                $channels[] = $fqcn;
+
+                continue;
+            }
+
+            return null;
+        }
+
+        return $channels;
+    }
+
     /** True when the class directly declares `implements $interfaceFqcn`. */
     public static function declaresInterface(Node\Stmt\Class_ $node, string $interfaceFqcn): bool
     {

@@ -176,7 +176,14 @@ class InvoicePaid extends Notification   // any class under app/Notifications/
 // ...or any class sent via notify()/Notification::
 $user->notify(new InvoicePaid($invoice));
 Notification::send($users, new InvoicePaid($invoice));
+
+// the optional 3rd argument to Notification::send()/sendNow() restricts the
+// dispatch to a channel set; a literal filter is captured as `channels` on
+// the dispatch site:
+Notification::send($users, new InvoicePaid($invoice), ['mail', SlackChannel::class]);
 ```
+
+A literal channel-filter argument on `Notification::send()` / `Notification::sendNow()` — an array of string channel names and/or `Class::class` channel constants — is recorded as an optional `channels` array on the `notified_from` dispatch site, using the same value shape as `via()`. It's captured only on the facade form (the `->notify(...)` method form has no channel-filter argument) and omitted when the argument is absent, empty, or non-literal.
 
 </details>
 
@@ -360,6 +367,12 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
           "line": 51,
           "method": "App\\Services\\Billing::charge",
           "overrides": { "queue": "emails" }
+        },
+        {
+          "file": "app/Services/Billing.php",
+          "line": 88,
+          "method": "App\\Services\\Billing::charge",
+          "channels": ["mail", "App\\Channels\\SlackChannel"]
         }
       ]
     }

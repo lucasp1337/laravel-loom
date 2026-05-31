@@ -85,6 +85,14 @@ final class IndexSerializer
             $out['overrides'] = $e->overrides->toArray();
         }
 
+        // Internal-only: the static channel filter from Notification::send/
+        // sendNow arg 2, carried on `_dispatch_sites` (stripped before schema
+        // validation). Omitted when absent so existing site arrays stay
+        // byte-identical.
+        if ($e->channels !== null && $e->channels !== []) {
+            $out['channels'] = $e->channels;
+        }
+
         return $out;
     }
 
