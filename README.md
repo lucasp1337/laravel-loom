@@ -126,10 +126,13 @@ dispatch(new ProcessOrder($order));
 ProcessOrder::dispatch($order);
 Bus::dispatch(new ProcessOrder($order));
 
-// chain-wrapped targets resolve through the chain (modifier values not yet captured):
-ProcessOrder::dispatch($order)->onQueue('high');
-dispatch((new ProcessOrder($order))->delay(60));
+// chain-wrapped targets resolve through the chain, and dispatch-time
+// modifiers are captured as an `overrides` object on the dispatch site:
+ProcessOrder::dispatch($order)->onQueue('high')->onConnection('redis');
+dispatch((new ProcessOrder($order))->delay(60))->afterCommit();
 ```
+
+Statically-resolvable dispatch-time modifiers — `->onQueue()`, `->onConnection()`, `->delay()` (integer seconds), `->locale()`, `->mailer()`, `->afterCommit()` — are recorded as an optional `overrides` object on the dispatch site. `queue_config` still reflects class-default declarations; `overrides` records what the call site changed.
 
 </details>
 
@@ -287,7 +290,12 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
         "backoff": null
       },
       "dispatched_from": [
-        { "file": "app/Services/Checkout.php", "line": 91, "method": "App\\Services\\Checkout::finalize" }
+        {
+          "file": "app/Services/Checkout.php",
+          "line": 91,
+          "method": "App\\Services\\Checkout::finalize",
+          "overrides": { "connection": "redis", "queue": "high", "delay": 60 }
+        }
       ],
       "dispatches": []
     }
@@ -321,7 +329,12 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
         "backoff": null
       },
       "sent_from": [
-        { "file": "app/Services/Checkout.php", "line": 94, "method": "App\\Services\\Checkout::finalize" }
+        {
+          "file": "app/Services/Checkout.php",
+          "line": 94,
+          "method": "App\\Services\\Checkout::finalize",
+          "overrides": { "locale": "fr", "mailer": "ses" }
+        }
       ]
     }
   ],
@@ -342,7 +355,12 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "channels": ["mail", "database", "slack"],
       "channels_dynamic": false,
       "notified_from": [
-        { "file": "app/Services/Billing.php", "line": 51, "method": "App\\Services\\Billing::charge" }
+        {
+          "file": "app/Services/Billing.php",
+          "line": 51,
+          "method": "App\\Services\\Billing::charge",
+          "overrides": { "queue": "emails" }
+        }
       ]
     }
   ],

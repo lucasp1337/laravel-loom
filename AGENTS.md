@@ -80,6 +80,7 @@ These have caused regressions. Don't rediscover them.
 - `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
 - `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
 - `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; cross-link phase 5 joins them.
+- `$defs/dispatchSite` carries an **optional** `overrides` object (`$defs/dispatchOverrides`) alongside `{file, line, method}` — dispatch-time fluent modifiers (`locale`, `mailer`, `connection`, `queue`, `delay`, `after_commit`). It's emitted only when at least one modifier is statically resolved; sites with none have no `overrides` key (additive, non-breaking). All four reverse-reference arrays share the shape, so any may carry it (events rarely do).
 - `closure_listeners[*].dispatches` — reserved; currently always `[]`. Line-span-based attribution from DispatchScanner is a planned follow-up.
 - `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
 

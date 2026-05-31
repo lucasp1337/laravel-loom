@@ -17,6 +17,7 @@ use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use RuntimeException;
 
 /**
  * Converts section-output DTOs into the schema-shaped associative arrays the
@@ -59,14 +60,14 @@ final class IndexSerializer
             $entry instanceof ScheduledEntry => $this->scheduled($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
             $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
-            default => throw new \RuntimeException('IndexSerializer cannot serialize '.$entry::class),
+            default => throw new RuntimeException('IndexSerializer cannot serialize '.$entry::class),
         };
     }
 
     /** @return array<string, mixed> */
     public function dispatchSiteRecord(DispatchSiteRecord $e): array
     {
-        return [
+        $out = [
             'classFqcn' => $e->classFqcn,
             'method' => $e->method,
             'target' => $e->target,
@@ -76,6 +77,15 @@ final class IndexSerializer
             'line' => $e->line,
             'confidence' => $e->confidence,
         ];
+
+        // Internal-only: carried on `_dispatch_sites` (stripped before schema
+        // validation) so DispatchedFromPhase can surface it. Omitted entirely
+        // when empty to keep existing site arrays byte-identical.
+        if (! $e->overrides->isEmpty()) {
+            $out['overrides'] = $e->overrides->toArray();
+        }
+
+        return $out;
     }
 
     /** @return array<string, mixed> */

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\ChainModifierExtractor;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -33,6 +35,17 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     /** @var array<int, array{class: ?string, method: ?string}> */
     private array $classStack = [];
 
+    /**
+     * Stack of MethodCall nodes currently entered but not yet left. Parents
+     * enter before children, so when a dispatch call is recorded on leaveNode
+     * the wrapping outer-chain modifier MethodCalls (PendingDispatch form) are
+     * still on this stack. Self-contained here to avoid mutating AstWalker's
+     * shared traversal with a ParentConnectingVisitor.
+     *
+     * @var list<Node\Expr\MethodCall>
+     */
+    private array $methodCallStack = [];
+
     private int $closureDepth = 0;
 
     /** @var list<DispatchSiteRecord> */
@@ -54,6 +67,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     public function beforeTraverse(array $nodes): ?array
     {
         $this->classStack = [];
+        $this->methodCallStack = [];
         $this->closureDepth = 0;
         $this->sites = [];
         $this->unresolved = [];
@@ -63,6 +77,10 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     public function enterNode(Node $node): null
     {
+        if ($node instanceof Node\Expr\MethodCall) {
+            $this->methodCallStack[] = $node;
+        }
+
         if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
             $fqcn = $node->namespacedName?->toString();
             $this->classStack[] = ['class' => $fqcn, 'method' => null];
@@ -94,6 +112,11 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $this->handleStaticCall($node);
         } elseif ($node instanceof Node\Expr\MethodCall) {
             $this->handleMethodCall($node);
+            // Pop AFTER handling: this MethodCall may itself be an outer-chain
+            // modifier wrapping a dispatch call that was recorded earlier (its
+            // child leaveNode ran first), so it had to stay on the stack while
+            // that child resolved its overrides.
+            array_pop($this->methodCallStack);
         }
 
         if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
@@ -199,6 +222,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
+        // (c) outer PendingDispatch chain: `Job::dispatch($o)->onQueue('high')`.
         $this->sites[] = new DispatchSiteRecord(
             classFqcn: $this->currentClassFqcn(),
             method: $this->currentMethod(),
@@ -208,6 +232,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             file: null,
             line: $node->getStartLine(),
             confidence: 'high',
+            overrides: $this->overridesFrom($this->outerChainLinks($node)),
         );
     }
 
@@ -301,6 +326,16 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             if ($this->shouldSkipEmission()) {
                 return;
             }
+
+            // (a) inner argument-instance chain + (b) Mail/Notification facade
+            // receiver chain. The receiver chain only contributes links when
+            // $callNode is a MethodCall (the `Mail::to(...)->locale(...)->send`
+            // form); for a plain StaticCall receiver links resolve to none.
+            $innerLinks = $this->innerChainLinks($arg->value);
+            $receiverLinks = $callNode instanceof Node\Expr\MethodCall
+                ? $this->mailReceiverChainLinks($callNode->var)
+                : [];
+
             $this->sites[] = new DispatchSiteRecord(
                 classFqcn: $this->currentClassFqcn(),
                 method: $this->currentMethod(),
@@ -310,6 +345,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 file: null,
                 line: $callNode->getStartLine(),
                 confidence: 'high',
+                overrides: $this->overridesFrom($innerLinks, $receiverLinks),
             );
 
             return;
@@ -357,8 +393,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 $elseFqcn = AstHelpers::resolveStaticClass($elseBranch);
 
                 if ($ifFqcn !== null && $elseFqcn !== null) {
-                    $this->emitResolved($callNode, $ifFqcn, $form, $kind);
-                    $this->emitResolved($callNode, $elseFqcn, $form, $kind);
+                    $this->emitResolved($callNode, $ifFqcn, $form, $kind, $ifBranch);
+                    $this->emitResolved($callNode, $elseFqcn, $form, $kind, $elseBranch);
 
                     return;
                 }
@@ -366,7 +402,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         if ($resolved !== null) {
-            $this->emitResolved($callNode, $resolved, $form, $kind);
+            $this->emitResolved($callNode, $resolved, $form, $kind, $first->value);
 
             return;
         }
@@ -386,11 +422,17 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         );
     }
 
-    private function emitResolved(Node\Expr $callNode, string $targetFqcn, DispatchForm $form, DispatchKinds $kind): void
+    private function emitResolved(Node\Expr $callNode, string $targetFqcn, DispatchForm $form, DispatchKinds $kind, ?Node\Expr $argValue = null): void
     {
         if ($this->shouldSkipEmission()) {
             return;
         }
+
+        // (a) inner argument-instance chain + (c) outer PendingDispatch chain
+        // wrapping `dispatch(...)` / `event(...)`. Inner links applied first so
+        // an outer modifier wins on a same-key conflict.
+        $innerLinks = $argValue !== null ? $this->innerChainLinks($argValue) : [];
+        $outerLinks = $this->outerChainLinks($callNode);
 
         $this->sites[] = new DispatchSiteRecord(
             classFqcn: $this->currentClassFqcn(),
@@ -401,6 +443,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             file: null,
             line: $callNode->getStartLine(),
             confidence: 'high',
+            overrides: $this->overridesFrom($innerLinks, $outerLinks),
         );
     }
 
@@ -494,6 +537,100 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         return $rendered;
+    }
+
+    /**
+     * Collect the fluent `->method()` links on the dispatched-instance argument
+     * (position a), e.g. the `delay`/`onQueue` links in
+     * `dispatch((new Job)->delay(60)->onQueue('high'))`. Walks `->var` down to
+     * the `New_`/`ClassConstFetch` root, then returns the links in source order.
+     *
+     * @return list<Node\Expr\MethodCall>
+     */
+    private function innerChainLinks(Node\Expr $argValue): array
+    {
+        $links = [];
+        $current = $argValue;
+        while ($current instanceof Node\Expr\MethodCall) {
+            $links[] = $current;
+            $current = $current->var;
+        }
+
+        // Walked outermost-first; reverse to source (innermost-first) order.
+        return array_reverse($links);
+    }
+
+    /**
+     * Collect the outer PendingDispatch chain links wrapping a dispatch call
+     * (position c), e.g. `Job::dispatch($o)->onQueue('q')->delay(60)`. The
+     * modifier MethodCalls are ancestors of $dispatchNode and are still on
+     * $this->methodCallStack while $dispatchNode resolves. Selects those whose
+     * receiver chain (`->var`) reaches $dispatchNode.
+     *
+     * @return list<Node\Expr\MethodCall>
+     */
+    private function outerChainLinks(Node\Expr $dispatchNode): array
+    {
+        $links = [];
+        foreach ($this->methodCallStack as $candidate) {
+            if ($this->receiverChainReaches($candidate->var, $dispatchNode)) {
+                $links[] = $candidate;
+            }
+        }
+
+        // Stack is parent-(outermost-)first; reverse to source order so the
+        // link nearest the dispatch call is applied first.
+        return array_reverse($links);
+    }
+
+    /**
+     * Collect modifier links in a Mail facade receiver chain (position b),
+     * e.g. `Mail::to($u)->locale('fr')->mailer('ses')->send($m)` — the
+     * modifiers sit in $callNode's receiver chain, between the terminal
+     * send/queue/later and the `Mail::...` static-call root.
+     *
+     * @return list<Node\Expr\MethodCall>
+     */
+    private function mailReceiverChainLinks(Node\Expr $receiver): array
+    {
+        $links = [];
+        $current = $receiver;
+        while ($current instanceof Node\Expr\MethodCall) {
+            $links[] = $current;
+            $current = $current->var;
+        }
+
+        return array_reverse($links);
+    }
+
+    /** True when walking $receiver down `->var` reaches $target. */
+    private function receiverChainReaches(Node\Expr $receiver, Node\Expr $target): bool
+    {
+        $current = $receiver;
+        while (true) {
+            if ($current === $target) {
+                return true;
+            }
+            if ($current instanceof Node\Expr\MethodCall) {
+                $current = $current->var;
+
+                continue;
+            }
+
+            return false;
+        }
+    }
+
+    /**
+     * Combine link lists (in the given order) into one DispatchOverrides.
+     * Later links win per key; passing inner links before outer links makes
+     * an outer modifier take precedence over a same-key inner one.
+     *
+     * @param  list<Node\Expr\MethodCall>  ...$linkLists
+     */
+    private function overridesFrom(array ...$linkLists): DispatchOverrides
+    {
+        return ChainModifierExtractor::extract(array_merge(...$linkLists));
     }
 
     /** @return list<DispatchSiteRecord> */

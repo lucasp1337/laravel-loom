@@ -42,7 +42,10 @@ merges them by FQCN:
    `Mail::to($user)->send((new OrderShipped)->locale('fr'))` both seed
    `OrderShipped`. Only `new X` / `X::class` argument receivers resolve
    through the chain — a variable receiver does not. The chain modifier
-   values themselves are not captured (see Known limitations).
+   values are captured into the dispatch site's `overrides` object —
+   see Cross-link behavior. The Mail facade receiver chain
+   (`Mail::to($u)->locale('fr')->mailer('ses')->send($m)`) is read
+   as well.
 
 Entries are deduped by FQCN. A mailable discovered through both paths
 produces a single entry; the filesystem walk wins for `file`/`line`.
@@ -95,10 +98,34 @@ of entries.
 ## Cross-link behavior
 
 - **`mailables[*].sent_from`** — for each dispatch site with finalized
-  `kind === 'mailable'` whose `target` matches a mailable FQCN, an
-  entry `{file, line, method}` (per `$defs/dispatchSite`) is appended.
-  Identical shape to `events[*].dispatched_from` and
-  `jobs[*].dispatched_from`. Sorted by `(file, line)`.
+  `kind === 'mailable'` whose `target` matches a mailable FQCN, a
+  `$defs/dispatchSite` entry is appended. Identical shape to
+  `events[*].dispatched_from` and `jobs[*].dispatched_from`. Sorted by
+  `(file, line)`.
+
+  When the dispatch site carries dispatch-time modifiers, the entry
+  also carries an optional `overrides` object. For mailables both the
+  inner argument-instance chain
+  (`Mail::to($u)->send((new OrderShipped)->locale('fr'))`) and the Mail
+  facade receiver chain
+  (`Mail::to($u)->locale('fr')->mailer('ses')->send($m)`) are read.
+  Source mapping: `->locale('fr')` → `locale`, `->mailer('ses')` →
+  `mailer`, `->onConnection('sqs')` → `connection`, `->onQueue('mail')`
+  → `queue`, `->delay(60)` → `delay` (integer seconds), `->afterCommit()`
+  → `after_commit`. The key is omitted when no static modifier is
+  present:
+
+  ```json
+  {
+    "file": "app/Services/Checkout.php",
+    "line": 94,
+    "method": "App\\Services\\Checkout::finalize",
+    "overrides": { "locale": "fr", "mailer": "ses" }
+  }
+  ```
+
+  `overrides` records what the call site changed; `queue_config` still
+  reflects the mailable's class-default property declarations.
 
 The new `provisionalKind: 'mailable'` is emitted by
 `DispatchSiteVisitor` for every recognised mail-dispatch shape and
@@ -142,13 +169,13 @@ no recognised call shape is ambiguous with another primitive type.
 - **Method-form queue configs**: `backoff()` / `retryUntil()` methods
   on a mailable are not parsed. Only class-level scalar properties
   populate `queue_config`.
-- **Dispatch-site chaining modifier values**: when a mailable argument
-  is wrapped in a chain (`Mail::send((new OrderShipped)->onConnection('sqs'))`),
-  the target FQCN now resolves through the chain — the mailable is
-  seeded and the site recorded — but the modifier values
-  (`->onQueue('mail')`, `->onConnection('sqs')`, `->delay($when)`) are
-  not folded into the entry. `queue_config` reflects class-default
-  declarations only. Modifier-value capture is tracked under #32.
+- **`->delay()` with a non-integer-literal argument**: captured
+  `overrides.delay` is integer-second literals only.
+  `Mail::to($u)->later(now()->addMinutes(5), $m)`-style non-literal
+  delays leave the `delay` key absent.
+- **Modifiers set on a separate statement**: out of static reach.
+  `overrides` reads only the chain at the dispatch site itself, not a
+  modifier applied to a variable on an earlier statement.
 - **`Mail::to(...)->html(...)->text(...)`** raw-content chains:
   treated the same as `Mail::raw` — no FQCN target, skipped.
 - **Non-scalar property initializers**: `public $queue =

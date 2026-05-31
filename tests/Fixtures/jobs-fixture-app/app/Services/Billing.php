@@ -27,4 +27,22 @@ class Billing
         // jobs[ProcessOrder].dispatched_from[], NOT unresolved_dispatches[].
         dispatch((new \App\Jobs\ProcessOrder())->delay(60));
     }
+
+    public function chargeWithOuterChain(int $orderId): void
+    {
+        // (c) outer PendingDispatch chain (issue #32): modifiers sit on the
+        // PendingDispatch returned by Job::dispatch(...), not on the argument.
+        // Expect overrides {connection, queue, delay} in dispatched_from[].
+        \App\Jobs\ProcessOrder::dispatch($orderId)
+            ->onQueue('high')
+            ->onConnection('redis')
+            ->delay(60);
+    }
+
+    public function chargeAfterCommit(int $orderId): void
+    {
+        // (c) outer ->afterCommit() on dispatch(new Job) (issue #32).
+        // Expect overrides {after_commit: true} in dispatched_from[].
+        dispatch(new \App\Jobs\ProcessOrder())->afterCommit();
+    }
 }

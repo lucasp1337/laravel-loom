@@ -50,11 +50,20 @@ final class DispatchedFromPhase implements CrossLinkPhase
                 continue;
             }
 
-            $context->appendToEntry($section, $fqcnIndex[$target], $fromField, [
+            $payload = [
                 'file' => $file,
                 'line' => $line,
                 'method' => $classFqcn.'::'.$method,
-            ]);
+            ];
+
+            // Only surface `overrides` when the site carried static modifiers;
+            // omitting it otherwise keeps existing entries' JSON byte-identical.
+            $overrides = $site['overrides'] ?? null;
+            if (is_array($overrides) && $overrides !== []) {
+                $payload['overrides'] = $overrides;
+            }
+
+            $context->appendToEntry($section, $fqcnIndex[$target], $fromField, $payload);
         }
     }
 

@@ -8,7 +8,7 @@ JobsScanner finds job classes via two discovery paths and merges them by FQCN:
 
 1. **Filesystem walk of `app/Jobs/`.** Every `*.php` file under `app/Jobs/` (recursively) is parsed and any concrete class found becomes a job candidate. Abstract classes, interfaces, traits, and anonymous classes are skipped.
 
-2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or the Dispatchable form `X::dispatch()` is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`. A target wrapped in a fluent chain is resolved through the chain to its FQCN: `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` both seed `ProcessOrder` (only `new X` / `X::class` receivers resolve, not variable receivers).
+2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or the Dispatchable form `X::dispatch()` is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`. A target wrapped in a fluent chain is resolved through the chain to its FQCN: `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` both seed `ProcessOrder` (only `new X` / `X::class` receivers resolve, not variable receivers). The dispatch-time modifiers on that chain are captured into the site's `overrides` object — see Cross-link behavior.
 
 Entries are deduped by FQCN. A job discovered through both paths produces a single entry.
 
@@ -45,7 +45,20 @@ Entries are sorted by `fqcn` ascending.
 
 ## Cross-link behavior
 
-- **`jobs[*].dispatched_from`** — for each dispatch site with finalized `kind === 'job'` whose `target` matches a job FQCN, an entry `{file, line, method}` is appended. Sites carrying the pre-disambiguation `kind: ambiguous` do NOT contribute; they're finalized in cross-link Phase 2 before this join runs.
+- **`jobs[*].dispatched_from`** — for each dispatch site with finalized `kind === 'job'` whose `target` matches a job FQCN, a `$defs/dispatchSite` entry is appended. Sites carrying the pre-disambiguation `kind: ambiguous` do NOT contribute; they're finalized in cross-link Phase 2 before this join runs.
+
+  When the dispatch site carries dispatch-time modifiers, the entry also carries an optional `overrides` object. For jobs both the inner argument-instance chain (`dispatch((new ProcessOrder)->onQueue('high')->delay(60))`) and the outer PendingDispatch chain (`ProcessOrder::dispatch($o)->onQueue('high')->onConnection('redis')->delay(60)`, `dispatch(new ProcessOrder)->afterCommit()`) are read. Source mapping: `->onQueue('high')` → `queue`, `->onConnection('redis')` → `connection`, `->delay(60)` → `delay` (integer seconds), `->afterCommit()` → `after_commit`, `->locale(...)` → `locale`, `->mailer(...)` → `mailer`. The key is omitted when no static modifier is present:
+
+  ```json
+  {
+    "file": "app/Services/Checkout.php",
+    "line": 91,
+    "method": "App\\Services\\Checkout::finalize",
+    "overrides": { "connection": "redis", "queue": "high", "delay": 60 }
+  }
+  ```
+
+  `overrides` records what the call site changed; `queue_config` still reflects the job's class-default property declarations. The two are independent.
 
 - **`jobs[*].dispatches`** — for each dispatch site whose enclosing class FQCN matches a job and whose enclosing method is `handle`, a `$defs/dispatch` entry is appended. Dispatches emitted from helper methods called by `handle()` are NOT attributed (see Known limitations).
 
@@ -55,7 +68,8 @@ Entries are sorted by `fqcn` ascending.
 - **Helper methods called from `handle()`.** Dispatches inside a helper method (e.g. `processOrder()` called by `handle()`) are not attributed to the job's `dispatches[]`. Only sites whose enclosing method is literally `handle` are joined. Same constraint as listeners' non-`handle*` methods.
 - **`Bus::chain([new A, new B])` and `Bus::batch([...])`.** Neither captured by DispatchScanner today. Jobs registered via chain or batch will not surface in `jobs[*].dispatched_from`. A future change to `DispatchSiteVisitor` could recognise array-literal chain/batch contents.
 - **Method-form queue configs.** `backoff()` and `retryUntil()` methods are not parsed. Only class-level scalar property declarations (`public $backoff = 60;`) are extracted into `queue_config`.
-- **Dispatch-site chaining modifier values.** When a job is dispatched through a fluent chain (`(new ProcessOrder())->delay(60)`, `ProcessOrder::dispatch()->onQueue('high')`), the target FQCN now resolves through the chain — the site is recorded, not dropped — but the modifier *values* (`->onQueue('foo')`, `->onConnection('bar')`, `->delay($when)`) are not folded into the entry. `queue_config` reflects class-default declarations only. Capturing per-dispatch modifier values is tracked under #32.
+- **`->delay()` with a non-integer-literal argument.** Captured `overrides.delay` is integer-second literals only. `->delay(now()->addMinutes(5))` and `->delay($seconds)` leave the `delay` key absent.
+- **Modifiers set on a separate statement.** `$job->onQueue('high'); dispatch($job);` is out of static reach — `overrides` reads only the chain at the dispatch site itself.
 - **Non-scalar property initializers.** `public $queue = config('queue.default');` (or any expression that isn't a scalar literal) leaves the field `null`.
 - **`ShouldBeUnique`, `ShouldBeEncrypted`, `Batchable`, `InteractsWithQueue`.** These marker interfaces and traits are not surfaced as flags on the entry.
 - **Job whose FQCN can't be located on disk.** Dropped. The schema requires `file` and `line`. This applies to dispatch-site-seeded jobs whose PSR-4 guess doesn't resolve.

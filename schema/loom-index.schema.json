@@ -228,7 +228,20 @@
             "properties": {
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 },
-                "method": { "type": "string" }
+                "method": { "type": "string" },
+                "overrides": { "$ref": "#/$defs/dispatchOverrides" }
+            }
+        },
+        "dispatchOverrides": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "locale": { "type": "string" },
+                "mailer": { "type": "string" },
+                "connection": { "type": "string" },
+                "queue": { "type": "string" },
+                "delay": { "type": "integer", "minimum": 0 },
+                "after_commit": { "type": "boolean" }
             }
         },
         "dispatch": {

@@ -136,6 +136,77 @@ it('resolves chain-wrapped job dispatches into dispatched_from (issue #31)', fun
     expect($unresolvedLines)->not->toContain(28);
 });
 
+it('captures outer PendingDispatch chain overrides in dispatched_from (issue #32)', function () {
+    // ProcessOrder::dispatch($o)->onQueue('high')->onConnection('redis')->delay(60)
+    // is the (c) outer PendingDispatch form. The modifiers sit on the chain
+    // returned by ::dispatch(), not on the argument; the resulting site must
+    // carry an overrides object on its dispatched_from entry.
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+
+    $site = array_values(array_filter(
+        $entry['dispatched_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\Billing::chargeWithOuterChain',
+    ));
+
+    expect($site)->toHaveCount(1);
+    expect($site[0]['line'])->toBe(36);
+    expect($site[0])->toHaveKey('overrides');
+    expect($site[0]['overrides'])->toBe([
+        'connection' => 'redis',
+        'queue' => 'high',
+        'delay' => 60,
+    ]);
+});
+
+it('captures outer ->afterCommit() override in dispatched_from (issue #32)', function () {
+    // dispatch(new ProcessOrder())->afterCommit() — outer chain, single boolean
+    // modifier. afterCommit is emitted only as true.
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+
+    $site = array_values(array_filter(
+        $entry['dispatched_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\Billing::chargeAfterCommit',
+    ));
+
+    expect($site)->toHaveCount(1);
+    expect($site[0]['line'])->toBe(46);
+    expect($site[0]['overrides'])->toBe(['after_commit' => true]);
+});
+
+it('captures inner-chain delay override and omits overrides on plain sites (issue #32)', function () {
+    // The #31 chain-wrapped dispatch at Billing::chargeWithDelay (line 28) is
+    // dispatch((new ProcessOrder())->delay(60)) — now positive coverage for the
+    // inner (a) chain overrides. A plain dispatch site (no modifiers) must have
+    // NO overrides key, keeping its JSON byte-identical to pre-#32 output.
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+
+    $delaySite = array_values(array_filter(
+        $entry['dispatched_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\Billing::chargeWithDelay',
+    ));
+    expect($delaySite)->toHaveCount(1);
+    expect($delaySite[0]['overrides'])->toBe(['delay' => 60]);
+
+    // Checkout::finalize dispatches ProcessOrder with no modifiers.
+    $plainSites = array_values(array_filter(
+        $entry['dispatched_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\Checkout::finalize',
+    ));
+    expect($plainSites)->not->toBe([]);
+    foreach ($plainSites as $s) {
+        expect($s)->not->toHaveKey('overrides');
+    }
+});
+
 // gap: Bus::chain([new ProcessOrder, new SendInvoice]) does not currently
 // surface either job in dispatched_from. The DispatchSiteVisitor only
 // recognises direct dispatch forms (helper, facade, Dispatchable static).
