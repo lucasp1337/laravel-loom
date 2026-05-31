@@ -17,6 +17,12 @@ final class DispatchedFromPhase implements CrossLinkPhase
     public function apply(CrossLinkContext $context): void
     {
         foreach ($context->dispatchSites as $site) {
+            // Closure-internal sites are attributed to their closure listener
+            // only; excluding them keeps reverse `*_from` arrays byte-identical.
+            if (($site['inClosure'] ?? false) === true) {
+                continue;
+            }
+
             $rawKind = $site['provisionalKind'] ?? null;
             if (! is_string($rawKind)) {
                 continue;

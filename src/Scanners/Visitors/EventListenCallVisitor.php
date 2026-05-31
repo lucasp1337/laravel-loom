@@ -75,6 +75,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             $this->closurePairs[] = new ClosurePairRecord(
                 event: $event,
                 line: $second->value->getStartLine(),
+                endLine: $second->value->getEndLine(),
                 registration: ListenerRegistration::EVENT_LISTEN_CALL,
             );
 

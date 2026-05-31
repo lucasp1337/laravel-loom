@@ -61,10 +61,12 @@ it('records each unresolved entry as an UnresolvedDispatchEntry DTO with file=ap
     }
 });
 
-it('emits nine recognised dispatch sites in the fixture', function () {
+it('emits ten recognised dispatch sites in the fixture', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
 
-    expect($result['_dispatch_sites'])->toHaveCount(9);
+    // Nine class-method sites plus the one resolved site inside the closure in
+    // SendOrderConfirmation::handle (tagged inClosure for the closure phase).
+    expect($result['_dispatch_sites'])->toHaveCount(10);
 });
 
 it('records each site as a DispatchSiteRecord DTO with file=app/...', function () {
@@ -114,11 +116,22 @@ it('classifies the helper, facade, job_helper, and dispatchable forms correctly'
     expect($busFacade->method)->toBe('created');
 });
 
-it('does not record sites inside closures', function () {
+it('records a resolved site inside a closure tagged inClosure, leaving class-method sites untagged', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
     $sites = $result['_dispatch_sites'];
 
-    expect(findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 23))->toBeNull();
+    // The closure body in SendOrderConfirmation::handle now yields a resolved
+    // site tagged inClosure so only ClosureDispatchAttributionPhase consumes it.
+    $closureSite = findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 23);
+    expect($closureSite)->not->toBeNull();
+    expect($closureSite->inClosure)->toBeTrue();
+    expect($closureSite->target)->toBe('App\\Events\\OrderConfirmationSent');
+
+    // The enclosing class-method dispatches must remain untagged so they keep
+    // flowing into listeners[].dispatches and events[].dispatched_from.
+    $classSite = findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 18);
+    expect($classSite)->not->toBeNull();
+    expect($classSite->inClosure)->toBeFalse();
 });
 
 it('does not record dispatch_sync as a site or as unresolved', function () {

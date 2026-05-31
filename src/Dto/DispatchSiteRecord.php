@@ -34,6 +34,13 @@ final class DispatchSiteRecord
          * @var list<string>|null
          */
         public readonly ?array $channels = null,
+        /**
+         * True when the site sits physically inside a closure body. Tagged
+         * sites are consumed only by ClosureDispatchAttributionPhase; every
+         * other cross-link consumer skips them. Carried on `_dispatch_sites`
+         * (stripped before schema validation).
+         */
+        public readonly bool $inClosure = false,
     ) {
     }
 }

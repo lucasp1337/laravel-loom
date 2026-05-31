@@ -218,7 +218,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         // Dispatchable form: X::dispatch(...).
-        if ($this->shouldSkipEmission()) {
+        if ($this->shouldSkipResolved()) {
             return;
         }
 
@@ -233,6 +233,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             line: $node->getStartLine(),
             confidence: 'high',
             overrides: $this->overridesFrom($this->outerChainLinks($node)),
+            inClosure: $this->inClosure(),
         );
     }
 
@@ -356,7 +357,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $resolved = AstHelpers::resolveStaticClass($arg->value);
 
         if ($resolved !== null) {
-            if ($this->shouldSkipEmission()) {
+            if ($this->shouldSkipResolved()) {
                 return;
             }
 
@@ -380,12 +381,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 confidence: 'high',
                 overrides: $this->overridesFrom($innerLinks, $receiverLinks),
                 channels: $channels,
+                inClosure: $this->inClosure(),
             );
 
             return;
         }
 
-        if ($this->shouldSkipEmission()) {
+        if ($this->shouldSkipUnresolved()) {
             return;
         }
 
@@ -441,7 +443,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if ($this->shouldSkipEmission()) {
+        if ($this->shouldSkipUnresolved()) {
             return;
         }
 
@@ -458,7 +460,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     private function emitResolved(Node\Expr $callNode, string $targetFqcn, DispatchForm $form, DispatchKinds $kind, ?Node\Expr $argValue = null): void
     {
-        if ($this->shouldSkipEmission()) {
+        if ($this->shouldSkipResolved()) {
             return;
         }
 
@@ -478,10 +480,31 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             line: $callNode->getStartLine(),
             confidence: 'high',
             overrides: $this->overridesFrom($innerLinks, $outerLinks),
+            inClosure: $this->inClosure(),
         );
     }
 
-    private function shouldSkipEmission(): bool
+    private function inClosure(): bool
+    {
+        return $this->closureDepth > 0;
+    }
+
+    /**
+     * Resolved sites emit even inside closures (closure listeners always live
+     * in a provider/class), so the only block is a missing class context.
+     * Closure-internal resolved sites are tagged via {@see inClosure()} so only
+     * ClosureDispatchAttributionPhase consumes them.
+     */
+    private function shouldSkipResolved(): bool
+    {
+        return $this->currentClassFqcn() === null;
+    }
+
+    /**
+     * Unresolved sites stay suppressed inside closures so `unresolved_dispatches`
+     * and its stats remain byte-identical.
+     */
+    private function shouldSkipUnresolved(): bool
     {
         if ($this->closureDepth > 0) {
             return true;

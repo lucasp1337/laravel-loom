@@ -390,9 +390,18 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "event": "App\\Events\\OrderPlaced",
       "file": "app/Providers/EventServiceProvider.php",
       "line": 38,
+      "end_line": 40,
       "registration": "event_listen_call",
       "queued": false,
-      "dispatches": []
+      "dispatches": [
+        {
+          "target": "App\\Events\\OrderConfirmationSent",
+          "kind": "event",
+          "confidence": "high",
+          "file": "app/Providers/EventServiceProvider.php",
+          "line": 39
+        }
+      ]
     }
   ]
 }
