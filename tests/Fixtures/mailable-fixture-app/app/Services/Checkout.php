@@ -32,6 +32,12 @@ class Checkout
         // accepts both shapes.
         Mail::send(OrderShipped::class);
 
+        // Chain-wrapped dispatch target (issue #31): the mailable argument is
+        // itself a fluent chain `(new OrderShipped())->locale('fr')`. The
+        // leading MethodCall chain must be unwrapped so this lands in
+        // sent_from[], NOT unresolved_dispatches[].
+        Mail::to($user)->send((new OrderShipped())->locale('fr'));
+
         /** @var \Illuminate\Mail\Mailable $dynamicMailable */
         $dynamicMailable = $this->resolveDynamic();
         Mail::send($dynamicMailable);

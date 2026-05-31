@@ -8,7 +8,7 @@ JobsScanner finds job classes via two discovery paths and merges them by FQCN:
 
 1. **Filesystem walk of `app/Jobs/`.** Every `*.php` file under `app/Jobs/` (recursively) is parsed and any concrete class found becomes a job candidate. Abstract classes, interfaces, traits, and anonymous classes are skipped.
 
-2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or the Dispatchable form `X::dispatch()` is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`.
+2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or the Dispatchable form `X::dispatch()` is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`. A target wrapped in a fluent chain is resolved through the chain to its FQCN: `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` both seed `ProcessOrder` (only `new X` / `X::class` receivers resolve, not variable receivers).
 
 Entries are deduped by FQCN. A job discovered through both paths produces a single entry.
 
@@ -55,7 +55,7 @@ Entries are sorted by `fqcn` ascending.
 - **Helper methods called from `handle()`.** Dispatches inside a helper method (e.g. `processOrder()` called by `handle()`) are not attributed to the job's `dispatches[]`. Only sites whose enclosing method is literally `handle` are joined. Same constraint as listeners' non-`handle*` methods.
 - **`Bus::chain([new A, new B])` and `Bus::batch([...])`.** Neither captured by DispatchScanner today. Jobs registered via chain or batch will not surface in `jobs[*].dispatched_from`. A future change to `DispatchSiteVisitor` could recognise array-literal chain/batch contents.
 - **Method-form queue configs.** `backoff()` and `retryUntil()` methods are not parsed. Only class-level scalar property declarations (`public $backoff = 60;`) are extracted into `queue_config`.
-- **Dispatch-site chaining.** `->onQueue('foo')`, `->onConnection('bar')`, `->delay($when)` chained at the dispatch site are not parsed. `queue_config` reflects class-default declarations only.
+- **Dispatch-site chaining modifier values.** When a job is dispatched through a fluent chain (`(new ProcessOrder())->delay(60)`, `ProcessOrder::dispatch()->onQueue('high')`), the target FQCN now resolves through the chain — the site is recorded, not dropped — but the modifier *values* (`->onQueue('foo')`, `->onConnection('bar')`, `->delay($when)`) are not folded into the entry. `queue_config` reflects class-default declarations only. Capturing per-dispatch modifier values is tracked under #32.
 - **Non-scalar property initializers.** `public $queue = config('queue.default');` (or any expression that isn't a scalar literal) leaves the field `null`.
 - **`ShouldBeUnique`, `ShouldBeEncrypted`, `Batchable`, `InteractsWithQueue`.** These marker interfaces and traits are not surfaced as flags on the entry.
 - **Job whose FQCN can't be located on disk.** Dropped. The schema requires `file` and `line`. This applies to dispatch-site-seeded jobs whose PSR-4 guess doesn't resolve.

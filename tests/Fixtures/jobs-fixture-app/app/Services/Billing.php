@@ -18,4 +18,13 @@ class Billing
 
         dispatch(new ChargeCustomer());
     }
+
+    public function chargeWithDelay(int $orderId): void
+    {
+        // Chain-wrapped dispatch target (issue #31): the dispatch() helper's
+        // argument is a fluent chain `(new ProcessOrder())->delay(60)`. The
+        // leading MethodCall chain must be unwrapped so this lands in
+        // jobs[ProcessOrder].dispatched_from[], NOT unresolved_dispatches[].
+        dispatch((new \App\Jobs\ProcessOrder())->delay(60));
+    }
 }

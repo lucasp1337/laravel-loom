@@ -44,6 +44,13 @@ class Billing
         /** @var \Illuminate\Notifications\Notification $dynamic */
         $dynamic = $this->resolveDynamic();
         $user->notify($dynamic);
+
+        // Chain-wrapped dispatch targets (issue #31). The leading fluent
+        // MethodCall chain must be unwrapped so the FQCN resolves to a real
+        // notification and lands in notified_from[], NOT unresolved_dispatches[].
+        $user->notify((new InvoicePaid())->locale('es'));
+
+        Notification::send($users, (new InvoicePaid())->onQueue('emails'));
     }
 
     private function resolveDynamic(): object

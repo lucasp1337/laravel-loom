@@ -148,6 +148,26 @@ it('emits an unresolved_dispatches entry for Mail::send($dynamicMailable) and no
     expect($forwardSlashed)->toContain('app/Services/Checkout.php');
 });
 
+it('resolves chain-wrapped mailable dispatches into sent_from (issue #31)', function () {
+    // Regression for issue #31: Mail::to($user)->send((new OrderShipped())->locale('fr'))
+    // wraps the mailable in a leading fluent MethodCall chain. The chain must be
+    // unwrapped so the FQCN resolves and the site lands in sent_from[], NOT
+    // unresolved_dispatches[].
+    $payload = buildMailableEndToEndPayload();
+
+    $entry = mailableEntryByFqcn($payload['mailables'], 'App\\Mail\\OrderShipped');
+    expect($entry)->not->toBeNull();
+
+    $lines = array_column($entry['sent_from'], 'line');
+
+    // Mail::to($user)->send((new OrderShipped())->locale('fr'))
+    expect($lines)->toContain(39);
+
+    // The chained site must NOT have leaked into unresolved_dispatches.
+    $unresolvedLines = array_column($payload['unresolved_dispatches'], 'line');
+    expect($unresolvedLines)->not->toContain(39);
+});
+
 it('sorts mailables by fqcn ascending in the built index', function () {
     $payload = buildMailableEndToEndPayload();
 
