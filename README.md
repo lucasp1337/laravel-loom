@@ -35,15 +35,159 @@ Add `storage/loom/index.json` to `.gitignore` if you don't want to commit it.
 
 ## What it finds
 
-- **Events** — `app/Events/**`, plus any class dispatched via `event()` / `Event::dispatch()`.
-- **Listeners** — auto-discovery, `$listen` arrays, `Event::listen()`, and subscribers.
-- **Closure listeners** — closures registered as listeners, in their own section.
-- **Observers** — `Model::observe()`, `#[ObservedBy]`, and `eloquent.*` model events.
-- **Jobs** — `app/Jobs/**`, plus any class dispatched via `dispatch()` / `X::dispatch()`, with queue config.
-- **Schedule** — `Kernel::schedule()`, `bootstrap/app.php`, and `Schedule::*` chains, normalized to cron.
-- **Mailables** — `app/Mail/**`, plus `Mail::send()` and `Mail::to()->send()` chains, with queue config.
-- **Notifications** — `app/Notifications/**`, plus `notify()` / `Notification::send()`, with channels.
-- **Dispatches** — every handler body, cross-linked back to the listener, observer, or job it runs in.
+Click any item to see what gets picked up.
+
+<details>
+<summary><strong>Events</strong> — <code>app/Events/**</code>, plus any class dispatched via <code>event()</code> / <code>Event::dispatch()</code></summary>
+
+```php
+namespace App\Events;
+
+class OrderPlaced {}   // any class under app/Events/
+
+// ...or any class dispatched statically, wherever it lives:
+event(new OrderPlaced($order));
+Event::dispatch(new OrderPlaced($order));
+OrderPlaced::dispatch($order);   // counts as an event when it resolves under app/Events/
+```
+
+</details>
+
+<details>
+<summary><strong>Listeners</strong> — auto-discovery, <code>$listen</code> arrays, <code>Event::listen()</code>, and subscribers</summary>
+
+```php
+// Auto-discovered from the typed handle() argument
+class SendOrderConfirmation
+{
+    public function handle(OrderPlaced $event): void {}
+}
+
+// $listen array on EventServiceProvider
+protected $listen = [
+    OrderPlaced::class => [SendOrderConfirmation::class],
+];
+
+// Event::listen() anywhere under app/
+Event::listen(OrderPlaced::class, SendOrderConfirmation::class);
+
+// Subscriber
+class OrderSubscriber
+{
+    public function subscribe(Dispatcher $events): array
+    {
+        return [OrderPlaced::class => 'onOrderPlaced'];
+    }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Closure listeners</strong> — closures registered as listeners, in their own section</summary>
+
+```php
+Event::listen(OrderPlaced::class, function (OrderPlaced $event) {
+    // captured in closure_listeners[], not listeners[]
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Observers</strong> — <code>Model::observe()</code>, <code>#[ObservedBy]</code>, and <code>eloquent.*</code> model events</summary>
+
+```php
+#[ObservedBy(UserObserver::class)]
+class User extends Model {}
+
+// ...or registered imperatively
+User::observe(UserObserver::class);
+
+// ...or via an eloquent.* model event
+Event::listen('eloquent.created: '.User::class, $callback);
+```
+
+</details>
+
+<details>
+<summary><strong>Jobs</strong> — <code>app/Jobs/**</code>, plus any class dispatched via <code>dispatch()</code> / <code>X::dispatch()</code>, with queue config</summary>
+
+```php
+class ProcessOrder implements ShouldQueue   // any class under app/Jobs/
+{
+    public $connection = 'redis';   // queue config read from properties
+    public $queue = 'high';
+    public $tries = 3;
+}
+
+// ...or any class dispatched as a job (located via PSR-4, so DDD layouts work):
+dispatch(new ProcessOrder($order));
+ProcessOrder::dispatch($order);
+Bus::dispatch(new ProcessOrder($order));
+```
+
+</details>
+
+<details>
+<summary><strong>Schedule</strong> — <code>Kernel::schedule()</code>, <code>bootstrap/app.php</code>, and <code>Schedule::*</code> chains, normalized to cron</summary>
+
+```php
+// In Kernel::schedule(), bootstrap/app.php withSchedule(), or a Schedule:: chain under app/
+$schedule->command('mail:send')->dailyAt('13:00')->weekdays();
+$schedule->job(new ProcessOrder)->everyFiveMinutes();
+Schedule::call(fn () => cleanup())->hourly();
+```
+
+</details>
+
+<details>
+<summary><strong>Mailables</strong> — <code>app/Mail/**</code>, plus <code>Mail::send()</code> and <code>Mail::to()->send()</code> chains, with queue config</summary>
+
+```php
+class OrderShipped extends Mailable implements ShouldQueue {}   // any class under app/Mail/
+
+// ...or any class sent via Mail::
+Mail::to($user)->send(new OrderShipped($order));
+Mail::queue(new OrderShipped($order));
+```
+
+</details>
+
+<details>
+<summary><strong>Notifications</strong> — <code>app/Notifications/**</code>, plus <code>notify()</code> / <code>Notification::send()</code>, with channels</summary>
+
+```php
+class InvoicePaid extends Notification   // any class under app/Notifications/
+{
+    public function via($notifiable): array
+    {
+        return ['mail', 'database', 'slack'];   // channels read from a static via() literal
+    }
+}
+
+// ...or any class sent via notify()/Notification::
+$user->notify(new InvoicePaid($invoice));
+Notification::send($users, new InvoicePaid($invoice));
+```
+
+</details>
+
+<details>
+<summary><strong>Dispatches</strong> — every handler body, cross-linked back to the listener, observer, or job it runs in</summary>
+
+```php
+class SendOrderConfirmation
+{
+    public function handle(OrderPlaced $event): void
+    {
+        // attributed to this listener as listeners[].dispatches
+        event(new OrderConfirmationSent($event->order));
+    }
+}
+```
+
+</details>
 
 Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) land in `unresolved_dispatches[]` with a reason and a `file:line` rather than being dropped silently. Per-scanner behavior and limitations live in [docs/scanners/](docs/scanners/).
 
