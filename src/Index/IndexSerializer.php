@@ -93,6 +93,11 @@ final class IndexSerializer
             $out['channels'] = $e->channels;
         }
 
+        // Internal-only tag: lets cross-link phases distinguish closure-internal
+        // sites (consumed solely by ClosureDispatchAttributionPhase) from all
+        // others. Carried on `_dispatch_sites`, stripped before schema validation.
+        $out['inClosure'] = $e->inClosure;
+
         return $out;
     }
 
@@ -202,6 +207,7 @@ final class IndexSerializer
             'event' => $e->event,
             'file' => $e->file,
             'line' => $e->line,
+            'end_line' => $e->endLine,
             'registration' => $e->registration->value,
             'queued' => $e->queued,
             'dispatches' => [],

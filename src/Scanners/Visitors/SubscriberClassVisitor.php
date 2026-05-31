@@ -108,7 +108,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 if ($item->value instanceof Node\Expr\Closure
                     || $item->value instanceof Node\Expr\ArrowFunction
                 ) {
-                    $closureHandles[] = new ClosurePairRecord(event: $event, line: $item->value->getStartLine(), registration: ListenerRegistration::SUBSCRIBER);
+                    $closureHandles[] = new ClosurePairRecord(event: $event, line: $item->value->getStartLine(), endLine: $item->value->getEndLine(), registration: ListenerRegistration::SUBSCRIBER);
 
                     continue;
                 }
@@ -260,7 +260,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         if ($listenerValue instanceof Node\Expr\Closure
             || $listenerValue instanceof Node\Expr\ArrowFunction
         ) {
-            $closureHandles[] = new ClosurePairRecord(event: $event, line: $listenerValue->getStartLine(), registration: ListenerRegistration::SUBSCRIBER);
+            $closureHandles[] = new ClosurePairRecord(event: $event, line: $listenerValue->getStartLine(), endLine: $listenerValue->getEndLine(), registration: ListenerRegistration::SUBSCRIBER);
 
             return;
         }

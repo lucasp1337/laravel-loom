@@ -12,6 +12,7 @@ final class ClosureListenerEntry
         public readonly string $event,
         public readonly string $file,
         public readonly int $line,
+        public readonly int $endLine,
         public readonly ListenerRegistration $registration,
         public readonly bool $queued,
     ) {

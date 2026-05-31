@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
-use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 
@@ -22,13 +21,23 @@ final class DispatchAttributionPhase implements CrossLinkPhase
         $jobIndex = $context->index(Sections::JOBS);
 
         foreach ($context->dispatchSites as $site) {
-            $entry = $this->dispatchEntryFromSite($site);
-            if ($entry === null) {
+            // Closure-internal sites belong to a closure listener, not to the
+            // enclosing class method; ClosureDispatchAttributionPhase owns them.
+            if (($site['inClosure'] ?? false) === true) {
                 continue;
             }
-            $classFqcn = $entry['classFqcn'];
-            $method = $entry['method'];
-            $payload = $entry['payload'];
+
+            $payload = DispatchEntry::fromSite($site);
+            if ($payload === null) {
+                continue;
+            }
+
+            // Routing keys live on the site, not in the shared payload.
+            $classFqcn = $site['classFqcn'] ?? null;
+            $method = $site['method'] ?? null;
+            if (! is_string($classFqcn) || ! is_string($method)) {
+                continue;
+            }
 
             if (isset($listenerIndex[$classFqcn], $context->listenerMethods[$classFqcn][$method])) {
                 $context->appendToEntry(Sections::LISTENERS, $listenerIndex[$classFqcn], 'dispatches', $payload);
@@ -44,43 +53,5 @@ final class DispatchAttributionPhase implements CrossLinkPhase
                 }
             }
         }
-    }
-
-    /**
-     * Returns null when the site is shaped wrong (missing class/target, still
-     * ambiguous, etc).
-     *
-     * @param  array<string, mixed>  $site
-     * @return array{classFqcn: string, method: string, payload: array<string, mixed>}|null
-     */
-    private function dispatchEntryFromSite(array $site): ?array
-    {
-        $classFqcn = $site['classFqcn'] ?? null;
-        $method = $site['method'] ?? null;
-        $kind = $site['provisionalKind'] ?? null;
-        $target = $site['target'] ?? null;
-        $file = $site['file'] ?? null;
-        $line = $site['line'] ?? null;
-        $confidence = $site['confidence'] ?? 'high';
-
-        if (! is_string($classFqcn) || ! is_string($target)
-            || ! is_string($file) || ! is_int($line)
-            || ! is_string($kind) || $kind === DispatchKinds::AMBIGUOUS->value
-            || ! is_string($method)
-        ) {
-            return null;
-        }
-
-        return [
-            'classFqcn' => $classFqcn,
-            'method' => $method,
-            'payload' => [
-                'target' => $target,
-                'kind' => $kind,
-                'confidence' => $confidence,
-                'file' => $file,
-                'line' => $line,
-            ],
-        ];
     }
 }
