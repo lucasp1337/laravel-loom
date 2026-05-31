@@ -8,6 +8,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\SourceLocation;
+use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
@@ -24,10 +25,6 @@ use Lucasp\Loom\Support\Sorting;
 final class ObserverScanner implements Scanner
 {
     use ScannerFilesystem;
-
-    private const REGISTRATION_ATTRIBUTE = 'attribute';
-
-    private const REGISTRATION_OBSERVE_CALL = 'observe_call';
 
     private AstWalker $walker;
 
@@ -52,7 +49,7 @@ final class ObserverScanner implements Scanner
         /** @var array<string, array{file: string, line: int, hooks: list<string>}> $classMap */
         $classMap = [];
 
-        /** @var array<int, array{model: string, observer: string, registration: string}> $observerRegs */
+        /** @var array<int, array{model: string, observer: string, registration: ObserverRegistration}> $observerRegs */
         $observerRegs = [];
 
         /** @var array<int, array{model: string, hook: string, handler: string, method: string}> $listenEntries */
@@ -86,7 +83,7 @@ final class ObserverScanner implements Scanner
                     $observerRegs[] = [
                         'model' => $pair->model,
                         'observer' => $observerFqcn,
-                        'registration' => self::REGISTRATION_ATTRIBUTE,
+                        'registration' => ObserverRegistration::ATTRIBUTE,
                     ];
                 }
             }
@@ -96,7 +93,7 @@ final class ObserverScanner implements Scanner
                     $observerRegs[] = [
                         'model' => $pair->model,
                         'observer' => $observerFqcn,
-                        'registration' => self::REGISTRATION_OBSERVE_CALL,
+                        'registration' => ObserverRegistration::OBSERVE_CALL,
                     ];
                 }
             }
@@ -123,13 +120,13 @@ final class ObserverScanner implements Scanner
     /**
      * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
-     * @param  array<int, array{model: string, observer: string, registration: string}>  $regs
+     * @param  array<int, array{model: string, observer: string, registration: ObserverRegistration}>  $regs
      * @param  array<string, array{file: string, line: int, hooks: list<string>}>  $classMap
-     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>
+     * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>
      */
     private function mergeObservers(string $appRoot, array $regs, array $classMap): array
     {
-        /** @var array<string, string> $registrationByPair */
+        /** @var array<string, ObserverRegistration> $registrationByPair */
         $registrationByPair = [];
 
         foreach ($regs as $reg) {
@@ -167,17 +164,16 @@ final class ObserverScanner implements Scanner
         return $result;
     }
 
-    private function precedence(string $registration): int
+    private function precedence(ObserverRegistration $registration): int
     {
         return match ($registration) {
-            self::REGISTRATION_ATTRIBUTE => 2,
-            self::REGISTRATION_OBSERVE_CALL => 1,
-            default => 0,
+            ObserverRegistration::ATTRIBUTE => 2,
+            ObserverRegistration::OBSERVE_CALL => 1,
         };
     }
 
     /**
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>  $observers
      * @param  array<int, array{model: string, hook: string, handler: string, method: string}>  $listenEntries
      * @return array<string, array{model: string, event: string, handled_by: list<string>}>
      */
@@ -230,7 +226,7 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: string}>  $observers
+     * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>  $observers
      * @return list<ObserverEntry>
      */
     private function emitObservers(array $observers): array

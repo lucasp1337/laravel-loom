@@ -8,6 +8,7 @@ use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Dto\SubscriberClassRecord;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
@@ -107,7 +108,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
                 if ($item->value instanceof Node\Expr\Closure
                     || $item->value instanceof Node\Expr\ArrowFunction
                 ) {
-                    $closureHandles[] = new ClosurePairRecord(event: $event, line: $item->value->getStartLine(), registration: 'subscriber');
+                    $closureHandles[] = new ClosurePairRecord(event: $event, line: $item->value->getStartLine(), registration: ListenerRegistration::SUBSCRIBER);
 
                     continue;
                 }
@@ -259,7 +260,7 @@ final class SubscriberClassVisitor extends NodeVisitorAbstract
         if ($listenerValue instanceof Node\Expr\Closure
             || $listenerValue instanceof Node\Expr\ArrowFunction
         ) {
-            $closureHandles[] = new ClosurePairRecord(event: $event, line: $listenerValue->getStartLine(), registration: 'subscriber');
+            $closureHandles[] = new ClosurePairRecord(event: $event, line: $listenerValue->getStartLine(), registration: ListenerRegistration::SUBSCRIBER);
 
             return;
         }

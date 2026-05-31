@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -74,7 +75,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             $this->closurePairs[] = new ClosurePairRecord(
                 event: $event,
                 line: $second->value->getStartLine(),
-                registration: 'event_listen_call',
+                registration: ListenerRegistration::EVENT_LISTEN_CALL,
             );
 
             return null;

@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\MailableEntry;
 use Lucasp\Loom\Dto\MailableLocation;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\MailableClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -89,7 +90,7 @@ final class MailableScanner implements Scanner
     }
 
     /**
-     * @return array<string, 'mailable'>
+     * @return array<string, DispatchKinds>
      */
     private function discoverFromDispatchSites(string $appRoot): array
     {
@@ -105,11 +106,11 @@ final class MailableScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                if ($site->provisionalKind !== 'mailable') {
+                if ($site->provisionalKind !== DispatchKinds::MAILABLE) {
                     continue;
                 }
 
-                $candidates[$site->target] = 'mailable';
+                $candidates[$site->target] = DispatchKinds::MAILABLE;
             }
         }
 

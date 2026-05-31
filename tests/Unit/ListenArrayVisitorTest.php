@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -19,7 +20,7 @@ function runListenArrayVisitor(string $source): array
 }
 
 /**
- * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: string}>}
+ * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: ListenerRegistration}>}
  */
 function runListenArrayVisitorFull(string $source): array
 {
@@ -236,7 +237,7 @@ it('emits a closure pair when the $listen value is an arrow function', function 
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
     expect($result['closurePairs'][0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
@@ -263,7 +264,7 @@ it('emits a closure pair when the $listen value is a long-form Closure', functio
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
 });
 
 it('routes class listeners to getPairs() and closures to getClosurePairs() in a mixed array', function () {
@@ -317,7 +318,7 @@ it('emits a closure pair with a string event key', function () {
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('user.created');
-    expect($result['closurePairs'][0]->registration)->toBe('listen_array');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
 });
 
 it('drops both pair and closure-pair when the key is a variable', function () {

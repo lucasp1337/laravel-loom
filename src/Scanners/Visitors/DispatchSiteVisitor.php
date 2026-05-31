@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
+use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -125,13 +127,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $name = strtolower($node->name->toString());
 
         if ($name === 'event') {
-            $this->recordHelperOrFacade($node, $node->args, 'helper', 'event', 'event');
+            $this->recordHelperOrFacade($node, $node->args, DispatchForm::HELPER, DispatchKinds::EVENT, 'event');
 
             return;
         }
 
         if ($name === 'dispatch') {
-            $this->recordHelperOrFacade($node, $node->args, 'job_helper', 'job', 'dispatch');
+            $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch');
         }
 
         // dispatch_sync / dispatch_now intentionally skipped.
@@ -151,12 +153,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         if (Facades::MAIL->matches($className)) {
             if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG0, true)) {
-                $this->recordMailableSiteFromArg($node, $node->args, 0, 'mail_facade', 'Mail::'.$methodName);
+                $this->recordMailableSiteFromArg($node, $node->args, 0, DispatchForm::MAIL_FACADE, 'Mail::'.$methodName);
 
                 return;
             }
             if (in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true)) {
-                $this->recordMailableSiteFromArg($node, $node->args, 1, 'mail_facade', 'Mail::'.$methodName);
+                $this->recordMailableSiteFromArg($node, $node->args, 1, DispatchForm::MAIL_FACADE, 'Mail::'.$methodName);
 
                 return;
             }
@@ -167,7 +169,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
         if (Facades::NOTIFICATION->matches($className)) {
             if (in_array($methodName, self::NOTIFICATION_FACADE_METHODS, true)) {
-                $this->recordNotificationSiteFromArg($node, $node->args, 1, 'notification_facade', 'Notification::'.$methodName);
+                $this->recordNotificationSiteFromArg($node, $node->args, 1, DispatchForm::NOTIFICATION_FACADE, 'Notification::'.$methodName);
 
                 return;
             }
@@ -181,13 +183,13 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         if (Facades::EVENT->matches($className)) {
-            $this->recordHelperOrFacade($node, $node->args, 'facade', 'event', 'Event::dispatch');
+            $this->recordHelperOrFacade($node, $node->args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
 
             return;
         }
 
         if (Facades::BUS->matches($className)) {
-            $this->recordHelperOrFacade($node, $node->args, 'job_helper', 'job', 'Bus::dispatch');
+            $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::dispatch');
 
             return;
         }
@@ -201,8 +203,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             classFqcn: $this->currentClassFqcn(),
             method: $this->currentMethod(),
             target: $className,
-            form: 'dispatchable',
-            provisionalKind: 'ambiguous',
+            form: DispatchForm::DISPATCHABLE,
+            provisionalKind: DispatchKinds::AMBIGUOUS,
             file: null,
             line: $node->getStartLine(),
             confidence: 'high',
@@ -221,7 +223,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         ) {
             if ($this->isRootedAtFacadeChainRoot($node->var, Facades::MAIL, self::MAIL_CHAIN_ROOT_METHODS)) {
                 $argIndex = in_array($methodName, self::MAIL_OUTERMOST_METHODS_ARG1, true) ? 1 : 0;
-                $this->recordMailableSiteFromArg($node, $node->args, $argIndex, 'mail_chain', 'Mail::...->'.$methodName);
+                $this->recordMailableSiteFromArg($node, $node->args, $argIndex, DispatchForm::MAIL_CHAIN, 'Mail::...->'.$methodName);
 
                 return;
             }
@@ -231,8 +233,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             // Opaque-receiver ->notify(...) is accepted; the chain-root walk
             // only changes the `form` label when rooted at Notification::route.
             $form = $this->isRootedAtFacadeChainRoot($node->var, Facades::NOTIFICATION, ['route'])
-                ? 'notification_chain'
-                : 'notify_method';
+                ? DispatchForm::NOTIFICATION_CHAIN
+                : DispatchForm::NOTIFY_METHOD;
 
             $this->recordNotificationSiteFromArg($node, $node->args, 0, $form, '->'.$methodName);
         }
@@ -266,28 +268,24 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     /**
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
-     * @param  'mail_facade'|'mail_chain'  $form
      */
-    private function recordMailableSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $callLabel): void
+    private function recordMailableSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel): void
     {
-        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, 'mailable', $callLabel);
+        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::MAILABLE, $callLabel);
     }
 
     /**
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
-     * @param  'notify_method'|'notification_facade'|'notification_chain'  $form
      */
-    private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $callLabel): void
+    private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel): void
     {
-        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, 'notification', $callLabel);
+        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::NOTIFICATION, $callLabel);
     }
 
     /**
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
-     * @param  'mail_facade'|'mail_chain'|'notify_method'|'notification_facade'|'notification_chain'  $form
-     * @param  'mailable'|'notification'  $kind
      */
-    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, string $form, string $kind, string $callLabel): void
+    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel): void
     {
         if (! isset($args[$argIndex])) {
             return;
@@ -334,10 +332,8 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     /**
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
-     * @param  'helper'|'facade'|'job_helper'  $form
-     * @param  'event'|'job'  $kind
      */
-    private function recordHelperOrFacade(Node\Expr $callNode, array $args, string $form, string $kind, string $callLabel): void
+    private function recordHelperOrFacade(Node\Expr $callNode, array $args, DispatchForm $form, DispatchKinds $kind, string $callLabel): void
     {
         if ($args === []) {
             return;
@@ -390,11 +386,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         );
     }
 
-    /**
-     * @param  'helper'|'facade'|'job_helper'  $form
-     * @param  'event'|'job'  $kind
-     */
-    private function emitResolved(Node\Expr $callNode, string $targetFqcn, string $form, string $kind): void
+    private function emitResolved(Node\Expr $callNode, string $targetFqcn, DispatchForm $form, DispatchKinds $kind): void
     {
         if ($this->shouldSkipEmission()) {
             return;

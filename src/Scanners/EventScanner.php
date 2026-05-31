@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\SourceLocation;
+use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -101,7 +102,7 @@ final class EventScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getTargets() as $target) {
-                $isUnambiguous = $target->form !== 'dispatchable';
+                $isUnambiguous = $target->form !== DispatchForm::DISPATCHABLE;
                 if (! isset($candidates[$target->fqcn])) {
                     $candidates[$target->fqcn] = $isUnambiguous;
                 } elseif ($isUnambiguous) {

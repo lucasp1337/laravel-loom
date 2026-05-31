@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\DispatchScanner;
 
 function dispatchFixturePath(): string
@@ -86,28 +88,28 @@ it('classifies the helper, facade, job_helper, and dispatchable forms correctly'
 
     $helper = findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 18);
     expect($helper)->not->toBeNull();
-    expect($helper->form)->toBe('helper');
-    expect($helper->provisionalKind)->toBe('event');
+    expect($helper->form)->toBe(DispatchForm::HELPER);
+    expect($helper->provisionalKind)->toBe(DispatchKinds::EVENT);
     expect($helper->target)->toBe('App\\Events\\OrderConfirmationSent');
     expect($helper->classFqcn)->toBe('App\\Listeners\\SendOrderConfirmation');
     expect($helper->method)->toBe('handle');
 
     $dispatchable = findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 19);
     expect($dispatchable)->not->toBeNull();
-    expect($dispatchable->form)->toBe('dispatchable');
-    expect($dispatchable->provisionalKind)->toBe('ambiguous');
+    expect($dispatchable->form)->toBe(DispatchForm::DISPATCHABLE);
+    expect($dispatchable->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
     expect($dispatchable->target)->toBe('App\\Jobs\\SendReceipt');
 
     $facade = findSite($sites, 'app/Listeners/SendOrderConfirmation.php', 20);
     expect($facade)->not->toBeNull();
-    expect($facade->form)->toBe('facade');
-    expect($facade->provisionalKind)->toBe('event');
+    expect($facade->form)->toBe(DispatchForm::FACADE);
+    expect($facade->provisionalKind)->toBe(DispatchKinds::EVENT);
     expect($facade->target)->toBe('App\\Events\\InventoryAdjusted');
 
     $busFacade = findSite($sites, 'app/Observers/UserObserver.php', 15);
     expect($busFacade)->not->toBeNull();
-    expect($busFacade->form)->toBe('job_helper');
-    expect($busFacade->provisionalKind)->toBe('job');
+    expect($busFacade->form)->toBe(DispatchForm::JOB_HELPER);
+    expect($busFacade->provisionalKind)->toBe(DispatchKinds::JOB);
     expect($busFacade->target)->toBe('App\\Jobs\\SendReceipt');
     expect($busFacade->method)->toBe('created');
 });

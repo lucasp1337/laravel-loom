@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\EventDispatchTarget;
+use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -10,7 +12,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run EventDispatchSiteVisitor (after NameResolver) over it.
  *
- * @return array<int, array{fqcn: string, line: int, form: 'helper'|'facade'|'dispatchable'}>
+ * @return list<EventDispatchTarget>
  */
 function runEventDispatchSiteVisitor(string $source): array
 {
@@ -46,7 +48,7 @@ it('resolves event(new App\\Events\\Foo())', function () {
 
     expect($targets)->toHaveCount(1);
     expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
-    expect($targets[0]->form)->toBe('helper');
+    expect($targets[0]->form)->toBe(DispatchForm::HELPER);
 });
 
 it('resolves event(App\\Events\\Foo::class)', function () {
@@ -67,7 +69,7 @@ it('resolves event(App\\Events\\Foo::class)', function () {
 
     expect($targets)->toHaveCount(1);
     expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
-    expect($targets[0]->form)->toBe('helper');
+    expect($targets[0]->form)->toBe(DispatchForm::HELPER);
 });
 
 it('resolves Event::dispatch(Foo::class) with the Event facade imported', function () {
@@ -89,7 +91,7 @@ it('resolves Event::dispatch(Foo::class) with the Event facade imported', functi
 
     expect($targets)->toHaveCount(1);
     expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
-    expect($targets[0]->form)->toBe('facade');
+    expect($targets[0]->form)->toBe(DispatchForm::FACADE);
 });
 
 it('resolves App\\Events\\Foo::dispatch($payload) as a Dispatchable trait call', function () {
@@ -110,7 +112,7 @@ it('resolves App\\Events\\Foo::dispatch($payload) as a Dispatchable trait call',
 
     expect($targets)->toHaveCount(1);
     expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
-    expect($targets[0]->form)->toBe('dispatchable');
+    expect($targets[0]->form)->toBe(DispatchForm::DISPATCHABLE);
 });
 
 it('ignores event($variable)', function () {

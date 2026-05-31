@@ -70,8 +70,8 @@ final class IndexSerializer
             'classFqcn' => $e->classFqcn,
             'method' => $e->method,
             'target' => $e->target,
-            'form' => $e->form,
-            'provisionalKind' => $e->provisionalKind,
+            'form' => $e->form->value,
+            'provisionalKind' => $e->provisionalKind->value,
             'file' => $e->file,
             'line' => $e->line,
             'confidence' => $e->confidence,
@@ -115,7 +115,7 @@ final class IndexSerializer
                 'event' => $h->event,
                 'method' => $h->method,
             ], $e->handles),
-            'registration' => $e->registration,
+            'registration' => $e->registration->value,
             'queued' => $e->queued,
             'dispatches' => [],
         ];
@@ -129,7 +129,7 @@ final class IndexSerializer
             'file' => $e->file,
             'line' => $e->line,
             'observes' => $e->observes,
-            'registration' => $e->registration,
+            'registration' => $e->registration->value,
             'hooks' => $e->hooks,
             'dispatches' => [],
         ];
@@ -184,7 +184,7 @@ final class IndexSerializer
             'event' => $e->event,
             'file' => $e->file,
             'line' => $e->line,
-            'registration' => $e->registration,
+            'registration' => $e->registration->value,
             'queued' => $e->queued,
             'dispatches' => [],
         ];
@@ -194,7 +194,7 @@ final class IndexSerializer
     public function scheduled(ScheduledEntry $e): array
     {
         return [
-            'kind' => $e->kind,
+            'kind' => $e->kind->value,
             'target' => $e->target,
             'cron' => $e->cron,
             'timezone' => $e->timezone,

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -19,7 +20,7 @@ function runEventListenCallVisitor(string $source): array
 }
 
 /**
- * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: string}>}
+ * @return array{pairs: array<int, array{event: string, listener: string, method: string}>, closurePairs: array<int, array{event: string, line: int, registration: ListenerRegistration}>}
  */
 function runEventListenCallVisitorFull(string $source): array
 {
@@ -183,7 +184,7 @@ it('emits a closure pair from Event::listen(Foo::class, fn ($e) => …)', functi
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
     expect($result['closurePairs'][0]->line)->toBeInt()->toBeGreaterThan(0);
 });
 
@@ -209,7 +210,7 @@ it('emits a closure pair with a string event from Event::listen(\'string.event\'
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('user.created');
-    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
 });
 
 it('drops Event::listen($var, fn () => …) entirely', function () {
@@ -260,7 +261,7 @@ it('emits a closure pair from Event::listen(Foo::class, function () { … }) lon
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toHaveCount(1);
     expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
-    expect($result['closurePairs'][0]->registration)->toBe('event_listen_call');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
 });
 
 it('ignores static listen calls on classes other than the Event facade', function () {

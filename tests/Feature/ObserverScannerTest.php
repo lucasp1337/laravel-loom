@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ObserverEntry;
+use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\ObserverScanner;
 
 function observerFixturePath(): string
@@ -85,7 +86,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\UserObserver', 'App\\Models\\User');
 
         expect($entry)->not->toBeNull();
-        expect($entry->registration)->toBe('attribute');
+        expect($entry->registration)->toBe(ObserverRegistration::ATTRIBUTE);
         expect($entry->hooks)->toBe(['creating', 'deleted', 'updated']);
         expect($entry->file)->toBe('app/Observers/UserObserver.php');
         expect($entry->line)->toBe(7);
@@ -97,7 +98,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\PostObserver', 'App\\Models\\Post');
 
         expect($entry)->not->toBeNull();
-        expect($entry->registration)->toBe('observe_call');
+        expect($entry->registration)->toBe(ObserverRegistration::OBSERVE_CALL);
         expect($entry->hooks)->toBe(['creating', 'saved']);
         expect($entry->file)->toBe('app/Observers/PostObserver.php');
         expect($entry->line)->toBe(7);
@@ -109,7 +110,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\CommentObserver', 'App\\Models\\Comment');
 
         expect($entry)->not->toBeNull();
-        expect($entry->registration)->toBe('observe_call');
+        expect($entry->registration)->toBe(ObserverRegistration::OBSERVE_CALL);
         expect($entry->hooks)->toBe(['deleting', 'restored']);
         expect($entry->file)->toBe('app/Observers/CommentObserver.php');
         expect($entry->line)->toBe(7);
@@ -121,7 +122,7 @@ describe('ObserverScanner against observer-fixture-app', function () {
         $entry = observerByPair($observers, 'App\\Observers\\DualObserver', 'App\\Models\\Widget');
 
         expect($entry)->not->toBeNull();
-        expect($entry->registration)->toBe('attribute');
+        expect($entry->registration)->toBe(ObserverRegistration::ATTRIBUTE);
         expect($entry->hooks)->toBe(['created', 'updated']);
         expect($entry->file)->toBe('app/Observers/DualObserver.php');
         expect($entry->line)->toBe(7);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\ListenerRegistration;
+
 /**
  * Mutable scanner-internal accumulator while merging listener registrations
  * from auto-discovery, $listen, Event::listen, and subscribers.
@@ -21,7 +23,7 @@ final class ListenerLocation
         public ?string $file,
         public ?int $line,
         public bool $queued,
-        public string $registration,
+        public ListenerRegistration $registration,
     ) {
         $this->handles = [];
     }

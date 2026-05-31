@@ -10,6 +10,7 @@ function scheduleFixturePath(): string
 }
 
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Index\ScheduleKind;
 
 /**
  * Locate a scheduled entry by its (file, line) tuple.
@@ -64,7 +65,7 @@ it('discovers entries declared inside Console\\Kernel::schedule()', function () 
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 16);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('command');
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
     expect($entry->target)->toBe('mail:send');
 });
 
@@ -74,7 +75,7 @@ it('discovers entries declared inside bootstrap/app.php withSchedule(...)', func
     $entry = scheduleEntryAt($entries, 'bootstrap/app.php', 10);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('command');
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
     expect($entry->target)->toBe('queue:prune-batches');
 });
 
@@ -84,7 +85,7 @@ it('discovers entries declared via the Schedule facade in a provider', function 
     $entry = scheduleEntryAt($entries, 'app/Providers/ScheduleServiceProvider.php', 13);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('command');
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
     expect($entry->target)->toBe('horizon:snapshot');
 });
 
@@ -97,23 +98,23 @@ it('classifies kind per root method', function () {
 
     $kernel = 'app/Console/Kernel.php';
 
-    $kindAt = static function (int $line) use ($entries, $kernel): ?string {
+    $kindAt = static function (int $line) use ($entries, $kernel): ?ScheduleKind {
         $entry = scheduleEntryAt($entries, $kernel, $line);
         if ($entry === null) {
             return null;
         }
 
-        return is_string($entry->kind ?? null) ? $entry->kind : null;
+        return $entry->kind;
     };
 
-    expect($kindAt(16))->toBe('command');
-    expect($kindAt(21))->toBe('command');
-    expect($kindAt(24))->toBe('job');
-    expect($kindAt(27))->toBe('job');
-    expect($kindAt(31))->toBe('closure');
-    expect($kindAt(34))->toBe('closure');
-    expect($kindAt(37))->toBe('closure');
-    expect($kindAt(40))->toBe('exec');
+    expect($kindAt(16))->toBe(ScheduleKind::COMMAND);
+    expect($kindAt(21))->toBe(ScheduleKind::COMMAND);
+    expect($kindAt(24))->toBe(ScheduleKind::JOB);
+    expect($kindAt(27))->toBe(ScheduleKind::JOB);
+    expect($kindAt(31))->toBe(ScheduleKind::CLOSURE);
+    expect($kindAt(34))->toBe(ScheduleKind::CLOSURE);
+    expect($kindAt(37))->toBe(ScheduleKind::CLOSURE);
+    expect($kindAt(40))->toBe(ScheduleKind::EXEC);
 });
 
 // ---------------------------------------------------------------------------
@@ -153,7 +154,7 @@ it('normalises tuple-form ->call([Cls::class, "method"]) to FQCN::method', funct
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 34);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('closure');
+    expect($entry->kind)->toBe(ScheduleKind::CLOSURE);
     expect($entry->target)->toBe('App\\Reports::generate');
 });
 
@@ -163,7 +164,7 @@ it('normalises Laravel-callable string ->call("App\\Cls@method") to FQCN::method
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 37);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('closure');
+    expect($entry->kind)->toBe(ScheduleKind::CLOSURE);
     expect($entry->target)->toBe('App\\Maintenance::run');
 });
 
@@ -173,7 +174,7 @@ it('leaves inline closures with a null target (file:line is the identity)', func
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 31);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('closure');
+    expect($entry->kind)->toBe(ScheduleKind::CLOSURE);
     expect($entry->target)->toBeNull();
 });
 
@@ -183,7 +184,7 @@ it('keeps exec shell command strings verbatim as target', function () {
     $entry = scheduleEntryAt($entries, 'app/Console/Kernel.php', 40);
 
     expect($entry)->not->toBeNull();
-    expect($entry->kind)->toBe('exec');
+    expect($entry->kind)->toBe(ScheduleKind::EXEC);
     expect($entry->target)->toBe('php artisan some:thing');
 });
 
