@@ -14,6 +14,8 @@ DispatchScanner walks every PHP file under `app/` and records dispatch sites in 
 - `Bus::dispatch(new SomeJob(...))` — `kind: job`, `form: bus_facade`
 - `SomeClass::dispatch(...)` Dispatchable trait — `kind: ambiguous` at the visitor level, finalized by the cross-link pass against `events[]`
 
+A dispatched target wrapped in a fluent chain resolves through the chain to its target FQCN. `AstHelpers::resolveStaticClass()` unwraps a leading `MethodCall` chain before resolving, so `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` resolve to `ProcessOrder` rather than falling through to `unresolved_dispatches[]`. Only `new X` and `X::class` receivers resolve through the chain — a variable receiver (`$job->onQueue('high')` where `$job` is a variable) does not. The chain modifier *values* themselves (`->delay(60)`, `->onQueue('high')`) are not captured into the site (see Known limitations).
+
 The visitor maintains a class+method stack on `enterNode`/`leaveNode` of `Stmt\Class_` and `Stmt\ClassMethod`, plus a closure-depth counter. Each recorded site carries:
 
 - `target` — resolved FQCN of the dispatched event or job
@@ -128,6 +130,8 @@ EventScanner's dispatch-site seeding ensures most Dispatchable-form events are a
 - **Dispatches inside helper methods called from a handler.** A listener whose `handle()` calls `$this->doWork()`, where `doWork()` is the one that dispatches — the dispatch site is recorded in `_dispatch_sites` but isn't attributed to the listener (because `doWork` isn't in `handles[*].method`). It still contributes to `events[*].dispatched_from` if its target is an event.
 - **Dispatch sites inside abstract methods.** Won't happen (abstract methods have no body), but worth noting that interface-declared dispatch contracts aren't introspected.
 - **Cross-link orphans.** A dispatch site whose `target` doesn't match any event in `events[]` doesn't contribute to `dispatched_from`. This usually means EventScanner didn't discover the target (event class outside `app/Events/` and not dispatched via the helper/facade forms). Not a DispatchScanner bug — fix by ensuring the target is discoverable.
+- **Chain modifier values are not captured.** When a target is wrapped in a fluent chain (`(new ProcessOrder())->delay(60)`, `ProcessOrder::dispatch()->onQueue('high')`), the target FQCN resolves but the modifier arguments — the delay, queue, connection — are discarded. The site records only the target. Capturing modifier values is tracked under #32.
+- **Variable receivers in a chain.** `$job->onQueue('high')` where `$job` is a variable doesn't resolve a target. Only `new X` / `X::class` receivers resolve through the chain; a variable at the base is unresolvable like any other dynamic class name.
 - **Confidence is uniformly `"high"`.** No medium/low classification yet.
 
 ## When something looks wrong

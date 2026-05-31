@@ -125,6 +125,10 @@ class ProcessOrder implements ShouldQueue   // any class under app/Jobs/
 dispatch(new ProcessOrder($order));
 ProcessOrder::dispatch($order);
 Bus::dispatch(new ProcessOrder($order));
+
+// chain-wrapped targets resolve through the chain (modifier values not yet captured):
+ProcessOrder::dispatch($order)->onQueue('high');
+dispatch((new ProcessOrder($order))->delay(60));
 ```
 
 </details>

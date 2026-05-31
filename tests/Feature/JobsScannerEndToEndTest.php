@@ -113,6 +113,29 @@ it('leaves non-job sections sensibly populated and non-null', function () {
     expect($payload['stats']['observers'])->toBe(0);
 });
 
+it('resolves chain-wrapped job dispatches into dispatched_from (issue #31)', function () {
+    // Regression for issue #31: dispatch((new ProcessOrder())->delay(60)) wraps
+    // the job in a leading fluent MethodCall chain. The chain must be unwrapped
+    // so the FQCN resolves and the site lands in jobs[ProcessOrder].dispatched_from[],
+    // NOT unresolved_dispatches[].
+    $payload = buildJobsEndToEndPayload();
+
+    $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
+    expect($entry)->not->toBeNull();
+
+    $chained = array_values(array_filter(
+        $entry['dispatched_from'],
+        static fn (array $site): bool => ($site['method'] ?? null) === 'App\\Services\\Billing::chargeWithDelay',
+    ));
+
+    expect($chained)->toHaveCount(1);
+    expect($chained[0]['line'])->toBe(28);
+
+    // The chained site must NOT have leaked into unresolved_dispatches.
+    $unresolvedLines = array_column($payload['unresolved_dispatches'], 'line');
+    expect($unresolvedLines)->not->toContain(28);
+});
+
 // gap: Bus::chain([new ProcessOrder, new SendInvoice]) does not currently
 // surface either job in dispatched_from. The DispatchSiteVisitor only
 // recognises direct dispatch forms (helper, facade, Dispatchable static).

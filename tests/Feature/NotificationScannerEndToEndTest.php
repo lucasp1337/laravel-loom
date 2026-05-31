@@ -158,6 +158,29 @@ it('emits an unresolved_dispatches entry for $user->notify($dynamic) and no noti
     expect($forwardSlashed)->toContain('app/Services/Billing.php');
 });
 
+it('resolves chain-wrapped notification dispatches into notified_from (issue #31)', function () {
+    // Regression for issue #31: a dispatch argument wrapped in a leading fluent
+    // MethodCall chain — e.g. (new InvoicePaid())->locale('es') — must have the
+    // chain unwrapped so the FQCN resolves and the site lands in notified_from[],
+    // NOT unresolved_dispatches[].
+    $payload = buildNotificationEndToEndPayload();
+
+    $entry = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\InvoicePaid');
+    expect($entry)->not->toBeNull();
+
+    $lines = array_column($entry['notified_from'], 'line');
+
+    // $user->notify((new InvoicePaid())->locale('es'))
+    expect($lines)->toContain(51);
+    // Notification::send($users, (new InvoicePaid())->onQueue('emails'))
+    expect($lines)->toContain(53);
+
+    // The chained sites must NOT have leaked into unresolved_dispatches.
+    $unresolvedLines = array_column($payload['unresolved_dispatches'], 'line');
+    expect($unresolvedLines)->not->toContain(51);
+    expect($unresolvedLines)->not->toContain(53);
+});
+
 it('sorts notifications by fqcn ascending in the built index', function () {
     $payload = buildNotificationEndToEndPayload();
 

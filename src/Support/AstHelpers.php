@@ -30,9 +30,14 @@ final class AstHelpers
         return $expr->class->toString();
     }
 
-    /** Resolve `new X()` or `X::class` to the FQCN string. */
+    /** Resolve `new X()` / `X::class`, unwrapping any leading fluent `->method()` chain. */
     public static function resolveStaticClass(?Node $expr): ?string
     {
+        // Unwrap fluent chains: (new X)->locale('es')->onQueue('q') resolves to X.
+        while ($expr instanceof Node\Expr\MethodCall) {
+            $expr = $expr->var;
+        }
+
         if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name) {
             return $expr->class->toString();
         }

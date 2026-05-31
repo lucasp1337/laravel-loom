@@ -41,6 +41,15 @@ and merges them by FQCN:
      longer route chains
      (`Notification::route(...)->route(...)->notify(...)`).
 
+   The notification *argument* may itself be wrapped in a fluent chain
+   and still resolves to its target FQCN:
+   `$user->notify((new InvoicePaid)->locale('es'))` and
+   `Notification::send($users, (new InvoicePaid)->onQueue('emails'))`
+   both seed `InvoicePaid`. Only `new Y` / `Y::class` argument
+   receivers resolve through the chain — a variable receiver does not.
+   The chain modifier values themselves are not captured (see Known
+   limitations).
+
 Entries are deduped by FQCN. A notification discovered through both
 paths produces a single entry; the filesystem walk wins for
 `file`/`line`.
@@ -183,9 +192,14 @@ Notifications do not participate in the disambiguation phase
   caveat as jobs and mailables.
 - **Method-form queue configs** (`backoff()`, `retryUntil()`): not
   parsed.
-- **Dispatch-site chaining** (`->onQueue('foo')`, `->delay(...)` at
-  the call site): not parsed into the entry. `queue_config`
-  reflects class-default declarations only.
+- **Dispatch-site chaining modifier values**: when a notification
+  argument is wrapped in a chain
+  (`$user->notify((new InvoicePaid)->onQueue('emails'))`), the target
+  FQCN now resolves through the chain — the notification is seeded and
+  the site recorded — but the modifier values (`->onQueue('foo')`,
+  `->delay(...)` at the call site) are not folded into the entry.
+  `queue_config` reflects class-default declarations only.
+  Modifier-value capture is tracked under #32.
 - **Receiver-class blindness**: `$user->notify(new X)` doesn't tell
   Loom what kind of receiver `$user` is. "Which models receive
   InvoicePaid" is not answerable from the index today. Documented

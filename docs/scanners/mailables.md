@@ -36,6 +36,14 @@ merges them by FQCN:
    - `Mail::to(...)->queue(new X(...))`,
      `Mail::to(...)->later($delay, new X(...))`.
 
+   The mailable *argument* may itself be wrapped in a fluent chain and
+   still resolves to its target FQCN:
+   `Mail::send((new OrderShipped)->onConnection('redis'))` and
+   `Mail::to($user)->send((new OrderShipped)->locale('fr'))` both seed
+   `OrderShipped`. Only `new X` / `X::class` argument receivers resolve
+   through the chain — a variable receiver does not. The chain modifier
+   values themselves are not captured (see Known limitations).
+
 Entries are deduped by FQCN. A mailable discovered through both paths
 produces a single entry; the filesystem walk wins for `file`/`line`.
 
@@ -134,10 +142,13 @@ no recognised call shape is ambiguous with another primitive type.
 - **Method-form queue configs**: `backoff()` / `retryUntil()` methods
   on a mailable are not parsed. Only class-level scalar properties
   populate `queue_config`.
-- **Dispatch-site chaining**: `->onQueue('mail')`,
-  `->onConnection('sqs')`, `->delay($when)` chained at the dispatch
-  site are not parsed into the entry. `queue_config` reflects
-  class-default declarations only.
+- **Dispatch-site chaining modifier values**: when a mailable argument
+  is wrapped in a chain (`Mail::send((new OrderShipped)->onConnection('sqs'))`),
+  the target FQCN now resolves through the chain — the mailable is
+  seeded and the site recorded — but the modifier values
+  (`->onQueue('mail')`, `->onConnection('sqs')`, `->delay($when)`) are
+  not folded into the entry. `queue_config` reflects class-default
+  declarations only. Modifier-value capture is tracked under #32.
 - **`Mail::to(...)->html(...)->text(...)`** raw-content chains:
   treated the same as `Mail::raw` — no FQCN target, skipped.
 - **Non-scalar property initializers**: `public $queue =

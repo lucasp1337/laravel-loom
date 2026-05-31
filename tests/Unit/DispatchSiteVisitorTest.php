@@ -570,3 +570,127 @@ it('skips Bus::dispatchNow(...) entirely', function () {
     expect($sites)->toBe([]);
     expect($unresolved)->toBe([]);
 });
+
+// -----------------------------------------------------------------------------
+// Chain-wrapped dispatch targets (#31)
+// -----------------------------------------------------------------------------
+
+it('resolves ->notify((new X)->locale(...)) chain-wrapped target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    class Svc {
+        public function go($user): void {
+            $user->notify((new InvoicePaid)->locale('es'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::NOTIFICATION);
+});
+
+it('resolves Notification::send($u, (new X)->onQueue(...)) chain-wrapped target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::send($users, (new InvoicePaid)->onQueue('emails'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::NOTIFICATION);
+});
+
+it('resolves Mail::to($u)->send((new X)->locale(...)) chain-wrapped target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Mail\OrderShipped;
+    use Illuminate\Support\Facades\Mail;
+    class Svc {
+        public function go($user): void {
+            Mail::to($user)->send((new OrderShipped)->locale('fr'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Mail\\OrderShipped');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::MAILABLE);
+});
+
+it('resolves dispatch((new X)->delay(60)) chain-wrapped target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go(): void {
+            dispatch((new ProcessOrder())->delay(60));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
+});
+
+it('resolves event((new X($order))->something()) chain-wrapped target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\OrderPlaced;
+    class Svc {
+        public function go($order): void {
+            event((new OrderPlaced($order))->something());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\OrderPlaced');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
+});
+
+it('still records variable-receiver ->notify($n->locale(...)) as dynamic_class_name unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($user, $n): void {
+            $user->notify($n->locale('es'));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
