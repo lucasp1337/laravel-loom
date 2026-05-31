@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Lucasp\Loom\Dto\ClosureListenerEntry;
 use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Scanners\ListenerScanner;
 
 function listenerFixturePath(): string
@@ -66,7 +67,7 @@ it('applies listen_array precedence over auto-discovery for SendOrderConfirmatio
     $entry = listenerByFqcn($entries, 'App\\Listeners\\SendOrderConfirmation');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('listen_array');
+    expect($entry->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
     expect($entry->queued)->toBeTrue();
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
@@ -81,7 +82,7 @@ it('records UpdateInventory as auto_discovered and not queued', function () {
     $entry = listenerByFqcn($entries, 'App\\Listeners\\UpdateInventory');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('auto_discovered');
+    expect($entry->registration)->toBe(ListenerRegistration::AUTO_DISCOVERED);
     expect($entry->queued)->toBeFalse();
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
@@ -96,7 +97,7 @@ it('upgrades NotifyAdmins to subscriber precedence when imperative subscribe() r
     $entry = listenerByFqcn($entries, 'App\\Listeners\\NotifyAdmins');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('subscriber');
+    expect($entry->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($entry->queued)->toBeFalse();
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\InventoryDepleted', method: 'handle'),
@@ -112,7 +113,7 @@ it('records the imperative subscriber with its self-bound and bare-string handle
     $entry = listenerByFqcn($entries, 'App\\Listeners\\ImperativeSubscriber');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('subscriber');
+    expect($entry->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($entry->queued)->toBeFalse();
     expect($entry->file)->toBe('app/Listeners/ImperativeSubscriber.php');
     expect($entry->handles)->toEqual([
@@ -127,7 +128,7 @@ it('locates PsrOnly via the PSR-4 guess and records it as listen_array', functio
     $entry = listenerByFqcn($entries, 'App\\Listeners\\PsrOnly');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('listen_array');
+    expect($entry->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'someMethod'),
     ]);
@@ -142,7 +143,7 @@ it('records auto-discovered listeners with no resolvable event type as empty han
     $entry = listenerByFqcn($entries, 'App\\Listeners\\UntypedListener');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('auto_discovered');
+    expect($entry->registration)->toBe(ListenerRegistration::AUTO_DISCOVERED);
     expect($entry->handles)->toBe([]);
     expect($entry->queued)->toBeFalse();
     expect($entry->file)->toBe('app/Listeners/UntypedListener.php');
@@ -167,7 +168,7 @@ it('discovers Event::listen() registrations in providers outside app/Providers/'
     $issueInvoice = listenerByFqcn($entries, 'App\\Domain\\Invoicing\\Listeners\\IssueInvoice');
 
     expect($issueInvoice)->not->toBeNull();
-    expect($issueInvoice->registration)->toBe('event_listen_call');
+    expect($issueInvoice->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
     expect($issueInvoice->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
     ]);
@@ -180,7 +181,7 @@ it('discovers subscribers from the $subscribe array on EventServiceProvider', fu
     $entry = listenerByFqcn($entries, 'App\\Listeners\\OrderEventSubscriber');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('subscriber');
+    expect($entry->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($entry->queued)->toBeTrue();
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
@@ -196,7 +197,7 @@ it('discovers subscribers from Event::subscribe() calls', function () {
     $entry = listenerByFqcn($entries, 'App\\Listeners\\AuditSubscriber');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('subscriber');
+    expect($entry->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($entry->queued)->toBeFalse();
     expect($entry->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'audit'),
@@ -242,7 +243,7 @@ it('emits a single multi-handler listener entry with one handles[] entry per (ev
     ));
 
     expect($matches)->toHaveCount(1);
-    expect($matches[0]->registration)->toBe('listen_array');
+    expect($matches[0]->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
     expect($matches[0]->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handlePlaced'),
         new ListenerHandle(event: 'App\\Events\\StockLow', method: 'handleStockLow'),
@@ -270,11 +271,11 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
     $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
 
     expect($closures)->toEqual([
-        new ClosureListenerEntry(event: 'App\\Events\\InventoryDepleted', file: 'app/Listeners/OrderEventSubscriber.php', line: 22, registration: 'subscriber', queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, registration: 'subscriber', queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 25, registration: 'listen_array', queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 40, registration: 'event_listen_call', queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 41, registration: 'event_listen_call', queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\InventoryDepleted', file: 'app/Listeners/OrderEventSubscriber.php', line: 22, registration: ListenerRegistration::SUBSCRIBER, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, registration: ListenerRegistration::SUBSCRIBER, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 25, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 40, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 41, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
     ]);
 });
 
@@ -293,7 +294,7 @@ it('attributes registration correctly per closure listener source', function () 
 
     $byRegistration = [];
     foreach ($closures as $entry) {
-        $byRegistration[$entry->registration] = ($byRegistration[$entry->registration] ?? 0) + 1;
+        $byRegistration[$entry->registration->value] = ($byRegistration[$entry->registration->value] ?? 0) + 1;
     }
 
     expect($byRegistration)->toBe([
@@ -331,7 +332,7 @@ it('upgrades a foreign listener to subscriber registration when registered imper
     $entry = listenerByFqcn($entries, 'App\\Listeners\\NotifyAdmins');
 
     expect($entry)->not->toBeNull();
-    expect($entry->registration)->toBe('subscriber');
+    expect($entry->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($entry->handles)->toContainEqual(new ListenerHandle(event: 'App\\Events\\InventoryDepleted', method: 'handle'));
 });
 
@@ -345,6 +346,6 @@ it('emits a closure_listeners[] entry with registration=subscriber for closures 
 
     expect($imperativeClosures)->toHaveCount(1);
     expect($imperativeClosures[0]->event)->toBe('App\\Events\\OrderPlaced');
-    expect($imperativeClosures[0]->registration)->toBe('subscriber');
+    expect($imperativeClosures[0]->registration)->toBe(ListenerRegistration::SUBSCRIBER);
     expect($imperativeClosures[0]->queued)->toBeFalse();
 });

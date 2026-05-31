@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\ListenerRegistration;
+
 /** Scanner-level closure handler: visitor output enriched with the file path. */
 final class ClosureListenerRecord
 {
@@ -11,7 +13,7 @@ final class ClosureListenerRecord
         public readonly string $event,
         public readonly string $file,
         public readonly int $line,
-        public readonly string $registration,
+        public readonly ListenerRegistration $registration,
     ) {
     }
 }

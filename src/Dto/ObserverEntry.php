@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\ObserverRegistration;
+
 final class ObserverEntry
 {
     /**
@@ -14,7 +16,7 @@ final class ObserverEntry
         public readonly string $file,
         public readonly int $line,
         public readonly string $observes,
-        public readonly string $registration,
+        public readonly ObserverRegistration $registration,
         public readonly array $hooks,
     ) {
     }

@@ -99,7 +99,7 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 ## The cross-link pass
 
-`IndexBuilder::crossLink()` is the only place that reads cross-scanner data. Five phases, in order:
+`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext` — five phases, in order:
 
 1. **`events[*].handled_by`** — listeners' `handles` `{event, method}` pairs inverted onto matching event entries as `{listener, method}` pairs
 2. **Disambiguate `kind: ambiguous`** — Dispatchable-form sites (`X::dispatch(...)`) get `kind = event` if their target is in `events[]`, else `kind = job`

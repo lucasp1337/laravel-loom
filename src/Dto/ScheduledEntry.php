@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\ScheduleKind;
+
 final class ScheduledEntry
 {
     /**
-     * @param  'command'|'job'|'closure'|'exec'  $kind
      * @param  list<string>  $constraints
      */
     public function __construct(
-        public readonly string $kind,
+        public readonly ScheduleKind $kind,
         public readonly ?string $target,
         public readonly ?string $cron,
         public readonly ?string $timezone,

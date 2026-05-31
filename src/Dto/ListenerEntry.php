@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\ListenerRegistration;
+
 final class ListenerEntry
 {
     /**
@@ -14,7 +16,7 @@ final class ListenerEntry
         public readonly string $file,
         public readonly int $line,
         public readonly array $handles,
-        public readonly string $registration,
+        public readonly ListenerRegistration $registration,
         public readonly bool $queued,
     ) {
     }

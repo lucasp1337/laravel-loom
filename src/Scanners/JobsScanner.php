@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\JobLocation;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -56,7 +57,7 @@ final class JobsScanner implements Scanner
             // Dispatchable-form sites are ambiguous with events. Accept only
             // when the file is under app/Jobs/ or the class implements
             // ShouldQueue (mirrors EventScanner's symmetric guard).
-            if ($kind === 'ambiguous'
+            if ($kind === DispatchKinds::AMBIGUOUS
                 && ! $this->isUnderAppJobs($located->file)
                 && ! $located->queued
             ) {
@@ -106,7 +107,7 @@ final class JobsScanner implements Scanner
     /**
      * Kind is preserved so the caller can guard ambiguous targets.
      *
-     * @return array<string, 'job'|'ambiguous'>
+     * @return array<string, DispatchKinds>
      */
     private function discoverFromDispatchSites(string $appRoot): array
     {
@@ -123,13 +124,13 @@ final class JobsScanner implements Scanner
 
             foreach ($visitor->getSites() as $site) {
                 $kind = $site->provisionalKind;
-                if ($kind !== 'job' && $kind !== 'ambiguous') {
+                if ($kind !== DispatchKinds::JOB && $kind !== DispatchKinds::AMBIGUOUS) {
                     continue;
                 }
 
                 $target = $site->target;
                 // 'job' wins over 'ambiguous' — once proven unambiguously, lock in.
-                if ($kind === 'job' || ! isset($candidates[$target])) {
+                if ($kind === DispatchKinds::JOB || ! isset($candidates[$target])) {
                     $candidates[$target] = $kind;
                 }
             }

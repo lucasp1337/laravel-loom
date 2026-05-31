@@ -11,6 +11,7 @@ use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerLocation;
 use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
@@ -30,14 +31,6 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class ListenerScanner implements Scanner
 {
     use ScannerFilesystem;
-
-    private const REGISTRATION_SUBSCRIBER = 'subscriber';
-
-    private const REGISTRATION_LISTEN_ARRAY = 'listen_array';
-
-    private const REGISTRATION_EVENT_LISTEN_CALL = 'event_listen_call';
-
-    private const REGISTRATION_AUTO_DISCOVERED = 'auto_discovered';
 
     private AstWalker $walker;
 
@@ -100,7 +93,7 @@ final class ListenerScanner implements Scanner
                     file: $this->relativePath($appRoot, $file->getPathname()),
                     line: $class->line,
                     queued: $class->queued,
-                    registration: self::REGISTRATION_AUTO_DISCOVERED,
+                    registration: ListenerRegistration::AUTO_DISCOVERED,
                 );
                 foreach ($class->handles as $handle) {
                     $location->handles[$handle->event.'::'.$handle->method] = $handle;
@@ -235,7 +228,7 @@ final class ListenerScanner implements Scanner
                     file: $relative,
                     line: $class->line,
                     queued: $class->queued,
-                    registration: self::REGISTRATION_SUBSCRIBER,
+                    registration: ListenerRegistration::SUBSCRIBER,
                 );
                 foreach ($class->handles as $handle) {
                     $location->handles[$handle->event.'::'.$handle->method] = $handle;
@@ -247,7 +240,7 @@ final class ListenerScanner implements Scanner
                         event: $closure->event,
                         file: $relative,
                         line: $closure->line,
-                        registration: 'subscriber',
+                        registration: ListenerRegistration::SUBSCRIBER,
                     );
                 }
                 foreach ($class->foreignPairs as $pair) {
@@ -276,11 +269,11 @@ final class ListenerScanner implements Scanner
         $acc = $autoDiscovered;
 
         foreach ($eventListenPairs as $pair) {
-            $this->applyPair($acc, $pair, self::REGISTRATION_EVENT_LISTEN_CALL);
+            $this->applyPair($acc, $pair, ListenerRegistration::EVENT_LISTEN_CALL);
         }
 
         foreach ($listenArrayPairs as $pair) {
-            $this->applyPair($acc, $pair, self::REGISTRATION_LISTEN_ARRAY);
+            $this->applyPair($acc, $pair, ListenerRegistration::LISTEN_ARRAY);
         }
 
         foreach ($subscribers as $fqcn => $sub) {
@@ -291,8 +284,8 @@ final class ListenerScanner implements Scanner
                 $acc[$fqcn]->file = $sub->file;
                 $acc[$fqcn]->line = $sub->line;
                 $acc[$fqcn]->queued = $sub->queued;
-                if ($this->precedence(self::REGISTRATION_SUBSCRIBER) > $this->precedence($acc[$fqcn]->registration)) {
-                    $acc[$fqcn]->registration = self::REGISTRATION_SUBSCRIBER;
+                if ($this->precedence(ListenerRegistration::SUBSCRIBER) > $this->precedence($acc[$fqcn]->registration)) {
+                    $acc[$fqcn]->registration = ListenerRegistration::SUBSCRIBER;
                 }
                 foreach ($sub->handles as $key => $handle) {
                     $acc[$fqcn]->handles[$key] = $handle;
@@ -302,7 +295,7 @@ final class ListenerScanner implements Scanner
 
         // Listeners wired imperatively from inside subscribe() bodies.
         foreach ($subscriberForeignPairs as $pair) {
-            $this->applyPair($acc, $pair, self::REGISTRATION_SUBSCRIBER);
+            $this->applyPair($acc, $pair, ListenerRegistration::SUBSCRIBER);
         }
 
         $result = [];
@@ -327,7 +320,7 @@ final class ListenerScanner implements Scanner
     /**
      * @param  array<string, ListenerLocation>  $acc
      */
-    private function applyPair(array &$acc, ListenerPair $pair, string $registration): void
+    private function applyPair(array &$acc, ListenerPair $pair, ListenerRegistration $registration): void
     {
         $fqcn = $pair->listener;
 
@@ -343,14 +336,13 @@ final class ListenerScanner implements Scanner
         }
     }
 
-    private function precedence(string $registration): int
+    private function precedence(ListenerRegistration $registration): int
     {
         return match ($registration) {
-            self::REGISTRATION_SUBSCRIBER => 4,
-            self::REGISTRATION_LISTEN_ARRAY => 3,
-            self::REGISTRATION_EVENT_LISTEN_CALL => 2,
-            self::REGISTRATION_AUTO_DISCOVERED => 1,
-            default => 0,
+            ListenerRegistration::SUBSCRIBER => 4,
+            ListenerRegistration::LISTEN_ARRAY => 3,
+            ListenerRegistration::EVENT_LISTEN_CALL => 2,
+            ListenerRegistration::AUTO_DISCOVERED => 1,
         };
     }
 
@@ -373,7 +365,7 @@ final class ListenerScanner implements Scanner
                 file: $this->relativePath($appRoot, $absolute),
                 line: $class->line,
                 queued: $class->queued,
-                registration: self::REGISTRATION_AUTO_DISCOVERED,
+                registration: ListenerRegistration::AUTO_DISCOVERED,
             );
         }
 
@@ -425,7 +417,7 @@ final class ListenerScanner implements Scanner
 
         foreach ([$listenArrayClosures, $eventListenClosures, $subscriberClosures] as $bucket) {
             foreach ($bucket as $entry) {
-                $key = $entry->event.'|'.$entry->file.'|'.$entry->line.'|'.$entry->registration;
+                $key = $entry->event.'|'.$entry->file.'|'.$entry->line.'|'.$entry->registration->value;
                 $seen[$key] = $entry;
             }
         }

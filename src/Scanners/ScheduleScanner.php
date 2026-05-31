@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Index\ScheduleKind;
+use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
@@ -96,7 +98,7 @@ final class ScheduleScanner implements Scanner
             return [];
         }
 
-        $visitor = new ScheduleChainVisitor(ScheduleChainVisitor::MODE_KERNEL);
+        $visitor = new ScheduleChainVisitor(ScheduleMode::KERNEL);
         if ($this->walker->walk($file, [$visitor]) === null) {
             return [];
         }
@@ -114,7 +116,7 @@ final class ScheduleScanner implements Scanner
             return [];
         }
 
-        $visitor = new ScheduleChainVisitor(ScheduleChainVisitor::MODE_BOOTSTRAP);
+        $visitor = new ScheduleChainVisitor(ScheduleMode::BOOTSTRAP);
         if ($this->walker->walk($file, [$visitor]) === null) {
             return [];
         }
@@ -137,7 +139,7 @@ final class ScheduleScanner implements Scanner
         foreach ($this->iteratePhpFiles($appDir) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
-            $visitor = new ScheduleChainVisitor(ScheduleChainVisitor::MODE_FACADE);
+            $visitor = new ScheduleChainVisitor(ScheduleMode::FACADE);
             if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
                 continue;
             }
@@ -242,10 +244,9 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  'command'|'job'|'closure'|'exec'  $kind
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
      */
-    private function resolveTarget(string $kind, array $rootArgs): ?string
+    private function resolveTarget(ScheduleKind $kind, array $rootArgs): ?string
     {
         $first = $rootArgs[0] ?? null;
         if (! $first instanceof Node\Arg) {
@@ -254,7 +255,7 @@ final class ScheduleScanner implements Scanner
 
         $value = $first->value;
 
-        if ($kind === 'command') {
+        if ($kind === ScheduleKind::COMMAND) {
             $string = AstHelpers::scalarString($first);
             if ($string !== null) {
                 return $string;
@@ -264,11 +265,11 @@ final class ScheduleScanner implements Scanner
             return $fqcn;
         }
 
-        if ($kind === 'job') {
+        if ($kind === ScheduleKind::JOB) {
             return AstHelpers::resolveStaticClass($value);
         }
 
-        if ($kind === 'exec') {
+        if ($kind === ScheduleKind::EXEC) {
             return AstHelpers::scalarString($first);
         }
 
@@ -558,6 +559,6 @@ final class ScheduleScanner implements Scanner
 
     private function dedupeKey(ScheduledEntry $entry): string
     {
-        return $entry->file.'|'.$entry->line.'|'.$entry->kind.'|'.($entry->target ?? '');
+        return $entry->file.'|'.$entry->line.'|'.$entry->kind->value.'|'.($entry->target ?? '');
     }
 }

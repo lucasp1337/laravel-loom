@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -49,8 +51,8 @@ it('recognises event(new Foo()) as helper + event', function () {
     expect($unresolved)->toBe([]);
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
-    expect($sites[0]->form)->toBe('helper');
-    expect($sites[0]->provisionalKind)->toBe('event');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
     expect($sites[0]->classFqcn)->toBe('App\\Services\\Svc');
     expect($sites[0]->method)->toBe('go');
     expect($sites[0]->confidence)->toBe('high');
@@ -72,8 +74,8 @@ it('recognises event(Foo::class) as helper + event', function () {
 
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
-    expect($sites[0]->form)->toBe('helper');
-    expect($sites[0]->provisionalKind)->toBe('event');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
 });
 
 it('recognises Event::dispatch(Foo::class) as facade + event', function () {
@@ -93,8 +95,8 @@ it('recognises Event::dispatch(Foo::class) as facade + event', function () {
 
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
-    expect($sites[0]->form)->toBe('facade');
-    expect($sites[0]->provisionalKind)->toBe('event');
+    expect($sites[0]->form)->toBe(DispatchForm::FACADE);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
 });
 
 it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
@@ -113,8 +115,8 @@ it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
 
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
-    expect($sites[0]->form)->toBe('dispatchable');
-    expect($sites[0]->provisionalKind)->toBe('ambiguous');
+    expect($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
 });
 
 it('recognises dispatch(new Bar()) as job_helper + job', function () {
@@ -133,8 +135,8 @@ it('recognises dispatch(new Bar()) as job_helper + job', function () {
 
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Jobs\\Bar');
-    expect($sites[0]->form)->toBe('job_helper');
-    expect($sites[0]->provisionalKind)->toBe('job');
+    expect($sites[0]->form)->toBe(DispatchForm::JOB_HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
 });
 
 it('recognises Bus::dispatch(new Bar()) as job_helper + job', function () {
@@ -154,8 +156,8 @@ it('recognises Bus::dispatch(new Bar()) as job_helper + job', function () {
 
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Jobs\\Bar');
-    expect($sites[0]->form)->toBe('job_helper');
-    expect($sites[0]->provisionalKind)->toBe('job');
+    expect($sites[0]->form)->toBe(DispatchForm::JOB_HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
 });
 
 // -----------------------------------------------------------------------------

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduleChainLink;
+use Lucasp\Loom\Index\ScheduleKind;
+use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
@@ -15,12 +17,6 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class ScheduleChainVisitor extends NodeVisitorAbstract
 {
-    public const MODE_KERNEL = 'kernel';
-
-    public const MODE_BOOTSTRAP = 'bootstrap';
-
-    public const MODE_FACADE = 'facade';
-
     /** @var array<int, string> */
     private const ROOT_METHODS = ['command', 'job', 'call', 'exec'];
 
@@ -28,13 +24,13 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     private array $parentStack = [];
 
     /**
-     * MODE_KERNEL: emit only inside `schedule(Schedule $schedule)`.
-     * MODE_BOOTSTRAP: emit only inside a `withSchedule(...)` closure.
-     * MODE_FACADE: only chains rooted at the Schedule facade.
+     * KERNEL: emit only inside `schedule(Schedule $schedule)`.
+     * BOOTSTRAP: emit only inside a `withSchedule(...)` closure.
+     * FACADE: only chains rooted at the Schedule facade.
      */
-    private string $mode;
+    private ScheduleMode $mode;
 
-    public function __construct(string $mode = self::MODE_KERNEL)
+    public function __construct(ScheduleMode $mode = ScheduleMode::KERNEL)
     {
         $this->mode = $mode;
     }
@@ -161,7 +157,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         if ($receiver instanceof Node\Expr\Variable) {
             // Facade mode ignores variable receivers; kernel/bootstrap modes
             // still gate on the trusted-scope check below.
-            return $this->mode !== self::MODE_FACADE;
+            return $this->mode !== ScheduleMode::FACADE;
         }
 
         if ($receiver instanceof Node\Name) {
@@ -179,11 +175,11 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
 
     private function inTrustedScope(): bool
     {
-        if ($this->mode === self::MODE_FACADE) {
+        if ($this->mode === ScheduleMode::FACADE) {
             return true;
         }
 
-        if ($this->mode === self::MODE_KERNEL) {
+        if ($this->mode === ScheduleMode::KERNEL) {
             foreach ($this->parentStack as $ancestor) {
                 if ($this->isScheduleMethod($ancestor)) {
                     return true;
@@ -193,7 +189,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             return false;
         }
 
-        // MODE_BOOTSTRAP: closure/arrow-function passed as an Arg to withSchedule(...).
+        // BOOTSTRAP: closure/arrow-function passed as an Arg to withSchedule(...).
         for ($i = count($this->parentStack) - 1; $i >= 2; $i--) {
             $node = $this->parentStack[$i];
             if (! $node instanceof Node\Expr\Closure && ! $node instanceof Node\Expr\ArrowFunction) {
@@ -243,17 +239,14 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         return str_ends_with($name, 'Schedule');
     }
 
-    /**
-     * @return 'command'|'job'|'closure'|'exec'
-     */
-    private function kindFromRootMethod(string $method): string
+    private function kindFromRootMethod(string $method): ScheduleKind
     {
         return match ($method) {
-            'command' => 'command',
-            'job' => 'job',
-            'call' => 'closure',
-            'exec' => 'exec',
-            default => 'closure',
+            'command' => ScheduleKind::COMMAND,
+            'job' => ScheduleKind::JOB,
+            'call' => ScheduleKind::CLOSURE,
+            'exec' => ScheduleKind::EXEC,
+            default => ScheduleKind::CLOSURE,
         };
     }
 

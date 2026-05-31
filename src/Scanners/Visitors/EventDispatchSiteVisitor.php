@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\EventDispatchTarget;
+use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -56,7 +57,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 
         $fqcn = $this->resolveFirstArgClass($node->args);
         if ($fqcn !== null) {
-            $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: 'helper');
+            $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::HELPER);
         }
     }
 
@@ -79,14 +80,14 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
         if (Facades::EVENT->matches($className)) {
             $fqcn = $this->resolveFirstArgClass($node->args);
             if ($fqcn !== null) {
-                $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: 'facade');
+                $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::FACADE);
             }
 
             return;
         }
 
         // X::dispatch(...) — the class itself is the target.
-        $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: 'dispatchable');
+        $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: DispatchForm::DISPATCHABLE);
     }
 
     /**

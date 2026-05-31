@@ -95,23 +95,25 @@ Validation failure is fatal. A non-conforming index throws rather than writing g
 
 The cross-link pass is the only place that reads cross-scanner data. It runs after every scanner has emitted, so it can rely on having a complete view of events, listeners, observers, and dispatch sites.
 
-Five phases, in order:
+`IndexBuilder` delegates the pass to **`CrossLinker`** (`src/Index/CrossLinker.php`). `CrossLinker` computes the FQCN→entry lookups once up front, packs them with the merged sections and dispatch sites into a **`CrossLinkContext`**, then runs an ordered list of **`CrossLinkPhase`** classes (`src/Index/CrossLink/`) over that context. Each phase mutates the context in place; later phases see earlier phases' results.
 
-1. **`events[*].handled_by`** — for each listener, for each `{event, method}` pair in `listener.handles`, append `{listener: listener.fqcn, method}` to the matching event's `handled_by` array. Sorted by `listener` ascending then `method` ascending. Orphan registrations (events the listener handles but EventScanner didn't find) are silently skipped.
+The phases, in order — each its own `CrossLinkPhase`:
 
-2. **Disambiguate `kind: ambiguous`** — DispatchScanner emits `X::dispatch(...)` Dispatchable-form sites with `kind: ambiguous` because the class could be either an event or a job. The disambiguator finalizes each: `kind = event` if `target` is in `events[]`, otherwise `kind = job`. EventScanner's dispatch-site seeding ensures most event classes are already in `events[]`; classes that aren't fall through to `job`.
+1. **`HandledByPhase` → `events[*].handled_by`** — for each listener, for each `{event, method}` pair in `listener.handles`, append `{listener: listener.fqcn, method}` to the matching event's `handled_by` array. Sorted by `listener` ascending then `method` ascending. Orphan registrations (events the listener handles but EventScanner didn't find) are silently skipped. The phase also records each listener's method set on the context for `DispatchAttributionPhase`.
 
-3. **`listeners[*].dispatches`** — for each dispatch site whose enclosing class FQCN matches a listener and whose enclosing method is in that listener's set of `handles[*].method` values, append a `$defs/dispatch` entry to that listener's `dispatches` array. Dispatches emitted from a custom handler method (`handleOrderPlaced`, `handleOrderRefunded`, …) are attributed to the listener, not dropped.
+2. **`AmbiguousDisambiguationPhase` → finalize `kind: ambiguous`** — DispatchScanner emits `X::dispatch(...)` Dispatchable-form sites with `kind: ambiguous` because the class could be either an event or a job. The phase finalizes each site on the context: `kind = event` if `target` is in `events[]`, otherwise `kind = job`. EventScanner's dispatch-site seeding ensures most event classes are already in `events[]`; classes that aren't fall through to `job`.
 
-4. **`observers[*].dispatches` and `jobs[*].dispatches`** — same as #3 but matching observer FQCNs and methods drawn from the canonical Eloquent hook enum (`creating`, `created`, `updating`, …), or matching job FQCNs whose enclosing method is `handle`. Sites in non-hook methods on an observer, or in helper methods called from a job's `handle()`, don't appear here.
+3. **`DispatchAttributionPhase` → `listeners[*].dispatches`, `jobs[*].dispatches`, `observers[*].dispatches`** — attributes each dispatch site to its enclosing handler and appends a `$defs/dispatch` entry: a listener whose enclosing method is in its `handles[*].method` set, a job whose enclosing method is literally `handle`, or an observer whose method is a canonical Eloquent hook (`creating`, `created`, `updating`, …). Dispatches from a custom handler method (`handleOrderPlaced`, `handleOrderRefunded`, …) are attributed, not dropped; sites in non-hook observer methods or in helper methods called from a job's `handle()` don't appear here.
 
-5. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — for each site with finalized `kind === 'event'` and `target` matching an event entry, append a `$defs/dispatchSite` entry (`{file, line, method: "Class::method"}`) to that event's `dispatched_from` array. The mirror join runs for `kind === 'job'` against the jobs index.
+4. **`DispatchedFromPhase` → `events[*].dispatched_from`, `jobs[*].dispatched_from`, `mailables[*].sent_from`, `notifications[*].notified_from`** — for each site whose finalized `kind` matches a target entry, append a `$defs/dispatchSite` entry (`{file, line, method: "Class::method"}`) to that target's reverse-reference array.
+
+5. **`SortPhase`** — sorts every cross-linked array (by string content or by `(file, line)` as appropriate) so the emitted index is deterministic across runs.
 
 The cross-link pass deliberately does NOT join `closure_listeners[]` into `events[*].handled_by`. That field's entry shape is `{listener: string, method: string}`; closures have neither. Adding closures would require a schema change (a new entry variant) and is reserved for a future design pass — don't add it without going through `schema-guardian`. Similarly, `closure_listeners[*].dispatches` stays empty for now; populating it requires line-span attribution rather than the class+method join used for `listeners[*].dispatches`.
 
-After cross-link: arrays are sorted (by string content or by `(file, line)` as appropriate) for determinism, `_dispatch_sites` is removed from the section map, and validation runs.
+Sorting is the final phase (`SortPhase`); after the pipeline finishes, `IndexBuilder` removes `_dispatch_sites` from the section map and runs validation.
 
-The pass lives in `IndexBuilder::crossLink()`. It's deliberately self-contained — every other piece of cross-scanner logic should be refactored into it rather than scattered across scanners.
+The pass is deliberately self-contained: every piece of cross-scanner logic belongs in a phase rather than scattered across scanners. Adding a new relation means appending a `CrossLinkPhase` to `CrossLinker`'s default pipeline — no change to the orchestrator or existing phases.
 
 ## Unresolved dispatches
 

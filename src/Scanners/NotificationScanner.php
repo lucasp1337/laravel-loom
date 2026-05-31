@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\NotificationEntry;
 use Lucasp\Loom\Dto\NotificationLocation;
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\NotificationClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -91,7 +92,7 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * @return array<string, 'notification'>
+     * @return array<string, DispatchKinds>
      */
     private function discoverFromDispatchSites(string $appRoot): array
     {
@@ -107,11 +108,11 @@ final class NotificationScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {
-                if ($site->provisionalKind !== 'notification') {
+                if ($site->provisionalKind !== DispatchKinds::NOTIFICATION) {
                     continue;
                 }
 
-                $candidates[$site->target] = 'notification';
+                $candidates[$site->target] = DispatchKinds::NOTIFICATION;
             }
         }
 
