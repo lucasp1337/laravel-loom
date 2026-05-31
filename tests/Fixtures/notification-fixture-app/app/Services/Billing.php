@@ -53,6 +53,19 @@ class Billing
         Notification::send($users, (new InvoicePaid())->onQueue('emails'));
     }
 
+    /**
+     * @param  array<int, object>  $users
+     */
+    public function notifyWithOverrides(object $user, array $users): void
+    {
+        // (a) inner argument-instance chain with multiple modifiers (issue #32).
+        // Expect overrides {connection, queue} in notified_from[].
+        $user->notify((new PasswordReset())->onConnection('redis')->onQueue('high'));
+
+        // No-modifier control: a plain notify must produce NO overrides key.
+        Notification::send($users, new PasswordReset());
+    }
+
     private function resolveDynamic(): object
     {
         return new \stdClass();

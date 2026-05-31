@@ -26,6 +26,7 @@ final class DispatchSiteRecord
         public ?string $file,
         public readonly int $line,
         public readonly string $confidence = 'high',
+        public readonly DispatchOverrides $overrides = new DispatchOverrides,
     ) {
     }
 }

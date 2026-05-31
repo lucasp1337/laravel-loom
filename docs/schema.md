@@ -45,11 +45,27 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
 {
   "file": string,
   "line": integer,
-  "method": string                // "ClassName::methodName" of the dispatching context
+  "method": string,               // "ClassName::methodName" of the dispatching context
+  "overrides": object             // optional; $defs/dispatchOverrides; omitted when empty
 }
 ```
 
-The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`. It used to be inline under `events[*].dispatched_from`; the body is unchanged, only the schema reference was promoted.
+The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`, `mailables[*].sent_from`, and `notifications[*].notified_from` — it's the single source of truth for a dispatch site. It used to be inline under `events[*].dispatched_from`; the `{file, line, method}` body is unchanged, only the schema reference was promoted.
+
+`overrides` (`$defs/dispatchOverrides`) records statically-resolvable fluent modifiers applied at the dispatch site. It is **optional**: the key is present only when at least one modifier was found, and is omitted entirely otherwise — so a site with no modifiers has no `overrides` key. Adding it was a non-breaking additive change.
+
+```
+{
+  "locale": string,               // ->locale('es')
+  "mailer": string,               // ->mailer('ses')
+  "connection": string,           // ->onConnection('redis')
+  "queue": string,                // ->onQueue('high')
+  "delay": integer,               // ->delay(60); seconds, minimum 0
+  "after_commit": boolean         // ->afterCommit(); only ever true
+}
+```
+
+All `overrides` keys are optional; only keys for modifiers actually found are emitted, in the order shown above. Events technically carry the same `$defs/dispatchSite` and so may carry `overrides`, but event dispatches rarely use these modifiers in practice. `delay` captures integer-second literals only — a non-literal argument (`->delay(now()->addMinutes(5))`, `->delay($seconds)`) leaves the key absent. See [docs/scanners/dispatches.md](scanners/dispatches.md) for the exact capture rules and limitations.
 
 `handled_by[]` entry:
 

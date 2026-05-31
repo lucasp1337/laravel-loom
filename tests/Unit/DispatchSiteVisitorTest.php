@@ -694,3 +694,154 @@ it('still records variable-receiver ->notify($n->locale(...)) as dynamic_class_n
     expect($unresolved)->toHaveCount(1);
     expect($unresolved[0]->reason)->toBe('dynamic_class_name');
 });
+
+// -----------------------------------------------------------------------------
+// Dispatch-time chain modifiers / overrides (#32)
+// -----------------------------------------------------------------------------
+
+it('captures inner-chain job modifiers: dispatch((new Job)->onQueue()->delay())', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go(): void {
+            dispatch((new ProcessOrder)->onQueue('q')->delay(5));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->overrides->isEmpty())->toBeFalse();
+    expect($sites[0]->overrides->toArray())->toBe(['queue' => 'q', 'delay' => 5]);
+});
+
+it('captures outer PendingDispatch modifiers: Job::dispatch()->onQueue()->onConnection()->delay()', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($o): void {
+            ProcessOrder::dispatch($o)->onQueue('high')->onConnection('redis')->delay(60);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->overrides->toArray())->toBe([
+        'connection' => 'redis',
+        'queue' => 'high',
+        'delay' => 60,
+    ]);
+});
+
+it('captures outer ->afterCommit() on dispatch(new Job)', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($o): void {
+            dispatch(new ProcessOrder($o))->afterCommit();
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->overrides->toArray())->toBe(['after_commit' => true]);
+});
+
+it('lets the outer chain win over an inner chain on a same-key conflict', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($o): void {
+            dispatch((new ProcessOrder($o))->onQueue('low'))->onQueue('high');
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    // Inner ->onQueue('low') applied first, outer ->onQueue('high') wins.
+    expect($sites[0]->overrides->queue)->toBe('high');
+    expect($sites[0]->overrides->toArray())->toBe(['queue' => 'high']);
+});
+
+it('captures Mail facade-receiver modifiers: Mail::to($u)->locale()->mailer()->send($m)', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Mail\OrderShipped;
+    use Illuminate\Support\Facades\Mail;
+    class Svc {
+        public function go($user): void {
+            Mail::to($user)->locale('fr')->mailer('ses')->send(new OrderShipped());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Mail\\OrderShipped');
+    expect($sites[0]->overrides->toArray())->toBe(['locale' => 'fr', 'mailer' => 'ses']);
+});
+
+it('leaves overrides empty for a plain dispatch with no modifiers', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($o): void {
+            dispatch(new ProcessOrder($o));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->overrides->isEmpty())->toBeTrue();
+    expect($sites[0]->overrides->toArray())->toBe([]);
+});
+
+it('does not capture a delay key for ->delay($var)', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($o, $seconds): void {
+            dispatch((new ProcessOrder($o))->delay($seconds));
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->overrides->delay)->toBeNull();
+    expect($sites[0]->overrides->isEmpty())->toBeTrue();
+});

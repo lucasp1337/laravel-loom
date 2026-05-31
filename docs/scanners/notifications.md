@@ -47,8 +47,11 @@ and merges them by FQCN:
    `Notification::send($users, (new InvoicePaid)->onQueue('emails'))`
    both seed `InvoicePaid`. Only `new Y` / `Y::class` argument
    receivers resolve through the chain — a variable receiver does not.
-   The chain modifier values themselves are not captured (see Known
-   limitations).
+   The chain modifier values are captured into the dispatch site's
+   `overrides` object — see Cross-link behavior. Notifications read the
+   **inner argument-instance chain only**; modifiers on the Notification
+   facade *before* `send` (`Notification::locale('es')->send($users, $n)`)
+   are not detected (see Known limitations).
 
 Entries are deduped by FQCN. A notification discovered through both
 paths produces a single entry; the filesystem walk wins for
@@ -124,9 +127,34 @@ count of entries.
 
 - **`notifications[*].notified_from`** — for each dispatch site with
   finalized `kind === 'notification'` whose `target` matches a
-  notification FQCN, an entry `{file, line, method}` (per
-  `$defs/dispatchSite`) is appended. Identical shape to
-  `events[*].dispatched_from`. Sorted by `(file, line)`.
+  notification FQCN, a `$defs/dispatchSite` entry is appended.
+  Identical shape to `events[*].dispatched_from`. Sorted by
+  `(file, line)`.
+
+  When the dispatch site carries dispatch-time modifiers on the inner
+  argument-instance chain
+  (`$user->notify((new InvoicePaid)->onQueue('emails')->delay(60))`),
+  the entry also carries an optional `overrides` object. Source
+  mapping: `->onQueue('emails')` → `queue`, `->onConnection('redis')` →
+  `connection`, `->delay(60)` → `delay` (integer seconds),
+  `->afterCommit()` → `after_commit`, `->locale('es')` → `locale`,
+  `->mailer(...)` → `mailer`. The key is omitted when no static
+  modifier is present:
+
+  ```json
+  {
+    "file": "app/Services/Billing.php",
+    "line": 51,
+    "method": "App\\Services\\Billing::charge",
+    "overrides": { "queue": "emails" }
+  }
+  ```
+
+  Notifications capture the inner argument-instance chain only. The
+  Notification facade-receiver form
+  (`Notification::locale('es')->send($users, $n)`) is not detected.
+  `overrides` records what the call site changed; `queue_config` still
+  reflects the notification's class-default property declarations.
 
 The new `provisionalKind: 'notification'` is emitted by
 `DispatchSiteVisitor` for every recognised notification-dispatch
@@ -192,14 +220,19 @@ Notifications do not participate in the disambiguation phase
   caveat as jobs and mailables.
 - **Method-form queue configs** (`backoff()`, `retryUntil()`): not
   parsed.
-- **Dispatch-site chaining modifier values**: when a notification
-  argument is wrapped in a chain
-  (`$user->notify((new InvoicePaid)->onQueue('emails'))`), the target
-  FQCN now resolves through the chain — the notification is seeded and
-  the site recorded — but the modifier values (`->onQueue('foo')`,
-  `->delay(...)` at the call site) are not folded into the entry.
-  `queue_config` reflects class-default declarations only.
-  Modifier-value capture is tracked under #32.
+- **Notification facade-receiver modifiers**: only the inner
+  argument-instance chain is read. Modifiers set on the `Notification`
+  facade before `send`
+  (`Notification::locale('es')->send($users, $n)`) are not captured —
+  unlike Mail, whose facade-receiver chain
+  (`Mail::to($u)->locale('fr')->send($m)`) *is* read.
+- **`->delay()` with a non-integer-literal argument**: captured
+  `overrides.delay` is integer-second literals only. `->delay($seconds)`
+  and `->delay(now()->addMinutes(5))` leave the `delay` key absent.
+- **Modifiers set on a separate statement**:
+  `$notification->locale('es'); $u->notify($notification);` is out of
+  static reach — `overrides` reads only the chain at the dispatch site
+  itself.
 - **Receiver-class blindness**: `$user->notify(new X)` doesn't tell
   Loom what kind of receiver `$user` is. "Which models receive
   InvoicePaid" is not answerable from the index today. Documented

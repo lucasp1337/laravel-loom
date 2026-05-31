@@ -181,6 +181,45 @@ it('resolves chain-wrapped notification dispatches into notified_from (issue #31
     expect($unresolvedLines)->not->toContain(53);
 });
 
+it('captures inner-chain locale/queue overrides on the #31 sites (issue #32)', function () {
+    // The #31 chain-wrapped notifies now become positive coverage for #32:
+    //   line 51: $user->notify((new InvoicePaid())->locale('es'))      -> {locale: es}
+    //   line 53: Notification::send($users, (new InvoicePaid())->onQueue('emails')) -> {queue: emails}
+    $payload = buildNotificationEndToEndPayload();
+
+    $entry = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\InvoicePaid');
+    expect($entry)->not->toBeNull();
+
+    $byLine = [];
+    foreach ($entry['notified_from'] as $s) {
+        $byLine[$s['line']] = $s;
+    }
+
+    expect($byLine[51]['overrides'])->toBe(['locale' => 'es']);
+    expect($byLine[53]['overrides'])->toBe(['queue' => 'emails']);
+
+    // A plain notify with no modifiers (line 19) must carry NO overrides key.
+    expect($byLine[19])->not->toHaveKey('overrides');
+});
+
+it('captures multi-key inner-chain overrides and omits overrides on plain sends (issue #32)', function () {
+    // notifyWithOverrides:
+    //   line 63: $user->notify((new PasswordReset())->onConnection('redis')->onQueue('high'))
+    //   line 66: Notification::send($users, new PasswordReset())  (no modifiers)
+    $payload = buildNotificationEndToEndPayload();
+
+    $entry = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\PasswordReset');
+    expect($entry)->not->toBeNull();
+
+    $byLine = [];
+    foreach ($entry['notified_from'] as $s) {
+        $byLine[$s['line']] = $s;
+    }
+
+    expect($byLine[63]['overrides'])->toBe(['connection' => 'redis', 'queue' => 'high']);
+    expect($byLine[66])->not->toHaveKey('overrides');
+});
+
 it('sorts notifications by fqcn ascending in the built index', function () {
     $payload = buildNotificationEndToEndPayload();
 

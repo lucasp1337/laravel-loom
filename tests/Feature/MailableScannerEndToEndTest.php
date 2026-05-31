@@ -168,6 +168,69 @@ it('resolves chain-wrapped mailable dispatches into sent_from (issue #31)', func
     expect($unresolvedLines)->not->toContain(39);
 });
 
+it('captures Mail facade-receiver locale/mailer overrides in sent_from (issue #32)', function () {
+    // MailDispatcher::dispatchWithOverrides (separate fixture class so the
+    // OrderShipped/WelcomeEmail count + method assertions stay untouched):
+    //   Mail::to($u)->locale('fr')->mailer('ses')->send(new IndirectlyQueuedMail())
+    // is the (b) facade-receiver chain. The locale/mailer modifiers sit on the
+    // Mail::to(...) receiver chain ahead of the terminal send(); they must land
+    // as an overrides object on the IndirectlyQueuedMail sent_from entry.
+    $payload = buildMailableEndToEndPayload();
+
+    $entry = mailableEntryByFqcn($payload['mailables'], 'App\\Mail\\IndirectlyQueuedMail');
+    expect($entry)->not->toBeNull();
+
+    $site = array_values(array_filter(
+        $entry['sent_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\MailDispatcher::dispatchWithOverrides'
+            && ($s['line'] ?? null) === 22,
+    ));
+
+    expect($site)->toHaveCount(1);
+    expect($site[0]['overrides'])->toBe(['locale' => 'fr', 'mailer' => 'ses']);
+});
+
+it('captures the #31 inner-chain locale override and omits overrides on plain sends (issue #32)', function () {
+    // The #31 chain-wrapped send at Checkout::finalize line 39 is
+    // Mail::to($user)->send((new OrderShipped())->locale('fr')) — positive
+    // coverage for the inner (a) chain locale override. The plain facade sends
+    // (e.g. line 16 Mail::send(new OrderShipped())) must carry NO overrides key.
+    $payload = buildMailableEndToEndPayload();
+
+    $entry = mailableEntryByFqcn($payload['mailables'], 'App\\Mail\\OrderShipped');
+    expect($entry)->not->toBeNull();
+
+    $byLine = [];
+    foreach ($entry['sent_from'] as $s) {
+        $byLine[$s['line']] = $s;
+    }
+
+    // #31 inner-chain site at line 39 now carries an overrides object.
+    expect($byLine[39]['overrides'])->toBe(['locale' => 'fr']);
+
+    // Plain facade send at line 16 has no modifiers -> no overrides key.
+    expect($byLine[16])->not->toHaveKey('overrides');
+});
+
+it('omits overrides for the no-modifier facade-receiver send (issue #32)', function () {
+    // Mail::to($user)->send(new IndirectlyQueuedMail()) at MailDispatcher line 26
+    // is a facade-receiver chain with no modifier links; the entry must be
+    // byte-identical to a plain send (no overrides key).
+    $payload = buildMailableEndToEndPayload();
+
+    $entry = mailableEntryByFqcn($payload['mailables'], 'App\\Mail\\IndirectlyQueuedMail');
+    expect($entry)->not->toBeNull();
+
+    $site = array_values(array_filter(
+        $entry['sent_from'],
+        static fn (array $s): bool => ($s['method'] ?? null) === 'App\\Services\\MailDispatcher::dispatchWithOverrides'
+            && ($s['line'] ?? null) === 26,
+    ));
+
+    expect($site)->toHaveCount(1);
+    expect($site[0])->not->toHaveKey('overrides');
+});
+
 it('sorts mailables by fqcn ascending in the built index', function () {
     $payload = buildMailableEndToEndPayload();
 
