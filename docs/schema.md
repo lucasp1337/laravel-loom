@@ -46,7 +46,8 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
   "file": string,
   "line": integer,
   "method": string,               // "ClassName::methodName" of the dispatching context
-  "overrides": object             // optional; $defs/dispatchOverrides; omitted when empty
+  "overrides": object,            // optional; $defs/dispatchOverrides; omitted when empty
+  "channels": array<string>       // optional; notification-only; omitted when no static channel filter
 }
 ```
 
@@ -66,6 +67,8 @@ The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`, 
 ```
 
 All `overrides` keys are optional; only keys for modifiers actually found are emitted, in the order shown above. Events technically carry the same `$defs/dispatchSite` and so may carry `overrides`, but event dispatches rarely use these modifiers in practice. `delay` captures integer-second literals only — a non-literal argument (`->delay(now()->addMinutes(5))`, `->delay($seconds)`) leaves the key absent. See [docs/scanners/dispatches.md](scanners/dispatches.md) for the exact capture rules and limitations.
+
+`channels` (`$defs/dispatchSite.channels`) records a per-dispatch-site channel filter — the third argument to `Notification::send($users, $notification, $channels)` / `sendNow(...)`, which restricts that dispatch to a specific channel set and overrides the notification's own `via()`. It is **optional** and **notification-only**: although it lives on the shared `$defs/dispatchSite`, the producer emits it only on `notified_from[]` entries and never on `dispatched_from[]` (events, jobs) or `sent_from[]` (mailables). Values mirror the `notifications[*].channels[]` shape — lowercased channel names (`"mail"`, `"database"`) and / or custom channel-class FQCNs (`"App\\Channels\\SmsChannel"`). The key is present only when a static channel filter was found at the call site; it is omitted entirely otherwise (no `channels` key — never an empty array; the schema enforces `minItems: 1`). Adding it was a non-breaking additive change.
 
 `handled_by[]` entry:
 
@@ -322,7 +325,7 @@ Notification classes discovered by `NotificationScanner`. One entry per FQCN.
 - `true` — `via()` exists but its body isn't the recognised single-return-literal-array shape (conditional return, property access, variable items, keyed entries, missing). Channels exist at runtime; static analysis can't see them. `channels: []`.
 - `false` — either `via()` resolved to a literal channel list (in which case `channels[]` is populated), or `via()` is not declared on the class at all (in which case `channels: []` — an intentional zero, not unknown). Method-level resolution across parents / traits is out of scope (per [ADR 0001 §3](adr/0001-class-hierarchy-resolver.md)), so an inherited `via()` reads as "no `via()` declared".
 
-`notified_from[]` uses `$defs/dispatchSite`. Populated by the cross-link pass from dispatch sites with finalized `kind === 'notification'` whose `target` matches the notification's FQCN. Sorted by `(file, line)`.
+`notified_from[]` uses `$defs/dispatchSite`. Populated by the cross-link pass from dispatch sites with finalized `kind === 'notification'` whose `target` matches the notification's FQCN. Sorted by `(file, line)`. This is the **only** section whose `$defs/dispatchSite` entries may carry the optional `channels` array — the static channel filter from `Notification::send(..., $channels)` / `sendNow(..., $channels)`, which overrides the notification's `via()` for that call. See the `channels` note under [`$defs/dispatchSite`](#eventsdispatched_from-defsdispatchsite) above for value shape and omission rules.
 
 Entries are sorted by `fqcn` ascending.
 

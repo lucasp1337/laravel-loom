@@ -304,13 +304,46 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      */
     private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel): void
     {
-        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::NOTIFICATION, $callLabel);
+        // The facade form (Notification::send/sendNow) takes an optional channel
+        // filter at $argIndex + 1; the notify-method form has no such argument.
+        $channels = $form === DispatchForm::NOTIFICATION_FACADE
+            ? $this->channelFilterFrom($args, $argIndex + 1)
+            : null;
+
+        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::NOTIFICATION, $callLabel, $channels);
+    }
+
+    /**
+     * Resolve a static channel filter argument to a channel list. Returns null
+     * when the argument is missing, not a plain Arg, non-literal, or an empty
+     * array literal (treated as "no filter").
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @return list<string>|null
+     */
+    private function channelFilterFrom(array $args, int $index): ?array
+    {
+        if (! isset($args[$index])) {
+            return null;
+        }
+        $arg = $args[$index];
+        if (! $arg instanceof Node\Arg) {
+            return null;
+        }
+
+        $channels = AstHelpers::channelList($arg->value);
+        if ($channels === null || $channels === []) {
+            return null;
+        }
+
+        return $channels;
     }
 
     /**
      * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  list<string>|null  $channels
      */
-    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel): void
+    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?array $channels = null): void
     {
         if (! isset($args[$argIndex])) {
             return;
@@ -346,6 +379,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 line: $callNode->getStartLine(),
                 confidence: 'high',
                 overrides: $this->overridesFrom($innerLinks, $receiverLinks),
+                channels: $channels,
             );
 
             return;

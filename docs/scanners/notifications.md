@@ -36,7 +36,11 @@ and merges them by FQCN:
    - `$any->notifyNow(new Y(...))` — synchronous variant.
    - `Notification::send($recipients, new Y(...))`,
      `Notification::sendNow($recipients, new Y(...))` — the
-     notification class lives at argument index 1.
+     notification class lives at argument index 1. These two forms
+     also accept an optional **channel filter** at argument index 2
+     (`Notification::send($users, new Y(...), ['mail'])`), captured
+     into the dispatch site's `channels` array — see Cross-link
+     behavior.
    - `Notification::route('mail', '...')->notify(new Y(...))` and
      longer route chains
      (`Notification::route(...)->route(...)->notify(...)`).
@@ -156,6 +160,39 @@ count of entries.
   `overrides` records what the call site changed; `queue_config` still
   reflects the notification's class-default property declarations.
 
+  When the dispatch site is a `Notification::send` / `Notification::sendNow`
+  facade call carrying a literal **channel filter** at argument index 2
+  (`Notification::send($users, new InvoicePaid(), ['mail', SlackChannel::class])`),
+  the entry also carries an optional `channels` array. The filter
+  restricts that dispatch to the given channel set, overriding the
+  notification's own `via()` declaration for that call. Values use the
+  same representation as `notifications[*].channels` from `via()`:
+  literal string channel names are stored lowercased (`'MAIL'` →
+  `"mail"`) and `Class::class` channel constants are stored as their
+  FQCN (`SlackChannel::class` → `"App\\Channels\\SlackChannel"`), in
+  source order:
+
+  ```json
+  {
+    "file": "app/Services/Billing.php",
+    "line": 88,
+    "method": "App\\Services\\Billing::charge",
+    "channels": ["mail", "App\\Channels\\SlackChannel"]
+  }
+  ```
+
+  The key is omitted entirely when the argument is absent, empty
+  (`[]`), or non-literal (a `$variable`, a method call, or any item
+  that isn't a literal string or `::class` constant) — a site without a
+  resolvable filter stays byte-identical to before this field existed
+  (no empty array; the key simply isn't present). The filter is
+  captured **only** on the `Notification::send` / `Notification::sendNow`
+  facade forms; the `$any->notify(...)` / `notifyNow(...)` method forms
+  have no channel-filter argument, and the
+  `Notification::route(...)->notify(...)` chain carries recipient
+  routing (where the notification is sent), not a channel filter — no
+  `channels` is emitted on those sites.
+
 The new `provisionalKind: 'notification'` is emitted by
 `DispatchSiteVisitor` for every recognised notification-dispatch
 shape and joined in cross-link phase 5 against
@@ -233,6 +270,18 @@ Notifications do not participate in the disambiguation phase
   `$notification->locale('es'); $u->notify($notification);` is out of
   static reach — `overrides` reads only the chain at the dispatch site
   itself.
+- **Dynamic channel filters**: the channel filter on
+  `Notification::send($users, $n, $channels)` is captured only when it's
+  a literal array of string names and/or `::class` constants. A
+  variable or method-call filter
+  (`Notification::send($users, $n, $user->preferredChannels())`,
+  `Notification::send($users, $n, $channels)`) leaves the `channels`
+  key absent — surfaced as a gap rather than fabricated.
+- **`Notification::route(...)->notify(...)` channel filters**: the
+  `route(...)` chain expresses recipient routing (which address on
+  which channel receives the notification), not a channel filter that
+  overrides `via()`. These sites never carry `channels`. The
+  `->notify(...)` method form has no channel-filter argument at all.
 - **Receiver-class blindness**: `$user->notify(new X)` doesn't tell
   Loom what kind of receiver `$user` is. "Which models receive
   InvoicePaid" is not answerable from the index today. Documented

@@ -125,6 +125,21 @@ Two chain positions are read:
 }
 ```
 
+## Channel filter (`channels`, notifications only)
+
+`$defs/dispatchSite` carries one further optional field — `channels` — emitted only on `notifications[*].notified_from` entries. It records the literal channel filter passed as the third argument to `Notification::send($users, $notification, $channels)` / `Notification::sendNow(...)`, which restricts that dispatch to a specific channel set and overrides the notification's own `via()`. Values use the same representation as `notifications[*].channels`: literal string channel names stored lowercased, `Class::class` channel constants stored as FQCN, in source order.
+
+```json
+{
+  "file": "app/Services/Billing.php",
+  "line": 88,
+  "method": "App\\Services\\Billing::charge",
+  "channels": ["mail", "App\\Channels\\SlackChannel"]
+}
+```
+
+The key is omitted when the argument is absent, empty, or non-literal. It is captured only on the `Notification::send` / `Notification::sendNow` facade forms — the `->notify(...)` method form has no channel-filter argument, and the other three reverse-reference arrays (`events[*].dispatched_from`, `jobs[*].dispatched_from`, `mailables[*].sent_from`) never carry it. Full semantics live in [docs/scanners/notifications.md](notifications.md).
+
 ## Kind classification
 
 The cross-link pass disambiguates `kind: ambiguous` (Dispatchable form) before populating the other fields:

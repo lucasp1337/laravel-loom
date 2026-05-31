@@ -845,3 +845,151 @@ it('does not capture a delay key for ->delay($var)', function () {
     expect($sites[0]->overrides->delay)->toBeNull();
     expect($sites[0]->overrides->isEmpty())->toBeTrue();
 });
+
+// -----------------------------------------------------------------------------
+// Notification channel filter override (#33)
+// -----------------------------------------------------------------------------
+
+it('captures a single-channel filter on Notification::send', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::send($users, new InvoicePaid, ['mail']);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::NOTIFICATION);
+    expect($sites[0]->channels)->toBe(['mail']);
+});
+
+it('captures a multi-channel filter on Notification::sendNow', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::sendNow($users, new InvoicePaid, ['mail', 'database']);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->channels)->toBe(['mail', 'database']);
+});
+
+it('surfaces a Class::class channel constant as an FQCN in the filter', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Channels\SlackChannel;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::send($users, new InvoicePaid, ['mail', SlackChannel::class]);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->channels)->toBe(['mail', 'App\\Channels\\SlackChannel']);
+});
+
+it('leaves channels null on Notification::send with no filter argument', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::send($users, new InvoicePaid);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->channels)->toBeNull();
+});
+
+it('leaves channels null for a dynamic (variable) filter argument', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users, $dynamic): void {
+            Notification::send($users, new InvoicePaid, $dynamic);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
+    expect($sites[0]->channels)->toBeNull();
+});
+
+it('collapses an empty-array filter to null channels', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+    class Svc {
+        public function go($users): void {
+            Notification::send($users, new InvoicePaid, []);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->channels)->toBeNull();
+});
+
+it('never captures channels for the ->notify(...) method form', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Notifications\InvoicePaid;
+    class Svc {
+        public function go($user): void {
+            $user->notify(new InvoicePaid);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
+    expect($sites[0]->channels)->toBeNull();
+});

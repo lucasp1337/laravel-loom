@@ -220,6 +220,74 @@ it('captures multi-key inner-chain overrides and omits overrides on plain sends 
     expect($byLine[66])->not->toHaveKey('overrides');
 });
 
+it('surfaces lowercased channel filters on Notification::send/sendNow sites (issue #33)', function () {
+    // ChannelFilterDispatcher::dispatch (isolated fixture, dedicated classes):
+    //   line 29: Notification::send($users, new ChannelOverrideAlert(), ['mail'])    -> Alert ['mail']
+    //   line 32: Notification::sendNow($users, new ChannelOverrideReminder(), ['mail','DATABASE']) -> Reminder ['mail','database']
+    //   line 35: Notification::send($users, new ChannelOverrideAlert(), ['mail', SlackChannel::class]) -> FQCN surfaced
+    $payload = buildNotificationEndToEndPayload();
+
+    $alert = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\ChannelOverrideAlert');
+    expect($alert)->not->toBeNull();
+
+    $alertByLine = [];
+    foreach ($alert['notified_from'] as $s) {
+        $alertByLine[$s['line']] = $s;
+    }
+
+    expect($alertByLine[29]['channels'])->toBe(['mail']);
+    expect($alertByLine[35]['channels'])->toBe(['mail', 'App\\Channels\\SlackChannel']);
+
+    $reminder = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\ChannelOverrideReminder');
+    expect($reminder)->not->toBeNull();
+
+    $reminderByLine = [];
+    foreach ($reminder['notified_from'] as $s) {
+        $reminderByLine[$s['line']] = $s;
+    }
+
+    expect($reminderByLine[32]['channels'])->toBe(['mail', 'database']);
+});
+
+it('omits the channels key on no-filter and empty-filter notification sites (issue #33)', function () {
+    // ChannelFilterDispatcher::dispatch:
+    //   line 38: Notification::send($users, new ChannelOverrideReminder(), [])  -> empty filter, no channels
+    //   line 41: Notification::sendNow($users, new ChannelOverrideAlert())       -> no filter argument
+    //   line 44: $user->notify(new ChannelOverrideReminder())                    -> notify form never captures
+    // Pre-existing site (Billing::chargeAndNotify, untouched):
+    //   line 23: Notification::send($users, new InvoicePaid())                   -> stays byte-identical
+    $payload = buildNotificationEndToEndPayload();
+
+    $invoice = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\InvoicePaid');
+    $invoiceByLine = [];
+    foreach ($invoice['notified_from'] as $s) {
+        $invoiceByLine[$s['line']] = $s;
+    }
+
+    // Pre-existing no-filter facade site stays byte-identical (no channels key).
+    expect($invoiceByLine[23])->not->toHaveKey('channels');
+
+    $alert = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\ChannelOverrideAlert');
+    $alertByLine = [];
+    foreach ($alert['notified_from'] as $s) {
+        $alertByLine[$s['line']] = $s;
+    }
+
+    // New no-filter sendNow site carries no channels key.
+    expect($alertByLine[41])->not->toHaveKey('channels');
+
+    $reminder = notificationEntryByFqcn($payload['notifications'], 'App\\Notifications\\ChannelOverrideReminder');
+    $reminderByLine = [];
+    foreach ($reminder['notified_from'] as $s) {
+        $reminderByLine[$s['line']] = $s;
+    }
+
+    // Empty-array filter collapses to no channels key.
+    expect($reminderByLine[38])->not->toHaveKey('channels');
+    // The ->notify(...) method form never carries channels.
+    expect($reminderByLine[44])->not->toHaveKey('channels');
+});
+
 it('sorts notifications by fqcn ascending in the built index', function () {
     $payload = buildNotificationEndToEndPayload();
 
