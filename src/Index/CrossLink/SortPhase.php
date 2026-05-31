@@ -42,6 +42,9 @@ final class SortPhase implements CrossLinkPhase
             Sections::LISTENERS->value => [
                 'dispatches' => ['file', 'line', 'target'],
             ],
+            Sections::CLOSURE_LISTENERS->value => [
+                'dispatches' => ['file', 'line', 'target'],
+            ],
             Sections::OBSERVERS->value => [
                 'dispatches' => ['file', 'line', 'target'],
             ],

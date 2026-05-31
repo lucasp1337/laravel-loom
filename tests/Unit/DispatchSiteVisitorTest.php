@@ -271,7 +271,7 @@ it('captures distinct method names across methods in one class', function () {
 // Skip cases
 // -----------------------------------------------------------------------------
 
-it('skips dispatch sites inside closures', function () {
+it('emits a resolved dispatch site inside a closure, tagged inClosure', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -287,11 +287,16 @@ it('skips dispatch sites inside closures', function () {
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    expect($sites)->toBe([]);
+    // Resolved closure-internal sites now emit (tagged inClosure) so
+    // ClosureDispatchAttributionPhase can attribute them; unresolved stays
+    // suppressed.
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->inClosure)->toBeTrue();
     expect($unresolved)->toBe([]);
 });
 
-it('skips dispatch sites inside arrow functions', function () {
+it('emits a resolved dispatch site inside an arrow function, tagged inClosure', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -305,7 +310,9 @@ it('skips dispatch sites inside arrow functions', function () {
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    expect($sites)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->inClosure)->toBeTrue();
     expect($unresolved)->toBe([]);
 });
 

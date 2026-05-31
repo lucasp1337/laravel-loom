@@ -111,6 +111,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             $this->closurePairs[] = new ClosurePairRecord(
                 event: $eventFqcn,
                 line: $value->getStartLine(),
+                endLine: $value->getEndLine(),
                 registration: ListenerRegistration::LISTEN_ARRAY,
             );
 

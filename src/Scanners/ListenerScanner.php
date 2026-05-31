@@ -130,6 +130,7 @@ final class ListenerScanner implements Scanner
                     event: $closure->event,
                     file: $relative,
                     line: $closure->line,
+                    endLine: $closure->endLine,
                     registration: $closure->registration,
                 );
             }
@@ -163,6 +164,7 @@ final class ListenerScanner implements Scanner
                     event: $closure->event,
                     file: $relative,
                     line: $closure->line,
+                    endLine: $closure->endLine,
                     registration: $closure->registration,
                 );
             }
@@ -240,6 +242,7 @@ final class ListenerScanner implements Scanner
                         event: $closure->event,
                         file: $relative,
                         line: $closure->line,
+                        endLine: $closure->endLine,
                         registration: ListenerRegistration::SUBSCRIBER,
                     );
                 }
@@ -431,6 +434,7 @@ final class ListenerScanner implements Scanner
                 event: $r->event,
                 file: $r->file,
                 line: $r->line,
+                endLine: $r->endLine,
                 registration: $r->registration,
                 queued: false,
             ),

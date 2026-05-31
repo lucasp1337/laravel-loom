@@ -186,6 +186,29 @@ it('attributes dispatches in non-handle() methods listed in handles[*].method', 
     expect($byTarget['App\\Events\\OrderConfirmationSent']['kind'])->toBe('event');
 });
 
+it('does not leak a closure-internal dispatch into the enclosing listener or the target event', function () {
+    // SendOrderConfirmation::handle wraps an event(new OrderConfirmationSent())
+    // at line 23 inside a closure. That site is tagged inClosure, so the
+    // class-handler attribution (DispatchAttributionPhase / DispatchedFromPhase)
+    // must skip it: it stays out of listeners[].dispatches and the target
+    // event's dispatched_from.
+    $payload = buildDispatchEndToEndPayload();
+
+    $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\SendOrderConfirmation');
+    expect($listener)->not->toBeNull();
+    foreach ($listener['dispatches'] as $d) {
+        expect($d['line'])->not->toBe(23);
+    }
+
+    $event = dispatchEntryByFqcn($payload['events'], 'App\\Events\\OrderConfirmationSent');
+    expect($event)->not->toBeNull();
+    foreach ($event['dispatched_from'] as $entry) {
+        $isClosureSite = $entry['file'] === 'app/Listeners/SendOrderConfirmation.php'
+            && $entry['line'] === 23;
+        expect($isClosureSite)->toBeFalse();
+    }
+});
+
 it('matches the expected stats counts', function () {
     $payload = buildDispatchEndToEndPayload();
 

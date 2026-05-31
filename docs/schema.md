@@ -159,10 +159,11 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 {
   "event": string,                // FQCN for ::class registrations, raw string for string-keyed registrations
   "file": string,                 // path to the closure node, not the registration call
-  "line": integer,                // 1-indexed line of the closure node
+  "line": integer,                // 1-indexed start line of the closure node
+  "end_line": integer,            // 1-indexed end line of the closure node
   "registration": enum,           // see below
   "queued": boolean,              // currently always false
-  "dispatches": array             // currently always empty; reserved
+  "dispatches": array             // populated by cross-link; $defs/dispatch entries
 }
 ```
 
@@ -172,7 +173,23 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 - `event_listen_call` — closure as the second argument to `Event::listen()`
 - `subscriber` — closure inside a subscriber's `subscribe()` method, either as a return-array value or as the second argument to an imperative `$events->listen(...)` call against the dispatcher parameter
 
-`queued` is always `false` in the current release; closure-queue detection is out of scope. `dispatches` is always `[]` and is reserved for future line-span-based attribution of dispatch sites inside the closure body.
+`line` and `end_line` together describe the closure node's source span `[line, end_line]` (both 1-indexed, inclusive). The producer always knows both bounds, so both are **required**. The cross-link pass uses this span to attribute dispatch sites to the closure: a dispatch site in the same `file` whose own line falls within `[line, end_line]` is attributed to this closure listener. A single-line closure has `end_line === line`.
+
+`queued` is always `false` in the current release; closure-queue detection is out of scope.
+
+`dispatches[]` uses `$defs/dispatch` — the **same shape** as `listeners[*].dispatches` and `observers[*].dispatches`:
+
+```
+{
+  "target": string,               // FQCN of dispatched event or job
+  "kind": "event" | "job",
+  "confidence": "high" | "medium" | "low",
+  "file": string,
+  "line": integer
+}
+```
+
+It is populated by the cross-link pass from dispatch sites that fall within the closure's `[line, end_line]` span in the same `file`. This makes closure listeners feature-equivalent to class listeners for dispatch attribution. Earlier releases declared `dispatches` as `array<string>` and always emitted it empty, so no real data ever matched the old item type; the change to `$defs/dispatch` objects is the corrected, populated shape. `confidence` is currently always `"high"`; `"medium"` / `"low"` are reserved for future runtime overlay work.
 
 Entries are sorted by `(event, file, line)` ascending. No dedupe — each registration site is its own entry.
 

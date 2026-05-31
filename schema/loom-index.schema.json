@@ -263,19 +263,20 @@
         },
         "closureListener": {
             "type": "object",
-            "required": ["event", "file", "line", "registration", "queued", "dispatches"],
+            "required": ["event", "file", "line", "end_line", "registration", "queued", "dispatches"],
             "additionalProperties": false,
             "properties": {
                 "event": { "type": "string" },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 },
+                "end_line": { "type": "integer", "minimum": 1 },
                 "registration": {
                     "enum": ["listen_array", "event_listen_call", "subscriber"]
                 },
                 "queued": { "type": "boolean" },
                 "dispatches": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": { "$ref": "#/$defs/dispatch" }
                 }
             }
         },

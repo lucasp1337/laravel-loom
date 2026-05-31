@@ -160,3 +160,29 @@ it('emits every listener with an empty dispatches array', function () {
         expect($entry['dispatches'])->toBe([]);
     }
 });
+
+it('emits end_line >= line for every closure listener', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    foreach ($payload['closure_listeners'] as $entry) {
+        expect($entry)->toHaveKey('end_line');
+        expect($entry['end_line'])->toBeGreaterThanOrEqual($entry['line']);
+    }
+});
+
+it('leaves closure listener dispatches empty when no DispatchScanner is registered', function () {
+    // With only the ListenerScanner there are no _dispatch_sites, so the
+    // closure attribution phase has nothing to attribute. Guards the
+    // byte-identical empty case for the dispatches[] field.
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    foreach ($payload['closure_listeners'] as $entry) {
+        expect($entry['dispatches'])->toBe([]);
+    }
+});

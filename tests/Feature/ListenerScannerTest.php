@@ -271,11 +271,11 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
     $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
 
     expect($closures)->toEqual([
-        new ClosureListenerEntry(event: 'App\\Events\\InventoryDepleted', file: 'app/Listeners/OrderEventSubscriber.php', line: 22, registration: ListenerRegistration::SUBSCRIBER, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, registration: ListenerRegistration::SUBSCRIBER, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 25, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 40, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 41, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\InventoryDepleted', file: 'app/Listeners/OrderEventSubscriber.php', line: 22, endLine: 22, registration: ListenerRegistration::SUBSCRIBER, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, endLine: 18, registration: ListenerRegistration::SUBSCRIBER, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 25, endLine: 25, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 40, endLine: 40, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 41, endLine: 43, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
     ]);
 });
 
