@@ -16,58 +16,36 @@
 
 *Architecture as data.*
 
-Static analyzer for Laravel's event-driven primitives. Scans your source and writes a JSON file listing the events, listeners, observers, and dispatch sites it finds — with file paths and line numbers. Unresolved dispatch calls inside method bodies (`event($variable)`, container lookups) are surfaced with a reason code rather than dropped silently; top-level scripts and closure bodies are skipped entirely. Per-scanner edge cases live in [docs/scanners/](docs/scanners/).
-
-```bash
-php artisan loom:scan
-# storage/loom/index.json
-```
-
-No app boot, no runtime tracing, no `vendor/` required. Loom reads PHP source with `nikic/php-parser` and emits a deterministic JSON file.
-
-## Why
-
-Event-driven Laravel apps drift fast. Listeners get added in providers, observers attached in `booted()`, dispatches scattered across services. `php artisan event:list` shows you what Laravel happened to register at boot — not what's actually in your source. Observers don't appear at all. Dispatch sites are invisible. Subscribers vary by registration form.
-
-Loom answers the questions that command can't:
-
-- *Where is `OrderPlaced` dispatched from?* → `events[].dispatched_from`
-- *Which listeners handle it, and via which methods?* → `events[].handled_by` (class-based) + `closure_listeners[]` filtered by `event` (closures, which don't have an FQCN to cross-link)
-- *What does `SendOrderConfirmation::handle()` dispatch?* → `listeners[].dispatches`
-- *Which observers run on `App\Models\User`?* → `observers[]` + `model_events[]`
-- *Any dynamic dispatches Loom couldn't pin down?* → `unresolved_dispatches[]` with a reason and a file:line
-
-Per-scanner edge cases and known limitations live in [docs/scanners/](docs/scanners/).
-
-## Installation
+Loom statically analyzes a Laravel app's event-driven primitives and writes a deterministic JSON file: every event, listener, observer, job, schedule, mailable, notification, and dispatch site, each with its file path and line number. It reads source with `nikic/php-parser` — no app boot, no runtime tracing, no `vendor/` required — so it sees what's actually in your code, not just what Laravel happened to register at boot.
 
 ```bash
 composer require lucasp1337/laravel-loom --dev
+php artisan loom:scan          # writes storage/loom/index.json
 ```
-
-PHP 8.3+ and Laravel 11, 12, or 13.
 
 ## Usage
 
 ```bash
-php artisan loom:scan          # writes storage/loom/index.json
-php artisan loom:show          # prints the index
+php artisan loom:scan               # writes storage/loom/index.json
+php artisan loom:show               # prints the index
 php artisan loom:show OrderPlaced   # filters by FQCN substring
 ```
 
-The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if you don't want to commit it.
+Add `storage/loom/index.json` to `.gitignore` if you don't want to commit it.
 
-## What gets discovered
+## What it finds
 
-- **Events** — `app/Events/**` walk, plus any class statically dispatched via `event(new Foo)` / `Event::dispatch(new Foo)` (regardless of where the class lives). The ambiguous Dispatchable form `X::dispatch()` only counts as an event when the target resolves under `app/Events/`.
-- **Listeners** — Laravel's auto-discovery, `$listen` arrays on `EventServiceProvider`, `Event::listen()` calls anywhere under `app/`, and subscribers via `$subscribe` / `Event::subscribe()`.
-- **Closure listeners** — closures and arrow functions wherever a listener can be (`$listen`, `Event::listen()`, subscriber bodies). Emitted as a separate `closure_listeners[]` section.
-- **Observers** — `Model::observe()` calls, the `#[ObservedBy]` attribute, plus model events synthesized from observer hooks and `Event::listen('eloquent.*', …)`.
-- **Jobs** — classes under `app/Jobs/` (recursive), plus any class dispatched via `dispatch()`, `Bus::dispatch()`, or the Dispatchable form `X::dispatch()` (located via PSR-4, so jobs in DDD layouts get picked up). Records `queued` and `queue_config` (connection, queue, delay, tries, timeout, backoff) when declared as class properties.
-- **Schedule** — entries declared via the `schedule(Schedule $schedule)` method on `app/Console/Kernel.php`, the `->withSchedule(...)` callback on `Application::configure(...)` in `bootstrap/app.php`, and `Schedule::call/command/job/exec(...)` chains anywhere under `app/`. Records `kind`, resolved `target`, a five-field `cron` expression normalized from Laravel's frequency helpers, `timezone`, the `without_overlapping` / `on_one_server` / `run_in_background` flags, and a sorted list of opaque `constraints[]` labels (`weekdays`, `between(8:00,17:00)`, `when(closure)`, `environments(production)`, …).
-- **Mailables** — classes under `app/Mail/` (recursive), plus any class dispatched via `Mail::send/queue/later(...)` and the `Mail::to(...)->send/queue/later(...)` chain (including chains through `->cc/->bcc/->locale/->mailer`), located via PSR-4 so mailables in DDD layouts get picked up. Records `queued`, `queue_config` (same six-field shape as jobs), and `sent_from[]` (populated by cross-link).
-- **Notifications** — classes under `app/Notifications/` (recursive), plus any class dispatched via `$x->notify/notifyNow(...)`, `Notification::send/sendNow(...)`, and `Notification::route(...)->notify(...)` chains. Records `queued`, `queue_config`, `channels[]` (extracted in source order from a statically resolvable `via()` literal — strings stored lowercased, `Class::class` constants stored as FQCN), `channels_dynamic` (true only when `via()` exists but its body isn't statically resolvable), and `notified_from[]` (populated by cross-link).
-- **Dispatches** — every method body scanned for `event()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, and `X::dispatch()`. Cross-linked back to listeners and observers by handler method.
+- **Events** — `app/Events/**`, plus any class dispatched via `event()` / `Event::dispatch()`.
+- **Listeners** — auto-discovery, `$listen` arrays, `Event::listen()`, and subscribers.
+- **Closure listeners** — closures registered as listeners, in their own section.
+- **Observers** — `Model::observe()`, `#[ObservedBy]`, and `eloquent.*` model events.
+- **Jobs** — `app/Jobs/**`, plus any class dispatched via `dispatch()` / `X::dispatch()`, with queue config.
+- **Schedule** — `Kernel::schedule()`, `bootstrap/app.php`, and `Schedule::*` chains, normalized to cron.
+- **Mailables** — `app/Mail/**`, plus `Mail::send()` and `Mail::to()->send()` chains, with queue config.
+- **Notifications** — `app/Notifications/**`, plus `notify()` / `Notification::send()`, with channels.
+- **Dispatches** — every handler body, cross-linked back to the listener, observer, or job it runs in.
+
+Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) land in `unresolved_dispatches[]` with a reason and a `file:line` rather than being dropped silently. Per-scanner behavior and limitations live in [docs/scanners/](docs/scanners/).
 
 ## Sample output
 
@@ -243,25 +221,7 @@ The output lives at `storage/loom/index.json`. Add it to your `.gitignore` if yo
 
 </details>
 
-The JSON shape is defined by `schema/loom-index.schema.json` and validated on every scan. The schema follows semver — but pre-1.0, breaking changes are tolerated and called out in the [CHANGELOG](CHANGELOG.md). From 1.0 onwards, breaking changes will require a major bump.
-
-## Performance
-
-On a fresh `laravel new` app, the scan finishes in well under a second. A medium-sized real-world app (~200 PHP files in `app/`) scans in around 200ms.
-
-## What's planned
-
-Tracked at the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1). Highlights:
-
-- More sections: [routes](https://github.com/lucasp1337/laravel-loom/issues/8).
-- A [browser UI](https://github.com/lucasp1337/laravel-loom/issues/19) for clicking through the index — events, listeners, dispatch chains.
-- An [MCP server](https://github.com/lucasp1337/laravel-loom/issues/20) so AI coding assistants can query the index instead of grepping.
-- [`loom:diff`](https://github.com/lucasp1337/laravel-loom/issues/9) and [`loom:check`](https://github.com/lucasp1337/laravel-loom/issues/10) for CI.
-- A few correctness fixes — [container-form registrations](https://github.com/lucasp1337/laravel-loom/issues/15), [indirect `ShouldQueue`](https://github.com/lucasp1337/laravel-loom/issues/14), [closure dispatch attribution](https://github.com/lucasp1337/laravel-loom/issues/16).
-
-Out of scope: runtime tracing, IDE plugins, complexity/quality metrics, and data-model / access-control primitives (models, migrations, validators, policies). Loom's domain is *control flow* — what dispatches what, what handles what, what runs when — which includes routes and schedules even though they're not strictly `Event::dispatch()`-shaped.
-
-For per-scanner edge cases and known limitations today, see [docs/scanners/](docs/scanners/).
+The JSON shape is defined by `schema/loom-index.schema.json` and validated on every scan.
 
 ## Requirements
 
@@ -270,7 +230,7 @@ For per-scanner edge cases and known limitations today, see [docs/scanners/](doc
 
 ## Local development
 
-Installing the package only needs PHP 8.3+, but running the test suite needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` plus a `Justfile` are provided so contributors without those extensions on their host PHP can run the full toolchain:
+Running the package needs only PHP 8.3+, but the test suite needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` and `Justfile` are provided so you can run the full toolchain without those extensions on your host:
 
 ```bash
 just build    # build the Docker dev image (once)
@@ -279,7 +239,7 @@ just check    # PHPStan + Pint --test + Pest
 just coverage # Pest with per-file coverage
 ```
 
-See [docs/contributing.md](docs/contributing.md) for the full list of recipes (including `just scan <path>` to run Loom against any Laravel app on disk).
+See [docs/contributing.md](docs/contributing.md) for the full list of recipes.
 
 ## Documentation
 
