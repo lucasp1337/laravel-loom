@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\NotificationClassRecord;
 use Lucasp\Loom\Dto\NotificationEntry;
 use Lucasp\Loom\Dto\NotificationLocation;
 use Lucasp\Loom\Index\DispatchKinds;
@@ -15,6 +16,7 @@ use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\TwoPathDiscovery;
 
 /**
  * Discovers notification classes under app/Notifications/ plus
@@ -23,6 +25,7 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class NotificationScanner implements Scanner
 {
     use ScannerFilesystem;
+    use TwoPathDiscovery;
 
     private AstWalker $walker;
 
@@ -32,6 +35,16 @@ final class NotificationScanner implements Scanner
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+    }
+
+    protected function walker(): AstWalker
+    {
+        return $this->walker;
+    }
+
+    protected function psr4Locator(): Psr4ClassLocator
+    {
+        return $this->locator;
     }
 
     /**
@@ -65,30 +78,21 @@ final class NotificationScanner implements Scanner
      */
     private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
-        $dir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Notifications';
-        if (! is_dir($dir)) {
-            return [];
-        }
-
-        $visitor = new NotificationClassVisitor;
-        $results = [];
-
-        foreach ($this->iteratePhpFiles($dir) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
-
-            foreach ($visitor->getClasses() as $class) {
-                $results[$class->fqcn] = new NotificationLocation(
-                    file: $this->relativePath($appRoot, $file->getPathname()),
-                    line: $class->line,
-                    queued: $resolver->implementsInterface($class->fqcn, LaravelClasses::SHOULD_QUEUE->value),
-                    queueConfig: $class->queueConfig,
-                    channels: $class->channels,
-                    channelsDynamic: $class->channelsDynamic,
-                );
-            }
-        }
-
-        return $results;
+        return $this->collectFromDirectory(
+            $appRoot,
+            $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Notifications',
+            fn (): NotificationClassVisitor => new NotificationClassVisitor,
+            fn (NotificationClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (NotificationClassRecord $record): string => $record->fqcn,
+            fn (NotificationClassRecord $record, string $file): NotificationLocation => new NotificationLocation(
+                file: $file,
+                line: $record->line,
+                queued: $resolver->implementsInterface($record->fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queueConfig: $record->queueConfig,
+                channels: $record->channels,
+                channelsDynamic: $record->channelsDynamic,
+            ),
+        );
     }
 
     /**
@@ -121,30 +125,21 @@ final class NotificationScanner implements Scanner
 
     private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?NotificationLocation
     {
-        $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
-            return null;
-        }
-
-        $visitor = new NotificationClassVisitor;
-        $this->walker->walk($absolute, [$visitor]);
-
-        foreach ($visitor->getClasses() as $class) {
-            if ($class->fqcn !== $fqcn) {
-                continue;
-            }
-
-            return new NotificationLocation(
-                file: $this->relativePath($appRoot, $absolute),
-                line: $class->line,
+        return $this->locateClassByPsr4(
+            $appRoot,
+            $fqcn,
+            fn (): NotificationClassVisitor => new NotificationClassVisitor,
+            fn (NotificationClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (NotificationClassRecord $record): string => $record->fqcn,
+            fn (NotificationClassRecord $record, string $file): NotificationLocation => new NotificationLocation(
+                file: $file,
+                line: $record->line,
                 queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
-                queueConfig: $class->queueConfig,
-                channels: $class->channels,
-                channelsDynamic: $class->channelsDynamic,
-            );
-        }
-
-        return null;
+                queueConfig: $record->queueConfig,
+                channels: $record->channels,
+                channelsDynamic: $record->channelsDynamic,
+            ),
+        );
     }
 
     /**
