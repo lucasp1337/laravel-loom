@@ -25,7 +25,7 @@ The index opens with metadata and a `stats` block, then carries one array per pr
 }
 ```
 
-All keys are always present. Empty arrays are valid; a `null` array never is. Entries are sorted deterministically, so two scans of the same source produce byte-identical output.
+All keys are always present. Empty arrays are valid; a `null` array never is. Entries are sorted deterministically, so two scans of the same source produce byte-identical output — which is also what lets you compare two indexes with [`loom:diff`](diff.md) and get a stable, order-independent result.
 
 ## Reading a relationship
 
