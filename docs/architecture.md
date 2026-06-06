@@ -59,6 +59,8 @@ Find candidate files or classes. Strategies:
 
 Hybrid strategies are common (events come from both `app/Events/` and dispatch-site seeding, for example).
 
+Two mechanics recur across scanners and live in shared traits rather than per-scanner copies. `Lucasp\Loom\Support\ScannerFilesystem` provides the `iteratePhpFiles()` walk and `relativePath()` normalisation. `Lucasp\Loom\Support\TwoPathDiscovery` provides the filesystem-walk + PSR-4 dispatch-site location template used by the Jobs, Mailable, Notification, and Event scanners; each supplies its own visitor and record→DTO mapping through closure seams while the traversal and PSR-4 lookup stay shared. Reuse these in a new scanner rather than re-implementing the loops.
+
 ### 2. Parsing
 
 Pure AST work via `nikic/php-parser`. Use `Lucasp\Loom\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.
