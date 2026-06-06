@@ -115,6 +115,71 @@ it('sorts events[*].handled_by by listener asc then method asc', function () {
     ]);
 });
 
+it('records callable-shaped listeners in OrderEventsHandler.handles', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    $handler = null;
+    foreach ($payload['listeners'] as $entry) {
+        if (($entry['fqcn'] ?? null) === 'App\\Listeners\\OrderEventsHandler') {
+            $handler = $entry;
+            break;
+        }
+    }
+
+    expect($handler)->not->toBeNull();
+
+    // Closure::fromCallable([OrderEventsHandler::class, 'handleViaCallable']) in $listen
+    // and OrderEventsHandler::handleViaFcc(...) in Event::listen() both bind the fresh
+    // RestockScheduled event with dedicated methods, so dedup on event::method cannot
+    // mask the new callable-detection path.
+    expect($handler['handles'])->toContain([
+        'event' => 'App\\Events\\RestockScheduled',
+        'method' => 'handleViaCallable',
+    ]);
+    expect($handler['handles'])->toContain([
+        'event' => 'App\\Events\\RestockScheduled',
+        'method' => 'handleViaFcc',
+    ]);
+});
+
+it('attributes callable-shaped listeners to RestockScheduled.handled_by', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new EventScanner);
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    $restock = null;
+    foreach ($payload['events'] as $event) {
+        if (($event['fqcn'] ?? null) === 'App\\Events\\RestockScheduled') {
+            $restock = $event;
+            break;
+        }
+    }
+
+    expect($restock)->not->toBeNull();
+
+    // listen_array Closure::fromCallable + event_listen_call first-class callable,
+    // sorted by (listener, method) ascending.
+    expect($restock['handled_by'])->toBe([
+        ['listener' => 'App\\Listeners\\OrderEventsHandler', 'method' => 'handleViaCallable'],
+        ['listener' => 'App\\Listeners\\OrderEventsHandler', 'method' => 'handleViaFcc'],
+    ]);
+});
+
+it('keeps the index schema-valid with callable-shaped listeners present', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new EventScanner);
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    expect($builder->validate($payload))->toBe([]);
+});
+
 it('counts closure listeners in stats.closure_listeners', function () {
     $builder = new IndexBuilder;
     $builder->register(new ListenerScanner);
