@@ -148,8 +148,8 @@ it('emits an unresolved_dispatches entry for Mail::send($dynamicMailable) and no
     expect($forwardSlashed)->toContain('app/Services/Checkout.php');
 });
 
-it('resolves chain-wrapped mailable dispatches into sent_from (issue #31)', function () {
-    // Regression for issue #31: Mail::to($user)->send((new OrderShipped())->locale('fr'))
+it('resolves chain-wrapped mailable dispatches into sent_from', function () {
+    // Regression: Mail::to($user)->send((new OrderShipped())->locale('fr'))
     // wraps the mailable in a leading fluent MethodCall chain. The chain must be
     // unwrapped so the FQCN resolves and the site lands in sent_from[], NOT
     // unresolved_dispatches[].
@@ -168,7 +168,7 @@ it('resolves chain-wrapped mailable dispatches into sent_from (issue #31)', func
     expect($unresolvedLines)->not->toContain(39);
 });
 
-it('captures Mail facade-receiver locale/mailer overrides in sent_from (issue #32)', function () {
+it('captures Mail facade-receiver locale/mailer overrides in sent_from', function () {
     // MailDispatcher::dispatchWithOverrides (separate fixture class so the
     // OrderShipped/WelcomeEmail count + method assertions stay untouched):
     //   Mail::to($u)->locale('fr')->mailer('ses')->send(new IndirectlyQueuedMail())
@@ -190,8 +190,8 @@ it('captures Mail facade-receiver locale/mailer overrides in sent_from (issue #3
     expect($site[0]['overrides'])->toBe(['locale' => 'fr', 'mailer' => 'ses']);
 });
 
-it('captures the #31 inner-chain locale override and omits overrides on plain sends (issue #32)', function () {
-    // The #31 chain-wrapped send at Checkout::finalize line 39 is
+it('captures the inner-chain locale override and omits overrides on plain sends', function () {
+    // The chain-wrapped send at Checkout::finalize line 39 is
     // Mail::to($user)->send((new OrderShipped())->locale('fr')) — positive
     // coverage for the inner (a) chain locale override. The plain facade sends
     // (e.g. line 16 Mail::send(new OrderShipped())) must carry NO overrides key.
@@ -205,14 +205,14 @@ it('captures the #31 inner-chain locale override and omits overrides on plain se
         $byLine[$s['line']] = $s;
     }
 
-    // #31 inner-chain site at line 39 now carries an overrides object.
+    // Inner-chain site at line 39 now carries an overrides object.
     expect($byLine[39]['overrides'])->toBe(['locale' => 'fr']);
 
     // Plain facade send at line 16 has no modifiers -> no overrides key.
     expect($byLine[16])->not->toHaveKey('overrides');
 });
 
-it('omits overrides for the no-modifier facade-receiver send (issue #32)', function () {
+it('omits overrides for the no-modifier facade-receiver send', function () {
     // Mail::to($user)->send(new IndirectlyQueuedMail()) at MailDispatcher line 26
     // is a facade-receiver chain with no modifier links; the entry must be
     // byte-identical to a plain send (no overrides key).

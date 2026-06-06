@@ -67,8 +67,8 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
 
                 // Nested closures: a site inside an inner anonymous function
                 // also falls within its enclosing closure's span, so it is
-                // appended to every matching closure (the issue's "falls inside
-                // any closure's line span"). Overlap only arises via nesting.
+                // appended to every matching closure (it falls inside any
+                // enclosing closure's line span). Overlap only arises via nesting.
                 $context->appendToEntry(Sections::CLOSURE_LISTENERS, $index, 'dispatches', $payload);
             }
         }
