@@ -64,6 +64,7 @@ nav:
   - What Loom detects: what-loom-detects.md
   - The index: the-index.md
   - Diffing indexes: diff.md
+  - Checking an index: check.md
   - Reference:
       - Architecture: architecture.md
       - Schema: schema.md

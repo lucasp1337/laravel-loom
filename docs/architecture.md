@@ -13,6 +13,8 @@ Filesystem → Discovery → AST parsing → Emission → Merge → Cross-link �
 
 The `loom:scan` artisan command is a thin wrapper around `IndexBuilder::build()`. The `loom:show` command reads the written index and prints it (optionally filtered by FQCN substring).
 
+`loom:check` is the policy gate, layered like the diff engine: a `CheckRuleRegistry` (mirroring the diff layer's spec registry) supplies an ordered set of rules from `src/Check/Rules/` keyed by the `RuleKey` enum, `CheckRunner` runs them against a loaded `Index` and collects violations, and a parallel `CheckFormatter` layer renders the result as text, JSON, or markdown. Like `loom:diff` it reads a written index rather than running scanners. See [Checking an index](check.md) for the command surface.
+
 ## The Scanner contract
 
 ```php
