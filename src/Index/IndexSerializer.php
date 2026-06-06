@@ -67,22 +67,25 @@ final class IndexSerializer
     /** @return array<string, mixed> */
     public function dispatchSiteRecord(DispatchSiteRecord $e): array
     {
+        // `classFqcn`, `form`, `provisionalKind`, `inClosure` are internal-only
+        // routing tags (not schema properties); they live on `_dispatch_sites`
+        // and are stripped before schema validation.
         $out = [
             'classFqcn' => $e->classFqcn,
-            'method' => $e->method,
-            'target' => $e->target,
+            Field::METHOD->value => $e->method,
+            Field::TARGET->value => $e->target,
             'form' => $e->form->value,
             'provisionalKind' => $e->provisionalKind->value,
-            'file' => $e->file,
-            'line' => $e->line,
-            'confidence' => $e->confidence,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::CONFIDENCE->value => $e->confidence,
         ];
 
         // Internal-only: carried on `_dispatch_sites` (stripped before schema
         // validation) so DispatchedFromPhase can surface it. Omitted entirely
         // when empty to keep existing site arrays byte-identical.
         if (! $e->overrides->isEmpty()) {
-            $out['overrides'] = $e->overrides->toArray();
+            $out[Field::OVERRIDES->value] = $e->overrides->toArray();
         }
 
         // Internal-only: the static channel filter from Notification::send/
@@ -90,7 +93,7 @@ final class IndexSerializer
         // validation). Omitted when absent so existing site arrays stay
         // byte-identical.
         if ($e->channels !== null && $e->channels !== []) {
-            $out['channels'] = $e->channels;
+            $out[Field::CHANNELS->value] = $e->channels;
         }
 
         // Internal-only tag: lets cross-link phases distinguish closure-internal
@@ -105,13 +108,13 @@ final class IndexSerializer
     public function event(EventEntry $e): array
     {
         return [
-            'id' => $e->id,
-            'fqcn' => $e->fqcn,
-            'kind' => 'class',
-            'file' => $e->file,
-            'line' => $e->line,
-            'dispatched_from' => [],
-            'handled_by' => [],
+            Field::ID->value => $e->id,
+            Field::FQCN->value => $e->fqcn,
+            Field::KIND->value => 'class',
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::DISPATCHED_FROM->value => [],
+            Field::HANDLED_BY->value => [],
         ];
     }
 
@@ -119,11 +122,11 @@ final class IndexSerializer
     public function modelEvent(ModelEventEntry $e): array
     {
         return [
-            'id' => $e->id,
-            'kind' => 'model_event',
-            'model' => $e->model,
-            'event' => $e->event,
-            'handled_by' => $e->handledBy,
+            Field::ID->value => $e->id,
+            Field::KIND->value => 'model_event',
+            Field::MODEL->value => $e->model,
+            Field::EVENT->value => $e->event,
+            Field::HANDLED_BY->value => $e->handledBy,
         ];
     }
 
@@ -131,16 +134,16 @@ final class IndexSerializer
     public function listener(ListenerEntry $e): array
     {
         return [
-            'fqcn' => $e->fqcn,
-            'file' => $e->file,
-            'line' => $e->line,
-            'handles' => array_map(fn (ListenerHandle $h): array => [
-                'event' => $h->event,
-                'method' => $h->method,
+            Field::FQCN->value => $e->fqcn,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::HANDLES->value => array_map(fn (ListenerHandle $h): array => [
+                Field::EVENT->value => $h->event,
+                Field::METHOD->value => $h->method,
             ], $e->handles),
-            'registration' => $e->registration->value,
-            'queued' => $e->queued,
-            'dispatches' => [],
+            Field::REGISTRATION->value => $e->registration->value,
+            Field::QUEUED->value => $e->queued,
+            Field::DISPATCHES->value => [],
         ];
     }
 
@@ -148,13 +151,13 @@ final class IndexSerializer
     public function observer(ObserverEntry $e): array
     {
         return [
-            'fqcn' => $e->fqcn,
-            'file' => $e->file,
-            'line' => $e->line,
-            'observes' => $e->observes,
-            'registration' => $e->registration->value,
-            'hooks' => $e->hooks,
-            'dispatches' => [],
+            Field::FQCN->value => $e->fqcn,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::OBSERVES->value => $e->observes,
+            Field::REGISTRATION->value => $e->registration->value,
+            Field::HOOKS->value => $e->hooks,
+            Field::DISPATCHES->value => [],
         ];
     }
 
@@ -162,13 +165,13 @@ final class IndexSerializer
     public function job(JobEntry $e): array
     {
         return [
-            'fqcn' => $e->fqcn,
-            'file' => $e->file,
-            'line' => $e->line,
-            'queued' => $e->queued,
-            'queue_config' => $this->queueConfig($e->queueConfig),
-            'dispatched_from' => [],
-            'dispatches' => [],
+            Field::FQCN->value => $e->fqcn,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::QUEUED->value => $e->queued,
+            Field::QUEUE_CONFIG->value => $this->queueConfig($e->queueConfig),
+            Field::DISPATCHED_FROM->value => [],
+            Field::DISPATCHES->value => [],
         ];
     }
 
@@ -176,12 +179,12 @@ final class IndexSerializer
     public function mailable(MailableEntry $e): array
     {
         return [
-            'fqcn' => $e->fqcn,
-            'file' => $e->file,
-            'line' => $e->line,
-            'queued' => $e->queued,
-            'queue_config' => $this->queueConfig($e->queueConfig),
-            'sent_from' => [],
+            Field::FQCN->value => $e->fqcn,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::QUEUED->value => $e->queued,
+            Field::QUEUE_CONFIG->value => $this->queueConfig($e->queueConfig),
+            Field::SENT_FROM->value => [],
         ];
     }
 
@@ -189,14 +192,14 @@ final class IndexSerializer
     public function notification(NotificationEntry $e): array
     {
         return [
-            'fqcn' => $e->fqcn,
-            'file' => $e->file,
-            'line' => $e->line,
-            'queued' => $e->queued,
-            'queue_config' => $this->queueConfig($e->queueConfig),
-            'notified_from' => [],
-            'channels' => $e->channels,
-            'channels_dynamic' => $e->channelsDynamic,
+            Field::FQCN->value => $e->fqcn,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::QUEUED->value => $e->queued,
+            Field::QUEUE_CONFIG->value => $this->queueConfig($e->queueConfig),
+            Field::NOTIFIED_FROM->value => [],
+            Field::CHANNELS->value => $e->channels,
+            Field::CHANNELS_DYNAMIC->value => $e->channelsDynamic,
         ];
     }
 
@@ -204,13 +207,13 @@ final class IndexSerializer
     public function closureListener(ClosureListenerEntry $e): array
     {
         return [
-            'event' => $e->event,
-            'file' => $e->file,
-            'line' => $e->line,
-            'end_line' => $e->endLine,
-            'registration' => $e->registration->value,
-            'queued' => $e->queued,
-            'dispatches' => [],
+            Field::EVENT->value => $e->event,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::END_LINE->value => $e->endLine,
+            Field::REGISTRATION->value => $e->registration->value,
+            Field::QUEUED->value => $e->queued,
+            Field::DISPATCHES->value => [],
         ];
     }
 
@@ -218,16 +221,16 @@ final class IndexSerializer
     public function scheduled(ScheduledEntry $e): array
     {
         return [
-            'kind' => $e->kind->value,
-            'target' => $e->target,
-            'cron' => $e->cron,
-            'timezone' => $e->timezone,
-            'without_overlapping' => $e->withoutOverlapping,
-            'on_one_server' => $e->onOneServer,
-            'run_in_background' => $e->runInBackground,
-            'constraints' => $e->constraints,
-            'file' => $e->file,
-            'line' => $e->line,
+            Field::KIND->value => $e->kind->value,
+            Field::TARGET->value => $e->target,
+            Field::CRON->value => $e->cron,
+            Field::TIMEZONE->value => $e->timezone,
+            Field::WITHOUT_OVERLAPPING->value => $e->withoutOverlapping,
+            Field::ON_ONE_SERVER->value => $e->onOneServer,
+            Field::RUN_IN_BACKGROUND->value => $e->runInBackground,
+            Field::CONSTRAINTS->value => $e->constraints,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
         ];
     }
 
@@ -235,10 +238,10 @@ final class IndexSerializer
     public function unresolvedDispatch(UnresolvedDispatchEntry $e): array
     {
         return [
-            'file' => $e->file,
-            'line' => $e->line,
-            'expression' => $e->expression,
-            'reason' => $e->reason,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::EXPRESSION->value => $e->expression,
+            Field::REASON->value => $e->reason,
         ];
     }
 
@@ -252,12 +255,12 @@ final class IndexSerializer
         }
 
         return [
-            'connection' => $q->connection,
-            'queue' => $q->queue,
-            'delay' => $q->delay,
-            'tries' => $q->tries,
-            'timeout' => $q->timeout,
-            'backoff' => $q->backoff,
+            Field::CONNECTION->value => $q->connection,
+            Field::QUEUE->value => $q->queue,
+            Field::DELAY->value => $q->delay,
+            Field::TRIES->value => $q->tries,
+            Field::TIMEOUT->value => $q->timeout,
+            Field::BACKOFF->value => $q->backoff,
         ];
     }
 }

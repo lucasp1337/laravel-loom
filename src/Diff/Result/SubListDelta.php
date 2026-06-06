@@ -10,6 +10,13 @@ namespace Lucasp\Loom\Diff\Result;
 final class SubListDelta
 {
     /**
+     * Wrapper key under which a scalar sublist member is normalized for
+     * identity comparison; not a schema field, hence a sentinel rather than a
+     * {@see \Lucasp\Loom\Index\Field} case.
+     */
+    public const SCALAR_MEMBER_KEY = 'value';
+
+    /**
      * Members are emitted in their original shape: an associative array for
      * structured sublists (e.g. dispatch sites) or a plain scalar for scalar
      * sublists (e.g. hooks, constraints).

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Support\Sorting;
 
@@ -36,27 +37,27 @@ final class SortPhase implements CrossLinkPhase
     {
         return [
             Sections::EVENTS->value => [
-                'handled_by' => ['listener', 'method'],
-                'dispatched_from' => ['file', 'line', 'method'],
+                Field::HANDLED_BY->value => [Field::LISTENER->value, Field::METHOD->value],
+                Field::DISPATCHED_FROM->value => [Field::FILE->value, Field::LINE->value, Field::METHOD->value],
             ],
             Sections::LISTENERS->value => [
-                'dispatches' => ['file', 'line', 'target'],
+                Field::DISPATCHES->value => [Field::FILE->value, Field::LINE->value, Field::TARGET->value],
             ],
             Sections::CLOSURE_LISTENERS->value => [
-                'dispatches' => ['file', 'line', 'target'],
+                Field::DISPATCHES->value => [Field::FILE->value, Field::LINE->value, Field::TARGET->value],
             ],
             Sections::OBSERVERS->value => [
-                'dispatches' => ['file', 'line', 'target'],
+                Field::DISPATCHES->value => [Field::FILE->value, Field::LINE->value, Field::TARGET->value],
             ],
             Sections::JOBS->value => [
-                'dispatched_from' => ['file', 'line', 'method'],
-                'dispatches' => ['file', 'line', 'target'],
+                Field::DISPATCHED_FROM->value => [Field::FILE->value, Field::LINE->value, Field::METHOD->value],
+                Field::DISPATCHES->value => [Field::FILE->value, Field::LINE->value, Field::TARGET->value],
             ],
             Sections::MAILABLES->value => [
-                'sent_from' => ['file', 'line', 'method'],
+                Field::SENT_FROM->value => [Field::FILE->value, Field::LINE->value, Field::METHOD->value],
             ],
             Sections::NOTIFICATIONS->value => [
-                'notified_from' => ['file', 'line', 'method'],
+                Field::NOTIFIED_FROM->value => [Field::FILE->value, Field::LINE->value, Field::METHOD->value],
             ],
         ];
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\Field;
+
 /**
  * Dispatch-time chain modifiers captured from a fluent dispatch site, e.g.
  * `dispatch((new Job)->onQueue('high')->delay(60))` or
@@ -46,22 +48,22 @@ final readonly class DispatchOverrides
     {
         $out = [];
         if ($this->locale !== null) {
-            $out['locale'] = $this->locale;
+            $out[Field::LOCALE->value] = $this->locale;
         }
         if ($this->mailer !== null) {
-            $out['mailer'] = $this->mailer;
+            $out[Field::MAILER->value] = $this->mailer;
         }
         if ($this->connection !== null) {
-            $out['connection'] = $this->connection;
+            $out[Field::CONNECTION->value] = $this->connection;
         }
         if ($this->queue !== null) {
-            $out['queue'] = $this->queue;
+            $out[Field::QUEUE->value] = $this->queue;
         }
         if ($this->delay !== null) {
-            $out['delay'] = $this->delay;
+            $out[Field::DELAY->value] = $this->delay;
         }
         if ($this->afterCommit !== null) {
-            $out['after_commit'] = $this->afterCommit;
+            $out[Field::AFTER_COMMIT->value] = $this->afterCommit;
         }
 
         return $out;

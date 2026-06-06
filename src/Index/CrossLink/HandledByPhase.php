@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -18,8 +19,8 @@ final class HandledByPhase implements CrossLinkPhase
         $eventIndex = $context->index(Sections::EVENTS);
 
         foreach ($context->sections[Sections::LISTENERS->value] as $listener) {
-            $listenerFqcn = $listener['fqcn'] ?? null;
-            $handles = $listener['handles'] ?? [];
+            $listenerFqcn = $listener[Field::FQCN->value] ?? null;
+            $handles = $listener[Field::HANDLES->value] ?? [];
             if (! is_string($listenerFqcn) || ! is_array($handles)) {
                 continue;
             }
@@ -28,8 +29,8 @@ final class HandledByPhase implements CrossLinkPhase
                 if (! is_array($pair)) {
                     continue;
                 }
-                $eventFqcn = $pair['event'] ?? null;
-                $method = $pair['method'] ?? null;
+                $eventFqcn = $pair[Field::EVENT->value] ?? null;
+                $method = $pair[Field::METHOD->value] ?? null;
                 if (! is_string($eventFqcn) || ! is_string($method)) {
                     continue;
                 }
@@ -47,15 +48,15 @@ final class HandledByPhase implements CrossLinkPhase
     private function appendHandledBy(CrossLinkContext $context, int $eIdx, string $listenerFqcn, string $method): void
     {
         /** @var array<int, array{listener: string, method: string}> $handledBy */
-        $handledBy = $context->sections[Sections::EVENTS->value][$eIdx]['handled_by'] ?? [];
+        $handledBy = $context->sections[Sections::EVENTS->value][$eIdx][Field::HANDLED_BY->value] ?? [];
 
         foreach ($handledBy as $existing) {
-            if ($existing['listener'] === $listenerFqcn && $existing['method'] === $method) {
+            if ($existing[Field::LISTENER->value] === $listenerFqcn && $existing[Field::METHOD->value] === $method) {
                 return;
             }
         }
 
-        $handledBy[] = ['listener' => $listenerFqcn, 'method' => $method];
-        $context->sections[Sections::EVENTS->value][$eIdx]['handled_by'] = $handledBy;
+        $handledBy[] = [Field::LISTENER->value => $listenerFqcn, Field::METHOD->value => $method];
+        $context->sections[Sections::EVENTS->value][$eIdx][Field::HANDLED_BY->value] = $handledBy;
     }
 }

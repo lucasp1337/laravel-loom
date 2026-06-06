@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Diff;
 
 use Closure;
+use Lucasp\Loom\Diff\Result\SubListDelta;
 use Lucasp\Loom\Diff\Spec\SectionDiffSpec;
 use Lucasp\Loom\Diff\Spec\SubListSpec;
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -27,81 +29,81 @@ final class DiffSpecRegistry
     {
         return [
             new SectionDiffSpec(
-                Sections::EVENTS->value,
-                self::byKeys(['fqcn']),
-                ['kind', 'file', 'line'],
+                Sections::EVENTS,
+                self::byKeys([Field::FQCN]),
+                [Field::KIND, Field::FILE, Field::LINE],
                 [
-                    new SubListSpec('handled_by', self::memberByKeys(['listener', 'method'])),
-                    new SubListSpec('dispatched_from', self::dispatchSiteMember()),
+                    new SubListSpec(Field::HANDLED_BY, self::memberByKeys([Field::LISTENER, Field::METHOD])),
+                    new SubListSpec(Field::DISPATCHED_FROM, self::dispatchSiteMember()),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::MODEL_EVENTS->value,
-                self::byKeys(['id']),
+                Sections::MODEL_EVENTS,
+                self::byKeys([Field::ID]),
                 [],
                 [
-                    new SubListSpec('handled_by', self::scalarMember()),
+                    new SubListSpec(Field::HANDLED_BY, self::scalarMember()),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::LISTENERS->value,
-                self::byKeys(['fqcn']),
-                ['file', 'line', 'registration', 'queued'],
+                Sections::LISTENERS,
+                self::byKeys([Field::FQCN]),
+                [Field::FILE, Field::LINE, Field::REGISTRATION, Field::QUEUED],
                 [
-                    new SubListSpec('handles', self::memberByKeys(['event', 'method'])),
-                    new SubListSpec('dispatches', self::memberByKeys(['target', 'kind', 'file', 'line'])),
+                    new SubListSpec(Field::HANDLES, self::memberByKeys([Field::EVENT, Field::METHOD])),
+                    new SubListSpec(Field::DISPATCHES, self::memberByKeys([Field::TARGET, Field::KIND, Field::FILE, Field::LINE])),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::OBSERVERS->value,
-                self::byKeys(['fqcn', 'observes']),
-                ['file', 'line', 'registration'],
+                Sections::OBSERVERS,
+                self::byKeys([Field::FQCN, Field::OBSERVES]),
+                [Field::FILE, Field::LINE, Field::REGISTRATION],
                 [
-                    new SubListSpec('hooks', self::scalarMember()),
-                    new SubListSpec('dispatches', self::memberByKeys(['target', 'kind', 'file', 'line'])),
+                    new SubListSpec(Field::HOOKS, self::scalarMember()),
+                    new SubListSpec(Field::DISPATCHES, self::memberByKeys([Field::TARGET, Field::KIND, Field::FILE, Field::LINE])),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::JOBS->value,
-                self::byKeys(['fqcn']),
-                ['file', 'line', 'queued', 'queue_config'],
+                Sections::JOBS,
+                self::byKeys([Field::FQCN]),
+                [Field::FILE, Field::LINE, Field::QUEUED, Field::QUEUE_CONFIG],
                 [
-                    new SubListSpec('dispatched_from', self::dispatchSiteMember()),
-                    new SubListSpec('dispatches', self::memberByKeys(['target', 'kind', 'file', 'line'])),
+                    new SubListSpec(Field::DISPATCHED_FROM, self::dispatchSiteMember()),
+                    new SubListSpec(Field::DISPATCHES, self::memberByKeys([Field::TARGET, Field::KIND, Field::FILE, Field::LINE])),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::UNRESOLVED_DISPATCHES->value,
-                self::byKeys(['file', 'line', 'expression']),
-                ['reason'],
+                Sections::UNRESOLVED_DISPATCHES,
+                self::byKeys([Field::FILE, Field::LINE, Field::EXPRESSION]),
+                [Field::REASON],
             ),
             new SectionDiffSpec(
-                Sections::CLOSURE_LISTENERS->value,
-                self::byKeys(['file', 'line', 'event', 'registration']),
+                Sections::CLOSURE_LISTENERS,
+                self::byKeys([Field::FILE, Field::LINE, Field::EVENT, Field::REGISTRATION]),
                 [],
             ),
             new SectionDiffSpec(
-                Sections::SCHEDULED->value,
-                self::byKeys(['file', 'line', 'kind', 'target']),
-                ['cron', 'timezone', 'without_overlapping', 'on_one_server', 'run_in_background'],
+                Sections::SCHEDULED,
+                self::byKeys([Field::FILE, Field::LINE, Field::KIND, Field::TARGET]),
+                [Field::CRON, Field::TIMEZONE, Field::WITHOUT_OVERLAPPING, Field::ON_ONE_SERVER, Field::RUN_IN_BACKGROUND],
                 [
-                    new SubListSpec('constraints', self::scalarMember()),
+                    new SubListSpec(Field::CONSTRAINTS, self::scalarMember()),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::MAILABLES->value,
-                self::byKeys(['fqcn']),
-                ['file', 'line', 'queued', 'queue_config'],
+                Sections::MAILABLES,
+                self::byKeys([Field::FQCN]),
+                [Field::FILE, Field::LINE, Field::QUEUED, Field::QUEUE_CONFIG],
                 [
-                    new SubListSpec('sent_from', self::dispatchSiteMember()),
+                    new SubListSpec(Field::SENT_FROM, self::dispatchSiteMember()),
                 ],
             ),
             new SectionDiffSpec(
-                Sections::NOTIFICATIONS->value,
-                self::byKeys(['fqcn']),
-                ['file', 'line', 'queued', 'queue_config', 'channels', 'channels_dynamic'],
+                Sections::NOTIFICATIONS,
+                self::byKeys([Field::FQCN]),
+                [Field::FILE, Field::LINE, Field::QUEUED, Field::QUEUE_CONFIG, Field::CHANNELS, Field::CHANNELS_DYNAMIC],
                 [
-                    new SubListSpec('notified_from', self::dispatchSiteMember(includeChannels: true)),
+                    new SubListSpec(Field::NOTIFIED_FROM, self::dispatchSiteMember(includeChannels: true)),
                 ],
             ),
         ];
@@ -110,7 +112,7 @@ final class DiffSpecRegistry
     /**
      * Identity from a fixed tuple of entry keys.
      *
-     * @param  list<string>  $keys
+     * @param  list<Field>  $keys
      * @return Closure(array<string,mixed>): string
      */
     private static function byKeys(array $keys): Closure
@@ -118,7 +120,7 @@ final class DiffSpecRegistry
         return static function (array $entry) use ($keys): string {
             $parts = [];
             foreach ($keys as $key) {
-                $parts[] = self::scalar($entry[$key] ?? null);
+                $parts[] = self::scalar($entry[$key->value] ?? null);
             }
 
             return implode(self::SEP, $parts);
@@ -128,7 +130,7 @@ final class DiffSpecRegistry
     /**
      * Sublist member identity from a fixed tuple of member keys.
      *
-     * @param  list<string>  $keys
+     * @param  list<Field>  $keys
      * @return Closure(array<string,mixed>): string
      */
     private static function memberByKeys(array $keys): Closure
@@ -143,7 +145,7 @@ final class DiffSpecRegistry
      */
     private static function scalarMember(): Closure
     {
-        return static fn (array $member): string => self::scalar($member['value'] ?? null);
+        return static fn (array $member): string => self::scalar($member[SubListDelta::SCALAR_MEMBER_KEY] ?? null);
     }
 
     /**
@@ -157,13 +159,13 @@ final class DiffSpecRegistry
     {
         return static function (array $member) use ($includeChannels): string {
             $parts = [
-                self::scalar($member['file'] ?? null),
-                self::scalar($member['line'] ?? null),
-                self::scalar($member['method'] ?? null),
-                self::canonical($member['overrides'] ?? []),
+                self::scalar($member[Field::FILE->value] ?? null),
+                self::scalar($member[Field::LINE->value] ?? null),
+                self::scalar($member[Field::METHOD->value] ?? null),
+                self::canonical($member[Field::OVERRIDES->value] ?? []),
             ];
             if ($includeChannels) {
-                $parts[] = self::canonical($member['channels'] ?? []);
+                $parts[] = self::canonical($member[Field::CHANNELS->value] ?? []);
             }
 
             return implode(self::SEP, $parts);

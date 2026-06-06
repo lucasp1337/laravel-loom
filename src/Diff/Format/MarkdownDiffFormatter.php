@@ -83,8 +83,8 @@ final class MarkdownDiffFormatter implements DiffFormatter
 
     private function encode(mixed $value): string
     {
-        if (is_array($value) && array_key_exists('value', $value) && count($value) === 1) {
-            $value = $value['value'];
+        if (is_array($value) && array_key_exists(SubListDelta::SCALAR_MEMBER_KEY, $value) && count($value) === 1) {
+            $value = $value[SubListDelta::SCALAR_MEMBER_KEY];
         }
         if (is_string($value)) {
             return $value;

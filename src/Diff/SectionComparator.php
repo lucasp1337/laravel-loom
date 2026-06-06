@@ -87,10 +87,10 @@ final class SectionComparator
             // Absent optional fields normalize to null on both sides; an
             // object-or-null (queue_config) or ordered list (channels) is
             // compared deep + order-sensitive by PHP's strict array compare.
-            $oldValue = $oldEntry[$field] ?? null;
-            $newValue = $newEntry[$field] ?? null;
+            $oldValue = $oldEntry[$field->value] ?? null;
+            $newValue = $newEntry[$field->value] ?? null;
             if ($oldValue !== $newValue) {
-                $changes[] = new FieldChange($field, $oldValue, $newValue);
+                $changes[] = new FieldChange($field->value, $oldValue, $newValue);
             }
         }
         usort($changes, static fn (FieldChange $a, FieldChange $b): int => strcmp($a->field, $b->field));
@@ -107,7 +107,7 @@ final class SectionComparator
     {
         $deltas = [];
         foreach ($spec->subLists as $subList) {
-            $delta = $this->subListDelta($subList, $oldEntry[$subList->field] ?? [], $newEntry[$subList->field] ?? []);
+            $delta = $this->subListDelta($subList, $oldEntry[$subList->field->value] ?? [], $newEntry[$subList->field->value] ?? []);
             if ($delta !== null) {
                 $deltas[] = $delta;
             }
@@ -141,7 +141,7 @@ final class SectionComparator
         ksort($added);
         ksort($removed);
 
-        return new SubListDelta($subList->field, array_values($added), array_values($removed));
+        return new SubListDelta($subList->field->value, array_values($added), array_values($removed));
     }
 
     /**
@@ -160,7 +160,7 @@ final class SectionComparator
             return $map;
         }
         foreach ($members as $member) {
-            $normalized = is_array($member) ? $member : ['value' => $member];
+            $normalized = is_array($member) ? $member : [SubListDelta::SCALAR_MEMBER_KEY => $member];
             $map[($identity)($normalized)] = $member;
         }
 

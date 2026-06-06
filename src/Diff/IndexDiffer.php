@@ -29,10 +29,10 @@ final class IndexDiffer
     {
         $sections = [];
         foreach (DiffSpecRegistry::specs() as $spec) {
-            $sections[$spec->section] = $this->comparator->compare(
+            $sections[$spec->section->value] = $this->comparator->compare(
                 $spec,
-                $this->section($old, $spec->section),
-                $this->section($new, $spec->section),
+                $this->section($old, $spec->section->value),
+                $this->section($new, $spec->section->value),
             );
         }
 
