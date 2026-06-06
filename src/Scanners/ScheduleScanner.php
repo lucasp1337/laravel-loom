@@ -165,10 +165,12 @@ final class ScheduleScanner implements Scanner
             $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
             $cron = null;
+            $name = null;
             $timezone = null;
             $withoutOverlapping = false;
             $onOneServer = false;
             $runInBackground = false;
+            $evenInMaintenanceMode = false;
             $constraints = [];
             $cronWasSet = false;
 
@@ -190,6 +192,15 @@ final class ScheduleScanner implements Scanner
                 // helper or a Schedule::macro. Null the cron to avoid lying.
                 if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
                     $cron = null;
+                }
+
+                if ($method === 'name') {
+                    $label = AstHelpers::scalarString($args[0] ?? null);
+                    if ($label !== null) {
+                        $name = $label;
+                    }
+
+                    continue;
                 }
 
                 if ($method === 'timezone') {
@@ -219,6 +230,12 @@ final class ScheduleScanner implements Scanner
                     continue;
                 }
 
+                if ($method === 'evenInMaintenanceMode') {
+                    $evenInMaintenanceMode = true;
+
+                    continue;
+                }
+
                 $constraint = $this->constraintFor($method, $args);
                 if ($constraint !== null) {
                     $constraints[] = $constraint;
@@ -229,12 +246,14 @@ final class ScheduleScanner implements Scanner
 
             $out[] = new ScheduledEntry(
                 kind: $raw->kind,
+                name: $name,
                 target: $target,
                 cron: $cron,
                 timezone: $timezone,
                 withoutOverlapping: $withoutOverlapping,
                 onOneServer: $onOneServer,
                 runInBackground: $runInBackground,
+                evenInMaintenanceMode: $evenInMaintenanceMode,
                 constraints: $constraints,
                 file: $relativeFile,
                 line: $raw->line,

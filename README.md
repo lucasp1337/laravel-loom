@@ -310,12 +310,14 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
   "scheduled": [
     {
       "kind": "command",
+      "name": null,
       "target": "mail:send {--queue=default}",
       "cron": "0 13 * * *",
       "timezone": "America/Chicago",
       "without_overlapping": true,
       "on_one_server": false,
       "run_in_background": false,
+      "even_in_maintenance_mode": false,
       "constraints": ["weekdays"],
       "file": "app/Console/Kernel.php",
       "line": 28

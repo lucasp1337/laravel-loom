@@ -222,12 +222,14 @@ final class IndexSerializer
     {
         return [
             Field::KIND->value => $e->kind->value,
+            Field::NAME->value => $e->name,
             Field::TARGET->value => $e->target,
             Field::CRON->value => $e->cron,
             Field::TIMEZONE->value => $e->timezone,
             Field::WITHOUT_OVERLAPPING->value => $e->withoutOverlapping,
             Field::ON_ONE_SERVER->value => $e->onOneServer,
             Field::RUN_IN_BACKGROUND->value => $e->runInBackground,
+            Field::EVEN_IN_MAINTENANCE_MODE->value => $e->evenInMaintenanceMode,
             Field::CONSTRAINTS->value => $e->constraints,
             Field::FILE->value => $e->file,
             Field::LINE->value => $e->line,

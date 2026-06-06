@@ -13,12 +13,14 @@ final class ScheduledEntry
      */
     public function __construct(
         public readonly ScheduleKind $kind,
+        public readonly ?string $name,
         public readonly ?string $target,
         public readonly ?string $cron,
         public readonly ?string $timezone,
         public readonly bool $withoutOverlapping,
         public readonly bool $onOneServer,
         public readonly bool $runInBackground,
+        public readonly bool $evenInMaintenanceMode,
         public readonly array $constraints,
         public readonly string $file,
         public readonly int $line,

@@ -116,6 +116,27 @@ class Kernel
         $schedule->command('days:dynamic')
             ->daily()
             ->days($pick);
+
+        // ->name() with a resolvable literal alongside a frequency.
+        $schedule->command('named:job')
+            ->daily()
+            ->name('nightly-report');
+
+        // ->name() with an unresolvable arg -> name null.
+        $schedule->command('named:dynamic')
+            ->daily()
+            ->name($label);
+
+        // ->evenInMaintenanceMode() present -> flag true.
+        $schedule->command('maint:job')
+            ->hourly()
+            ->evenInMaintenanceMode();
+
+        // name + evenInMaintenanceMode together on one entry.
+        $schedule->command('named:maint')
+            ->daily()
+            ->name('combined-task')
+            ->evenInMaintenanceMode();
     }
 
     /**

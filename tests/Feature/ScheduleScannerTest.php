@@ -477,6 +477,63 @@ it('leaves timezone null when no ->timezone() link appears', function () {
 });
 
 // ---------------------------------------------------------------------------
+// Name
+// ---------------------------------------------------------------------------
+
+it('extracts name from ->name("nightly-report")', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 121);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('named:job');
+    expect($entry->name)->toBe('nightly-report');
+    expect($entry->cron)->toBe('0 0 * * *');
+});
+
+it('leaves name null when ->name() has an unresolvable arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 126);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('named:dynamic');
+    expect($entry->name)->toBeNull();
+});
+
+it('leaves name null when no ->name() link appears', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// evenInMaintenanceMode
+// ---------------------------------------------------------------------------
+
+it('sets even_in_maintenance_mode=true when ->evenInMaintenanceMode() appears in the chain', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 131);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('maint:job');
+    expect($entry->evenInMaintenanceMode)->toBeTrue();
+});
+
+it('sets even_in_maintenance_mode=false when no ->evenInMaintenanceMode() link appears', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->evenInMaintenanceMode)->toBeFalse();
+});
+
+it('captures name and even_in_maintenance_mode together on one entry', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 136);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('named:maint');
+    expect($entry->name)->toBe('combined-task');
+    expect($entry->evenInMaintenanceMode)->toBeTrue();
+    expect($entry->cron)->toBe('0 0 * * *');
+});
+
+// ---------------------------------------------------------------------------
 // Constraints
 // ---------------------------------------------------------------------------
 
