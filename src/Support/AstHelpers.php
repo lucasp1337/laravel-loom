@@ -116,6 +116,82 @@ final class AstHelpers
     }
 
     /**
+     * Resolve a callable-shaped listener expression to a listener FQCN and
+     * method name. Handles two shapes:
+     *
+     *   - `Closure::fromCallable([Foo::class, 'method'])` → Foo::method
+     *   - `Closure::fromCallable([Foo::class])`           → Foo::handle
+     *   - `Foo::method(...)` first-class callable          → Foo::method
+     *
+     * Returns null for anything else (dynamic args, instance callables,
+     * string callables, variable arrays).
+     *
+     * @return array{listener: string, method: string}|null
+     */
+    public static function callableListener(Node\Expr $value): ?array
+    {
+        if (! $value instanceof Node\Expr\StaticCall) {
+            return null;
+        }
+        if (! $value->class instanceof Node\Name) {
+            return null;
+        }
+        if (! $value->name instanceof Node\Identifier) {
+            return null;
+        }
+
+        // Shape A: Closure::fromCallable([Foo::class, 'method']) / ([Foo::class]).
+        if (! $value->isFirstClassCallable()
+            && ltrim($value->class->toString(), '\\') === 'Closure'
+            && $value->name->toString() === 'fromCallable'
+            && count($value->args) === 1
+        ) {
+            $arg = $value->args[0];
+            if (! $arg instanceof Node\Arg) {
+                return null;
+            }
+            if (! $arg->value instanceof Node\Expr\Array_) {
+                return null;
+            }
+
+            return self::callableArray($arg->value);
+        }
+
+        // Shape B: Foo::method(...) first-class callable.
+        if ($value->isFirstClassCallable()) {
+            return [
+                'listener' => $value->class->toString(),
+                'method' => $value->name->toString(),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve a `[Foo::class, 'method']` or `[Foo::class]` array to a listener
+     * FQCN and method (defaulting to 'handle' for the single-element form).
+     *
+     * @return array{listener: string, method: string}|null
+     */
+    private static function callableArray(Node\Expr\Array_ $array): ?array
+    {
+        $tuple = self::tupleCallable($array);
+        if ($tuple !== null) {
+            return ['listener' => $tuple['class'], 'method' => $tuple['method']];
+        }
+
+        if (count($array->items) === 1) {
+            $listener = self::classConstFqcn($array->items[0]->value);
+            if ($listener !== null) {
+                return ['listener' => $listener, 'method' => 'handle'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Extract a list of class FQCNs from `Class::class` or an array of
      * `Class::class` items.
      *

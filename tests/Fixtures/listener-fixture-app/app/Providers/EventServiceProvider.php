@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Events\OrderPlaced;
+use App\Events\RestockScheduled;
 use App\Events\StockLow;
 use App\Listeners\AuditSubscriber;
 use App\Listeners\ImperativeSubscriber;
@@ -27,6 +28,10 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
         StockLow::class => [
             [OrderEventsHandler::class, 'handleStockLow'],
         ],
+        RestockScheduled::class => [
+            // Closure::fromCallable callable shape registered via $listen.
+            \Closure::fromCallable([OrderEventsHandler::class, 'handleViaCallable']),
+        ],
     ];
 
     protected $subscribe = [
@@ -41,6 +46,8 @@ class EventServiceProvider extends \Illuminate\Foundation\Support\Providers\Even
         Event::listen(StockLow::class, function ($e) {
             return null;
         });
+        // First-class callable shape registered via Event::listen().
+        Event::listen(RestockScheduled::class, OrderEventsHandler::handleViaFcc(...));
         Event::subscribe(AuditSubscriber::class);
         Event::subscribe(ImperativeSubscriber::class);
     }

@@ -143,9 +143,12 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             if ($listener !== null) {
                 return ['listener' => $listener, 'method' => 'handle'];
             }
+
+            return null;
         }
 
-        return null;
+        // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
+        return AstHelpers::callableListener($value);
     }
 
     /** @return list<ListenerPair> */

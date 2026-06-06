@@ -246,6 +246,9 @@ it('emits a single multi-handler listener entry with one handles[] entry per (ev
     expect($matches[0]->registration)->toBe(ListenerRegistration::LISTEN_ARRAY);
     expect($matches[0]->handles)->toEqual([
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handlePlaced'),
+        // Callable-shaped registrations bound to the RestockScheduled event.
+        new ListenerHandle(event: 'App\\Events\\RestockScheduled', method: 'handleViaCallable'),
+        new ListenerHandle(event: 'App\\Events\\RestockScheduled', method: 'handleViaFcc'),
         new ListenerHandle(event: 'App\\Events\\StockLow', method: 'handleStockLow'),
     ]);
     expect($matches[0]->file)->toBe('app/Listeners/OrderEventsHandler.php');
@@ -273,9 +276,9 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
     expect($closures)->toEqual([
         new ClosureListenerEntry(event: 'App\\Events\\InventoryDepleted', file: 'app/Listeners/OrderEventSubscriber.php', line: 22, endLine: 22, registration: ListenerRegistration::SUBSCRIBER, queued: false),
         new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, endLine: 18, registration: ListenerRegistration::SUBSCRIBER, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 25, endLine: 25, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 40, endLine: 40, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
-        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 41, endLine: 43, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 26, endLine: 26, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 45, endLine: 45, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 46, endLine: 48, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
     ]);
 });
 

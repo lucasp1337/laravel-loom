@@ -343,6 +343,182 @@ it('drops both pair and closure-pair when the key is a variable', function () {
     expect($result['closurePairs'])->toBe([]);
 });
 
+// -----------------------------------------------------------------------------
+// Callable-shaped regular listeners
+// -----------------------------------------------------------------------------
+
+it('extracts a pair from a Closure::fromCallable([Listener::class, method]) value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\OrderEventsHandler;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                \Closure::fromCallable([OrderEventsHandler::class, 'handlePlaced']),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\OrderEventsHandler', method: 'handlePlaced'));
+});
+
+it('extracts a pair from a Closure::fromCallable imported via use (no leading backslash)', function () {
+    // With `use Closure;` the NameResolver resolves the bare `Closure` to the
+    // global \Closure, exercising the same detection path as the FQCN form.
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\OrderEventsHandler;
+    use Closure;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                Closure::fromCallable([OrderEventsHandler::class, 'handlePlaced']),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\OrderEventsHandler', method: 'handlePlaced'));
+});
+
+it('defaults the method to handle for single-element Closure::fromCallable([Listener::class])', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                \Closure::fromCallable([SendOrderConfirmation::class]),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
+});
+
+it('extracts a pair from a Listener::method(...) first-class callable value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\OrderEventsHandler;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                OrderEventsHandler::handlePlaced(...),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\OrderEventsHandler', method: 'handlePlaced'));
+});
+
+it('drops Closure::fromCallable($var) with a variable argument', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                \Closure::fromCallable($var),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toBe([]);
+});
+
+it('drops a string callable listener value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                'App\\Listeners\\OrderEventsHandler::handlePlaced',
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toBe([]);
+});
+
+it('drops an instance first-class callable listener value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+
+    class EventServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                $handler->handlePlaced(...),
+            ],
+        ];
+    }
+    PHP;
+
+    $pairs = runListenArrayVisitor($source);
+
+    expect($pairs)->toBe([]);
+});
+
 it('returns no pairs for an empty $listen array', function () {
     $source = <<<'PHP'
     <?php

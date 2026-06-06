@@ -154,23 +154,24 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
-        if (! $value instanceof Node\Expr\Array_ || $value->items === []) {
+        if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
+            // [ListenerClass::class, 'method'] tuple.
+            $tuple = AstHelpers::tupleCallable($value);
+            if ($tuple !== null) {
+                return ['listener' => $tuple['class'], 'method' => $tuple['method']];
+            }
+
+            // Single-element array acts like a bare ::class.
+            $first = AstHelpers::classConstFqcn($value->items[0]->value);
+            if ($first !== null) {
+                return ['listener' => $first, 'method' => 'handle'];
+            }
+
             return null;
         }
 
-        // [ListenerClass::class, 'method'] tuple.
-        $tuple = AstHelpers::tupleCallable($value);
-        if ($tuple !== null) {
-            return ['listener' => $tuple['class'], 'method' => $tuple['method']];
-        }
-
-        // Single-element array acts like a bare ::class.
-        $first = AstHelpers::classConstFqcn($value->items[0]->value);
-        if ($first !== null) {
-            return ['listener' => $first, 'method' => 'handle'];
-        }
-
-        return null;
+        // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
+        return AstHelpers::callableListener($value);
     }
 
     /** @return list<ListenerPair> */
