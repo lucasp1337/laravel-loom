@@ -6,8 +6,9 @@ repo_name: lucasp1337/laravel-loom
 edit_uri: edit/main/docs/
 
 # Docs live in docs/ and are authored as plain Markdown — the same files
-# contributors edit day to day. This site is built from them by CI; nothing
-# here changes the in-repo, PR-reviewed, version-with-the-code workflow.
+# contributors edit day to day. This site is built from them locally
+# (`just docs-deploy`); nothing here changes the in-repo, PR-reviewed,
+# version-with-the-code workflow.
 docs_dir: docs
 
 theme:
@@ -42,11 +43,16 @@ markdown_extensions:
   - admonition
   - tables
   - attr_list
+  - md_in_html
   - pymdownx.details
   - pymdownx.inlinehilite
-  - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - toc:
       permalink: true
 
@@ -54,24 +60,27 @@ plugins:
   - search
 
 nav:
-  - Home: README.md
-  - Architecture: architecture.md
-  - Schema: schema.md
+  - Home: index.md
+  - What Loom detects: what-loom-detects.md
+  - The index: the-index.md
+  - Reference:
+      - Architecture: architecture.md
+      - Schema: schema.md
+      - Scanners:
+          - Events: scanners/events.md
+          - Listeners: scanners/listeners.md
+          - Closure listeners: scanners/closure-listeners.md
+          - Observers: scanners/observers.md
+          - Dispatches: scanners/dispatches.md
+          - Jobs: scanners/jobs.md
+          - Mailables: scanners/mailables.md
+          - Notifications: scanners/notifications.md
+          - Schedule: scanners/schedule.md
+      - Support:
+          - Class hierarchy resolver: support/class-hierarchy.md
+      - Decision records:
+          - Overview: adr/README.md
+          - 0001 — Class hierarchy resolver: adr/0001-class-hierarchy-resolver.md
+          - 0002 — Schedule scanner: adr/0002-schedule-scanner.md
+          - 0003 — Mailables & notifications: adr/0003-mailables-notifications.md
   - Contributing: contributing.md
-  - Scanners:
-      - Events: scanners/events.md
-      - Listeners: scanners/listeners.md
-      - Closure listeners: scanners/closure-listeners.md
-      - Observers: scanners/observers.md
-      - Dispatches: scanners/dispatches.md
-      - Jobs: scanners/jobs.md
-      - Mailables: scanners/mailables.md
-      - Notifications: scanners/notifications.md
-      - Schedule: scanners/schedule.md
-  - Support:
-      - Class hierarchy resolver: support/class-hierarchy.md
-  - Decision records:
-      - Overview: adr/README.md
-      - 0001 — Class hierarchy resolver: adr/0001-class-hierarchy-resolver.md
-      - 0002 — Schedule scanner: adr/0002-schedule-scanner.md
-      - 0003 — Mailables & notifications: adr/0003-mailables-notifications.md
