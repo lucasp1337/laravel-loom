@@ -4,6 +4,8 @@ Discovers closure-based event listener registrations and emits the `closure_list
 
 Closures and arrow functions cannot be represented in `listeners[]` because they have no FQCN. They get their own top-level section, with one entry per closure registration site.
 
+`closure_listeners[]` is for genuinely anonymous, unresolvable closures. A callable that resolves to a concrete class and method — including `Closure::fromCallable([Foo::class, 'method'])` and the `Foo::method(...)` first-class callable form — is a *regular* listener and lands in `listeners[]`, not here. See [listeners.md](listeners.md).
+
 ## What it detects
 
 Three discovery paths:
@@ -82,7 +84,7 @@ Entries are sorted by `(event, file, line)` ascending for determinism.
 
 - **`queued` always `false`.** Closure-queue detection (e.g. wrapping in `Queue::push(...)` or chaining `->onQueue(...)`) is not implemented. Treat the field as a stable placeholder.
 - **Unresolved dispatches inside a closure are dropped.** Only statically-resolved dispatches land in `dispatches[]`. A dynamic target inside a closure body (`event($var)`, container-resolved, string-concatenated) is captured neither in `dispatches[]` nor in `unresolved_dispatches[]`.
-- **`Closure::fromCallable()` / first-class callable syntax (`$obj->method(...)`).** Not detected. Only literal `Closure` and `ArrowFunction` nodes in the registration position qualify.
+- **Resolvable callables are not closure listeners.** `Closure::fromCallable([Foo::class, 'method'])`, `Closure::fromCallable([Foo::class])`, and `Foo::method(...)` first-class callable syntax resolve to a concrete class and method, so they are emitted into `listeners[]` as regular listeners — not here. See [listeners.md](listeners.md). The forms that genuinely have no resolvable target remain undetected entirely: `$obj->method(...)` instance first-class callables (no receiver tracking), `'Foo::method'` string callables, and `Closure::fromCallable($var)` with a variable argument.
 - **Container-form registrations.** `$this->app['events']->listen(Event::class, fn ($e) => …)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.
 - **Dynamic event names.** `Event::listen($variable, fn ($e) => …)` is skipped. There's no resolvable event key to record.
 - **`events[*].handled_by` does not link back to closure listeners.** That field's entries are `{listener: string, method: string}` pairs; closures have neither an FQCN nor a method name. Consumers answering "what handles `Foo`?" should also filter `closure_listeners[]` by the `event` field.
@@ -94,7 +96,7 @@ Triage checklist for missing closure listeners:
 1. Is the registration on a class named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`? (Applies only to `$listen` array form.) If not, the `$listen` walk skips it.
 2. Is the call shape `Event::listen(EventName, Closure)` against the facade — not `$dispatcher->listen(...)` or container-resolved? Only the facade static-call form is matched.
 3. Is the event key a `::class` reference or a quoted string literal? Variables are dropped.
-4. Is the value a literal `fn (...) => ...` or `function (...) { ... }` — not `Closure::fromCallable(...)` or `$obj->method(...)`? Only literal closure / arrow-function nodes qualify.
+4. Is the value a literal `fn (...) => ...` or `function (...) { ... }`? Only literal closure / arrow-function nodes qualify here. A resolvable `Closure::fromCallable([Foo::class, 'method'])` or `Foo::method(...)` is a regular listener — look in `listeners[]`. An `$obj->method(...)`, `'Foo::method'` string, or `Closure::fromCallable($var)` is detected by neither scanner.
 5. For subscribers: is the subscriber itself discovered (check `listeners[]` for an entry with `registration: "subscriber"`)? If the subscriber registration is missed, no closures from its `subscribe()` body will land either.
 
 For unexpected `event` values that are strings rather than FQCNs: that's by design — the scanner records what the source actually wrote. Loom does not attempt to resolve event aliases against runtime broadcast configuration.

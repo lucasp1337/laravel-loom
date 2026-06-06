@@ -91,3 +91,43 @@ it('returns null when any channel item is non-literal', function () {
 it('returns an empty list for an empty channel array literal', function () {
     expect(AstHelpers::channelList(parseExpr('[]')))->toBe([]);
 });
+
+// -----------------------------------------------------------------------------
+// callableListener() — callable-shaped regular listeners
+// -----------------------------------------------------------------------------
+
+it('resolves Closure::fromCallable([Foo::class, \'method\']) to a listener pair', function () {
+    expect(AstHelpers::callableListener(parseExpr("Closure::fromCallable([App\\Listeners\\Foo::class, 'onPlaced'])")))
+        ->toBe(['listener' => 'App\\Listeners\\Foo', 'method' => 'onPlaced']);
+});
+
+it('resolves a leading-backslash \\Closure::fromCallable([Foo::class, \'method\']) the same way', function () {
+    expect(AstHelpers::callableListener(parseExpr("\\Closure::fromCallable([App\\Listeners\\Foo::class, 'onPlaced'])")))
+        ->toBe(['listener' => 'App\\Listeners\\Foo', 'method' => 'onPlaced']);
+});
+
+it('defaults the method to handle for single-element Closure::fromCallable([Foo::class])', function () {
+    expect(AstHelpers::callableListener(parseExpr('Closure::fromCallable([App\\Listeners\\Foo::class])')))
+        ->toBe(['listener' => 'App\\Listeners\\Foo', 'method' => 'handle']);
+});
+
+it('resolves a Foo::method(...) first-class callable to a listener pair', function () {
+    expect(AstHelpers::callableListener(parseExpr('App\\Listeners\\Foo::onPlaced(...)')))
+        ->toBe(['listener' => 'App\\Listeners\\Foo', 'method' => 'onPlaced']);
+});
+
+it('returns null for Closure::fromCallable($var) with a variable argument', function () {
+    expect(AstHelpers::callableListener(parseExpr('Closure::fromCallable($var)')))->toBeNull();
+});
+
+it('returns null for a string callable like \'Foo::method\'', function () {
+    expect(AstHelpers::callableListener(parseExpr("'App\\Listeners\\Foo::onPlaced'")))->toBeNull();
+});
+
+it('returns null for an instance first-class callable $obj->method(...)', function () {
+    expect(AstHelpers::callableListener(parseExpr('$obj->onPlaced(...)')))->toBeNull();
+});
+
+it('returns null for a bare ::class value (handled by the caller, not callableListener)', function () {
+    expect(AstHelpers::callableListener(parseExpr('App\\Listeners\\Foo::class')))->toBeNull();
+});
