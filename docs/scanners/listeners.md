@@ -12,7 +12,7 @@ ListenerScanner uses four discovery paths and merges them by listener FQCN:
 
 2. **`$listen` array on `EventServiceProvider`.** Walks the entire `app/` tree (not just `app/Providers/`) and looks at classes named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`. The `$listen` property (any visibility, must be `array`) is parsed: each `EventClass::class => [Listener::class, …]` pair becomes a registration. Bare `Listener::class` values map to `method: "handle"`. Tuple values `[Listener::class, 'method']` preserve the method name. Resolvable callable values — `Closure::fromCallable([Listener::class, 'method'])`, `Closure::fromCallable([Listener::class])` (method defaults to `"handle"`), and `Listener::method(...)` first-class callable syntax — resolve to the same FQCN+method and route through the same merge as the literal tuple.
 
-3. **`Event::listen()` static calls.** Walks the entire `app/` tree for `\Illuminate\Support\Facades\Event::listen(EventClass::class, Listener::class)` calls. Bare `Listener::class` second arguments map to `method: "handle"`; tuple form `[Listener::class, 'method']` preserves the method name. Resolvable callable second arguments — `Closure::fromCallable([Listener::class, 'method'])`, `Closure::fromCallable([Listener::class])`, and `Listener::method(...)` first-class callable syntax — resolve identically and route through the same merge. The class-shape filter only applies in path 2 — Event::listen calls are scanner-agnostic about the surrounding class, so providers in DDD-style layouts (e.g. `app/Domain/Invoicing/Providers/InvoicingServiceProvider.php`) are discovered.
+3. **`listen()` calls on the event dispatcher.** Walks the entire `app/` tree for `listen(EventClass::class, Listener::class)` calls made against the event dispatcher — both the `\Illuminate\Support\Facades\Event::listen(...)` facade form and the container-resolved forms (see [Container-form registrations](#container-form-registrations) below). Bare `Listener::class` second arguments map to `method: "handle"`; tuple form `[Listener::class, 'method']` preserves the method name. Resolvable callable second arguments — `Closure::fromCallable([Listener::class, 'method'])`, `Closure::fromCallable([Listener::class])`, and `Listener::method(...)` first-class callable syntax — resolve identically and route through the same merge. The class-shape filter only applies in path 2 — these calls are scanner-agnostic about the surrounding class, so providers in DDD-style layouts (e.g. `app/Domain/Invoicing/Providers/InvoicingServiceProvider.php`) are discovered. All forms emit `registration: event_listen_call`.
 
 4. **Subscribers.** Classes registered via the `$subscribe = [SubscriberClass::class, …]` array on an `EventServiceProvider`, or via `Event::subscribe(SubscriberClass::class)` calls. The subscriber's own `subscribe($events): array` method is then parsed in two complementary ways — see [Subscribers](#subscribers) below. Subscribers receive `registration: "subscriber"` — the highest-precedence source.
 
@@ -36,6 +36,24 @@ Routing rules for an imperative `$events->listen(EventClass::class, $callable)` 
 The third rule has a noteworthy consequence: when a subscriber imperatively wires a *foreign* listener (one not declared on the subscriber's own class), that subscriber becomes the registration-source for the foreign listener — its `registration` is upgraded to `subscriber`, the highest-precedence source. This matches Laravel's runtime semantics (the subscriber is responsible for the registration) but means a listener's `registration` can flip from a lower-precedence value to `subscriber` purely because some subscriber elsewhere chose to wire it.
 
 The precedence rule (`subscriber > listen_array > event_listen_call > auto_discovered`) is unchanged; only what counts as a `subscriber`-sourced registration is broader.
+
+## Container-form registrations
+
+Beyond the `Event::` facade, a `listen()` call against an event dispatcher resolved from the container is recognized. These route through the same path-3 merge and emit `registration: event_listen_call` — there is no separate registration source and no schema change.
+
+The dispatcher is identified by FQCN: `Illuminate\Contracts\Events\Dispatcher`, `Illuminate\Events\Dispatcher`, or the bare `Dispatcher` basename. The recognized receiver shapes are:
+
+| Receiver | Example |
+|---|---|
+| App container array-access (literal `'events'` key) | `$this->app['events']->listen($event, $listener)` |
+| `app()` helper with a Dispatcher FQCN | `app(\Illuminate\Contracts\Events\Dispatcher::class)->listen(...)` |
+| `resolve()` helper with a Dispatcher FQCN | `resolve(Dispatcher::class)->listen(...)` |
+| `$this->app->make(...)` / `->makeWith(...)` with a Dispatcher FQCN | `$this->app->make(Dispatcher::class)->listen(...)` |
+| A local variable assigned from any of the above earlier in the same scope | `$dispatcher = app(Dispatcher::class); … $dispatcher->listen(...)` |
+
+Every listener form supported on the facade is supported here too: `Listener::class`, the tuple `[Foo::class, 'method']`, `Closure::fromCallable([...])`, the first-class `Foo::method(...)` form, and inline closures (which route to `closure_listeners[]` — see [closure-listeners.md](closure-listeners.md)).
+
+Variable tracking is a single flat pass within the file (assignment-precedes-use): the variable must be assigned from a recognized dispatcher expression before the `listen()` call. Reassigning the variable to a non-dispatcher value invalidates tracking from that point.
 
 ## Output
 
@@ -110,10 +128,14 @@ The same event handled by different methods on one listener (`[Listener::class, 
 ## Known limitations
 
 - **Dynamic event names.** `Event::listen($variable, Listener::class)` is skipped.
-- **Container-form registrations.** `$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)` are not matched. Only the `Event::` facade form is recognized.
+- **Param-typed-only dispatchers.** `function boot(Dispatcher $dispatcher) { $dispatcher->listen(...); }` is not matched. There is no assignment expression to track — the dispatcher arrives as a typed parameter — so the variable-tracking pass has nothing to anchor on. This is the most idiomatic Laravel form and is the primary known gap; it's a candidate follow-up.
+- **Typed property receivers.** `$this->dispatcher->listen(...)`, where `dispatcher` is a typed property holding a `Dispatcher`, is not matched. Only local-variable receivers are tracked, not property accesses.
+- **App array-access key.** The array-access shape matches only the literal `$this->app['events']` form with the `'events'` string key. Other keys or non-`$this->app` array receivers are not matched.
+- **Anonymous-class dispatcher wrappers.** A dispatcher wrapped in or returned from an anonymous class expression is dropped.
+- **Cross-scope / conditional variable tracking.** Variable tracking is a single flat pass over the file (assignment-precedes-use), so a variable assigned in one method is visible to a `listen()` call in another, and a reassignment inside a branch or loop is handled positionally rather than by control flow. Over-reach is possible but is bounded to over-reporting listeners — never to misattributing them to a wrong event.
 - **Nested `$events->subscribe(SubscriberFqcn::class)` inside a `subscribe()` body.** Not matched. Subscriber registrations are only picked up from the `$subscribe` array on `EventServiceProvider` and top-level `Event::subscribe(...)` calls; chaining subscribers from inside another subscriber's body is out of scope.
 - **Registrations hidden inside nested closures or other method calls inside `subscribe()`.** Example: `collect([…])->each(fn () => $events->listen(Event::class, …))`. The walker descends into control-flow statements but does not enter nested closures, arrow functions, or method bodies, so these registrations are dropped.
-- **Dispatcher accessed by anything other than the `subscribe()` parameter.** `$this->dispatcher->listen(...)`, `app(Dispatcher::class)->listen(...)`, or a re-aliased variable that wasn't the original method parameter are not matched. Only `listen(...)` calls on the parameter that occupies the dispatcher position are routed.
+- **Dispatcher accessed inside a `subscribe()` body by anything other than the subscribe parameter.** Within the imperative subscriber walker, `$this->dispatcher->listen(...)`, `app(Dispatcher::class)->listen(...)`, or a re-aliased variable that wasn't the original method parameter are not matched. Only `listen(...)` calls on the parameter that occupies the dispatcher position are routed inside `subscribe()`. (The container-form receivers above apply to top-level `listen()` discovery, not to the subscriber-body walker.)
 - **`ShouldQueue` inherited through vendor classes.** The resolver only indexes `app/`. A listener that extends a class from a vendor package which itself implements `ShouldQueue` will report `queued: false`.
 - **Traits providing `handle()`.** Auto-discovery only inspects methods declared on the class itself, not those mixed in via traits.
 - **Union, intersection, nullable, builtin type-hints on `handle()`.** No auto-discovered event. The listener is still emitted with `handles: []`.
@@ -127,7 +149,7 @@ Triage checklist for missing listeners:
 
 1. Is it registered in `$listen` on an `EventServiceProvider` (or a class named `EventServiceProvider`)? Yes → should be picked up. Check the class-shape filter is satisfied.
 2. Is it under `app/Listeners/` with a `handle()` method? Yes → auto-discovered.
-3. Is it registered via `Event::listen(EventClass::class, Listener::class)`? Yes → picked up regardless of where the calling file lives, as long as both event and listener are `::class` references (not strings or variables).
+3. Is it registered via a `listen(EventClass::class, Listener::class)` call on the dispatcher — the `Event::` facade or a [container-resolved dispatcher](#container-form-registrations)? Yes → picked up regardless of where the calling file lives, as long as both event and listener are `::class` references (not strings or variables). If the dispatcher arrives as a typed `function boot(Dispatcher $dispatcher)` parameter, or via `$this->dispatcher`, it's a [known gap](#known-limitations).
 4. Is it a closure or arrow function? It's emitted into `closure_listeners[]`, not `listeners[]`. See [closure-listeners.md](closure-listeners.md).
 5. Is the listener file findable via the PSR-4 guess (leading `App\` → `app/`)? Run `ls app/{trimmed path}.php`. If not found, the listener is dropped.
 

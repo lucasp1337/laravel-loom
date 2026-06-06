@@ -13,8 +13,9 @@ use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects (event, listener) pairs from Event::listen(...) calls.
- * Container forms (`$this->app['events']->listen(...)`) are not matched.
+ * Collects (event, listener) pairs from Event::listen(...) calls and the
+ * equivalent container forms (`$this->app['events']->listen(...)`,
+ * `app(Dispatcher::class)->listen(...)`, `$dispatcher->listen(...)`).
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {
@@ -24,6 +25,9 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     /** @var list<ClosurePairRecord> */
     private array $closurePairs = [];
 
+    /** @var array<string, true> Variables proven to hold a Dispatcher in scope. */
+    private array $dispatcherVars = [];
+
     /**
      * @param  array<int, Node>  $nodes
      */
@@ -31,42 +35,105 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     {
         $this->pairs = [];
         $this->closurePairs = [];
+        $this->dispatcherVars = [];
 
         return null;
     }
 
     public function leaveNode(Node $node): null
     {
-        if (! $node instanceof Node\Expr\StaticCall) {
+        if ($node instanceof Node\Expr\StaticCall) {
+            $this->handleStaticCall($node);
+
             return null;
         }
 
-        if (! $node->class instanceof Node\Name) {
+        if ($node instanceof Node\Expr\MethodCall) {
+            $this->handleMethodCall($node);
+
             return null;
+        }
+
+        if ($node instanceof Node\Expr\Assign) {
+            $this->handleAssign($node);
+        }
+
+        return null;
+    }
+
+    private function handleStaticCall(Node\Expr\StaticCall $node): void
+    {
+        if (! $node->class instanceof Node\Name) {
+            return;
         }
         if ($node->class->toString() !== Facades::EVENT->value) {
-            return null;
+            return;
         }
         if (! $node->name instanceof Node\Identifier) {
-            return null;
+            return;
         }
         if ($node->name->toString() !== 'listen') {
-            return null;
+            return;
         }
         if (count($node->args) < 2) {
-            return null;
+            return;
         }
 
-        $first = $node->args[0];
-        $second = $node->args[1];
+        $this->handleListenArgs($node->args);
+    }
+
+    private function handleMethodCall(Node\Expr\MethodCall $node): void
+    {
+        if (! $node->name instanceof Node\Identifier) {
+            return;
+        }
+        if ($node->name->toString() !== 'listen') {
+            return;
+        }
+        if (count($node->args) < 2) {
+            return;
+        }
+        if (! AstHelpers::resolvesToEventsDispatcher($node->var, $this->dispatcherVars)) {
+            return;
+        }
+
+        $this->handleListenArgs($node->args);
+    }
+
+    private function handleAssign(Node\Expr\Assign $node): void
+    {
+        if (! $node->var instanceof Node\Expr\Variable || ! is_string($node->var->name)) {
+            return;
+        }
+
+        if (AstHelpers::resolvesToEventsDispatcher($node->expr, $this->dispatcherVars)) {
+            $this->dispatcherVars[$node->var->name] = true;
+
+            return;
+        }
+
+        // Reassignment to a non-Dispatcher value invalidates the tracked binding.
+        unset($this->dispatcherVars[$node->var->name]);
+    }
+
+    /**
+     * Extract the (event, listener) pair from a `listen(event, listener)`
+     * arg list, shared by the facade and container receiver forms.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     */
+    private function handleListenArgs(array $args): void
+    {
+        $first = $args[0];
+        $second = $args[1];
 
         if (! $first instanceof Node\Arg || ! $second instanceof Node\Arg) {
-            return null;
+            return;
         }
 
         $event = $this->eventFromValue($first->value);
         if ($event === null) {
-            return null;
+            return;
         }
 
         if ($second->value instanceof Node\Expr\Closure
@@ -79,17 +146,17 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
                 registration: ListenerRegistration::EVENT_LISTEN_CALL,
             );
 
-            return null;
+            return;
         }
 
         // String events (e.g. 'eloquent.*') belong to ObserverScanner.
         if (! $first->value instanceof Node\Expr\ClassConstFetch) {
-            return null;
+            return;
         }
 
         $resolved = $this->listenerFromValue($second->value);
         if ($resolved === null) {
-            return null;
+            return;
         }
 
         $this->pairs[] = new ListenerPair(
@@ -97,8 +164,6 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             listener: $resolved['listener'],
             method: $resolved['method'],
         );
-
-        return null;
     }
 
     private function eventFromValue(Node\Expr $expr): ?string

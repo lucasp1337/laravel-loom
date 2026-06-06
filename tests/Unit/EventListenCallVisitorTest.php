@@ -463,3 +463,206 @@ it('ignores static listen calls on classes other than the Event facade', functio
 
     expect($pairs)->toBe([]);
 });
+
+// -----------------------------------------------------------------------------
+// Container-form receivers ($this->app['events'], app(Dispatcher::class), …)
+// -----------------------------------------------------------------------------
+
+it('extracts a pair from Shape A: $this->app[\'events\']->listen(...)', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            $this->app['events']->listen(OrderPlaced::class, SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
+});
+
+it('extracts a pair from Shape B: app(Dispatcher::class)->listen(...)', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            app(Dispatcher::class)->listen(OrderPlaced::class, SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
+});
+
+it('extracts a pair from Shape C: a variable assigned from a Dispatcher resolution earlier', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            $dispatcher = app(Dispatcher::class);
+            $dispatcher->listen(OrderPlaced::class, SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'handle'));
+});
+
+it('drops a Shape C variable listen after it is reassigned to a non-Dispatcher value', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            $dispatcher = app(Dispatcher::class);
+            $dispatcher = new \stdClass();
+            $dispatcher->listen(OrderPlaced::class, SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toBe([]);
+});
+
+it('resolves a tuple listener via the container path', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            app(Dispatcher::class)->listen(OrderPlaced::class, [SendOrderConfirmation::class, 'onPlaced']);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'onPlaced'));
+});
+
+it('lands an inline closure registered via the container path in closure pairs', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            app(Dispatcher::class)->listen(OrderPlaced::class, fn ($e) => null);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(1);
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\OrderPlaced');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
+});
+
+it('does not emit a pair for ->listen() on an untracked variable', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendOrderConfirmation;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            $logger->listen(OrderPlaced::class, SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toBe([]);
+});
+
+it('does not emit a wildcard string event registered via the container path', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Listeners\SendOrderConfirmation;
+    use Illuminate\Contracts\Events\Dispatcher;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            app(Dispatcher::class)->listen('eloquent.*', SendOrderConfirmation::class);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toBe([]);
+});

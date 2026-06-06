@@ -49,7 +49,9 @@ it('discovers the expected set of listeners from the fixture app', function () {
     expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
     expect($fqcns)->toContain('App\\Listeners\\ImperativeSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\InheritsQueued');
-    expect($entries)->toHaveCount(11);
+    expect($fqcns)->toContain('App\\Listeners\\RecordPayment');
+    expect($fqcns)->toContain('App\\Listeners\\ReverseLedger');
+    expect($entries)->toHaveCount(13);
 });
 
 it('detects indirect ShouldQueue via a parent abstract class', function () {
@@ -173,6 +175,34 @@ it('discovers Event::listen() registrations in providers outside app/Providers/'
         new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
     ]);
     expect($issueInvoice->file)->toBe('app/Domain/Invoicing/Listeners/IssueInvoice.php');
+});
+
+it('discovers a Shape B container-form listener registration', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\RecordPayment');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
+    expect($entry->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\PaymentCaptured', method: 'handle'),
+    ]);
+    expect($entry->file)->toBe('app/Listeners/RecordPayment.php');
+    expect($entry->line)->toBe(7);
+});
+
+it('discovers a Shape C variable container-form listener registration', function () {
+    $entries = (new ListenerScanner)->scan(listenerFixturePath())['listeners'];
+
+    $entry = listenerByFqcn($entries, 'App\\Listeners\\ReverseLedger');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
+    expect($entry->handles)->toEqual([
+        new ListenerHandle(event: 'App\\Events\\RefundIssued', method: 'handle'),
+    ]);
+    expect($entry->file)->toBe('app/Listeners/ReverseLedger.php');
+    expect($entry->line)->toBe(7);
 });
 
 it('discovers subscribers from the $subscribe array on EventServiceProvider', function () {
@@ -310,7 +340,7 @@ it('attributes registration correctly per closure listener source', function () 
 it('does not leak closure listeners into the regular listeners[] array', function () {
     $result = (new ListenerScanner)->scan(listenerFixturePath());
 
-    expect($result['listeners'])->toHaveCount(11);
+    expect($result['listeners'])->toHaveCount(13);
 
     $entry = listenerByFqcn($result['listeners'], 'App\\Listeners\\OrderEventSubscriber');
     expect($entry)->not->toBeNull();

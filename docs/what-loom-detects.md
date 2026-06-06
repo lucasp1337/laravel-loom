@@ -20,7 +20,7 @@ An event is a class your app dispatches to signal that something happened (`Orde
 
 ### Listeners
 
-A listener is a class that reacts to an event, usually through a `handle()` method. Loom discovers listeners four ways: Laravel 11+ auto-discovery via the typed `handle()` argument, the `$listen` array on an `EventServiceProvider`, `Event::listen()` calls, and subscribers. For each it records the events and methods it `handles`, how it was registered, whether it's `queued`, and any events or jobs it `dispatches`. See [Listeners](scanners/listeners.md).
+A listener is a class that reacts to an event, usually through a `handle()` method. Loom discovers listeners four ways: Laravel 11+ auto-discovery via the typed `handle()` argument, the `$listen` array on an `EventServiceProvider`, `listen()` calls on the event dispatcher, and subscribers. The `listen()` form covers both the `Event::listen()` facade and a dispatcher resolved from the container (`app(Dispatcher::class)->listen(...)`, `$this->app['events']->listen(...)`, and similar). For each it records the events and methods it `handles`, how it was registered, whether it's `queued`, and any events or jobs it `dispatches`. See [Listeners](scanners/listeners.md).
 
 In the `$listen` array and in `Event::listen()`, a listener can be written several ways — `SendReceipt::class`, `[SendReceipt::class, 'handle']`, `Closure::fromCallable([SendReceipt::class, 'handle'])`, or the first-class callable `SendReceipt::handle(...)`. As long as it resolves to a real class and method, Loom links it like any other listener; the wrapper syntax doesn't matter.
 
