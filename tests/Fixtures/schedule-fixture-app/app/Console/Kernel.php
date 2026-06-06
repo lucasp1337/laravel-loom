@@ -69,6 +69,53 @@ class Kernel
         $schedule->command('macro:sometime')
             ->daily()
             ->someUserMacro();
+
+        // everyOddHour with no args -> "0 1-23/2 * * *".
+        $schedule->command('odd:default')
+            ->everyOddHour();
+
+        // everyOddHour with an explicit minute -> "30 1-23/2 * * *".
+        $schedule->command('odd:atminute')
+            ->everyOddHour(30);
+
+        // quarterlyOn with no args -> "0 0 1 1-12/3 *".
+        $schedule->command('quarter:default')
+            ->quarterlyOn();
+
+        // quarterlyOn with day + time args -> "30 14 15 1-12/3 *".
+        $schedule->command('quarter:args')
+            ->quarterlyOn(15, '14:30');
+
+        // quarterlyOn with an unparseable time arg -> cron null.
+        $schedule->command('quarter:dynamic')
+            ->quarterlyOn(1, 'not-a-time');
+
+        // Multi-hour helper with a minute arg -> "15 */2 * * *".
+        $schedule->command('twohours:atminute')
+            ->everyTwoHours(15);
+
+        // Multi-hour helper, no arg regression guard -> "0 */2 * * *".
+        $schedule->command('twohours:default')
+            ->everyTwoHours();
+
+        // Six-hour helper with a minute arg -> "45 */6 * * *".
+        $schedule->command('sixhours:atminute')
+            ->everySixHours(45);
+
+        // days([...]) is an opaque constraint, kept alongside the cron.
+        $schedule->command('days:array')
+            ->daily()
+            ->days([1, 5]);
+
+        // days(...) variadic ints -> constraint "days(1,5)".
+        $schedule->command('days:variadic')
+            ->daily()
+            ->days(1, 5);
+
+        // days() with an unresolvable arg -> constraint "days(?)".
+        $schedule->command('days:dynamic')
+            ->daily()
+            ->days($pick);
     }
 
     /**

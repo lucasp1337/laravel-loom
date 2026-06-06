@@ -51,6 +51,25 @@ it('reports stats.scheduled equal to the count of scheduled entries', function (
     expect($payload['stats']['scheduled'])->toBeGreaterThan(0);
 });
 
+it('serialises the new frequency/constraint entries with the expected cron and constraints', function () {
+    $payload = buildScheduleEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $scheduled */
+    $scheduled = $payload['scheduled'];
+
+    $byTarget = [];
+    foreach ($scheduled as $entry) {
+        $byTarget[(string) $entry['target']] = $entry;
+    }
+
+    expect($byTarget['odd:default']['cron'])->toBe('0 1-23/2 * * *');
+    expect($byTarget['quarter:args']['cron'])->toBe('30 14 15 1-12/3 *');
+    expect($byTarget['twohours:atminute']['cron'])->toBe('15 */2 * * *');
+
+    expect($byTarget['days:array']['cron'])->toBe('0 0 * * *');
+    expect($byTarget['days:array']['constraints'])->toContain('days(1,5)');
+});
+
 it('sorts the scheduled array by (file, line) ascending in the built index', function () {
     $payload = buildScheduleEndToEndPayload();
 
