@@ -163,5 +163,9 @@ Two deliberate wrinkles:
 - **Closure listeners are add/remove only.** A closure has no class name to anchor an in-place comparison, so there is no "changed" bucket for the `closure_listeners` section — a touched closure shows as the old one removed and a new one added.
 
 For the field-by-field shape of each section that `loom:diff` reads, see the [Schema reference](schema.md).
+
+## See also
+
+- [Checking an index](check.md) — the sibling command: `loom:diff` reports what changed; [`loom:check`](check.md) decides whether the current index passes policy and exits non-zero if not.
 </content>
 </invoke>
