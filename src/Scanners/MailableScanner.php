@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\MailableClassRecord;
 use Lucasp\Loom\Dto\MailableEntry;
 use Lucasp\Loom\Dto\MailableLocation;
 use Lucasp\Loom\Index\DispatchKinds;
@@ -15,6 +16,7 @@ use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\TwoPathDiscovery;
 
 /**
  * Discovers mailable classes under app/Mail/ plus dispatch-site targets
@@ -23,6 +25,7 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class MailableScanner implements Scanner
 {
     use ScannerFilesystem;
+    use TwoPathDiscovery;
 
     private AstWalker $walker;
 
@@ -32,6 +35,16 @@ final class MailableScanner implements Scanner
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+    }
+
+    protected function walker(): AstWalker
+    {
+        return $this->walker;
+    }
+
+    protected function psr4Locator(): Psr4ClassLocator
+    {
+        return $this->locator;
     }
 
     /**
@@ -65,28 +78,19 @@ final class MailableScanner implements Scanner
      */
     private function discoverFromFilesystem(string $appRoot, ClassHierarchyResolver $resolver): array
     {
-        $mailDir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Mail';
-        if (! is_dir($mailDir)) {
-            return [];
-        }
-
-        $visitor = new MailableClassVisitor;
-        $results = [];
-
-        foreach ($this->iteratePhpFiles($mailDir) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
-
-            foreach ($visitor->getClasses() as $class) {
-                $results[$class->fqcn] = new MailableLocation(
-                    file: $this->relativePath($appRoot, $file->getPathname()),
-                    line: $class->line,
-                    queued: $resolver->implementsInterface($class->fqcn, LaravelClasses::SHOULD_QUEUE->value),
-                    queueConfig: $class->queueConfig,
-                );
-            }
-        }
-
-        return $results;
+        return $this->collectFromDirectory(
+            $appRoot,
+            $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Mail',
+            fn (): MailableClassVisitor => new MailableClassVisitor,
+            fn (MailableClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (MailableClassRecord $record): string => $record->fqcn,
+            fn (MailableClassRecord $record, string $file): MailableLocation => new MailableLocation(
+                file: $file,
+                line: $record->line,
+                queued: $resolver->implementsInterface($record->fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queueConfig: $record->queueConfig,
+            ),
+        );
     }
 
     /**
@@ -119,28 +123,19 @@ final class MailableScanner implements Scanner
 
     private function locateByPsr4Guess(string $appRoot, string $fqcn, ClassHierarchyResolver $resolver): ?MailableLocation
     {
-        $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
-            return null;
-        }
-
-        $visitor = new MailableClassVisitor;
-        $this->walker->walk($absolute, [$visitor]);
-
-        foreach ($visitor->getClasses() as $class) {
-            if ($class->fqcn !== $fqcn) {
-                continue;
-            }
-
-            return new MailableLocation(
-                file: $this->relativePath($appRoot, $absolute),
-                line: $class->line,
+        return $this->locateClassByPsr4(
+            $appRoot,
+            $fqcn,
+            fn (): MailableClassVisitor => new MailableClassVisitor,
+            fn (MailableClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (MailableClassRecord $record): string => $record->fqcn,
+            fn (MailableClassRecord $record, string $file): MailableLocation => new MailableLocation(
+                file: $file,
+                line: $record->line,
                 queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
-                queueConfig: $class->queueConfig,
-            );
-        }
-
-        return null;
+                queueConfig: $record->queueConfig,
+            ),
+        );
     }
 
     /**
