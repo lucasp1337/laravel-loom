@@ -113,8 +113,8 @@ it('leaves non-job sections sensibly populated and non-null', function () {
     expect($payload['stats']['observers'])->toBe(0);
 });
 
-it('resolves chain-wrapped job dispatches into dispatched_from (issue #31)', function () {
-    // Regression for issue #31: dispatch((new ProcessOrder())->delay(60)) wraps
+it('resolves chain-wrapped job dispatches into dispatched_from', function () {
+    // Regression: dispatch((new ProcessOrder())->delay(60)) wraps
     // the job in a leading fluent MethodCall chain. The chain must be unwrapped
     // so the FQCN resolves and the site lands in jobs[ProcessOrder].dispatched_from[],
     // NOT unresolved_dispatches[].
@@ -136,7 +136,7 @@ it('resolves chain-wrapped job dispatches into dispatched_from (issue #31)', fun
     expect($unresolvedLines)->not->toContain(28);
 });
 
-it('captures outer PendingDispatch chain overrides in dispatched_from (issue #32)', function () {
+it('captures outer PendingDispatch chain overrides in dispatched_from', function () {
     // ProcessOrder::dispatch($o)->onQueue('high')->onConnection('redis')->delay(60)
     // is the (c) outer PendingDispatch form. The modifiers sit on the chain
     // returned by ::dispatch(), not on the argument; the resulting site must
@@ -161,7 +161,7 @@ it('captures outer PendingDispatch chain overrides in dispatched_from (issue #32
     ]);
 });
 
-it('captures outer ->afterCommit() override in dispatched_from (issue #32)', function () {
+it('captures outer ->afterCommit() override in dispatched_from', function () {
     // dispatch(new ProcessOrder())->afterCommit() — outer chain, single boolean
     // modifier. afterCommit is emitted only as true.
     $payload = buildJobsEndToEndPayload();
@@ -179,11 +179,11 @@ it('captures outer ->afterCommit() override in dispatched_from (issue #32)', fun
     expect($site[0]['overrides'])->toBe(['after_commit' => true]);
 });
 
-it('captures inner-chain delay override and omits overrides on plain sites (issue #32)', function () {
-    // The #31 chain-wrapped dispatch at Billing::chargeWithDelay (line 28) is
+it('captures inner-chain delay override and omits overrides on plain sites', function () {
+    // The chain-wrapped dispatch at Billing::chargeWithDelay (line 28) is
     // dispatch((new ProcessOrder())->delay(60)) — now positive coverage for the
     // inner (a) chain overrides. A plain dispatch site (no modifiers) must have
-    // NO overrides key, keeping its JSON byte-identical to pre-#32 output.
+    // NO overrides key, keeping its JSON byte-identical to the pre-override output.
     $payload = buildJobsEndToEndPayload();
 
     $entry = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');

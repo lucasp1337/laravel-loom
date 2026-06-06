@@ -579,7 +579,7 @@ it('skips Bus::dispatchNow(...) entirely', function () {
 });
 
 // -----------------------------------------------------------------------------
-// Chain-wrapped dispatch targets (#31)
+// Chain-wrapped dispatch targets
 // -----------------------------------------------------------------------------
 
 it('resolves ->notify((new X)->locale(...)) chain-wrapped target', function () {
@@ -703,7 +703,7 @@ it('still records variable-receiver ->notify($n->locale(...)) as dynamic_class_n
 });
 
 // -----------------------------------------------------------------------------
-// Dispatch-time chain modifiers / overrides (#32)
+// Dispatch-time chain modifiers / overrides
 // -----------------------------------------------------------------------------
 
 it('captures inner-chain job modifiers: dispatch((new Job)->onQueue()->delay())', function () {
@@ -854,7 +854,7 @@ it('does not capture a delay key for ->delay($var)', function () {
 });
 
 // -----------------------------------------------------------------------------
-// Notification channel filter override (#33)
+// Notification channel filter override
 // -----------------------------------------------------------------------------
 
 it('captures a single-channel filter on Notification::send', function () {

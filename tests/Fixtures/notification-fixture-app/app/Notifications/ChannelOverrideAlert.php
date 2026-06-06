@@ -7,7 +7,7 @@ namespace App\Notifications;
 use Illuminate\Notifications\Notification;
 
 /**
- * Dedicated #33 fixture notification. Its via() declares broad channels so the
+ * Dedicated fixture notification. Its via() declares broad channels so the
  * dispatch-time channel filter is a genuine override.
  */
 class ChannelOverrideAlert extends Notification

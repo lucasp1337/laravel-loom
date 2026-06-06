@@ -51,7 +51,7 @@ it('returns null for a bare variable', function () {
 });
 
 // -----------------------------------------------------------------------------
-// channelList() — notification channel filters (#33)
+// channelList() — notification channel filters
 // -----------------------------------------------------------------------------
 
 it('resolves a plain string-literal channel array', function () {

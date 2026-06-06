@@ -158,8 +158,8 @@ it('emits an unresolved_dispatches entry for $user->notify($dynamic) and no noti
     expect($forwardSlashed)->toContain('app/Services/Billing.php');
 });
 
-it('resolves chain-wrapped notification dispatches into notified_from (issue #31)', function () {
-    // Regression for issue #31: a dispatch argument wrapped in a leading fluent
+it('resolves chain-wrapped notification dispatches into notified_from', function () {
+    // Regression: a dispatch argument wrapped in a leading fluent
     // MethodCall chain — e.g. (new InvoicePaid())->locale('es') — must have the
     // chain unwrapped so the FQCN resolves and the site lands in notified_from[],
     // NOT unresolved_dispatches[].
@@ -181,8 +181,8 @@ it('resolves chain-wrapped notification dispatches into notified_from (issue #31
     expect($unresolvedLines)->not->toContain(53);
 });
 
-it('captures inner-chain locale/queue overrides on the #31 sites (issue #32)', function () {
-    // The #31 chain-wrapped notifies now become positive coverage for #32:
+it('captures inner-chain locale/queue overrides on the chain-wrapped sites', function () {
+    // The chain-wrapped notifies now become positive coverage for the override behavior:
     //   line 51: $user->notify((new InvoicePaid())->locale('es'))      -> {locale: es}
     //   line 53: Notification::send($users, (new InvoicePaid())->onQueue('emails')) -> {queue: emails}
     $payload = buildNotificationEndToEndPayload();
@@ -202,7 +202,7 @@ it('captures inner-chain locale/queue overrides on the #31 sites (issue #32)', f
     expect($byLine[19])->not->toHaveKey('overrides');
 });
 
-it('captures multi-key inner-chain overrides and omits overrides on plain sends (issue #32)', function () {
+it('captures multi-key inner-chain overrides and omits overrides on plain sends', function () {
     // notifyWithOverrides:
     //   line 63: $user->notify((new PasswordReset())->onConnection('redis')->onQueue('high'))
     //   line 66: Notification::send($users, new PasswordReset())  (no modifiers)
@@ -220,7 +220,7 @@ it('captures multi-key inner-chain overrides and omits overrides on plain sends 
     expect($byLine[66])->not->toHaveKey('overrides');
 });
 
-it('surfaces lowercased channel filters on Notification::send/sendNow sites (issue #33)', function () {
+it('surfaces lowercased channel filters on Notification::send/sendNow sites', function () {
     // ChannelFilterDispatcher::dispatch (isolated fixture, dedicated classes):
     //   line 29: Notification::send($users, new ChannelOverrideAlert(), ['mail'])    -> Alert ['mail']
     //   line 32: Notification::sendNow($users, new ChannelOverrideReminder(), ['mail','DATABASE']) -> Reminder ['mail','database']
@@ -249,7 +249,7 @@ it('surfaces lowercased channel filters on Notification::send/sendNow sites (iss
     expect($reminderByLine[32]['channels'])->toBe(['mail', 'database']);
 });
 
-it('omits the channels key on no-filter and empty-filter notification sites (issue #33)', function () {
+it('omits the channels key on no-filter and empty-filter notification sites', function () {
     // ChannelFilterDispatcher::dispatch:
     //   line 38: Notification::send($users, new ChannelOverrideReminder(), [])  -> empty filter, no channels
     //   line 41: Notification::sendNow($users, new ChannelOverrideAlert())       -> no filter argument

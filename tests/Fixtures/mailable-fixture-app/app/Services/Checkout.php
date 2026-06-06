@@ -32,7 +32,7 @@ class Checkout
         // accepts both shapes.
         Mail::send(OrderShipped::class);
 
-        // Chain-wrapped dispatch target (issue #31): the mailable argument is
+        // Chain-wrapped dispatch target: the mailable argument is
         // itself a fluent chain `(new OrderShipped())->locale('fr')`. The
         // leading MethodCall chain must be unwrapped so this lands in
         // sent_from[], NOT unresolved_dispatches[].

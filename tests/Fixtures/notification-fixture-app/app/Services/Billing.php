@@ -45,7 +45,7 @@ class Billing
         $dynamic = $this->resolveDynamic();
         $user->notify($dynamic);
 
-        // Chain-wrapped dispatch targets (issue #31). The leading fluent
+        // Chain-wrapped dispatch targets. The leading fluent
         // MethodCall chain must be unwrapped so the FQCN resolves to a real
         // notification and lands in notified_from[], NOT unresolved_dispatches[].
         $user->notify((new InvoicePaid())->locale('es'));
@@ -58,7 +58,7 @@ class Billing
      */
     public function notifyWithOverrides(object $user, array $users): void
     {
-        // (a) inner argument-instance chain with multiple modifiers (issue #32).
+        // (a) inner argument-instance chain with multiple modifiers.
         // Expect overrides {connection, queue} in notified_from[].
         $user->notify((new PasswordReset())->onConnection('redis')->onQueue('high'));
 

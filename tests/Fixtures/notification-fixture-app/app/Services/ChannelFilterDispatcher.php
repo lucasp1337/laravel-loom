@@ -10,7 +10,7 @@ use App\Notifications\ChannelOverrideReminder;
 use Illuminate\Support\Facades\Notification;
 
 /**
- * Isolated fixture for issue #33 — the optional 3rd argument to
+ * Isolated fixture: the optional 3rd argument to
  * Notification::send/sendNow restricts dispatch to a literal channel set,
  * overriding the notification's via().
  *

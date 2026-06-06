@@ -21,7 +21,7 @@ class Billing
 
     public function chargeWithDelay(int $orderId): void
     {
-        // Chain-wrapped dispatch target (issue #31): the dispatch() helper's
+        // Chain-wrapped dispatch target: the dispatch() helper's
         // argument is a fluent chain `(new ProcessOrder())->delay(60)`. The
         // leading MethodCall chain must be unwrapped so this lands in
         // jobs[ProcessOrder].dispatched_from[], NOT unresolved_dispatches[].
@@ -30,7 +30,7 @@ class Billing
 
     public function chargeWithOuterChain(int $orderId): void
     {
-        // (c) outer PendingDispatch chain (issue #32): modifiers sit on the
+        // (c) outer PendingDispatch chain: modifiers sit on the
         // PendingDispatch returned by Job::dispatch(...), not on the argument.
         // Expect overrides {connection, queue, delay} in dispatched_from[].
         \App\Jobs\ProcessOrder::dispatch($orderId)
@@ -41,7 +41,7 @@ class Billing
 
     public function chargeAfterCommit(int $orderId): void
     {
-        // (c) outer ->afterCommit() on dispatch(new Job) (issue #32).
+        // (c) outer ->afterCommit() on dispatch(new Job).
         // Expect overrides {after_commit: true} in dispatched_from[].
         dispatch(new \App\Jobs\ProcessOrder())->afterCommit();
     }
