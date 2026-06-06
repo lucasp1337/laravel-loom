@@ -201,7 +201,7 @@ Both use the existing `$defs/dispatchSite` shape (`{file, line, method}`),
 identical to `events[*].dispatched_from` and `jobs[*].dispatched_from`.
 
 This preserves Loom's single-source-of-truth invariant
-([AGENTS.md](../../AGENTS.md): "one source of truth per output field").
+([AGENTS.md](https://github.com/lucasp1337/laravel-loom/blob/main/AGENTS.md): "one source of truth per output field").
 The scanners emit `sent_from: []` / `notified_from: []`; cross-link
 fills them.
 

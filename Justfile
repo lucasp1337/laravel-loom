@@ -48,6 +48,14 @@ test-filter filter:
 shell:
     docker run --rm -it -v $(pwd):/app {{image}} sh
 
+# Serve the docs site locally with live reload at http://localhost:8000.
+docs-serve:
+    docker run --rm -it -p 8000:8000 -v $(pwd):/docs squidfunk/mkdocs-material serve --dev-addr 0.0.0.0:8000
+
+# Build the docs site into ./site with the same strict checks CI runs.
+docs-build:
+    docker run --rm -v $(pwd):/docs squidfunk/mkdocs-material build --strict
+
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
 #   just scan /path/to/laravel/app
 scan target:
