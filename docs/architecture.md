@@ -87,9 +87,11 @@ Emit deterministically: sort entries by FQCN (or whatever the natural key is) so
 4. **Cross-link** (see below)
 5. **Strip** any `_*` underscore-prefixed sections (internal)
 6. **Validate** the merged sections against `schema/loom-index.schema.json` using `justinrainbow/json-schema`
-7. **Wrap** the result in an `Index` value object
+7. **Wrap** the result in an `Index` value object. `Index` holds a section map keyed by section name plus the three scalars (`loom_version`, `scanned_at`, `laravel_version`). `SectionRegistry` (`src/Index/SectionRegistry.php`) is the single ordered source of truth: it drives both the output body order and which sections appear in the `stats` block (all except `model_events`). `Index::toArray()` rebuilds `stats` and the section bodies by iterating it.
 
 Validation failure is fatal. A non-conforming index throws rather than writing garbage to disk.
+
+Adding a top-level section means a new `Sections` case plus a `SectionRegistry` entry (plus the schema) — no change to `Index` or `IndexBuilder`.
 
 ## Cross-link pass
 
