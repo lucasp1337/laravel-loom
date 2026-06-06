@@ -131,16 +131,7 @@ class IndexBuilder
             loomVersion: self::LOOM_VERSION,
             scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
             laravelVersion: $laravelVersion,
-            events: $sections[Sections::EVENTS->value],
-            modelEvents: $sections[Sections::MODEL_EVENTS->value],
-            listeners: $sections[Sections::LISTENERS->value],
-            observers: $sections[Sections::OBSERVERS->value],
-            jobs: $sections[Sections::JOBS->value],
-            unresolvedDispatches: $sections[Sections::UNRESOLVED_DISPATCHES->value],
-            closureListeners: $sections[Sections::CLOSURE_LISTENERS->value],
-            scheduled: $sections[Sections::SCHEDULED->value],
-            mailables: $sections[Sections::MAILABLES->value],
-            notifications: $sections[Sections::NOTIFICATIONS->value],
+            sections: $sections,
         );
     }
 }

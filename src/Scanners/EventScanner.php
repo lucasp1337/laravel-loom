@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ClassRecord;
 use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Index\DispatchForm;
@@ -13,6 +14,7 @@ use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\TwoPathDiscovery;
 
 /**
  * Discovers event classes under app/Events/ plus targets reached from
@@ -21,6 +23,7 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 final class EventScanner implements Scanner
 {
     use ScannerFilesystem;
+    use TwoPathDiscovery;
 
     private AstWalker $walker;
 
@@ -30,6 +33,16 @@ final class EventScanner implements Scanner
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+    }
+
+    protected function walker(): AstWalker
+    {
+        return $this->walker;
+    }
+
+    protected function psr4Locator(): Psr4ClassLocator
+    {
+        return $this->locator;
     }
 
     /**
@@ -61,26 +74,17 @@ final class EventScanner implements Scanner
      */
     private function discoverFromFilesystem(string $appRoot): array
     {
-        $eventsDir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Events';
-        if (! is_dir($eventsDir)) {
-            return [];
-        }
-
-        $visitor = new EventClassVisitor;
-        $results = [];
-
-        foreach ($this->iteratePhpFiles($eventsDir) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
-
-            foreach ($visitor->getClasses() as $class) {
-                $results[$class->fqcn] = new SourceLocation(
-                    file: $this->relativePath($appRoot, $file->getPathname()),
-                    line: $class->line,
-                );
-            }
-        }
-
-        return $results;
+        return $this->collectFromDirectory(
+            $appRoot,
+            $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Events',
+            fn (): EventClassVisitor => new EventClassVisitor,
+            fn (EventClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (ClassRecord $record): string => $record->fqcn,
+            fn (ClassRecord $record, string $file): SourceLocation => new SourceLocation(
+                file: $file,
+                line: $record->line,
+            ),
+        );
     }
 
     /**
@@ -136,26 +140,17 @@ final class EventScanner implements Scanner
 
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
-        $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
-            return null;
-        }
-
-        $visitor = new EventClassVisitor;
-        $this->walker->walk($absolute, [$visitor]);
-
-        foreach ($visitor->getClasses() as $class) {
-            if ($class->fqcn !== $fqcn) {
-                continue;
-            }
-
-            return new SourceLocation(
-                file: $this->relativePath($appRoot, $absolute),
-                line: $class->line,
-            );
-        }
-
-        return null;
+        return $this->locateClassByPsr4(
+            $appRoot,
+            $fqcn,
+            fn (): EventClassVisitor => new EventClassVisitor,
+            fn (EventClassVisitor $visitor): array => $visitor->getClasses(),
+            fn (ClassRecord $record): string => $record->fqcn,
+            fn (ClassRecord $record, string $file): SourceLocation => new SourceLocation(
+                file: $file,
+                line: $record->line,
+            ),
+        );
     }
 
     /**
