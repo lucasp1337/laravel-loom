@@ -26,11 +26,12 @@ final class ScheduleScanner implements Scanner
         'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
         'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
         'hourly', 'hourlyAt',
+        'everyOddHour',
         'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
         'daily', 'dailyAt', 'twiceDaily', 'twiceDailyAt',
         'weekly', 'weeklyOn',
         'monthly', 'monthlyOn', 'twiceMonthly', 'lastDayOfMonth',
-        'quarterly', 'yearly', 'yearlyOn',
+        'quarterly', 'quarterlyOn', 'yearly', 'yearlyOn',
         'cron',
     ];
 
@@ -46,7 +47,7 @@ final class ScheduleScanner implements Scanner
         'timezone', 'withoutOverlapping', 'onOneServer', 'runInBackground',
         'weekdays', 'weekends',
         'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays',
-        'between', 'unlessBetween', 'when', 'skip', 'environments',
+        'between', 'unlessBetween', 'when', 'skip', 'environments', 'days',
         'name', 'description', 'user', 'evenInMaintenanceMode',
         'ping', 'pingBefore', 'pingBeforeIf', 'thenPing', 'thenPingIf',
         'pingOnSuccess', 'pingOnFailure',
@@ -380,14 +381,17 @@ final class ScheduleScanner implements Scanner
 
                 return $minute === null ? null : $minute.' * * * *';
 
+            case 'everyOddHour':
+                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' 1-23/2 * * *';
+
             case 'everyTwoHours':
-                return '0 */2 * * *';
+                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */2 * * *';
             case 'everyThreeHours':
-                return '0 */3 * * *';
+                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */3 * * *';
             case 'everyFourHours':
-                return '0 */4 * * *';
+                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */4 * * *';
             case 'everySixHours':
-                return '0 */6 * * *';
+                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */6 * * *';
 
             case 'daily':
                 return '0 0 * * *';
@@ -474,6 +478,15 @@ final class ScheduleScanner implements Scanner
 
             case 'quarterly':
                 return '0 0 1 1-12/3 *';
+            case 'quarterlyOn':
+                $day = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
+                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
+                [$hour, $minute] = $this->splitTime($time);
+                if ($hour === null) {
+                    return null;
+                }
+
+                return $minute.' '.$hour.' '.$day.' 1-12/3 *';
             case 'yearly':
                 return '0 0 1 1 *';
             case 'yearlyOn':
@@ -552,6 +565,33 @@ final class ScheduleScanner implements Scanner
             }
 
             return $values === [] ? 'environments(closure)' : 'environments('.implode(',', $values).')';
+        }
+
+        if ($method === 'days') {
+            // Accepts variadic ints (days(0, 3)) or a single array (days([0, 3])).
+            $values = [];
+            foreach ($args as $arg) {
+                if (! $arg instanceof Node\Arg) {
+                    continue;
+                }
+                $int = AstHelpers::scalarInt($arg);
+                if ($int !== null) {
+                    $values[] = $int;
+
+                    continue;
+                }
+                if ($arg->value instanceof Node\Expr\Array_) {
+                    foreach ($arg->value->items as $item) {
+                        $itemInt = AstHelpers::scalarInt($item->value);
+                        if ($itemInt !== null) {
+                            $values[] = $itemInt;
+                        }
+                    }
+                }
+            }
+
+            // "days(?)" signals an unresolved arg without fabricating a value.
+            return $values === [] ? 'days(?)' : 'days('.implode(',', $values).')';
         }
 
         return null;

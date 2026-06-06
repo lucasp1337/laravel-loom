@@ -87,6 +87,11 @@ Field semantics:
   - Environment: `"environments(production,staging)"` for scalar args
     (including a single array literal); `"environments(closure)"`
     otherwise.
+  - Day-of-week list: `"days(0,3)"` for `->days(0, 3)` and
+    `->days([0, 3])` (variadic ints or a single array literal); falls
+    back to `"days(?)"` when no scalar day can be resolved. Surfaced as a
+    constraint rather than folded into the cron, and does not clear a
+    cron set earlier in the chain.
 - **`file`, `line`** — the position of the root method call in the chain
   (`$schedule->command(...)`, not the trailing `->onOneServer()`).
 
@@ -121,6 +126,16 @@ on existing primitives are widened.
   set, timezone captured, constraints collected.
 - **`cron(string)` passthrough**: `->cron('*/5 8-17 * * 1-5')` is stored
   verbatim in `cron`.
+- **Multi-hour helpers honour their minutes argument**:
+  `->everyTwoHours(15)` → `cron: "15 */2 * * *"`; the same applies to
+  `everyThreeHours`, `everyFourHours`, and `everySixHours`. No-arg calls
+  are unchanged (`->everyTwoHours()` → `"0 */2 * * *"`).
+- **`everyOddHour`**: `->everyOddHour()` → `cron: "0 1-23/2 * * *"`,
+  honouring an optional minutes argument (`->everyOddHour(30)` →
+  `"30 1-23/2 * * *"`).
+- **`quarterlyOn`**: `->quarterlyOn(15, '13:00')` →
+  `cron: "0 13 15 1-12/3 *"` (day-of-quarter and time both honoured;
+  both default — day `1`, time `0:00`).
 - **Last-wins on conflicting frequencies**: chain with multiple frequency
   helpers (`->daily()->hourly()`) reflects the last one. Matches
   Laravel's runtime behaviour.

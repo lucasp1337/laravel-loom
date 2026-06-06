@@ -317,6 +317,97 @@ it('normalises ->weeklyOn([1, 3, 5], "08:00") to a comma-separated weekday field
     expect($entry->cron)->toBe('0 8 * * 1,3,5');
 });
 
+it('normalises ->everyOddHour() to "0 1-23/2 * * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 74);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('odd:default');
+    expect($entry->cron)->toBe('0 1-23/2 * * *');
+});
+
+it('normalises ->everyOddHour(30) to "30 1-23/2 * * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 78);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('odd:atminute');
+    expect($entry->cron)->toBe('30 1-23/2 * * *');
+});
+
+it('normalises ->quarterlyOn() to "0 0 1 1-12/3 *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 82);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('quarter:default');
+    expect($entry->cron)->toBe('0 0 1 1-12/3 *');
+});
+
+it('normalises ->quarterlyOn(15, "14:30") to "30 14 15 1-12/3 *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 86);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('quarter:args');
+    expect($entry->cron)->toBe('30 14 15 1-12/3 *');
+});
+
+it('sets cron to null for ->quarterlyOn() with an unparseable time arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 90);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('quarter:dynamic');
+    expect($entry->cron)->toBeNull();
+});
+
+it('normalises ->everyTwoHours(15) to "15 */2 * * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 94);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('twohours:atminute');
+    expect($entry->cron)->toBe('15 */2 * * *');
+});
+
+it('keeps ->everyTwoHours() (no arg) at "0 */2 * * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 98);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('twohours:default');
+    expect($entry->cron)->toBe('0 */2 * * *');
+});
+
+it('normalises ->everySixHours(45) to "45 */6 * * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 102);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sixhours:atminute');
+    expect($entry->cron)->toBe('45 */6 * * *');
+});
+
+it('captures ->days([1, 5]) as a constraint without nulling the daily cron', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 106);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('days:array');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->constraints)->toContain('days(1,5)');
+});
+
+it('captures variadic ->days(1, 5) as the "days(1,5)" constraint', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 111);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('days:variadic');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->constraints)->toContain('days(1,5)');
+});
+
+it('emits "days(?)" when ->days() has an unresolvable arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 116);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('days:dynamic');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->constraints)->toContain('days(?)');
+});
+
 it('does not emit chains declared outside the schedule() method', function () {
     // Kernel.php has a `helper(Schedule $schedule)` method with a
     // ->command('decoy:command')->daily() chain. The kernel-form discovery
