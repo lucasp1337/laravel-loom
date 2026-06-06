@@ -36,7 +36,9 @@ it('counts discovered listeners in stats.listeners', function () {
     // ImperativeSubscriber is registered via Event::subscribe() and its imperative
     // subscribe() body matches a listener entry. InheritsQueued is auto-discovered
     // from app/Listeners/ and exercises indirect ShouldQueue via its parent.
-    expect($payload['stats']['listeners'])->toBe(11);
+    // RecordPayment and ReverseLedger are registered via container-form
+    // ->listen() calls (Shape B / Shape C) in PaymentEventServiceProvider.
+    expect($payload['stats']['listeners'])->toBe(13);
 });
 
 it('includes the known listener FQCNs', function () {
@@ -57,6 +59,30 @@ it('includes the known listener FQCNs', function () {
     expect($fqcns)->toContain('App\\Listeners\\AuditSubscriber');
     expect($fqcns)->toContain('App\\Listeners\\OrderEventsHandler');
     expect($fqcns)->toContain('App\\Listeners\\ImperativeSubscriber');
+    expect($fqcns)->toContain('App\\Listeners\\RecordPayment');
+    expect($fqcns)->toContain('App\\Listeners\\ReverseLedger');
+});
+
+it('records container-form listeners with event_listen_call registration and their handle event', function () {
+    $builder = new IndexBuilder;
+    $builder->register(new ListenerScanner);
+
+    $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
+
+    $byFqcn = [];
+    foreach ($payload['listeners'] as $entry) {
+        $byFqcn[$entry['fqcn']] = $entry;
+    }
+
+    expect($byFqcn['App\\Listeners\\RecordPayment']['registration'])->toBe('event_listen_call');
+    expect($byFqcn['App\\Listeners\\RecordPayment']['handles'])->toBe([
+        ['event' => 'App\\Events\\PaymentCaptured', 'method' => 'handle'],
+    ]);
+
+    expect($byFqcn['App\\Listeners\\ReverseLedger']['registration'])->toBe('event_listen_call');
+    expect($byFqcn['App\\Listeners\\ReverseLedger']['handles'])->toBe([
+        ['event' => 'App\\Events\\RefundIssued', 'method' => 'handle'],
+    ]);
 });
 
 it('leaves non-listener sections as empty arrays, not null', function () {
