@@ -30,3 +30,6 @@ phpstan.neon
 testbench.yaml
 /coverage
 /storage
+
+# MkDocs build output
+/site

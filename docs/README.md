@@ -1,6 +1,6 @@
 # Laravel Loom — Documentation
 
-Documentation for contributors. For installation and the user-facing introduction, see the [root README](../README.md).
+Documentation for contributors. For installation and the user-facing introduction, see the [root README](https://github.com/lucasp1337/laravel-loom/blob/main/README.md).
 
 ## Where to start
 
@@ -19,7 +19,7 @@ Each scanner has a dedicated page documenting what it detects, what it emits, ex
 
 ## Reading order for new contributors
 
-1. Root [README](../README.md) — what Loom does and how to install it
+1. Root [README](https://github.com/lucasp1337/laravel-loom/blob/main/README.md) — what Loom does and how to install it
 2. [architecture.md](architecture.md) — the pipeline
 3. [contributing.md](contributing.md) — how to develop locally
 4. Pick a scanner doc that matches the area you're touching

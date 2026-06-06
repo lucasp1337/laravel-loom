@@ -53,6 +53,18 @@ docker build -t laravel-loom-dev:latest .
 docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest
 ```
 
+## Documentation site
+
+This `docs/` tree is published as a [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) site. It builds straight from these Markdown files — editing docs is just editing Markdown, no extra step.
+
+```bash
+just docs-serve      # live-reload preview at http://localhost:8000
+just docs-build      # strict build into ./site (fails on broken links)
+just docs-deploy     # build + publish to the gh-pages branch
+```
+
+Publishing is **local and deliberate** — no GitHub Actions run on push. `just docs-deploy` builds the site in Docker, stages the `gh-pages` branch, and pushes it with your own git credentials; GitHub Pages then serves that branch. Run it whenever you want the live site refreshed (it does not happen automatically). `nav` and theme live in `mkdocs.yml` at the repo root.
+
 ## Scanning an external Laravel app
 
 The `Justfile` exposes a quick way to point Loom at any Laravel app on disk:
