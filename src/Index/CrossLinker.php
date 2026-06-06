@@ -88,8 +88,8 @@ final class CrossLinker
     {
         $index = [];
         foreach ($entries as $idx => $entry) {
-            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
-                $index[$entry['fqcn']] = $idx;
+            if (isset($entry[Field::FQCN->value]) && is_string($entry[Field::FQCN->value])) {
+                $index[$entry[Field::FQCN->value]] = $idx;
             }
         }
 
@@ -104,8 +104,8 @@ final class CrossLinker
     {
         $index = [];
         foreach ($entries as $idx => $entry) {
-            if (isset($entry['fqcn']) && is_string($entry['fqcn'])) {
-                $index[$entry['fqcn']][] = $idx;
+            if (isset($entry[Field::FQCN->value]) && is_string($entry[Field::FQCN->value])) {
+                $index[$entry[Field::FQCN->value]][] = $idx;
             }
         }
 

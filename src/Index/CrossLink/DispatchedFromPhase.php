@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -38,11 +39,11 @@ final class DispatchedFromPhase implements CrossLinkPhase
             }
             [$section, $fromField] = $mapping;
 
-            $target = $site['target'] ?? null;
+            $target = $site[Field::TARGET->value] ?? null;
             $classFqcn = $site['classFqcn'] ?? null;
-            $method = $site['method'] ?? null;
-            $file = $site['file'] ?? null;
-            $line = $site['line'] ?? null;
+            $method = $site[Field::METHOD->value] ?? null;
+            $file = $site[Field::FILE->value] ?? null;
+            $line = $site[Field::LINE->value] ?? null;
 
             if (! is_string($target) || ! is_string($classFqcn) || ! is_string($method)) {
                 continue;
@@ -57,24 +58,24 @@ final class DispatchedFromPhase implements CrossLinkPhase
             }
 
             $payload = [
-                'file' => $file,
-                'line' => $line,
-                'method' => $classFqcn.'::'.$method,
+                Field::FILE->value => $file,
+                Field::LINE->value => $line,
+                Field::METHOD->value => $classFqcn.'::'.$method,
             ];
 
             // Only surface `overrides` when the site carried static modifiers;
             // omitting it otherwise keeps existing entries' JSON byte-identical.
-            $overrides = $site['overrides'] ?? null;
+            $overrides = $site[Field::OVERRIDES->value] ?? null;
             if (is_array($overrides) && $overrides !== []) {
-                $payload['overrides'] = $overrides;
+                $payload[Field::OVERRIDES->value] = $overrides;
             }
 
             // Only surface `channels` when the site carried a static channel
             // filter (NOTIFICATION sites only); omitting it keeps existing
             // entries' JSON byte-identical.
-            $channels = $site['channels'] ?? null;
+            $channels = $site[Field::CHANNELS->value] ?? null;
             if (is_array($channels) && $channels !== []) {
-                $payload['channels'] = $channels;
+                $payload[Field::CHANNELS->value] = $channels;
             }
 
             $context->appendToEntry($section, $fqcnIndex[$target], $fromField, $payload);
@@ -89,10 +90,10 @@ final class DispatchedFromPhase implements CrossLinkPhase
     private function dispatchedFromMapping(DispatchKinds $kind): ?array
     {
         return match ($kind) {
-            DispatchKinds::EVENT => [Sections::EVENTS, 'dispatched_from'],
-            DispatchKinds::JOB => [Sections::JOBS, 'dispatched_from'],
-            DispatchKinds::MAILABLE => [Sections::MAILABLES, 'sent_from'],
-            DispatchKinds::NOTIFICATION => [Sections::NOTIFICATIONS, 'notified_from'],
+            DispatchKinds::EVENT => [Sections::EVENTS, Field::DISPATCHED_FROM->value],
+            DispatchKinds::JOB => [Sections::JOBS, Field::DISPATCHED_FROM->value],
+            DispatchKinds::MAILABLE => [Sections::MAILABLES, Field::SENT_FROM->value],
+            DispatchKinds::NOTIFICATION => [Sections::NOTIFICATIONS, Field::NOTIFIED_FROM->value],
             DispatchKinds::AMBIGUOUS => null,
         };
     }

@@ -31,10 +31,10 @@ final class Index
         }
 
         $payload = [
-            'loom_version' => $this->loomVersion,
-            'scanned_at' => $this->scannedAt,
-            'laravel_version' => $this->laravelVersion,
-            'stats' => $stats,
+            MetaField::LOOM_VERSION->value => $this->loomVersion,
+            MetaField::SCANNED_AT->value => $this->scannedAt,
+            MetaField::LARAVEL_VERSION->value => $this->laravelVersion,
+            MetaField::STATS->value => $stats,
         ];
 
         foreach (SectionRegistry::names() as $name) {

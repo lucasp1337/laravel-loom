@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 
@@ -34,22 +35,22 @@ final class DispatchAttributionPhase implements CrossLinkPhase
 
             // Routing keys live on the site, not in the shared payload.
             $classFqcn = $site['classFqcn'] ?? null;
-            $method = $site['method'] ?? null;
+            $method = $site[Field::METHOD->value] ?? null;
             if (! is_string($classFqcn) || ! is_string($method)) {
                 continue;
             }
 
             if (isset($listenerIndex[$classFqcn], $context->listenerMethods[$classFqcn][$method])) {
-                $context->appendToEntry(Sections::LISTENERS, $listenerIndex[$classFqcn], 'dispatches', $payload);
+                $context->appendToEntry(Sections::LISTENERS, $listenerIndex[$classFqcn], Field::DISPATCHES->value, $payload);
             }
 
             if ($method === 'handle' && isset($jobIndex[$classFqcn])) {
-                $context->appendToEntry(Sections::JOBS, $jobIndex[$classFqcn], 'dispatches', $payload);
+                $context->appendToEntry(Sections::JOBS, $jobIndex[$classFqcn], Field::DISPATCHES->value, $payload);
             }
 
             if (isset($observerHooks[$method], $context->observerIndex[$classFqcn])) {
                 foreach ($context->observerIndex[$classFqcn] as $oIdx) {
-                    $context->appendToEntry(Sections::OBSERVERS, $oIdx, 'dispatches', $payload);
+                    $context->appendToEntry(Sections::OBSERVERS, $oIdx, Field::DISPATCHES->value, $payload);
                 }
             }
         }

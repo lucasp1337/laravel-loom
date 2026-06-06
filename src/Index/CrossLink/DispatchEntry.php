@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\Field;
 
 /**
  * Shared, stateless builder for the dispatch object the schema attaches to a
@@ -30,10 +31,10 @@ final class DispatchEntry
     public static function fromSite(array $site): ?array
     {
         $kind = $site['provisionalKind'] ?? null;
-        $target = $site['target'] ?? null;
-        $file = $site['file'] ?? null;
-        $line = $site['line'] ?? null;
-        $confidence = $site['confidence'] ?? 'high';
+        $target = $site[Field::TARGET->value] ?? null;
+        $file = $site[Field::FILE->value] ?? null;
+        $line = $site[Field::LINE->value] ?? null;
+        $confidence = $site[Field::CONFIDENCE->value] ?? 'high';
 
         if (! is_string($target) || ! is_string($file) || ! is_int($line)
             || ! is_string($kind) || DispatchKinds::tryFrom($kind) === DispatchKinds::AMBIGUOUS
@@ -44,11 +45,11 @@ final class DispatchEntry
         }
 
         return [
-            'target' => $target,
-            'kind' => $kind,
-            'confidence' => $confidence,
-            'file' => $file,
-            'line' => $line,
+            Field::TARGET->value => $target,
+            Field::KIND->value => $kind,
+            Field::CONFIDENCE->value => $confidence,
+            Field::FILE->value => $file,
+            Field::LINE->value => $line,
         ];
     }
 }

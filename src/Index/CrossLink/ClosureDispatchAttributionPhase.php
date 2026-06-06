@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -24,9 +25,9 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
         $closures = $context->sections[Sections::CLOSURE_LISTENERS->value] ?? [];
 
         foreach ($closures as $index => $closure) {
-            $file = $closure['file'] ?? null;
-            $start = $closure['line'] ?? null;
-            $end = $closure['end_line'] ?? null;
+            $file = $closure[Field::FILE->value] ?? null;
+            $start = $closure[Field::LINE->value] ?? null;
+            $end = $closure[Field::END_LINE->value] ?? null;
 
             if (! is_string($file) || ! is_int($start) || ! is_int($end)) {
                 continue;
@@ -41,8 +42,8 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
                     continue;
                 }
 
-                $siteFile = $site['file'] ?? null;
-                $siteLine = $site['line'] ?? null;
+                $siteFile = $site[Field::FILE->value] ?? null;
+                $siteLine = $site[Field::LINE->value] ?? null;
                 if (! is_string($siteFile) || ! is_int($siteLine)) {
                     continue;
                 }
@@ -60,7 +61,7 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
 
                 // Closure dispatches[] only carries event|job per the schema;
                 // drop mailable/notification (which the shared builder allows).
-                $kind = DispatchKinds::tryFrom($payload['kind']);
+                $kind = DispatchKinds::tryFrom($payload[Field::KIND->value]);
                 if ($kind !== DispatchKinds::EVENT && $kind !== DispatchKinds::JOB) {
                     continue;
                 }
@@ -69,7 +70,7 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
                 // also falls within its enclosing closure's span, so it is
                 // appended to every matching closure (it falls inside any
                 // enclosing closure's line span). Overlap only arises via nesting.
-                $context->appendToEntry(Sections::CLOSURE_LISTENERS, $index, 'dispatches', $payload);
+                $context->appendToEntry(Sections::CLOSURE_LISTENERS, $index, Field::DISPATCHES->value, $payload);
             }
         }
     }

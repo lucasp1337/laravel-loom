@@ -93,6 +93,8 @@ Validation failure is fatal. A non-conforming index throws rather than writing g
 
 Adding a top-level section means a new `Sections` case plus a `SectionRegistry` entry (plus the schema) — no change to `Index` or `IndexBuilder`.
 
+Field names are not magic strings. Three flat enums own the index's string keys: `Sections` (`src/Index/Sections.php`) for the top-level section names, `MetaField` (`src/Index/MetaField.php`) for the envelope scalars (`loom_version`, `scanned_at`, `laravel_version`, `stats`), and `Field` (`src/Index/Field.php`) for every per-entry property name. The serializer, the cross-link phases, and the `loom:diff` engine all key off these enums via `->value`; only deliberately internal, non-emitted keys (e.g. the `_*` sections, transient cross-link tags) stay raw strings. A parity test (`tests/Unit/Index/FieldSchemaParityTest.php`) asserts the enums exactly cover the schema's property surface, so the enums can never silently drift from `schema/loom-index.schema.json`.
+
 ## Cross-link pass
 
 The cross-link pass is the only place that reads cross-scanner data. It runs after every scanner has emitted, so it can rely on having a complete view of events, listeners, observers, and dispatch sites.

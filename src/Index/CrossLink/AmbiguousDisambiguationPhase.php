@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -22,7 +23,7 @@ final class AmbiguousDisambiguationPhase implements CrossLinkPhase
             if (($site['provisionalKind'] ?? null) !== DispatchKinds::AMBIGUOUS->value) {
                 continue;
             }
-            $target = $site['target'] ?? null;
+            $target = $site[Field::TARGET->value] ?? null;
             if (! is_string($target)) {
                 continue;
             }
