@@ -95,7 +95,7 @@ it('does not treat the diff scalar-member wrapper key "value" as a schema proper
 });
 
 it('locks the Field enum case count as a recount canary', function () {
-    expect(Field::cases())->toHaveCount(43);
+    expect(Field::cases())->toHaveCount(45);
 });
 
 it('exposes every MetaField case as a top-level schema property', function () {

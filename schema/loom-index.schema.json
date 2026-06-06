@@ -284,12 +284,14 @@
             "type": "object",
             "required": [
                 "kind",
+                "name",
                 "target",
                 "cron",
                 "timezone",
                 "without_overlapping",
                 "on_one_server",
                 "run_in_background",
+                "even_in_maintenance_mode",
                 "constraints",
                 "file",
                 "line"
@@ -297,12 +299,14 @@
             "additionalProperties": false,
             "properties": {
                 "kind": { "enum": ["command", "job", "closure", "exec"] },
+                "name": { "type": ["string", "null"] },
                 "target": { "type": ["string", "null"] },
                 "cron": { "type": ["string", "null"] },
                 "timezone": { "type": ["string", "null"] },
                 "without_overlapping": { "type": "boolean" },
                 "on_one_server": { "type": "boolean" },
                 "run_in_background": { "type": "boolean" },
+                "even_in_maintenance_mode": { "type": "boolean" },
                 "constraints": {
                     "type": "array",
                     "items": { "type": "string" }

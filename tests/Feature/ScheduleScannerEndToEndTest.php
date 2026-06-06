@@ -70,6 +70,27 @@ it('serialises the new frequency/constraint entries with the expected cron and c
     expect($byTarget['days:array']['constraints'])->toContain('days(1,5)');
 });
 
+it('serialises the name and even_in_maintenance_mode fields on schedule entries', function () {
+    $payload = buildScheduleEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $scheduled */
+    $scheduled = $payload['scheduled'];
+
+    $byTarget = [];
+    foreach ($scheduled as $entry) {
+        $byTarget[(string) $entry['target']] = $entry;
+    }
+
+    expect($byTarget['named:job']['name'])->toBe('nightly-report');
+    expect($byTarget['named:dynamic']['name'])->toBeNull();
+
+    expect($byTarget['maint:job']['even_in_maintenance_mode'])->toBeTrue();
+    expect($byTarget['mail:send']['even_in_maintenance_mode'])->toBeFalse();
+
+    expect($byTarget['named:maint']['name'])->toBe('combined-task');
+    expect($byTarget['named:maint']['even_in_maintenance_mode'])->toBeTrue();
+});
+
 it('sorts the scheduled array by (file, line) ascending in the built index', function () {
     $payload = buildScheduleEndToEndPayload();
 

@@ -260,19 +260,23 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 ```
 {
   "kind": enum,                   // "command" | "job" | "closure" | "exec"
+  "name": string | null,          // from ->name(...); null when not named
   "target": string | null,        // depends on kind; see below
   "cron": string | null,          // five-field cron expression
   "timezone": string | null,      // from ->timezone(...)
   "without_overlapping": boolean,
   "on_one_server": boolean,
   "run_in_background": boolean,
+  "even_in_maintenance_mode": boolean, // from ->evenInMaintenanceMode()
   "constraints": array<string>,   // opaque labels for non-cron restrictions, sorted ascending
   "file": string,                 // path to the root call (->command/->job/->call/->exec)
   "line": integer
 }
 ```
 
-`$defs/scheduleEntry`. All fields are required. `target` and `cron` may be `null`; `timezone` may be `null`.
+`$defs/scheduleEntry`. All fields are required. `name`, `target`, and `cron` may be `null`; `timezone` may be `null`.
+
+`name` carries the schedule entry's `->name(...)` label (verbatim string) when one is declared, and is `null` otherwise. `even_in_maintenance_mode` is `true` only when `->evenInMaintenanceMode()` appears in the chain, mirroring Laravel's runtime gate that otherwise skips scheduled tasks while the app is in maintenance mode.
 
 `kind` is determined by the chain's root call:
 

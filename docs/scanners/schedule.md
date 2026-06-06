@@ -39,12 +39,14 @@ One entry per chain, conforming to `$defs/scheduleEntry`:
 ```json
 {
   "kind": "command",
+  "name": "send-daily-mail",
   "target": "mail:send {--queue=default}",
   "cron": "0 13 * * *",
   "timezone": "America/Chicago",
   "without_overlapping": true,
   "on_one_server": false,
   "run_in_background": false,
+  "even_in_maintenance_mode": false,
   "constraints": ["weekdays"],
   "file": "app/Console/Kernel.php",
   "line": 28
@@ -55,6 +57,11 @@ Field semantics:
 
 - **`kind`** — `command` | `job` | `closure` | `exec`. Determined by the
   root method of the chain (`command`, `job`, `call`, `exec`).
+- **`name`** — string or `null`. The schedule task's label from
+  `->name('...')`; `null` when `->name()` is absent or its argument is not
+  a statically-resolvable string literal (same resolution rule as
+  `timezone`). This is the unique key Laravel uses for `onOneServer`
+  deduplication.
 - **`target`** — depends on `kind`:
   - `command`: the signature string (`"mail:send"`,
     `"mail:send {--queue=default}"`) or, when the argument is a class
@@ -74,6 +81,8 @@ Field semantics:
 - **`without_overlapping`** — `true` if `->withoutOverlapping()` appears.
 - **`on_one_server`** — `true` if `->onOneServer()` appears.
 - **`run_in_background`** — `true` if `->runInBackground()` appears.
+- **`even_in_maintenance_mode`** — `true` if `->evenInMaintenanceMode()`
+  appears.
 - **`constraints[]`** — opaque string labels for non-cron restrictions.
   Sorted ascending. Recognised shapes:
   - Day-of-week: `"weekdays"`, `"weekends"`, `"sundays"`, `"mondays"`,
@@ -123,7 +132,12 @@ on existing primitives are widened.
 - **Facade form in provider boot**: `Schedule::command('queue:work')
   ->everyMinute();` — picked up regardless of which class hosts the call.
 - **Multiple modifiers**: every link in the chain is inspected; flags
-  set, timezone captured, constraints collected.
+  set, name and timezone captured, constraints collected.
+- **`name(string)`**: `->name('send-daily-mail')` is captured into
+  `name`. A non-literal argument (`->name($label)`) leaves `name: null`;
+  the rest of the chain is still captured.
+- **`evenInMaintenanceMode()`**: `->evenInMaintenanceMode()` sets
+  `even_in_maintenance_mode: true`; absent, the flag is `false`.
 - **`cron(string)` passthrough**: `->cron('*/5 8-17 * * 1-5')` is stored
   verbatim in `cron`.
 - **Multi-hour helpers honour their minutes argument**:
@@ -164,9 +178,6 @@ on existing primitives are widened.
 - **Constraint expression bodies**: `->when(fn () => $this->isActive())`
   and `->skip(...)` are captured as opaque labels (`"when(closure)"`).
   The closure body is not analysed.
-- **Chained `->name('label')`**: ignored. Schedule names are useful for
-  cache keys (overlap locks, etc.) but don't change runtime semantics.
-  Can be added in a follow-up.
 - **`->ping*()` callbacks**: `->pingBefore(url)`, `->thenPing(url)`,
   `->pingOnSuccess`, `->pingOnFailure` are not captured. They're a
   notification side-effect, not part of the schedule's identity.
