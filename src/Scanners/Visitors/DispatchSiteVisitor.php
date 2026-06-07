@@ -32,6 +32,9 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
 
     private const NOTIFY_METHODS = ['notify', 'notifyNow'];
 
+    /** Dispatchable static forms whose target is the static class itself. */
+    private const DISPATCHABLE_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless'];
+
     /** @var array<int, array{class: ?string, method: ?string}> */
     private array $classStack = [];
 
@@ -201,23 +204,28 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         // dispatchSync / dispatchNow intentionally skipped.
-        if ($methodName !== 'dispatch') {
+        if (! in_array($methodName, self::DISPATCHABLE_METHODS, true)) {
             return;
         }
 
+        // Facades have no conditional form — only the Dispatchable trait does.
         if (Facades::EVENT->matches($className)) {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
+            if ($methodName === 'dispatch') {
+                $this->recordHelperOrFacade($node, $node->args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
+            }
 
             return;
         }
 
         if (Facades::BUS->matches($className)) {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::dispatch');
+            if ($methodName === 'dispatch') {
+                $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::dispatch');
+            }
 
             return;
         }
 
-        // Dispatchable form: X::dispatch(...).
+        // Dispatchable form: X::dispatch(...) / X::dispatchIf(...) / X::dispatchUnless(...).
         if ($this->shouldSkipResolved()) {
             return;
         }

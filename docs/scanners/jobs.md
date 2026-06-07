@@ -8,7 +8,7 @@ JobsScanner finds job classes via two discovery paths and merges them by FQCN:
 
 1. **Filesystem walk of `app/Jobs/`.** Every `*.php` file under `app/Jobs/` (recursively) is parsed and any concrete class found becomes a job candidate. Abstract classes, interfaces, traits, and anonymous classes are skipped.
 
-2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or the Dispatchable form `X::dispatch()` is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`. A target wrapped in a fluent chain is resolved through the chain to its FQCN: `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` both seed `ProcessOrder` (only `new X` / `X::class` receivers resolve, not variable receivers). The dispatch-time modifiers on that chain are captured into the site's `overrides` object — see Cross-link behavior.
+2. **Dispatch-site seeding.** Any class targeted by `Bus::dispatch(...)`, `dispatch(...)`, or a Dispatchable form — `X::dispatch()`, `X::dispatchIf($cond, ...)`, `X::dispatchUnless($cond, ...)` — is located via the PSR-4 guess (leading `App\` → `app/`) and parsed. The conditional forms resolve to the same target as `X::dispatch()`; the leading condition argument does not affect resolution. This lets jobs in DDD-style layouts like `app/Domain/Billing/Jobs/SettleInvoice.php` get picked up even though they live outside `app/Jobs/`. A target wrapped in a fluent chain is resolved through the chain to its FQCN: `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` both seed `ProcessOrder` (only `new X` / `X::class` receivers resolve, not variable receivers). The dispatch-time modifiers on that chain are captured into the site's `overrides` object — see Cross-link behavior.
 
 Entries are deduped by FQCN. A job discovered through both paths produces a single entry.
 
@@ -66,6 +66,8 @@ Entries are sorted by `fqcn` ascending.
 
 - **`ShouldQueue` inherited through vendor classes.** The class hierarchy resolver only indexes `app/`. A job that extends an abstract class from a vendor package (e.g. a Laravel framework class) which itself implements `ShouldQueue` will still report `queued: false`.
 - **Helper methods called from `handle()`.** Dispatches inside a helper method (e.g. `processOrder()` called by `handle()`) are not attributed to the job's `dispatches[]`. Only sites whose enclosing method is literally `handle` are joined. Same constraint as listeners' non-`handle*` methods.
+- **`dispatchSync` / `dispatchNow` / `dispatchAfterResponse`.** Not captured by DispatchScanner. A job dispatched only through these forms will not surface in `jobs[*].dispatched_from` (it still appears via the filesystem walk if it lives under `app/Jobs/`).
+- **Container-form dispatch.** `app(Dispatcher::class)->dispatch(...)` is unresolved — the dispatcher resolved from the container is not recognised as a dispatch site.
 - **`Bus::chain([new A, new B])` and `Bus::batch([...])`.** Neither captured by DispatchScanner today. Jobs registered via chain or batch will not surface in `jobs[*].dispatched_from`. A future change to `DispatchSiteVisitor` could recognise array-literal chain/batch contents.
 - **Method-form queue configs.** `backoff()` and `retryUntil()` methods are not parsed. Only class-level scalar property declarations (`public $backoff = 60;`) are extracted into `queue_config`.
 - **`->delay()` with a non-integer-literal argument.** Captured `overrides.delay` is integer-second literals only. `->delay(now()->addMinutes(5))` and `->delay($seconds)` leave the `delay` key absent.
@@ -81,7 +83,7 @@ Triage checklist for missing jobs:
 1. Is the class under `app/Jobs/` (any depth)? Yes → picked up by the filesystem walk.
 2. Is it dispatched via `dispatch(new X)`, `Bus::dispatch(new X)`, or `X::dispatch()` somewhere under `app/`? Yes → picked up via dispatch-site seeding, assuming the PSR-4 guess locates the file.
 3. Is it abstract, an interface, a trait, or an anonymous class? Skipped by design.
-4. Is it only referenced inside `Bus::chain([...])` or `Bus::batch([...])`? Not currently captured.
+4. Is it only referenced inside `Bus::chain([...])` / `Bus::batch([...])`, dispatched only via `dispatchSync` / `dispatchNow` / `dispatchAfterResponse`, or via a container-resolved dispatcher? Not currently captured.
 
 For unexpected `queued: false` on a class that extends a queueable parent: confirm the parent lives under `app/` and that some class in the extends chain declares `implements ShouldQueue`. Vendor parents are opaque to the resolver.
 

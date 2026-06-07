@@ -119,6 +119,90 @@ it('recognises Foo::dispatch() as dispatchable + ambiguous', function () {
     expect($sites[0]->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
 });
 
+it('recognises Foo::dispatchIf($cond) as dispatchable + ambiguous', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($cond): void {
+            ProcessOrder::dispatchIf($cond);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
+});
+
+it('recognises Foo::dispatchUnless($cond, $arg) as dispatchable + ambiguous', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($cond, $arg): void {
+            ProcessOrder::dispatchUnless($cond, $arg);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
+});
+
+it('captures outer chain modifiers on Foo::dispatchIf($cond)->onQueue()', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\ProcessOrder;
+    class Svc {
+        public function go($cond): void {
+            ProcessOrder::dispatchIf($cond)->onQueue('high');
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Jobs\\ProcessOrder');
+    expect($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+    expect($sites[0]->overrides->toArray())->toBe(['queue' => 'high']);
+});
+
+it('does not mis-record Event::dispatchIf($cond, new Foo) as a Dispatchable target', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    use Illuminate\Support\Facades\Event;
+    class Svc {
+        public function go($cond): void {
+            Event::dispatchIf($cond, new Foo);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    // The Event facade has no conditional dispatch form; the visitor must not
+    // record a Dispatchable site named `Event`, nor attribute anything to it.
+    expect($sites)->toBe([]);
+    expect($unresolved)->toBe([]);
+});
+
 it('recognises dispatch(new Bar()) as job_helper + job', function () {
     $source = <<<'PHP'
     <?php
