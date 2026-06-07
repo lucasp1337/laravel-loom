@@ -84,6 +84,28 @@ it('serialises a known route with the expected schema keys and values', function
     expect($home['line'])->toBe(12);
 });
 
+it('serialises a grouped route with the resolved prefix, name, and controller', function () {
+    $payload = buildRouteEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $routes */
+    $routes = $payload['routes'];
+
+    $dash = null;
+    foreach ($routes as $route) {
+        if ($route['method'] === 'GET' && $route['uri'] === '/dash/home') {
+            $dash = $route;
+
+            break;
+        }
+    }
+
+    expect($dash)->not->toBeNull();
+    expect($dash['uri'])->toBe('/dash/home');
+    expect($dash['name'])->toBe('dash.home');
+    expect($dash['controller_fqcn'])->toBe('App\\Http\\Controllers\\HomeController');
+    expect($dash['controller_method'])->toBe('index');
+});
+
 it('leaves non-route sections empty for the route fixture', function () {
     $payload = buildRouteEndToEndPayload();
 

@@ -9,4 +9,8 @@ class AdminController
     public function panel(): void
     {
     }
+
+    public function dashboard(): void
+    {
+    }
 }

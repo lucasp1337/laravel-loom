@@ -305,8 +305,8 @@ Registered HTTP routes discovered from the application's route definitions. One 
 ```
 {
   "method": enum,                 // HTTP verb, uppercase
-  "uri": string,                  // route URI pattern (e.g. "orders/{order}")
-  "name": string | null,          // route name from ->name(...); null when unnamed
+  "uri": string,                  // route URI, enclosing group prefixes applied; leading slash, root "/"
+  "name": string | null,          // group name prefix + ->name(...); null when unnamed
   "controller_fqcn": string | null,   // FQCN of the controller; null for closure / non-controller routes
   "controller_method": string | null, // controller action method; null for closure / non-controller routes
   "file": string,                 // path to the route definition, relative to app root
@@ -323,6 +323,8 @@ GET, POST, PUT, PATCH, DELETE, OPTIONS, ANY
 ```
 
 A route registered against multiple verbs that share one definition is reported as `ANY`. Routes whose action is a closure (or otherwise not a `Controller@method` callable) carry `null` for both `controller_fqcn` and `controller_method`; `name` is `null` whenever no `->name(...)` was applied.
+
+`uri` carries the route URI with the prefixes of any enclosing `Route::group(...)` prepended; it always begins with a leading slash, and the root is `/`. `name` is the enclosing group name prefix concatenated as-is (no separator inserted) with the route's own `->name(...)`. See [docs/scanners/routes.md](scanners/routes.md) for the group merge rules.
 
 ## `mailables[]`
 

@@ -27,6 +27,21 @@ Route::any('/any', [UserController::class, 'any']);
 
 Route::prefix('admin')->group(function () {
     Route::get('/panel', [AdminController::class, 'panel']);
+    Route::get('/', [AdminController::class, 'dashboard']);
+});
+
+Route::prefix('api/v1')->name('v1.')->controller(UserController::class)->group(function () {
+    Route::get('/status', 'store')->name('status');
+});
+
+Route::group(['prefix' => 'dash', 'as' => 'dash.', 'controller' => HomeController::class], function () {
+    Route::get('/home', 'index')->name('home');
+});
+
+Route::prefix('v2')->group(function () {
+    Route::prefix('users')->name('users.')->group(function () {
+        Route::get('/{id}', [UserController::class, 'show'])->name('show');
+    });
 });
 
 Route::resource('photos', PhotoController::class);

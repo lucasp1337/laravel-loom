@@ -146,21 +146,70 @@ it('emits a single ANY-method entry for Route::any', function () {
 });
 
 // ---------------------------------------------------------------------------
-// Group / prefix (slice 1: no prefix application)
+// Group / prefix (slice 2: prefix, name prefix, default controller applied)
 // ---------------------------------------------------------------------------
 
-it('discovers a route nested in a prefix group without applying the prefix', function () {
+it('applies a group prefix to a nested route', function () {
     $entries = routeEntries();
 
-    // Slice 1 does not resolve the group prefix: the uri stays '/panel'.
-    $entry = routeBy($entries, 'GET', '/panel');
+    // Slice 2 prepends the group prefix: the uri becomes '/admin/panel'.
+    $entry = routeBy($entries, 'GET', '/admin/panel');
 
     expect($entry)->not->toBeNull();
     expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\AdminController');
     expect($entry->controllerMethod)->toBe('panel');
 
-    // The group/prefix chain itself emits nothing.
-    expect(routeBy($entries, 'GET', '/admin/panel'))->toBeNull();
+    // The bare leaf uri no longer appears.
+    expect(routeBy($entries, 'GET', '/panel'))->toBeNull();
+});
+
+it('collapses a root leaf in a prefix group to the prefix', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/admin');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\AdminController');
+    expect($entry->controllerMethod)->toBe('dashboard');
+    expect($entry->name)->toBeNull();
+});
+
+it('applies a fluent prefix, name prefix, and default controller', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/api/v1/status');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBe('v1.status');
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\UserController');
+    expect($entry->controllerMethod)->toBe('store');
+});
+
+it('applies an array-config group prefix, name prefix, and controller', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/dash/home');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBe('dash.home');
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\HomeController');
+    expect($entry->controllerMethod)->toBe('index');
+});
+
+it('accumulates nested group prefixes and name prefixes', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/v2/users/{id}');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBe('users.show');
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\UserController');
+    expect($entry->controllerMethod)->toBe('show');
+});
+
+it('leaves ungrouped routes unchanged by slice-2 group resolution', function () {
+    $entries = routeEntries();
+
+    $users = routeBy($entries, 'POST', '/users');
+    expect($users)->not->toBeNull();
+    expect($users->uri)->toBe('/users');
+
+    $home = routeBy($entries, 'GET', '/');
+    expect($home)->not->toBeNull();
+    expect($home->uri)->toBe('/');
+    expect($home->name)->toBe('home');
 });
 
 // ---------------------------------------------------------------------------
@@ -194,6 +243,15 @@ it('discovers routes from routes/api.php as well as routes/web.php', function ()
 
     expect($show)->not->toBeNull();
     expect($show->controllerMethod)->toBe('show');
+});
+
+it('applies group context to routes in routes/api.php', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/v1/ping');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBe('api.v1.ping');
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\Api\\UserController');
+    expect($entry->controllerMethod)->toBe('index');
 });
 
 // ---------------------------------------------------------------------------

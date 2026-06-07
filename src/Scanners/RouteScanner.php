@@ -73,7 +73,7 @@ final class RouteScanner implements Scanner
     {
         $out = [];
         foreach ($rawEntries as $raw) {
-            $name = $this->resolveName($raw);
+            $name = $this->groupName($raw->groupNamePrefix, $this->resolveName($raw));
 
             foreach ($this->expand($raw, $relativeFile, $name) as $entry) {
                 $out[] = $entry;
@@ -81,6 +81,42 @@ final class RouteScanner implements Scanner
         }
 
         return $out;
+    }
+
+    /**
+     * Apply the enclosing group's cumulative prefix segments to a route's own
+     * uri. Always leading-slash; root collapses to '/'. Ungrouped routes (empty
+     * prefix) stay byte-identical to slice 1.
+     *
+     * @param  list<string>  $groupPrefix
+     */
+    private function groupUri(array $groupPrefix, string $ownUri): string
+    {
+        $segments = [];
+        foreach ($groupPrefix as $p) {
+            $t = trim($p, '/');
+            if ($t !== '') {
+                $segments[] = $t;
+            }
+        }
+        $own = trim($ownUri, '/');
+        if ($own !== '') {
+            $segments[] = $own;
+        }
+        $joined = implode('/', $segments);
+
+        return $joined === '' ? '/' : '/'.$joined;
+    }
+
+    /**
+     * Concatenate the group name prefix with the leaf name (no separator). Empty
+     * result becomes null, so ungrouped unnamed routes stay null as in slice 1.
+     */
+    private function groupName(string $groupNamePrefix, ?string $leafName): ?string
+    {
+        $full = $groupNamePrefix.($leafName ?? '');
+
+        return $full === '' ? null : $full;
     }
 
     /**
@@ -100,12 +136,13 @@ final class RouteScanner implements Scanner
             ? 'ANY'
             : RouterMethod::VERB_MAP[$raw->rootMethod];
 
-        $uri = AstHelpers::scalarString($args[0] ?? null);
-        if ($uri === null) {
+        $ownUri = AstHelpers::scalarString($args[0] ?? null);
+        if ($ownUri === null) {
             return [];
         }
+        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[1] ?? null);
+        $action = $this->resolveAction($args[1] ?? null, $raw->groupController);
 
         return [new RouteEntry(
             method: $method,
@@ -129,12 +166,13 @@ final class RouteScanner implements Scanner
         $args = $raw->rootArgs;
 
         $verbs = $this->verbList($args[0] ?? null);
-        $uri = AstHelpers::scalarString($args[1] ?? null);
-        if ($verbs === [] || $uri === null) {
+        $ownUri = AstHelpers::scalarString($args[1] ?? null);
+        if ($verbs === [] || $ownUri === null) {
             return [];
         }
+        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[2] ?? null);
+        $action = $this->resolveAction($args[2] ?? null, $raw->groupController);
 
         $out = [];
         foreach ($verbs as $verb) {
@@ -176,11 +214,13 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Resolve a route action node to a controller FQCN + method.
+     * Resolve a route action node to a controller FQCN + method. A bare
+     * method-name string binds to $groupController (the enclosing group's
+     * default controller) when one is present.
      *
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg): array
+    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
     {
         if (! $arg instanceof Node\Arg) {
             return ['fqcn' => null, 'method' => null];
@@ -207,7 +247,7 @@ final class RouteScanner implements Scanner
         // 'Class@method' (legacy) or 'Class' (invokable string).
         $string = AstHelpers::scalarString($value);
         if ($string !== null) {
-            return $this->resolveStringAction($string);
+            return $this->resolveStringAction($string, $groupController);
         }
 
         // Variable, dynamic expression, etc. — never guess.
@@ -238,7 +278,7 @@ final class RouteScanner implements Scanner
     /**
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveStringAction(string $action): array
+    private function resolveStringAction(string $action, ?string $groupController = null): array
     {
         if (str_contains($action, '@')) {
             [$class, $method] = explode('@', $action, 2);
@@ -246,7 +286,12 @@ final class RouteScanner implements Scanner
             return ['fqcn' => ltrim($class, '\\'), 'method' => $method];
         }
 
-        // No '@' -> invokable controller string.
+        // Bare method name under a group controller -> Controller::method.
+        if ($groupController !== null) {
+            return ['fqcn' => ltrim($groupController, '\\'), 'method' => $action];
+        }
+
+        // No '@' and no group controller -> invokable controller string.
         return ['fqcn' => ltrim($action, '\\'), 'method' => '__invoke'];
     }
 
