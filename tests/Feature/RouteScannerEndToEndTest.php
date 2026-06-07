@@ -81,7 +81,7 @@ it('serialises a known route with the expected schema keys and values', function
     expect($home['controller_fqcn'])->toBe('App\\Http\\Controllers\\HomeController');
     expect($home['controller_method'])->toBe('index');
     expect(str_replace(DIRECTORY_SEPARATOR, '/', (string) $home['file']))->toBe('routes/web.php');
-    expect($home['line'])->toBe(12);
+    expect($home['line'])->toBe(17);
 });
 
 it('serialises a grouped route with the resolved prefix, name, and controller', function () {
@@ -124,6 +124,27 @@ it('serialises the middleware field on a grouped route', function () {
     expect($settings)->not->toBeNull();
     expect($settings)->toHaveKey('middleware');
     expect($settings['middleware'])->toBe(['web', 'auth', 'verified']);
+});
+
+it('serialises an expanded resource route end-to-end', function () {
+    $payload = buildRouteEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $routes */
+    $routes = $payload['routes'];
+
+    $update = null;
+    foreach ($routes as $route) {
+        if ($route['method'] === 'PUT' && $route['uri'] === '/photos/{photo}') {
+            $update = $route;
+
+            break;
+        }
+    }
+
+    expect($update)->not->toBeNull();
+    expect($update['name'])->toBe('photos.update');
+    expect($update['controller_fqcn'])->toBe('App\\Http\\Controllers\\PhotoController');
+    expect($update['controller_method'])->toBe('update');
 });
 
 it('leaves non-route sections empty for the route fixture', function () {

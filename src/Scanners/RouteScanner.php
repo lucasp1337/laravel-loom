@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteEntry;
+use Lucasp\Loom\Index\ResourceAction;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
@@ -59,7 +61,7 @@ final class RouteScanner implements Scanner
 
         usort(
             $entries,
-            fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method] <=> [$b->file, $b->line, $b->method],
+            fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method, $a->uri] <=> [$b->file, $b->line, $b->method, $b->uri],
         );
 
         return ['routes' => $entries];
@@ -132,6 +134,10 @@ final class RouteScanner implements Scanner
             return $this->expandMatch($raw, $relativeFile, $name);
         }
 
+        if (in_array($raw->rootMethod, RouterMethod::resourceRoots(), true)) {
+            return $this->expandResource($raw, $relativeFile);
+        }
+
         $method = $raw->rootMethod === RouterMethod::ANY
             ? 'ANY'
             : RouterMethod::VERB_MAP[$raw->rootMethod];
@@ -190,6 +196,151 @@ final class RouteScanner implements Scanner
         }
 
         return $out;
+    }
+
+    /**
+     * `Route::resource(name, Controller)` / `apiResource(...)` — one entry per
+     * registered action. The action set is filtered by chain `->only(...)` /
+     * `->except(...)`; names and uris use Laravel defaults (custom
+     * `->names()`/`->parameters()` overrides are out of scope).
+     *
+     * @return list<RouteEntry>
+     */
+    private function expandResource(RouteChainEntry $raw, string $relativeFile): array
+    {
+        $args = $raw->rootArgs;
+
+        $resourceName = AstHelpers::scalarString($args[0] ?? null);
+        if ($resourceName === null) {
+            return [];
+        }
+        $resourceName = trim($resourceName, '/');
+        if ($resourceName === '') {
+            return [];
+        }
+
+        // Controller may be unresolvable (variable, dynamic) — still expand.
+        $controllerArg = $args[1] ?? null;
+        $controllerFqcn = AstHelpers::classConstFqcn(
+            $controllerArg instanceof Node\Arg ? $controllerArg->value : null,
+        );
+
+        $actions = $this->filterResourceActions($raw, $this->defaultResourceActions($raw->rootMethod));
+
+        $param = $this->memberParameter($resourceName);
+        $nameBase = str_replace('/', '.', $resourceName);
+
+        $out = [];
+        foreach ($actions as $action) {
+            $ownUri = $resourceName.str_replace('{param}', '{'.$param.'}', $action->suffix());
+
+            $out[] = new RouteEntry(
+                method: $action->method(),
+                uri: $this->groupUri($raw->groupPrefix, $ownUri),
+                name: $raw->groupNamePrefix.$nameBase.'.'.$action->value,
+                controllerFqcn: $controllerFqcn,
+                controllerMethod: $action->value,
+                middleware: $raw->middleware,
+                file: $relativeFile,
+                line: $raw->line,
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * The default action set for a resource root, before only/except filtering.
+     *
+     * @return list<ResourceAction>
+     */
+    private function defaultResourceActions(string $rootMethod): array
+    {
+        return $rootMethod === RouterMethod::API_RESOURCE
+            ? ResourceAction::apiSet()
+            : ResourceAction::fullSet();
+    }
+
+    /**
+     * Apply chain `->only([...])` then `->except([...])` filters, preserving the
+     * canonical action order. Unrecognised option methods are ignored.
+     *
+     * @param  list<ResourceAction>  $actions
+     * @return list<ResourceAction>
+     */
+    private function filterResourceActions(RouteChainEntry $raw, array $actions): array
+    {
+        $only = null;
+        $except = [];
+
+        $chain = $raw->chain;
+        for ($i = 1, $n = count($chain); $i < $n; $i++) {
+            $method = $chain[$i]->method;
+            if ($method === 'only') {
+                $only = $this->stringArgList($chain[$i]->args);
+            } elseif ($method === 'except') {
+                $except = $this->stringArgList($chain[$i]->args);
+            }
+        }
+
+        if ($only !== null) {
+            $actions = array_values(array_filter(
+                $actions,
+                fn (ResourceAction $a): bool => in_array($a->value, $only, true),
+            ));
+        }
+        if ($except !== []) {
+            $actions = array_values(array_filter(
+                $actions,
+                fn (ResourceAction $a): bool => ! in_array($a->value, $except, true),
+            ));
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Collect literal action names from `->only(...)` / `->except(...)` args,
+     * accepting both an array argument and variadic string arguments.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @return list<string>
+     */
+    private function stringArgList(array $args): array
+    {
+        $names = [];
+        foreach ($args as $arg) {
+            if (! $arg instanceof Node\Arg) {
+                continue;
+            }
+            if ($arg->value instanceof Node\Expr\Array_) {
+                foreach ($arg->value->items as $item) {
+                    if ($item->value instanceof Node\Scalar\String_) {
+                        $names[] = $item->value->value;
+                    }
+                }
+
+                continue;
+            }
+            $string = AstHelpers::scalarString($arg->value);
+            if ($string !== null) {
+                $names[] = $string;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * The member route parameter: the singular of the resource name's last
+     * segment, via Laravel's own inflector for faithful pluralisation rules.
+     */
+    private function memberParameter(string $resourceName): string
+    {
+        $segments = explode('/', $resourceName);
+        $last = $segments[count($segments) - 1];
+
+        return Str::singular($last);
     }
 
     /**

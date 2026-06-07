@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-class PhotoController
+class WidgetController
 {
     public function index(): void
-    {
-    }
-
-    public function create(): void
     {
     }
 
@@ -19,10 +15,6 @@ class PhotoController
     }
 
     public function show(): void
-    {
-    }
-
-    public function edit(): void
     {
     }
 

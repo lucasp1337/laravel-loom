@@ -28,6 +28,10 @@ final class RouterMethod
 
     public const MATCH = 'match';
 
+    public const RESOURCE = 'resource';
+
+    public const API_RESOURCE = 'apiResource';
+
     /**
      * Root method names the visitor treats as leaf HTTP routes.
      *
@@ -35,6 +39,16 @@ final class RouterMethod
      */
     public static function routeRoots(): array
     {
-        return [...array_keys(self::VERB_MAP), self::ANY, self::MATCH];
+        return [...array_keys(self::VERB_MAP), self::ANY, self::MATCH, ...self::resourceRoots()];
+    }
+
+    /**
+     * Root method names that expand into a fixed set of resource sub-routes.
+     *
+     * @return list<string>
+     */
+    public static function resourceRoots(): array
+    {
+        return [self::RESOURCE, self::API_RESOURCE];
     }
 }

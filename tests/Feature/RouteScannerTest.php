@@ -278,15 +278,158 @@ it('emits an empty middleware list for an ungrouped route with no middleware', f
 });
 
 // ---------------------------------------------------------------------------
-// Resource (slice 1: emits nothing)
+// Resource expansion (slice 4)
 // ---------------------------------------------------------------------------
 
-it('emits no entries for Route::resource in slice 1', function () {
+it('expands Route::resource into its seven constituent routes', function () {
     $entries = routeEntries();
 
-    foreach ($entries as $entry) {
-        expect($entry->uri)->not->toBe('photos');
-        expect($entry->controllerFqcn)->not->toBe('App\\Http\\Controllers\\PhotoController');
+    $expected = [
+        ['GET', '/photos', 'photos.index', 'index'],
+        ['GET', '/photos/create', 'photos.create', 'create'],
+        ['POST', '/photos', 'photos.store', 'store'],
+        ['GET', '/photos/{photo}', 'photos.show', 'show'],
+        ['GET', '/photos/{photo}/edit', 'photos.edit', 'edit'],
+        ['PUT', '/photos/{photo}', 'photos.update', 'update'],
+        ['DELETE', '/photos/{photo}', 'photos.destroy', 'destroy'],
+    ];
+
+    foreach ($expected as [$method, $uri, $name, $action]) {
+        $entry = routeBy($entries, $method, $uri);
+
+        expect($entry)->not->toBeNull();
+        expect($entry->name)->toBe($name);
+        expect($entry->controllerMethod)->toBe($action);
+        expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\PhotoController');
+        expect($entry->middleware)->toBe([]);
+    }
+
+    $photos = array_values(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\PhotoController',
+    ));
+
+    expect($photos)->toHaveCount(7);
+});
+
+it('expands Route::apiResource into five routes with no create or edit', function () {
+    $entries = routeEntries();
+
+    $expected = [
+        ['GET', '/widgets', 'widgets.index', 'index'],
+        ['POST', '/widgets', 'widgets.store', 'store'],
+        ['GET', '/widgets/{widget}', 'widgets.show', 'show'],
+        ['PUT', '/widgets/{widget}', 'widgets.update', 'update'],
+        ['DELETE', '/widgets/{widget}', 'widgets.destroy', 'destroy'],
+    ];
+
+    foreach ($expected as [$method, $uri, $name, $action]) {
+        $entry = routeBy($entries, $method, $uri);
+
+        expect($entry)->not->toBeNull();
+        expect($entry->name)->toBe($name);
+        expect($entry->controllerMethod)->toBe($action);
+        expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\WidgetController');
+    }
+
+    $widgets = array_values(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\WidgetController',
+    ));
+
+    expect($widgets)->toHaveCount(5);
+
+    expect(routeBy($entries, 'GET', '/widgets/create'))->toBeNull();
+    expect(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->name === 'widgets.create',
+    ))->toBe([]);
+});
+
+it('honours ->only() on a resource', function () {
+    $entries = routeEntries();
+
+    $books = array_values(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\BookController',
+    ));
+
+    expect($books)->toHaveCount(2);
+
+    $index = routeBy($entries, 'GET', '/books');
+    expect($index)->not->toBeNull();
+    expect($index->name)->toBe('books.index');
+    expect($index->controllerMethod)->toBe('index');
+
+    $show = routeBy($entries, 'GET', '/books/{book}');
+    expect($show)->not->toBeNull();
+    expect($show->name)->toBe('books.show');
+    expect($show->controllerMethod)->toBe('show');
+
+    expect(routeBy($entries, 'POST', '/books'))->toBeNull();
+});
+
+it('honours ->except() on a resource', function () {
+    $entries = routeEntries();
+
+    $tags = array_values(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\TagController',
+    ));
+
+    expect($tags)->toHaveCount(4);
+
+    foreach (['index', 'store', 'show', 'update'] as $action) {
+        $match = array_values(array_filter(
+            $tags,
+            static fn (RouteEntry $e): bool => $e->controllerMethod === $action,
+        ));
+        expect($match)->toHaveCount(1);
+    }
+
+    foreach (['create', 'edit', 'destroy'] as $action) {
+        expect(array_filter(
+            $tags,
+            static fn (RouteEntry $e): bool => $e->controllerMethod === $action,
+        ))->toBe([]);
+    }
+
+    expect(routeBy($entries, 'DELETE', '/tags/{tag}'))->toBeNull();
+});
+
+it('singularises the resource parameter for the route uri', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/categories/{category}');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->name)->toBe('categories.show');
+    expect($entry->controllerMethod)->toBe('show');
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\CategoryController');
+});
+
+it('applies group prefix, name, and middleware to a grouped apiResource', function () {
+    $entries = routeEntries();
+
+    $items = array_values(array_filter(
+        $entries,
+        static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\ItemController',
+    ));
+
+    expect($items)->toHaveCount(5);
+
+    $index = routeBy($entries, 'GET', '/admin/items');
+    expect($index)->not->toBeNull();
+    expect($index->name)->toBe('admin.items.index');
+    expect($index->controllerMethod)->toBe('index');
+    expect($index->middleware)->toBe(['auth']);
+
+    $show = routeBy($entries, 'GET', '/admin/items/{item}');
+    expect($show)->not->toBeNull();
+    expect($show->name)->toBe('admin.items.show');
+    expect($show->controllerMethod)->toBe('show');
+    expect($show->middleware)->toBe(['auth']);
+
+    foreach ($items as $item) {
+        expect($item->middleware)->toBe(['auth']);
     }
 });
 
@@ -331,7 +474,7 @@ it('reports the source file and line for a known route', function () {
     $file = str_replace(DIRECTORY_SEPARATOR, '/', $entry->file);
 
     expect($file)->toBe('routes/web.php');
-    expect($entry->line)->toBe(12);
+    expect($entry->line)->toBe(17);
 });
 
 // ---------------------------------------------------------------------------

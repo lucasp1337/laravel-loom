@@ -6,8 +6,10 @@ Discovers HTTP routes registered in `routes/*.php` and emits the
 Route discovery covers individual registrations and the context of any
 enclosing `Route::group(...)` — prefix, name prefix, default controller,
 and middleware (see [Route groups](#route-groups) and
-[Middleware](#middleware)). The `dispatches[]` cross-links from the full
-proposal, `resource()` expansion, and middleware-group / alias resolution
+[Middleware](#middleware)). `Route::resource()` / `Route::apiResource()`
+registrations are expanded into their constituent CRUD routes (see
+[Resource controllers](#resource-controllers)). The `dispatches[]`
+cross-links from the full proposal and middleware-group / alias resolution
 are deferred to follow-up PRs (see [Known limitations](#known-limitations)).
 
 ## What it detects
@@ -187,6 +189,57 @@ The `/account/settings` route resolves to
 `middleware: ["web", "auth", "verified"]` — the two group entries
 (outermost first) followed by the route's own `verified`.
 
+### Resource controllers
+
+`Route::resource('photos', PhotoController::class)` is **expanded** into
+its constituent CRUD routes — one `routes[]` entry per generated action.
+A full resource expands to **seven** entries:
+
+| Action  | method   | uri                    | name             | controller_method |
+| ------- | -------- | ---------------------- | ---------------- | ----------------- |
+| index   | `GET`    | `/photos`              | `photos.index`   | `index`           |
+| create  | `GET`    | `/photos/create`       | `photos.create`  | `create`          |
+| store   | `POST`   | `/photos`              | `photos.store`   | `store`           |
+| show    | `GET`    | `/photos/{photo}`      | `photos.show`    | `show`            |
+| edit    | `GET`    | `/photos/{photo}/edit` | `photos.edit`    | `edit`            |
+| update  | `PUT`    | `/photos/{photo}`      | `photos.update`  | `update`          |
+| destroy | `DELETE` | `/photos/{photo}`      | `photos.destroy` | `destroy`         |
+
+`controller_fqcn` is the resource controller for every entry
+(`App\Http\Controllers\PhotoController` above).
+
+`Route::apiResource('photos', PhotoController::class)` expands to the same
+set **minus** the two HTML-form actions, `create` and `edit` — **five**
+entries: `index`, `store`, `show`, `update`, `destroy`.
+
+- **Member parameter** — the `{...}` segment is Laravel's `Str::singular`
+  of the resource name: `photos` → `{photo}`, `categories` →
+  `{category}`. The same singular is used for `show`, `edit`, `update`,
+  and `destroy`.
+
+- **`update` verb** — emitted as `PUT`. Laravel registers `update` for
+  **both** `PUT` and `PATCH`; this scanner emits a single `PUT` entry for
+  it (the `PATCH` alias is not separately synthesized).
+
+- **Group / middleware inheritance** — a `resource()` / `apiResource()`
+  call inside a `Route::group(...)` (or fluent `prefix`/`name`/`middleware`
+  chain) propagates the enclosing context to **all** generated sub-routes:
+  the group prefix is prepended to every `uri`, the group name prefix is
+  concatenated onto every `name`, and the group middleware is merged into
+  every entry's `middleware` chain — exactly as for leaf routes (see
+  [Route groups](#route-groups) and [Middleware](#middleware)).
+
+- **`->only([...])` / `->except([...])`** — these filter the generated
+  action set. `Route::resource('photos', ...)->only(['index', 'show'])`
+  emits just the `index` and `show` entries; `->except(['create', 'edit'])`
+  emits the other five. Both are honoured; if both are present Laravel's
+  precedence applies.
+
+The override forms `->names(...)`, `->parameters(...)`, `->scoped(...)`,
+and `->shallow()` are **not** applied — the expansion always uses the
+default names and parameters above (see
+[Known limitations](#known-limitations)).
+
 ## Known limitations
 
 These are deliberate scope boundaries, not bugs — each is planned
@@ -202,9 +255,19 @@ follow-up work.
 - **`withoutMiddleware(...)` is not applied.** Middleware removed from a
   route or group via `->withoutMiddleware(...)` is **not** subtracted from
   the resolved `middleware` chain — the field reflects only what is added.
-- **`Route::resource()` / `Route::apiResource()` not expanded.** These
-  emit no entries; the implicit CRUD routes they generate are not
-  synthesized. Deferred.
+- **Resource override forms are not applied.** `->names(...)`,
+  `->parameters(...)`, `->scoped(...)`, and `->shallow()` chained on a
+  `resource()` / `apiResource()` registration are **ignored** — the
+  expansion uses Laravel's default names and `{singular}` parameters
+  regardless. See [Resource controllers](#resource-controllers).
+- **Nested / dotted resource names are not specially handled.** A dotted
+  name like `Route::resource('photos.comments', ...)` is treated as a flat
+  resource name; the nested-parameter URIs Laravel would generate
+  (`/photos/{photo}/comments/{comment}`) are **not** synthesized.
+- **Batch resource forms are not expanded.** The array forms
+  `Route::resources([...])` and `Route::apiResources([...])` emit no
+  entries; only the single-resource `resource()` / `apiResource()` calls
+  are expanded.
 - **No `dispatches[]` cross-links.** The full #8 proposal links each route
   to the dispatch sites inside its handler. That cross-link is not in this
   slice — it is a follow-up PR.
