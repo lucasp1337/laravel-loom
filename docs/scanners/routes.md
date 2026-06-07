@@ -320,8 +320,12 @@ follow-up work.
   `Route::resources([...])` and `Route::apiResources([...])` emit no
   entries; only the single-resource `resource()` / `apiResource()` calls
   are expanded.
-- **Attribute routing not handled.** `#[Route(...)]` attributes on
-  controller methods are invisible to this slice.
+- **Attribute routing not handled (by design).** Laravel core registers
+  routes through the router (`routes/*.php`), not PHP attributes; `#[Route]`
+  / `#[Get]`-style attributes come from third-party packages (e.g.
+  `spatie/laravel-route-attributes`) whose attribute API varies. The scanner
+  targets Laravel's own routing surface, so attribute routes are not
+  discovered. Support can be added if a specific package is adopted.
 - **Unresolvable actions emit null controller fields.** When the action
   is stored in a variable or is otherwise not a statically-resolvable
   tuple / class-constant / string, `controller_fqcn` and
