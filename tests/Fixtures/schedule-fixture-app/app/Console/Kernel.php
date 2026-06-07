@@ -137,6 +137,58 @@ class Kernel
             ->daily()
             ->name('combined-task')
             ->evenInMaintenanceMode();
+
+        // withoutOverlapping with an explicit expiry minutes arg.
+        $schedule->command('overlap:expires')
+            ->daily()
+            ->withoutOverlapping(10);
+
+        // withoutOverlapping with no arg -> expiry null, flag still true.
+        $schedule->command('overlap:default')
+            ->daily()
+            ->withoutOverlapping();
+
+        // command(...) with an arguments array: list item, keyed item, bool.
+        $schedule->command('args:command', ['--force', 'user' => 1, 'dry' => true])
+            ->daily();
+
+        // job(...) with explicit queue + connection overrides.
+        $schedule->job(new SendInvoice(), 'emails', 'redis')
+            ->daily();
+
+        // job(...) with no queue/connection overrides -> both null.
+        $schedule->job(new SendInvoice())
+            ->hourly();
+
+        // Sub-minute helper -> cron null, frequency {seconds, 15}.
+        $schedule->command('sub:fifteen')
+            ->everyFifteenSeconds();
+
+        // Sub-minute helper -> cron null, frequency {seconds, 1}.
+        $schedule->command('sub:second')
+            ->everySecond();
+
+        // Sub-minute helper -> cron null, frequency {seconds, 30}.
+        $schedule->command('sub:thirty')
+            ->everyThirtySeconds();
+
+        // Last-wins: sub-minute then cron helper -> cron set, frequency null.
+        $schedule->command('sub:override-cron')
+            ->everyFifteenSeconds()
+            ->daily();
+
+        // Last-wins: cron helper then sub-minute -> cron null, frequency set.
+        $schedule->command('sub:override-frequency')
+            ->daily()
+            ->everyFifteenSeconds();
+
+        // Scheduling group: inner tasks inherit the group's frequency and
+        // modifiers; an inner ->hourly() overrides the group's daily.
+        $schedule->daily()->onOneServer()->group(function () use ($schedule) {
+            $schedule->command('grouped:alpha');
+            $schedule->command('grouped:beta')
+                ->hourly();
+        });
     }
 
     /**

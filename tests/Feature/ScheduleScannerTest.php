@@ -10,6 +10,7 @@ function scheduleFixturePath(): string
 }
 
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 
 /**
@@ -274,6 +275,71 @@ it('applies last-wins on multiple frequency helpers in a chain (->daily()->hourl
 });
 
 // ---------------------------------------------------------------------------
+// Sub-minute frequency helpers (structured frequency, cron null)
+// ---------------------------------------------------------------------------
+
+it('emits frequency {seconds, 15} and null cron for ->everyFifteenSeconds()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 164);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:fifteen');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(15);
+});
+
+it('emits frequency {seconds, 1} and null cron for ->everySecond()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 168);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:second');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(1);
+});
+
+it('emits frequency {seconds, 30} and null cron for ->everyThirtySeconds()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 172);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:thirty');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(30);
+});
+
+it('leaves frequency null for an ordinary cron entry', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->frequency)->toBeNull();
+});
+
+it('last-wins ->everyFifteenSeconds()->daily(): cron set, frequency null', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 176);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:override-cron');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->frequency)->toBeNull();
+});
+
+it('last-wins ->daily()->everyFifteenSeconds(): cron null, frequency set', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 181);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:override-frequency');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(15);
+});
+
+// ---------------------------------------------------------------------------
 // cron: null cases
 // ---------------------------------------------------------------------------
 
@@ -534,6 +600,83 @@ it('captures name and even_in_maintenance_mode together on one entry', function 
 });
 
 // ---------------------------------------------------------------------------
+// withoutOverlapping expiry
+// ---------------------------------------------------------------------------
+
+it('captures the expiry minutes from ->withoutOverlapping(10)', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 142);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('overlap:expires');
+    expect($entry->withoutOverlapping)->toBeTrue();
+    expect($entry->withoutOverlappingExpiresAt)->toBe(10);
+});
+
+it('leaves withoutOverlappingExpiresAt null for ->withoutOverlapping() with no arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 147);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('overlap:default');
+    expect($entry->withoutOverlapping)->toBeTrue();
+    expect($entry->withoutOverlappingExpiresAt)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Command arguments
+// ---------------------------------------------------------------------------
+
+it('captures command arguments: list item, keyed item, and bool', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 152);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
+    expect($entry->target)->toBe('args:command');
+    expect($entry->arguments)->toBe(['--force', 'user=1', 'dry=true']);
+});
+
+it('emits an empty arguments array for a command with no arguments array', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 21);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
+    expect($entry->arguments)->toBe([]);
+});
+
+// ---------------------------------------------------------------------------
+// Job queue + connection overrides
+// ---------------------------------------------------------------------------
+
+it('captures queue and connection from ->job(new HeavyJob, "emails", "redis")', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 156);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::JOB);
+    expect($entry->queue)->toBe('emails');
+    expect($entry->connection)->toBe('redis');
+});
+
+it('leaves queue and connection null for ->job(new HeavyJob) with no overrides', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 160);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::JOB);
+    expect($entry->queue)->toBeNull();
+    expect($entry->connection)->toBeNull();
+    // JOB entries never carry command arguments.
+    expect($entry->arguments)->toBe([]);
+});
+
+it('defaults arguments:[] / queue:null / connection:null on a closure entry', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 31);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::CLOSURE);
+    expect($entry->arguments)->toBe([]);
+    expect($entry->queue)->toBeNull();
+    expect($entry->connection)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
 // Constraints
 // ---------------------------------------------------------------------------
 
@@ -564,6 +707,38 @@ it('emits every entry as a ScheduledEntry DTO', function () {
     foreach ($entries as $entry) {
         expect($entry)->toBeInstanceOf(ScheduledEntry::class);
     }
+});
+
+// ---------------------------------------------------------------------------
+// Scheduling groups: inherited frequency + modifiers merge into inner tasks
+// ---------------------------------------------------------------------------
+
+it('inherits the group frequency and modifiers on an inner task with no own frequency', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 188);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('grouped:alpha');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->onOneServer)->toBeTrue();
+});
+
+it('lets an inner task override the group frequency while still inheriting modifiers', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 189);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('grouped:beta');
+    expect($entry->cron)->toBe('0 * * * *');
+    expect($entry->onOneServer)->toBeTrue();
+});
+
+it('does not apply group modifiers to a non-grouped entry', function () {
+    // A plain ->daily() entry outside any group keeps its cron and must not
+    // inherit onOneServer from the trailing group block.
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->onOneServer)->toBeFalse();
 });
 
 // ---------------------------------------------------------------------------

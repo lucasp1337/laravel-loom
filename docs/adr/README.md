@@ -35,3 +35,9 @@ refactor, it's a reference doc, not an ADR.
 
 - [0001 — ClassHierarchyResolver](0001-class-hierarchy-resolver.md) — opaque
   leaves, eager filesystem walk, class-graph only.
+- [0002 — ScheduleScanner](0002-schedule-scanner.md) — hybrid discovery,
+  normalised cron, opaque constraints.
+- [0003 — Mailables + Notifications](0003-mailables-notifications.md) —
+  separate sections, shared dispatch-site machinery.
+- [0004 — Sub-minute frequencies](0004-sub-minute-frequencies.md) — structured
+  `frequency` object; cron stays null for sub-minute helpers.

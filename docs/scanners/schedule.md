@@ -32,6 +32,32 @@ Each captured root call is the start of a fluent chain. The visitor walks
 down the chain collecting `(methodName, args)` for every link, then
 emits one entry per chain.
 
+### Schedule groups
+
+A `->group(Closure)` link applies its outer chain's attributes to every
+task declared inside the closure:
+
+```php
+Schedule::daily()->onOneServer()->group(function () {
+    Schedule::command('report:a');
+    Schedule::command('report:b')->weekly();
+});
+```
+
+Each inner task emits as an ordinary `scheduled[]` entry — there is no
+special marker — carrying the group's merged attributes (cron, frequency,
+`on_one_server`, `without_overlapping`, `timezone`, constraints, …). The
+group's links are spliced *before* the inner task's own links, so the
+task's own modifiers win on conflict (last-wins, matching Laravel's
+runtime). Above, `report:a` inherits the group's `daily` cron and
+`on_one_server`; `report:b` inherits `on_one_server` but its own
+`->weekly()` overrides the group's `daily`.
+
+Both the variable form (`$schedule->...->group(...)`) and the facade form
+(`Schedule::...->group(...)`) are recognised. Nested groups concatenate —
+each enclosing group's attributes apply to the inner tasks, outermost
+first.
+
 ## Output
 
 One entry per chain, conforming to `$defs/scheduleEntry`:
@@ -41,9 +67,14 @@ One entry per chain, conforming to `$defs/scheduleEntry`:
   "kind": "command",
   "name": "send-daily-mail",
   "target": "mail:send {--queue=default}",
+  "arguments": [],
+  "queue": null,
+  "connection": null,
   "cron": "0 13 * * *",
+  "frequency": null,
   "timezone": "America/Chicago",
   "without_overlapping": true,
+  "without_overlapping_expires_at": null,
   "on_one_server": false,
   "run_in_background": false,
   "even_in_maintenance_mode": false,
@@ -74,11 +105,43 @@ Field semantics:
     - `"FQCN::method"` for callable tuples (`[Cls::class, 'method']`) and
       Laravel callable strings (`'App\\Cls@method'`).
   - `exec`: the shell command string verbatim.
+- **`arguments[]`** — the literal parameters array passed to
+  `->command(Class::class, [...])`. `command` kind only; `[]` for every
+  other kind. Plain items render as the stringified value; keyed items
+  render as `"key=value"`; booleans as `"true"`/`"false"`; items that
+  aren't statically resolvable are skipped. Example:
+  `->command(SendEmails::class, ['--force', 'user' => 1])` →
+  `["--force", "user=1"]`.
+- **`queue`** — string or `null`. `job` kind only: the queue override
+  from `->job($job, $queue, $connection)` (2nd argument). `null` when
+  absent or for non-`job` kinds.
+- **`connection`** — string or `null`. `job` kind only: the connection
+  override from `->job($job, $queue, $connection)` (3rd argument). `null`
+  when absent or for non-`job` kinds.
 - **`cron`** — five-field normalised cron expression (`"*/5 * * * *"`) or
   `null` if no recognised frequency helper appears in the chain. The
-  recognised set is enumerated in ADR 0002 §3.
+  recognised set is enumerated in ADR 0002 §3. Also `null` for sub-minute
+  helpers, whose interval is carried in `frequency` instead (see below).
+- **`frequency`** — structured sub-minute interval
+  `{ "unit": "seconds", "every": <N> }`, or `null`. Set only by the seven
+  sub-minute helpers, which a five-field cron cannot express:
+  - `everySecond` → `every: 1`, `everyTwoSeconds` → `2`,
+    `everyFiveSeconds` → `5`, `everyTenSeconds` → `10`,
+    `everyFifteenSeconds` → `15`, `everyTwentySeconds` → `20`,
+    `everyThirtySeconds` → `30`.
+
+  These entries carry `cron: null`. For every other entry `frequency` is
+  `null`. At most one of `cron` / `frequency` is non-null on any entry.
+  `unit` is backed by the `FrequencyUnit` enum (`"seconds"` only today). See
+  [ADR 0004](../adr/0004-sub-minute-frequencies.md).
 - **`timezone`** — string from `->timezone('America/Chicago')` or `null`.
 - **`without_overlapping`** — `true` if `->withoutOverlapping()` appears.
+- **`without_overlapping_expires_at`** — integer or `null`. The expiry
+  minutes from `->withoutOverlapping($minutes)`. `null` when
+  `withoutOverlapping()` is called with no literal argument — the
+  framework default of 1440 is deliberately not fabricated (honesty over
+  completeness). Independent of the `without_overlapping` boolean, which
+  is unchanged.
 - **`on_one_server`** — `true` if `->onOneServer()` appears.
 - **`run_in_background`** — `true` if `->runInBackground()` appears.
 - **`even_in_maintenance_mode`** — `true` if `->evenInMaintenanceMode()`
@@ -150,9 +213,22 @@ on existing primitives are widened.
 - **`quarterlyOn`**: `->quarterlyOn(15, '13:00')` →
   `cron: "0 13 15 1-12/3 *"` (day-of-quarter and time both honoured;
   both default — day `1`, time `0:00`).
+- **Sub-minute helpers**: `->everyTenSeconds()` →
+  `cron: null`, `frequency: { "unit": "seconds", "every": 10 }`. The seven
+  sub-minute helpers (`everySecond` … `everyThirtySeconds`) can't be a
+  five-field cron, so the interval lives in `frequency`.
 - **Last-wins on conflicting frequencies**: chain with multiple frequency
   helpers (`->daily()->hourly()`) reflects the last one. Matches
-  Laravel's runtime behaviour.
+  Laravel's runtime behaviour. This holds across the cron / sub-minute
+  boundary too: `->everyTenSeconds()->daily()` yields `cron: "0 0 * * *"`,
+  `frequency: null`; `->daily()->everyTenSeconds()` yields `cron: null`,
+  `frequency: { "unit": "seconds", "every": 10 }`. At most one is non-null.
+- **Schedule groups**: a task inside `->group(Closure)` inherits the
+  outer chain's frequency and modifiers. `Schedule::daily()->onOneServer()
+  ->group(fn () => Schedule::command('a'))` → one entry for `a` with
+  `cron: "0 0 * * *"`, `on_one_server: true`. An inner frequency overrides
+  the group's: `->daily()->group(fn () => Schedule::command('b')
+  ->weekly())` → `b` with `cron: "0 0 * * 0"`. Nested groups concatenate.
 - **Tuple-callable in `->call`**: `->call([Reporter::class, 'send'])`
   emits `kind: "closure"`, `target: "App\\Reporter::send"`.
 - **`Class@method` callable in `->call`**: `->call('App\\Reporter@send')`
@@ -203,10 +279,10 @@ on existing primitives are widened.
 
 Triage checklist for missing schedule entries:
 
-1. Is the chain rooted in `$schedule->...`, `Schedule::...`, or an
-   `->withSchedule(function (Schedule $schedule) { ... })` callback? If
-   not, it's one of the macro / dynamic-registration shapes — documented
-   skip.
+1. Is the chain rooted in `$schedule->...`, `Schedule::...`, an
+   `->withSchedule(function (Schedule $schedule) { ... })` callback, or a
+   task inside a `->group(Closure)` block? If not, it's one of the macro /
+   dynamic-registration shapes — documented skip.
 2. Is the file under `app/Console/Kernel.php`, `bootstrap/app.php`, or
    anywhere under `app/`? Other locations (e.g. `routes/console.php`
    `Schedule::call(...)` — yes, Laravel allows that) are not walked
@@ -217,6 +293,8 @@ Triage checklist for missing schedule entries:
 
 Triage for unexpected `cron: null`:
 
+0. Is the helper sub-minute (`everySecond` … `everyThirtySeconds`)? Then
+   `cron: null` is expected — the interval is in `frequency`, not `cron`.
 1. Does the chain contain a frequency helper? If yes, check the helper
    name against the recognised set in ADR 0002 §3.
 2. Is the helper's argument a variable rather than a literal? Variable

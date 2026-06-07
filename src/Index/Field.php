@@ -43,12 +43,17 @@ enum Field: string
     case END_LINE = 'end_line';
     case NAME = 'name';
     case CRON = 'cron';
+    case FREQUENCY = 'frequency';
+    case UNIT = 'unit';
+    case EVERY = 'every';
     case TIMEZONE = 'timezone';
     case WITHOUT_OVERLAPPING = 'without_overlapping';
     case ON_ONE_SERVER = 'on_one_server';
     case RUN_IN_BACKGROUND = 'run_in_background';
     case EVEN_IN_MAINTENANCE_MODE = 'even_in_maintenance_mode';
     case CONSTRAINTS = 'constraints';
+    case ARGUMENTS = 'arguments';
+    case WITHOUT_OVERLAPPING_EXPIRES_AT = 'without_overlapping_expires_at';
     case SENT_FROM = 'sent_from';
     case NOTIFIED_FROM = 'notified_from';
     case CHANNELS_DYNAMIC = 'channels_dynamic';

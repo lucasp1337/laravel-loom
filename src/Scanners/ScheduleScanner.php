@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Dto\ScheduleFrequency;
+use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
@@ -33,6 +35,13 @@ final class ScheduleScanner implements Scanner
         'monthly', 'monthlyOn', 'twiceMonthly', 'lastDayOfMonth',
         'quarterly', 'quarterlyOn', 'yearly', 'yearlyOn',
         'cron',
+    ];
+
+    /** Sub-minute helpers can't be a 5-field cron; they emit a structured frequency in seconds. */
+    private const SUB_MINUTE_SECONDS = [
+        'everySecond' => 1, 'everyTwoSeconds' => 2, 'everyFiveSeconds' => 5,
+        'everyTenSeconds' => 10, 'everyFifteenSeconds' => 15,
+        'everyTwentySeconds' => 20, 'everyThirtySeconds' => 30,
     ];
 
     /** Day-of-week helpers configure runsOn constraints, not cron. */
@@ -164,10 +173,22 @@ final class ScheduleScanner implements Scanner
         foreach ($rawEntries as $raw) {
             $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
+            $arguments = $raw->kind === ScheduleKind::COMMAND
+                ? $this->resolveCommandArguments($raw->rootArgs)
+                : [];
+            $queue = $raw->kind === ScheduleKind::JOB
+                ? AstHelpers::scalarString($raw->rootArgs[1] ?? null)
+                : null;
+            $connection = $raw->kind === ScheduleKind::JOB
+                ? AstHelpers::scalarString($raw->rootArgs[2] ?? null)
+                : null;
+
             $cron = null;
+            $frequency = null;
             $name = null;
             $timezone = null;
             $withoutOverlapping = false;
+            $withoutOverlappingExpiresAt = null;
             $onOneServer = false;
             $runInBackground = false;
             $evenInMaintenanceMode = false;
@@ -180,18 +201,28 @@ final class ScheduleScanner implements Scanner
                 $method = $chain[$i]->method;
                 $args = $chain[$i]->args;
 
+                if (isset(self::SUB_MINUTE_SECONDS[$method])) {
+                    $frequency = new ScheduleFrequency(FrequencyUnit::SECONDS, self::SUB_MINUTE_SECONDS[$method]);
+                    $cron = null;            // sub-minute can't be a cron; last-wins
+                    $cronWasSet = true;      // so a following safe modifier doesn't trip the unknown-method guard
+
+                    continue;
+                }
+
                 if (in_array($method, self::FREQUENCY_HELPERS, true)) {
                     // Last-wins, including null when args are unresolvable.
                     $cron = $this->cronFromHelper($method, $args);
+                    $frequency = null;       // a cron-based helper overrides any prior sub-minute frequency
                     $cronWasSet = true;
 
                     continue;
                 }
 
                 // Unknown method after a frequency helper: could be a future
-                // helper or a Schedule::macro. Null the cron to avoid lying.
+                // helper or a Schedule::macro. Null cron and frequency to avoid lying.
                 if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
                     $cron = null;
+                    $frequency = null;
                 }
 
                 if ($method === 'name') {
@@ -214,6 +245,7 @@ final class ScheduleScanner implements Scanner
 
                 if ($method === 'withoutOverlapping') {
                     $withoutOverlapping = true;
+                    $withoutOverlappingExpiresAt = AstHelpers::scalarInt($args[0] ?? null);
 
                     continue;
                 }
@@ -248,9 +280,14 @@ final class ScheduleScanner implements Scanner
                 kind: $raw->kind,
                 name: $name,
                 target: $target,
+                arguments: $arguments,
+                queue: $queue,
+                connection: $connection,
                 cron: $cron,
+                frequency: $frequency,
                 timezone: $timezone,
                 withoutOverlapping: $withoutOverlapping,
+                withoutOverlappingExpiresAt: $withoutOverlappingExpiresAt,
                 onOneServer: $onOneServer,
                 runInBackground: $runInBackground,
                 evenInMaintenanceMode: $evenInMaintenanceMode,
@@ -301,6 +338,66 @@ final class ScheduleScanner implements Scanner
         $string = AstHelpers::scalarString($first);
         if ($string !== null) {
             return $this->normaliseAtCallable($string);
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolves the `$parameters` array of a scheduled command into a flat
+     * list. Plain items emit their literal value; keyed items emit "key=value".
+     * Unresolvable items are skipped rather than fabricated.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @return list<string>
+     */
+    private function resolveCommandArguments(array $rootArgs): array
+    {
+        $arg = $rootArgs[1] ?? null;
+        if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($arg->value->items as $item) {
+            $value = $this->scalarToString($item->value);
+            if ($value === null) {
+                continue;
+            }
+
+            if ($item->key === null) {
+                $out[] = $value;
+
+                continue;
+            }
+
+            $key = $this->scalarToString($item->key);
+            if ($key !== null) {
+                $out[] = $key.'='.$value;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Stringify a scalar literal node (string, int, or bool) or null if unresolvable. */
+    private function scalarToString(Node\Expr $node): ?string
+    {
+        $string = AstHelpers::scalarString($node);
+        if ($string !== null) {
+            return $string;
+        }
+
+        $int = AstHelpers::scalarInt($node);
+        if ($int !== null) {
+            return (string) $int;
+        }
+
+        if ($node instanceof Node\Expr\ConstFetch) {
+            $name = strtolower($node->name->toString());
+            if ($name === 'true' || $name === 'false') {
+                return $name;
+            }
         }
 
         return null;
