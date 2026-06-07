@@ -710,6 +710,38 @@ it('emits every entry as a ScheduledEntry DTO', function () {
 });
 
 // ---------------------------------------------------------------------------
+// Scheduling groups: inherited frequency + modifiers merge into inner tasks
+// ---------------------------------------------------------------------------
+
+it('inherits the group frequency and modifiers on an inner task with no own frequency', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 188);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('grouped:alpha');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->onOneServer)->toBeTrue();
+});
+
+it('lets an inner task override the group frequency while still inheriting modifiers', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 189);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('grouped:beta');
+    expect($entry->cron)->toBe('0 * * * *');
+    expect($entry->onOneServer)->toBeTrue();
+});
+
+it('does not apply group modifiers to a non-grouped entry', function () {
+    // A plain ->daily() entry outside any group keeps its cron and must not
+    // inherit onOneServer from the trailing group block.
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->onOneServer)->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
 // Sorting
 // ---------------------------------------------------------------------------
 

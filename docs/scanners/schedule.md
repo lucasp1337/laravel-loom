@@ -32,6 +32,32 @@ Each captured root call is the start of a fluent chain. The visitor walks
 down the chain collecting `(methodName, args)` for every link, then
 emits one entry per chain.
 
+### Schedule groups
+
+A `->group(Closure)` link applies its outer chain's attributes to every
+task declared inside the closure:
+
+```php
+Schedule::daily()->onOneServer()->group(function () {
+    Schedule::command('report:a');
+    Schedule::command('report:b')->weekly();
+});
+```
+
+Each inner task emits as an ordinary `scheduled[]` entry — there is no
+special marker — carrying the group's merged attributes (cron, frequency,
+`on_one_server`, `without_overlapping`, `timezone`, constraints, …). The
+group's links are spliced *before* the inner task's own links, so the
+task's own modifiers win on conflict (last-wins, matching Laravel's
+runtime). Above, `report:a` inherits the group's `daily` cron and
+`on_one_server`; `report:b` inherits `on_one_server` but its own
+`->weekly()` overrides the group's `daily`.
+
+Both the variable form (`$schedule->...->group(...)`) and the facade form
+(`Schedule::...->group(...)`) are recognised. Nested groups concatenate —
+each enclosing group's attributes apply to the inner tasks, outermost
+first.
+
 ## Output
 
 One entry per chain, conforming to `$defs/scheduleEntry`:
@@ -197,6 +223,12 @@ on existing primitives are widened.
   boundary too: `->everyTenSeconds()->daily()` yields `cron: "0 0 * * *"`,
   `frequency: null`; `->daily()->everyTenSeconds()` yields `cron: null`,
   `frequency: { "unit": "seconds", "every": 10 }`. At most one is non-null.
+- **Schedule groups**: a task inside `->group(Closure)` inherits the
+  outer chain's frequency and modifiers. `Schedule::daily()->onOneServer()
+  ->group(fn () => Schedule::command('a'))` → one entry for `a` with
+  `cron: "0 0 * * *"`, `on_one_server: true`. An inner frequency overrides
+  the group's: `->daily()->group(fn () => Schedule::command('b')
+  ->weekly())` → `b` with `cron: "0 0 * * 0"`. Nested groups concatenate.
 - **Tuple-callable in `->call`**: `->call([Reporter::class, 'send'])`
   emits `kind: "closure"`, `target: "App\\Reporter::send"`.
 - **`Class@method` callable in `->call`**: `->call('App\\Reporter@send')`
@@ -247,10 +279,10 @@ on existing primitives are widened.
 
 Triage checklist for missing schedule entries:
 
-1. Is the chain rooted in `$schedule->...`, `Schedule::...`, or an
-   `->withSchedule(function (Schedule $schedule) { ... })` callback? If
-   not, it's one of the macro / dynamic-registration shapes — documented
-   skip.
+1. Is the chain rooted in `$schedule->...`, `Schedule::...`, an
+   `->withSchedule(function (Schedule $schedule) { ... })` callback, or a
+   task inside a `->group(Closure)` block? If not, it's one of the macro /
+   dynamic-registration shapes — documented skip.
 2. Is the file under `app/Console/Kernel.php`, `bootstrap/app.php`, or
    anywhere under `app/`? Other locations (e.g. `routes/console.php`
    `Schedule::call(...)` — yes, Laravel allows that) are not walked

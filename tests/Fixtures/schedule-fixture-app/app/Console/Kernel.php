@@ -181,6 +181,14 @@ class Kernel
         $schedule->command('sub:override-frequency')
             ->daily()
             ->everyFifteenSeconds();
+
+        // Scheduling group: inner tasks inherit the group's frequency and
+        // modifiers; an inner ->hourly() overrides the group's daily.
+        $schedule->daily()->onOneServer()->group(function () use ($schedule) {
+            $schedule->command('grouped:alpha');
+            $schedule->command('grouped:beta')
+                ->hourly();
+        });
     }
 
     /**

@@ -24,6 +24,23 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     private array $parentStack = [];
 
     /**
+     * Cumulative enclosing `->group(Closure)` frames. Each frame holds the outer
+     * chain's modifier links (frequency + modifiers, excluding the terminal
+     * `group` link) that inner tasks inherit. Outermost frame is index 0.
+     *
+     * @var list<list<ScheduleChainLink>>
+     */
+    private array $groupFrameStack = [];
+
+    /**
+     * Group-opener nodes that pushed a frame, parallel to $groupFrameStack. Used
+     * in leaveNode to pop exactly the frames this node opened (compare top===node).
+     *
+     * @var list<Node>
+     */
+    private array $groupOpenerStack = [];
+
+    /**
      * KERNEL: emit only inside `schedule(Schedule $schedule)`.
      * BOOTSTRAP: emit only inside a `withSchedule(...)` closure.
      * FACADE: only chains rooted at the Schedule facade.
@@ -41,6 +58,8 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     public function beforeTraverse(array $nodes): ?array
     {
         $this->parentStack = [];
+        $this->groupFrameStack = [];
+        $this->groupOpenerStack = [];
         $this->entries = [];
 
         return null;
@@ -50,12 +69,27 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     {
         $this->parentStack[] = $node;
 
+        // PhpParser enters a group call before descending into its closure, so
+        // pushing here keeps the frame visible to inner leaf tasks.
+        $frame = $this->groupFrameFor($node);
+        if ($frame !== null) {
+            $this->groupFrameStack[] = $frame;
+            $this->groupOpenerStack[] = $node;
+        }
+
         return null;
     }
 
     public function leaveNode(Node $node): null
     {
         array_pop($this->parentStack);
+
+        // Pop the group frame this node opened (if any) before any early return,
+        // so frames stay balanced regardless of node type.
+        if ($this->groupOpenerStack !== [] && end($this->groupOpenerStack) === $node) {
+            array_pop($this->groupOpenerStack);
+            array_pop($this->groupFrameStack);
+        }
 
         if (! $node instanceof Node\Expr\MethodCall && ! $node instanceof Node\Expr\StaticCall) {
             return null;
@@ -89,6 +123,17 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         $chain = [];
         foreach ($links as $link) {
             $chain[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
+        }
+
+        // Splice inherited group attributes between the inner root and the
+        // inner's own modifiers, so the inner task's own modifiers come last
+        // and win (Laravel: inner frequency overrides the group's).
+        if ($this->groupFrameStack !== []) {
+            $groupLinks = [];
+            foreach ($this->groupFrameStack as $frame) {
+                $groupLinks = [...$groupLinks, ...$frame];
+            }
+            $chain = [$chain[0], ...$groupLinks, ...array_slice($chain, 1)];
         }
 
         $this->entries[] = new ScheduleChainEntry(
@@ -248,6 +293,56 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
             'exec' => ScheduleKind::EXEC,
             default => ScheduleKind::CLOSURE,
         };
+    }
+
+    /**
+     * If $node is a schedule `->group(Closure)` opener, build the inherited
+     * frame from the outer chain's modifier links (all links except the
+     * terminal `group` link). Otherwise null.
+     *
+     * The frame is purely structural — unrecognised method names (possible in
+     * KERNEL/BOOTSTRAP where any in-scope receiver is trusted) are harmless:
+     * the scanner's translate() silently ignores chain methods it doesn't know.
+     *
+     * @return list<ScheduleChainLink>|null
+     */
+    private function groupFrameFor(Node $node): ?array
+    {
+        if (! $node instanceof Node\Expr\MethodCall) {
+            return null;
+        }
+        if (! $node->name instanceof Node\Identifier || $node->name->toString() !== 'group') {
+            return null;
+        }
+        if (count($node->args) !== 1) {
+            return null;
+        }
+        $arg = $node->args[0];
+        if (! $arg instanceof Node\Arg) {
+            return null;
+        }
+        if (! $arg->value instanceof Node\Expr\Closure && ! $arg->value instanceof Node\Expr\ArrowFunction) {
+            return null;
+        }
+
+        $links = $this->collectChain($node);
+        if ($links === null) {
+            return null;
+        }
+        if (! $this->isScheduleReceiver($links[0]['receiver'])) {
+            return null;
+        }
+        if (! $this->inTrustedScope()) {
+            return null;
+        }
+
+        // Drop the terminal `group` link; the rest are the inherited modifiers.
+        $frame = [];
+        foreach (array_slice($links, 0, -1) as $link) {
+            $frame[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
+        }
+
+        return $frame;
     }
 
     private function currentParent(): ?Node
