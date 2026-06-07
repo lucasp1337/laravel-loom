@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-class PhotoController
+class TagController
 {
     public function index(): void
-    {
-    }
-
-    public function create(): void
     {
     }
 
@@ -22,15 +18,7 @@ class PhotoController
     {
     }
 
-    public function edit(): void
-    {
-    }
-
     public function update(): void
-    {
-    }
-
-    public function destroy(): void
     {
     }
 }

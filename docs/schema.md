@@ -305,16 +305,20 @@ Registered HTTP routes discovered from the application's route definitions. One 
 ```
 {
   "method": enum,                 // HTTP verb, uppercase
-  "uri": string,                  // route URI pattern (e.g. "orders/{order}")
-  "name": string | null,          // route name from ->name(...); null when unnamed
+  "uri": string,                  // route URI, enclosing group prefixes applied; leading slash, root "/"
+  "name": string | null,          // group name prefix + ->name(...); null when unnamed
   "controller_fqcn": string | null,   // FQCN of the controller; null for closure / non-controller routes
   "controller_method": string | null, // controller action method; null for closure / non-controller routes
+  "middleware": array<string>,    // middleware identifiers applied to the route, including those inherited from enclosing groups; verbatim names (alias->class and group expansion are not resolved)
   "file": string,                 // path to the route definition, relative to app root
-  "line": integer                 // 1-indexed line of the route definition
+  "line": integer,                // 1-indexed line of the route definition
+  "dispatches": array             // events/jobs dispatched inside the route's controller method; same shape as listeners[*].dispatches
 }
 ```
 
 `$defs/route`. All fields are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
+
+`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. It is populated by the cross-link pass and stays empty until cross-linked, as well as for closure routes and routes whose controller cannot be resolved.
 
 `method` enum:
 
@@ -323,6 +327,8 @@ GET, POST, PUT, PATCH, DELETE, OPTIONS, ANY
 ```
 
 A route registered against multiple verbs that share one definition is reported as `ANY`. Routes whose action is a closure (or otherwise not a `Controller@method` callable) carry `null` for both `controller_fqcn` and `controller_method`; `name` is `null` whenever no `->name(...)` was applied.
+
+`uri` carries the route URI with the prefixes of any enclosing `Route::group(...)` prepended; it always begins with a leading slash, and the root is `/`. `name` is the enclosing group name prefix concatenated as-is (no separator inserted) with the route's own `->name(...)`. See [docs/scanners/routes.md](scanners/routes.md) for the group merge rules.
 
 ## `mailables[]`
 

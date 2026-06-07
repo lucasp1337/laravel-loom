@@ -6,6 +6,14 @@ namespace App\Http\Controllers;
 
 class UserController
 {
+    public function index(): void
+    {
+    }
+
+    public function show(): void
+    {
+    }
+
     public function store(): void
     {
     }
@@ -20,5 +28,11 @@ class UserController
 
     public function any(): void
     {
+    }
+
+    public function checkout(): void
+    {
+        event(new \App\Events\OrderPlaced);
+        \App\Jobs\ProcessOrder::dispatch();
     }
 }

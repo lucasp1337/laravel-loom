@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteEntry;
+use Lucasp\Loom\Index\ResourceAction;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
@@ -59,7 +61,7 @@ final class RouteScanner implements Scanner
 
         usort(
             $entries,
-            fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method] <=> [$b->file, $b->line, $b->method],
+            fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method, $a->uri] <=> [$b->file, $b->line, $b->method, $b->uri],
         );
 
         return ['routes' => $entries];
@@ -73,7 +75,7 @@ final class RouteScanner implements Scanner
     {
         $out = [];
         foreach ($rawEntries as $raw) {
-            $name = $this->resolveName($raw);
+            $name = $this->groupName($raw->groupNamePrefix, $this->resolveName($raw));
 
             foreach ($this->expand($raw, $relativeFile, $name) as $entry) {
                 $out[] = $entry;
@@ -81,6 +83,42 @@ final class RouteScanner implements Scanner
         }
 
         return $out;
+    }
+
+    /**
+     * Apply the enclosing group's cumulative prefix segments to a route's own
+     * uri. Always leading-slash; root collapses to '/'. Ungrouped routes (empty
+     * prefix) stay byte-identical to slice 1.
+     *
+     * @param  list<string>  $groupPrefix
+     */
+    private function groupUri(array $groupPrefix, string $ownUri): string
+    {
+        $segments = [];
+        foreach ($groupPrefix as $p) {
+            $t = trim($p, '/');
+            if ($t !== '') {
+                $segments[] = $t;
+            }
+        }
+        $own = trim($ownUri, '/');
+        if ($own !== '') {
+            $segments[] = $own;
+        }
+        $joined = implode('/', $segments);
+
+        return $joined === '' ? '/' : '/'.$joined;
+    }
+
+    /**
+     * Concatenate the group name prefix with the leaf name (no separator). Empty
+     * result becomes null, so ungrouped unnamed routes stay null as in slice 1.
+     */
+    private function groupName(string $groupNamePrefix, ?string $leafName): ?string
+    {
+        $full = $groupNamePrefix.($leafName ?? '');
+
+        return $full === '' ? null : $full;
     }
 
     /**
@@ -96,16 +134,21 @@ final class RouteScanner implements Scanner
             return $this->expandMatch($raw, $relativeFile, $name);
         }
 
+        if (in_array($raw->rootMethod, RouterMethod::resourceRoots(), true)) {
+            return $this->expandResource($raw, $relativeFile);
+        }
+
         $method = $raw->rootMethod === RouterMethod::ANY
             ? 'ANY'
             : RouterMethod::VERB_MAP[$raw->rootMethod];
 
-        $uri = AstHelpers::scalarString($args[0] ?? null);
-        if ($uri === null) {
+        $ownUri = AstHelpers::scalarString($args[0] ?? null);
+        if ($ownUri === null) {
             return [];
         }
+        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[1] ?? null);
+        $action = $this->resolveAction($args[1] ?? null, $raw->groupController);
 
         return [new RouteEntry(
             method: $method,
@@ -113,8 +156,10 @@ final class RouteScanner implements Scanner
             name: $name,
             controllerFqcn: $action['fqcn'],
             controllerMethod: $action['method'],
+            middleware: $raw->middleware,
             file: $relativeFile,
             line: $raw->line,
+            dispatches: [],
         )];
     }
 
@@ -129,12 +174,13 @@ final class RouteScanner implements Scanner
         $args = $raw->rootArgs;
 
         $verbs = $this->verbList($args[0] ?? null);
-        $uri = AstHelpers::scalarString($args[1] ?? null);
-        if ($verbs === [] || $uri === null) {
+        $ownUri = AstHelpers::scalarString($args[1] ?? null);
+        if ($verbs === [] || $ownUri === null) {
             return [];
         }
+        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[2] ?? null);
+        $action = $this->resolveAction($args[2] ?? null, $raw->groupController);
 
         $out = [];
         foreach ($verbs as $verb) {
@@ -144,12 +190,160 @@ final class RouteScanner implements Scanner
                 name: $name,
                 controllerFqcn: $action['fqcn'],
                 controllerMethod: $action['method'],
+                middleware: $raw->middleware,
                 file: $relativeFile,
                 line: $raw->line,
+                dispatches: [],
             );
         }
 
         return $out;
+    }
+
+    /**
+     * `Route::resource(name, Controller)` / `apiResource(...)` — one entry per
+     * registered action. The action set is filtered by chain `->only(...)` /
+     * `->except(...)`; names and uris use Laravel defaults (custom
+     * `->names()`/`->parameters()` overrides are out of scope).
+     *
+     * @return list<RouteEntry>
+     */
+    private function expandResource(RouteChainEntry $raw, string $relativeFile): array
+    {
+        $args = $raw->rootArgs;
+
+        $resourceName = AstHelpers::scalarString($args[0] ?? null);
+        if ($resourceName === null) {
+            return [];
+        }
+        $resourceName = trim($resourceName, '/');
+        if ($resourceName === '') {
+            return [];
+        }
+
+        // Controller may be unresolvable (variable, dynamic) — still expand.
+        $controllerArg = $args[1] ?? null;
+        $controllerFqcn = AstHelpers::classConstFqcn(
+            $controllerArg instanceof Node\Arg ? $controllerArg->value : null,
+        );
+
+        $actions = $this->filterResourceActions($raw, $this->defaultResourceActions($raw->rootMethod));
+
+        $param = $this->memberParameter($resourceName);
+        $nameBase = str_replace('/', '.', $resourceName);
+
+        $out = [];
+        foreach ($actions as $action) {
+            $ownUri = $resourceName.str_replace('{param}', '{'.$param.'}', $action->suffix());
+
+            $out[] = new RouteEntry(
+                method: $action->method(),
+                uri: $this->groupUri($raw->groupPrefix, $ownUri),
+                name: $raw->groupNamePrefix.$nameBase.'.'.$action->value,
+                controllerFqcn: $controllerFqcn,
+                controllerMethod: $action->value,
+                middleware: $raw->middleware,
+                file: $relativeFile,
+                line: $raw->line,
+                dispatches: [],
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * The default action set for a resource root, before only/except filtering.
+     *
+     * @return list<ResourceAction>
+     */
+    private function defaultResourceActions(string $rootMethod): array
+    {
+        return $rootMethod === RouterMethod::API_RESOURCE
+            ? ResourceAction::apiSet()
+            : ResourceAction::fullSet();
+    }
+
+    /**
+     * Apply chain `->only([...])` then `->except([...])` filters, preserving the
+     * canonical action order. Unrecognised option methods are ignored.
+     *
+     * @param  list<ResourceAction>  $actions
+     * @return list<ResourceAction>
+     */
+    private function filterResourceActions(RouteChainEntry $raw, array $actions): array
+    {
+        $only = null;
+        $except = [];
+
+        $chain = $raw->chain;
+        for ($i = 1, $n = count($chain); $i < $n; $i++) {
+            $method = $chain[$i]->method;
+            if ($method === 'only') {
+                $only = $this->stringArgList($chain[$i]->args);
+            } elseif ($method === 'except') {
+                $except = $this->stringArgList($chain[$i]->args);
+            }
+        }
+
+        if ($only !== null) {
+            $actions = array_values(array_filter(
+                $actions,
+                fn (ResourceAction $a): bool => in_array($a->value, $only, true),
+            ));
+        }
+        if ($except !== []) {
+            $actions = array_values(array_filter(
+                $actions,
+                fn (ResourceAction $a): bool => ! in_array($a->value, $except, true),
+            ));
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Collect literal action names from `->only(...)` / `->except(...)` args,
+     * accepting both an array argument and variadic string arguments.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @return list<string>
+     */
+    private function stringArgList(array $args): array
+    {
+        $names = [];
+        foreach ($args as $arg) {
+            if (! $arg instanceof Node\Arg) {
+                continue;
+            }
+            if ($arg->value instanceof Node\Expr\Array_) {
+                foreach ($arg->value->items as $item) {
+                    if ($item->value instanceof Node\Scalar\String_) {
+                        $names[] = $item->value->value;
+                    }
+                }
+
+                continue;
+            }
+            $string = AstHelpers::scalarString($arg->value);
+            if ($string !== null) {
+                $names[] = $string;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * The member route parameter: the singular of the resource name's last
+     * segment, via Laravel's own inflector for faithful pluralisation rules.
+     */
+    private function memberParameter(string $resourceName): string
+    {
+        $segments = explode('/', $resourceName);
+        $last = $segments[count($segments) - 1];
+
+        return Str::singular($last);
     }
 
     /**
@@ -176,11 +370,13 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Resolve a route action node to a controller FQCN + method.
+     * Resolve a route action node to a controller FQCN + method. A bare
+     * method-name string binds to $groupController (the enclosing group's
+     * default controller) when one is present.
      *
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg): array
+    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
     {
         if (! $arg instanceof Node\Arg) {
             return ['fqcn' => null, 'method' => null];
@@ -207,7 +403,7 @@ final class RouteScanner implements Scanner
         // 'Class@method' (legacy) or 'Class' (invokable string).
         $string = AstHelpers::scalarString($value);
         if ($string !== null) {
-            return $this->resolveStringAction($string);
+            return $this->resolveStringAction($string, $groupController);
         }
 
         // Variable, dynamic expression, etc. — never guess.
@@ -238,7 +434,7 @@ final class RouteScanner implements Scanner
     /**
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveStringAction(string $action): array
+    private function resolveStringAction(string $action, ?string $groupController = null): array
     {
         if (str_contains($action, '@')) {
             [$class, $method] = explode('@', $action, 2);
@@ -246,7 +442,12 @@ final class RouteScanner implements Scanner
             return ['fqcn' => ltrim($class, '\\'), 'method' => $method];
         }
 
-        // No '@' -> invokable controller string.
+        // Bare method name under a group controller -> Controller::method.
+        if ($groupController !== null) {
+            return ['fqcn' => ltrim($groupController, '\\'), 'method' => $action];
+        }
+
+        // No '@' and no group controller -> invokable controller string.
         return ['fqcn' => ltrim($action, '\\'), 'method' => '__invoke'];
     }
 

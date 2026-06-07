@@ -329,8 +329,10 @@
                 "name",
                 "controller_fqcn",
                 "controller_method",
+                "middleware",
                 "file",
-                "line"
+                "line",
+                "dispatches"
             ],
             "additionalProperties": false,
             "properties": {
@@ -339,8 +341,13 @@
                 "name": { "type": ["string", "null"] },
                 "controller_fqcn": { "type": ["string", "null"] },
                 "controller_method": { "type": ["string", "null"] },
+                "middleware": { "type": "array", "items": { "type": "string" } },
                 "file": { "type": "string" },
-                "line": { "type": "integer", "minimum": 1 }
+                "line": { "type": "integer", "minimum": 1 },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatch" }
+                }
             }
         },
         "mailable": {

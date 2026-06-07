@@ -57,4 +57,5 @@ enum Field: string
     case URI = 'uri';
     case CONTROLLER_FQCN = 'controller_fqcn';
     case CONTROLLER_METHOD = 'controller_method';
+    case MIDDLEWARE = 'middleware';
 }

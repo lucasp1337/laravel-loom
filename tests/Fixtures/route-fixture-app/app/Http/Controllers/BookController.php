@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-class AdminController
+class BookController
 {
-    public function panel(): void
+    public function index(): void
     {
     }
 
-    public function dashboard(): void
+    public function show(): void
     {
     }
 }

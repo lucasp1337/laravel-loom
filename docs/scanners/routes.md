@@ -3,9 +3,16 @@
 Discovers HTTP routes registered in `routes/*.php` and emits the
 `routes[]` section of the index.
 
-This is **slice 1** of issue #8 — basic route discovery only. The
-`middleware[]` and `dispatches[]` cross-links from the full proposal are
-deferred to follow-up PRs (see [Known limitations](#known-limitations)).
+Route discovery covers individual registrations and the context of any
+enclosing `Route::group(...)` — prefix, name prefix, default controller,
+and middleware (see [Route groups](#route-groups) and
+[Middleware](#middleware)). `Route::resource()` / `Route::apiResource()`
+registrations are expanded into their constituent CRUD routes (see
+[Resource controllers](#resource-controllers)). Each route also carries a
+`dispatches[]` cross-link — the events and jobs dispatched inside its
+controller method, joined during the cross-link pass (see
+[Dispatches](#dispatches)). Middleware-group / alias resolution is deferred
+to follow-up PRs (see [Known limitations](#known-limitations)).
 
 ## What it detects
 
@@ -51,14 +58,28 @@ One entry per route (one **per verb** for `match`), conforming to
 ```json
 {
   "method": "GET",
-  "uri": "/users/{id}",
-  "name": "users.show",
+  "uri": "/admin/users/{id}",
+  "name": "admin.users.show",
   "controller_fqcn": "App\\Http\\Controllers\\UserController",
   "controller_method": "show",
+  "middleware": ["web", "auth"],
   "file": "routes/web.php",
-  "line": 14
+  "line": 14,
+  "dispatches": [
+    {
+      "target": "App\\Events\\UserViewed",
+      "kind": "event",
+      "confidence": "high",
+      "file": "app/Http/Controllers/UserController.php",
+      "line": 31
+    }
+  ]
 }
 ```
+
+(The `uri`, `name`, and `middleware` above reflect an enclosing
+`Route::prefix('admin')->name('admin.')->middleware(['web', 'auth'])` group
+applied to a leaf `Route::get('/users/{id}', ...)->name('users.show')`.)
 
 Field semantics:
 
@@ -66,19 +87,34 @@ Field semantics:
   `PATCH`, `DELETE`, `OPTIONS`, or `ANY` (the synthetic verb for
   `Route::any`). A `Route::match(['get', 'post'], ...)` registration
   yields two entries, `GET` and `POST`.
-- **`uri`** — the route URI exactly as written in the first string
-  argument (e.g. `/users/{id}`). Group prefixes are **not** applied — see
-  [Known limitations](#known-limitations).
-- **`name`** — the named-route name from `->name('...')`, or `null` when
-  the registration carries no `->name()` link (or its argument is not a
-  statically-resolvable string literal).
+- **`uri`** — the route URI, with the prefixes of any enclosing
+  `Route::group(...)` prepended (e.g. `/admin/users/{id}`). Always begins
+  with a leading slash; the root is `/`. See
+  [Route groups](#route-groups).
+- **`name`** — the named-route name from `->name('...')`, with any
+  enclosing group name prefix concatenated as-is (see
+  [Route groups](#route-groups)); `null` when the registration carries no
+  `->name()` link and no group name prefix applies (or the argument is not
+  a statically-resolvable string literal).
 - **`controller_fqcn`** — the fully-qualified controller class for the
   action, or `null` for closures and unresolvable actions.
 - **`controller_method`** — the action method; `__invoke` for invokable
   controllers; `null` when `controller_fqcn` is `null`.
+- **`middleware`** — the resolved middleware chain for the route: the
+  middleware of every enclosing group (outermost first) followed by the
+  route's own `->middleware(...)`, in source order, with exact-duplicate
+  names deduped. `[]` when neither the route nor any enclosing group
+  declares middleware. See [Middleware](#middleware).
 - **`file`** — path to the route file, relative to the app root (e.g.
   `routes/web.php`).
 - **`line`** — 1-indexed line of the route registration.
+- **`dispatches`** — the events and jobs dispatched inside the route's
+  controller method, each a `$defs/dispatch` reference
+  (`{target, kind, confidence, file, line}` — the same shape as
+  `listeners[*].dispatches` / `jobs[*].dispatches`). Populated by the
+  cross-link pass; `[]` for closure routes, unresolved-controller routes,
+  and any route whose controller method dispatches nothing. See
+  [Dispatches](#dispatches).
 
 `stats.routes` is added to the top-level stats block as the count of
 entries.
@@ -101,23 +137,195 @@ entries.
 - **Closure action**: `Route::get('/ping', fn () => 'pong')` — one entry,
   both controller fields `null`.
 
+### Route groups
+
+Routes declared inside a `Route::group(...)` inherit the group's context.
+Both syntaxes are supported: the array-config form
+`Route::group(['prefix' => 'admin', 'as' => 'admin.', 'controller' => C::class], fn)`
+and the fluent form
+`Route::prefix('admin')->name('admin.')->controller(C::class)->group(fn)`.
+Three pieces of context are merged into the leaf route:
+
+- **Prefix** — the group's `prefix` segments are prepended to the route
+  URI. The result always carries a leading slash, and the root is `/`.
+  `Route::prefix('admin')->group(fn () => Route::get('/panel', ...))`
+  yields `uri` `/admin/panel`; `Route::get('/', ...)` inside
+  `prefix('admin')` yields `/admin`. Nested groups concatenate, outer to
+  inner: `v2` > `users` > `/{id}` yields `/v2/users/{id}`. Ungrouped
+  routes are unchanged (`/users`, `/`).
+
+- **Name prefix** — the group's `as` / `name(...)` prefix is concatenated
+  **as-is** (no separator inserted) with the leaf route's `->name(...)`.
+  `name('admin.')` + leaf `->name('users')` yields `admin.users`. Nested
+  prefixes chain: `admin.` > `users.` > `index` yields `admin.users.index`.
+  A group name prefix with no leaf `->name()` yields just the prefix (e.g.
+  `admin.`).
+
+- **Default controller** — the group's `controller(C::class)` resolves a
+  **bare method-name** string action to that controller.
+  `Route::controller(UserController::class)->group(fn () => Route::get('/u', 'store'))`
+  yields `controller_fqcn` `UserController`, `controller_method` `store`.
+  It does **not** override an action that already names a class — an array
+  tuple, a bare `Ctrl::class`, or a `'Class@method'` string keeps its own
+  controller.
+
+### Middleware
+
+Each route's `middleware` field is the **resolved chain** Loom can see
+statically: the middleware of every enclosing group, outermost group to
+innermost, followed by the route's own `->middleware(...)`, in source
+order. Exact-duplicate names are deduped (first occurrence wins);
+otherwise order is preserved.
+
+Recognised forms, on both the route and a group:
+
+- Single string — `->middleware('auth')`.
+- Array — `->middleware(['auth', 'verified'])`.
+- Chained — `->middleware('a')->middleware('b')` accumulates `a`, `b`.
+- Variadic — `->middleware('a', 'b')`.
+- `::class` reference — resolved to the FQCN (e.g.
+  `->middleware(EnsureTokenIsValid::class)` →
+  `"App\\Http\\Middleware\\EnsureTokenIsValid"`).
+- Group middleware — via the fluent form
+  `Route::middleware([...])->group(...)` or the array-config form
+  `Route::group(['middleware' => [...]], fn)`.
+
+Middleware arguments with parameters are kept **verbatim**, including the
+parameter list: `->middleware('throttle:60,1')` records `"throttle:60,1"`,
+and `->middleware('can:update,post')` records `"can:update,post"`.
+
+Worked example:
+
+```php
+Route::middleware(['web', 'auth'])->prefix('account')->group(function () {
+    Route::get('/settings', [AccountController::class, 'settings'])
+        ->middleware('verified');
+});
+```
+
+The `/account/settings` route resolves to
+`middleware: ["web", "auth", "verified"]` — the two group entries
+(outermost first) followed by the route's own `verified`.
+
+### Resource controllers
+
+`Route::resource('photos', PhotoController::class)` is **expanded** into
+its constituent CRUD routes — one `routes[]` entry per generated action.
+A full resource expands to **seven** entries:
+
+| Action  | method   | uri                    | name             | controller_method |
+| ------- | -------- | ---------------------- | ---------------- | ----------------- |
+| index   | `GET`    | `/photos`              | `photos.index`   | `index`           |
+| create  | `GET`    | `/photos/create`       | `photos.create`  | `create`          |
+| store   | `POST`   | `/photos`              | `photos.store`   | `store`           |
+| show    | `GET`    | `/photos/{photo}`      | `photos.show`    | `show`            |
+| edit    | `GET`    | `/photos/{photo}/edit` | `photos.edit`    | `edit`            |
+| update  | `PUT`    | `/photos/{photo}`      | `photos.update`  | `update`          |
+| destroy | `DELETE` | `/photos/{photo}`      | `photos.destroy` | `destroy`         |
+
+`controller_fqcn` is the resource controller for every entry
+(`App\Http\Controllers\PhotoController` above).
+
+`Route::apiResource('photos', PhotoController::class)` expands to the same
+set **minus** the two HTML-form actions, `create` and `edit` — **five**
+entries: `index`, `store`, `show`, `update`, `destroy`.
+
+- **Member parameter** — the `{...}` segment is Laravel's `Str::singular`
+  of the resource name: `photos` → `{photo}`, `categories` →
+  `{category}`. The same singular is used for `show`, `edit`, `update`,
+  and `destroy`.
+
+- **`update` verb** — emitted as `PUT`. Laravel registers `update` for
+  **both** `PUT` and `PATCH`; this scanner emits a single `PUT` entry for
+  it (the `PATCH` alias is not separately synthesized).
+
+- **Group / middleware inheritance** — a `resource()` / `apiResource()`
+  call inside a `Route::group(...)` (or fluent `prefix`/`name`/`middleware`
+  chain) propagates the enclosing context to **all** generated sub-routes:
+  the group prefix is prepended to every `uri`, the group name prefix is
+  concatenated onto every `name`, and the group middleware is merged into
+  every entry's `middleware` chain — exactly as for leaf routes (see
+  [Route groups](#route-groups) and [Middleware](#middleware)).
+
+- **`->only([...])` / `->except([...])`** — these filter the generated
+  action set. `Route::resource('photos', ...)->only(['index', 'show'])`
+  emits just the `index` and `show` entries; `->except(['create', 'edit'])`
+  emits the other five. Both are honoured; if both are present Laravel's
+  precedence applies.
+
+The override forms `->names(...)`, `->parameters(...)`, `->scoped(...)`,
+and `->shallow()` are **not** applied — the expansion always uses the
+default names and parameters above (see
+[Known limitations](#known-limitations)).
+
+### Dispatches
+
+Each route's `dispatches` field lists the events and jobs dispatched inside
+its controller method. It is the cross-section link issue #8 is fundamentally
+about: an event can now be traced back through the controller that dispatches
+it to the route that reaches that controller.
+
+The field is filled by the `RouteDispatchAttributionPhase` cross-link phase,
+not by the scanner itself — the raw scanner output seeds `dispatches: []`,
+and the phase fills it in. The match is by **(controller_fqcn,
+controller_method)**: every dispatch site DispatchScanner records carries its
+enclosing class and method, and a site is attributed to a route when that
+enclosing class+method equals the route's resolved controller and action. A
+controller method dispatching an event and a job lists both; the same
+controller method behind several routes (e.g. a `match` registration, or a
+resource action) attaches the dispatches to every matching route entry.
+
+What is captured: event and job dispatches — the same kinds the dispatch
+attribution emits elsewhere (each finalized to `kind: "event"` or
+`kind: "job"`). Mailables and notifications are not listed here; they are
+tracked through their own reverse-links (`mailables[*].sent_from`,
+`notifications[*].notified_from`).
+
+`dispatches` is `[]` for:
+
+- **Closure routes** — no controller identity to key on.
+- **Unresolved-controller routes** — `controller_fqcn` / `controller_method`
+  are `null`, so no site can match.
+- **Controller methods that dispatch nothing.**
+
+Because the field is populated during the cross-link pass, it is empty unless
+the index was built through `IndexBuilder` with `DispatchScanner` registered —
+which the `loom:scan` CLI always does.
+
 ## Known limitations
 
-These are deliberate scope boundaries for slice 1, not bugs — each is
-planned follow-up work.
+These are deliberate scope boundaries, not bugs — each is planned
+follow-up work.
 
-- **Group prefixes / middleware not applied.** A route nested in
-  `Route::prefix('admin')->group(function () { Route::get('/panel', ...); })`
-  is captured with its own leaf `uri` (`/panel`, not `/admin/panel`). The
-  group / `prefix` / `middleware` chains themselves emit nothing.
-- **`Route::resource()` / `Route::apiResource()` not expanded.** These
-  emit no entries; the implicit CRUD routes they generate are not
-  synthesized. Deferred.
-- **No `middleware[]` or `dispatches[]` cross-links.** The full #8
-  proposal links each route to its middleware stack and to dispatch sites
-  inside its handler. Neither is in this slice — both are follow-up PRs.
-- **Attribute routing not handled.** `#[Route(...)]` attributes on
-  controller methods are invisible to this slice.
+- **Middleware groups are not expanded.** A middleware group name such as
+  `web` or `api` is captured **as-is**; its constituent classes are not
+  substituted in. Resolving a group to its members needs the HTTP kernel
+  config, which this scanner does not read.
+- **Middleware aliases are not resolved.** An alias like `auth` or
+  `throttle` is recorded under its alias name, not the class it maps to.
+  Alias-to-class resolution also needs kernel config.
+- **`withoutMiddleware(...)` is not applied.** Middleware removed from a
+  route or group via `->withoutMiddleware(...)` is **not** subtracted from
+  the resolved `middleware` chain — the field reflects only what is added.
+- **Resource override forms are not applied.** `->names(...)`,
+  `->parameters(...)`, `->scoped(...)`, and `->shallow()` chained on a
+  `resource()` / `apiResource()` registration are **ignored** — the
+  expansion uses Laravel's default names and `{singular}` parameters
+  regardless. See [Resource controllers](#resource-controllers).
+- **Nested / dotted resource names are not specially handled.** A dotted
+  name like `Route::resource('photos.comments', ...)` is treated as a flat
+  resource name; the nested-parameter URIs Laravel would generate
+  (`/photos/{photo}/comments/{comment}`) are **not** synthesized.
+- **Batch resource forms are not expanded.** The array forms
+  `Route::resources([...])` and `Route::apiResources([...])` emit no
+  entries; only the single-resource `resource()` / `apiResource()` calls
+  are expanded.
+- **Attribute routing not handled (by design).** Laravel core registers
+  routes through the router (`routes/*.php`), not PHP attributes; `#[Route]`
+  / `#[Get]`-style attributes come from third-party packages (e.g.
+  `spatie/laravel-route-attributes`) whose attribute API varies. The scanner
+  targets Laravel's own routing surface, so attribute routes are not
+  discovered. Support can be added if a specific package is adopted.
 - **Unresolvable actions emit null controller fields.** When the action
   is stored in a variable or is otherwise not a statically-resolvable
   tuple / class-constant / string, `controller_fqcn` and

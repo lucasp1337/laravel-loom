@@ -113,7 +113,9 @@ The phases, in order — each its own `CrossLinkPhase`:
 
 4. **`DispatchedFromPhase` → `events[*].dispatched_from`, `jobs[*].dispatched_from`, `mailables[*].sent_from`, `notifications[*].notified_from`** — for each site whose finalized `kind` matches a target entry, append a `$defs/dispatchSite` entry (`{file, line, method: "Class::method"}`) to that target's reverse-reference array.
 
-5. **`SortPhase`** — sorts every cross-linked array (by string content or by `(file, line)` as appropriate) so the emitted index is deterministic across runs.
+5. **`RouteDispatchAttributionPhase` → `routes[*].dispatches`** — attributes each event/job dispatch site to the route whose resolved controller it lives in, matching by `(controller_fqcn, controller_method)` against the site's enclosing class+method, and appends a `$defs/dispatch` entry. Closure routes and unresolved-controller routes (null controller fields) keep `[]`.
+
+6. **`SortPhase`** — sorts every cross-linked array (by string content or by `(file, line)` as appropriate) so the emitted index is deterministic across runs.
 
 The cross-link pass deliberately does NOT join `closure_listeners[]` into `events[*].handled_by`. That field's entry shape is `{listener: string, method: string}`; closures have neither. Adding closures would require a schema change (a new entry variant) and is reserved for a future design pass — don't add it without going through `schema-guardian`. Similarly, `closure_listeners[*].dispatches` stays empty for now; populating it requires line-span attribution rather than the class+method join used for `listeners[*].dispatches`.
 
