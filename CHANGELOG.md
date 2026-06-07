@@ -6,6 +6,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- **Scanner API audit (#30)** — recognise conditional `dispatchIf`/`dispatchUnless` Dispatchable forms (jobs and events) and `Event::listen([A, B], ...)` array-of-events; `docs/scanners/*` limitations refreshed.
+
 - **Performance benchmark suite** — `composer bench` / `bench:assert` over deterministic tiny/medium/large generated apps; CI gates on counts, not wall time. #18 — see [benchmarks/README.md](benchmarks/README.md) and [ADR-0006](docs/adr/0006-benchmark-suite.md).
 
 - **Stable Index PHP API** — `IndexLoader` (`fromFile`/`fromJson`/`fromArray`, throwing `IndexLoadException`) plus typed getters/lookups on `Index` returning `Index\Model\` value objects, for library consumers. #11 — see [docs/index-api.md](docs/index-api.md).

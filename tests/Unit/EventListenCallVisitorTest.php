@@ -91,6 +91,114 @@ it('extracts the explicit method from a [Listener::class, method] tuple', functi
     expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\OrderPlaced', listener: 'App\\Listeners\\SendOrderConfirmation', method: 'onPlaced'));
 });
 
+it('emits one pair per event for an array-of-events first arg with a class-string listener', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\Foo;
+    use App\Events\Bar;
+    use App\Listeners\SomeListener;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen([Foo::class, Bar::class], SomeListener::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(2);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\Foo', listener: 'App\\Listeners\\SomeListener', method: 'handle'));
+    expect($pairs[1])->toEqual(new ListenerPair(event: 'App\\Events\\Bar', listener: 'App\\Listeners\\SomeListener', method: 'handle'));
+});
+
+it('emits one pair per event for an array-of-events first arg with a tuple listener', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\Foo;
+    use App\Events\Bar;
+    use App\Listeners\SomeListener;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen([Foo::class, Bar::class], [SomeListener::class, 'onEvent']);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(2);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\Foo', listener: 'App\\Listeners\\SomeListener', method: 'onEvent'));
+    expect($pairs[1])->toEqual(new ListenerPair(event: 'App\\Events\\Bar', listener: 'App\\Listeners\\SomeListener', method: 'onEvent'));
+});
+
+it('emits one closure pair per event for an array-of-events first arg with a closure listener', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\Foo;
+    use App\Events\Bar;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen([Foo::class, Bar::class], fn ($e) => null);
+        }
+    }
+    PHP;
+
+    $result = runEventListenCallVisitorFull($source);
+
+    expect($result['pairs'])->toBe([]);
+    expect($result['closurePairs'])->toHaveCount(2);
+    expect($result['closurePairs'][0]->event)->toBe('App\\Events\\Foo');
+    expect($result['closurePairs'][0]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
+    expect($result['closurePairs'][1]->event)->toBe('App\\Events\\Bar');
+    expect($result['closurePairs'][1]->registration)->toBe(ListenerRegistration::EVENT_LISTEN_CALL);
+});
+
+it('still emits exactly one pair for a single class-string event (regression for the array refactor)', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Providers;
+
+    use App\Events\Foo;
+    use App\Listeners\SomeListener;
+    use Illuminate\Support\Facades\Event;
+
+    class AppServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(Foo::class, SomeListener::class);
+        }
+    }
+    PHP;
+
+    $pairs = runEventListenCallVisitor($source);
+
+    expect($pairs)->toHaveCount(1);
+    expect($pairs[0])->toEqual(new ListenerPair(event: 'App\\Events\\Foo', listener: 'App\\Listeners\\SomeListener', method: 'handle'));
+});
+
 it('skips Event::listen calls whose event argument is a variable', function () {
     $source = <<<'PHP'
     <?php

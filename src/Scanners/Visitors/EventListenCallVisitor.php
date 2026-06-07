@@ -131,6 +131,15 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             return;
         }
 
+        // Array first arg: one listener bound to several class-string events.
+        if ($first->value instanceof Node\Expr\Array_) {
+            foreach (AstHelpers::classConstList($first->value) as $event) {
+                $this->recordListen($event, $second->value);
+            }
+
+            return;
+        }
+
         $event = $this->eventFromValue($first->value);
         if ($event === null) {
             return;
@@ -139,12 +148,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if ($second->value instanceof Node\Expr\Closure
             || $second->value instanceof Node\Expr\ArrowFunction
         ) {
-            $this->closurePairs[] = new ClosurePairRecord(
-                event: $event,
-                line: $second->value->getStartLine(),
-                endLine: $second->value->getEndLine(),
-                registration: ListenerRegistration::EVENT_LISTEN_CALL,
-            );
+            $this->recordClosurePair($event, $second->value);
 
             return;
         }
@@ -163,6 +167,36 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             event: $event,
             listener: $resolved['listener'],
             method: $resolved['method'],
+        );
+    }
+
+    private function recordListen(string $event, Node\Expr $listener): void
+    {
+        if ($listener instanceof Node\Expr\Closure || $listener instanceof Node\Expr\ArrowFunction) {
+            $this->recordClosurePair($event, $listener);
+
+            return;
+        }
+
+        $resolved = $this->listenerFromValue($listener);
+        if ($resolved === null) {
+            return;
+        }
+
+        $this->pairs[] = new ListenerPair(
+            event: $event,
+            listener: $resolved['listener'],
+            method: $resolved['method'],
+        );
+    }
+
+    private function recordClosurePair(string $event, Node\Expr\Closure|Node\Expr\ArrowFunction $closure): void
+    {
+        $this->closurePairs[] = new ClosurePairRecord(
+            event: $event,
+            line: $closure->getStartLine(),
+            endLine: $closure->getEndLine(),
+            registration: ListenerRegistration::EVENT_LISTEN_CALL,
         );
     }
 

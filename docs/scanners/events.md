@@ -9,9 +9,9 @@ EventScanner uses two discovery paths and merges them by FQCN:
 1. **Filesystem walk of `app/Events/`.** Every top-level `class` declaration with a non-null `namespacedName` becomes an event entry. Abstract classes are included. Interfaces and traits are skipped. Anonymous classes are skipped (they have no FQCN).
 
 2. **Dispatch-site seeding across `app/`.** EventScanner walks every PHP file under `app/` and records statically resolvable targets from:
-   - `event(new SomeEvent(...))` and `event(SomeEvent::class)` (`form: helper`)
+   - `event(new SomeEvent(...))` and `event(SomeEvent::class)` (`form: helper`). The first argument is extracted even with trailing args, so `event(new SomeEvent($payload), $extraArgs)` seeds `SomeEvent`. Plain-old-PHP-object events (no `Dispatchable` trait) are discovered this way.
    - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` (`form: facade`)
-   - `SomeEvent::dispatch(...)` (`form: dispatchable`)
+   - `SomeEvent::dispatch(...)`, `SomeEvent::dispatchIf($cond, ...)`, and `SomeEvent::dispatchUnless($cond, ...)` (`form: dispatchable`). The conditional forms resolve to the same target as `dispatch(...)`; the leading condition argument is ignored for resolution.
 
    When a seeded target's FQCN isn't already known from the filesystem walk, EventScanner locates the class file via a PSR-4 guess (mapping leading `App\` to `app/`). The class must exist on disk and contain the declared FQCN; otherwise the candidate is dropped.
 
@@ -56,6 +56,7 @@ Entries are sorted by `fqcn` ascending. `id` always equals `fqcn` (the schema re
 - **Closure / arrow-function event classes.** Anonymous classes have no FQCN and are skipped.
 - **Vendor / storage directories.** Never walked. Loom only scans `app/`.
 - **`Event::listen('eloquent.*', …)`** — these are model events, not class events. They appear in `model_events[]`, not `events[]`. See [observers.md](observers.md).
+- **`broadcast(new Event)` / `ShouldBroadcast`.** The broadcast dispatch path is not recognised as a dispatch site, so an event that is only broadcast (never dispatched via `event()` / `Event::dispatch()` / a Dispatchable form) is discovered only if it lives under `app/Events/`.
 
 ## When something looks wrong
 
