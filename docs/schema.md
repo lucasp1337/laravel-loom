@@ -1,6 +1,6 @@
 # Schema
 
-Reference for `storage/loom/index.json`. The authoritative definition is `schema/loom-index.schema.json`; this page is prose companion.
+Reference for `storage/loom/index.json`. The authoritative definition is `schema/loom-index.schema.json`; this page is prose companion. For consuming an index from PHP, the [Index PHP API](index-api.md) describes the typed read model that hydrates from this shape.
 
 ## Top-level structure
 

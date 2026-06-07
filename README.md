@@ -451,6 +451,26 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
 
 The JSON shape is defined by `schema/loom-index.schema.json` and validated on every scan.
 
+## Consuming the index (PHP API)
+
+`loom:show` is for humans; for programs, load a written index into typed objects with `IndexLoader`. The getters and lookups on `Index` return read-model value objects from `Lucasp\Loom\Index\Model\` — no raw-array digging.
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+
+$index = (new IndexLoader())->fromFile('storage/loom/index.json');
+
+foreach ($index->events() as $event) {
+    echo $event->fqcn, "\n";
+}
+
+foreach ($index->handlersOf('App\\Events\\OrderShipped') as $handler) {
+    echo "  handled by {$handler->listener}::{$handler->method}\n";
+}
+```
+
+This is the supported surface for tools that consume an index. See [docs/index-api.md](docs/index-api.md) for the full loader, getters, lookups, and value-object reference.
+
 ## Requirements
 
 - PHP **8.3+**
@@ -473,6 +493,7 @@ See [docs/contributing.md](docs/contributing.md) for the full list of recipes.
 
 - [Architecture](docs/architecture.md) — pipeline, scanner contract, cross-link pass
 - [Schema](docs/schema.md) — JSON schema reference
+- [Index PHP API](docs/index-api.md) — load an index into typed objects (`IndexLoader`, getters, value objects)
 - [Scanners](docs/scanners/) — per-scanner behavior, edge cases, known limitations
 - [Contributing](docs/contributing.md) — toolchain, Docker workflow, how to add a scanner
 
