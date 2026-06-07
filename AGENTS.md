@@ -37,8 +37,10 @@ src/
   Contracts/
     Scanner.php                     # the one-method contract every scanner implements
   Index/
-    Index.php                       # immutable value object — serializes to JSON
+    Index.php                       # immutable value object — serializes to JSON; typed getters/lookups (public consumer API)
     IndexBuilder.php                # orchestrates scanners + runs the cross-link pass
+    IndexLoader.php                 # hydrates an Index from a written index.json (public consumer API)
+    Model/                          # final readonly read-model value objects (public consumer API)
   Scanners/
     EventScanner.php
     ListenerScanner.php
@@ -96,6 +98,8 @@ If two scanners ever write to the same field, you've drifted from the design —
 **Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
 
 **DTOs, not associative arrays, for inter-component data.** Visitors emit `list<SomeDto>` from `src/Dto/`, never `array<int, array{...}>`. Scanners consume DTOs and only build the schema-shaped associative arrays at the emit boundary (the final step of `scan()`). The cross-link pass operates on the schema-shape since that IS the JSON contract — but everything before that boundary is typed. See `docs/contributing.md#data-transfer-dtos-not-arrays`.
+
+**Consumer read model vs scanner DTOs.** The public consumption surface is `IndexLoader`, the typed getters/lookups on `Index`, and the `Lucasp\Loom\Index\Model\` value objects (each `final readonly`, hydrated from the JSON/array shape). That's what external tools (UI, MCP server) depend on. The `Lucasp\Loom\Dto\*Entry` classes are internal scanner build inputs — NOT part of the consumer API; don't expose them or couple consumers to them. See [docs/index-api.md](docs/index-api.md) and [ADR 0005](docs/adr/0005-index-read-model.md).
 
 ---
 

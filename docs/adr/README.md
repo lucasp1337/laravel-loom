@@ -41,3 +41,5 @@ refactor, it's a reference doc, not an ADR.
   separate sections, shared dispatch-site machinery.
 - [0004 — Sub-minute frequencies](0004-sub-minute-frequencies.md) — structured
   `frequency` object; cron stays null for sub-minute helpers.
+- [0005 — Index read model](0005-index-read-model.md) — read model decoupled
+  from scanner DTOs, hydrated from the schema shape.
