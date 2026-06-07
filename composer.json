@@ -33,14 +33,18 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Lucasp\\Loom\\Tests\\": "tests/"
+            "Lucasp\\Loom\\Tests\\": "tests/",
+            "Lucasp\\Loom\\Benchmarks\\": "benchmarks/src/"
         }
     },
     "scripts": {
         "test": "vendor/bin/pest",
         "test-coverage": "vendor/bin/pest --coverage",
         "analyse": "vendor/bin/phpstan analyse",
-        "format": "vendor/bin/pint"
+        "format": "vendor/bin/pint",
+        "bench": "php benchmarks/bench.php",
+        "bench:assert": "php benchmarks/bench.php --assert",
+        "bench:baseline": "php benchmarks/bench.php --baseline"
     },
     "config": {
         "sort-packages": true,

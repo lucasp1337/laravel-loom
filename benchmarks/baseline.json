@@ -1,0 +1,149 @@
+{
+    "_note": "Counts are deterministic and asserted by `composer bench:assert`. reference_ms is informational — wall time is hardware-dependent and only gated when --time-threshold is passed on the same machine.",
+    "profiles": {
+        "tiny": {
+            "files": 19,
+            "sections": {
+                "events": 2,
+                "listeners": 2,
+                "observers": 1,
+                "jobs": 2,
+                "unresolved_dispatches": 0,
+                "closure_listeners": 2,
+                "scheduled": 5,
+                "routes": 3,
+                "mailables": 1,
+                "notifications": 1
+            },
+            "scanners": {
+                "EventScanner": {
+                    "events": 2
+                },
+                "ListenerScanner": {
+                    "listeners": 2,
+                    "closure_listeners": 2
+                },
+                "ObserverScanner": {
+                    "observers": 1,
+                    "model_events": 3
+                },
+                "JobsScanner": {
+                    "jobs": 2
+                },
+                "MailableScanner": {
+                    "mailables": 1
+                },
+                "NotificationScanner": {
+                    "notifications": 1
+                },
+                "DispatchScanner": {
+                    "unresolved_dispatches": 0,
+                    "_dispatch_sites": 6
+                },
+                "ScheduleScanner": {
+                    "scheduled": 5
+                },
+                "RouteScanner": {
+                    "routes": 3
+                }
+            },
+            "reference_ms": 43.31
+        },
+        "medium": {
+            "files": 201,
+            "sections": {
+                "events": 28,
+                "listeners": 28,
+                "observers": 14,
+                "jobs": 28,
+                "unresolved_dispatches": 0,
+                "closure_listeners": 2,
+                "scheduled": 31,
+                "routes": 42,
+                "mailables": 14,
+                "notifications": 14
+            },
+            "scanners": {
+                "EventScanner": {
+                    "events": 28
+                },
+                "ListenerScanner": {
+                    "listeners": 28,
+                    "closure_listeners": 2
+                },
+                "ObserverScanner": {
+                    "observers": 14,
+                    "model_events": 42
+                },
+                "JobsScanner": {
+                    "jobs": 28
+                },
+                "MailableScanner": {
+                    "mailables": 14
+                },
+                "NotificationScanner": {
+                    "notifications": 14
+                },
+                "DispatchScanner": {
+                    "unresolved_dispatches": 0,
+                    "_dispatch_sites": 84
+                },
+                "ScheduleScanner": {
+                    "scheduled": 31
+                },
+                "RouteScanner": {
+                    "routes": 42
+                }
+            },
+            "reference_ms": 491.07
+        },
+        "large": {
+            "files": 2035,
+            "sections": {
+                "events": 290,
+                "listeners": 290,
+                "observers": 145,
+                "jobs": 290,
+                "unresolved_dispatches": 0,
+                "closure_listeners": 2,
+                "scheduled": 53,
+                "routes": 435,
+                "mailables": 145,
+                "notifications": 145
+            },
+            "scanners": {
+                "EventScanner": {
+                    "events": 290
+                },
+                "ListenerScanner": {
+                    "listeners": 290,
+                    "closure_listeners": 2
+                },
+                "ObserverScanner": {
+                    "observers": 145,
+                    "model_events": 435
+                },
+                "JobsScanner": {
+                    "jobs": 290
+                },
+                "MailableScanner": {
+                    "mailables": 145
+                },
+                "NotificationScanner": {
+                    "notifications": 145
+                },
+                "DispatchScanner": {
+                    "unresolved_dispatches": 0,
+                    "_dispatch_sites": 870
+                },
+                "ScheduleScanner": {
+                    "scheduled": 53
+                },
+                "RouteScanner": {
+                    "routes": 435
+                }
+            },
+            "reference_ms": 4322.17
+        }
+    }
+}

@@ -85,4 +85,7 @@ nav:
           - 0001 — Class hierarchy resolver: adr/0001-class-hierarchy-resolver.md
           - 0002 — Schedule scanner: adr/0002-schedule-scanner.md
           - 0003 — Mailables & notifications: adr/0003-mailables-notifications.md
+          - 0004 — Sub-minute frequencies: adr/0004-sub-minute-frequencies.md
+          - 0005 — Index read model: adr/0005-index-read-model.md
+          - 0006 — Benchmark suite: adr/0006-benchmark-suite.md
   - Contributing: contributing.md

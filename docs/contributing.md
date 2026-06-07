@@ -76,6 +76,28 @@ just scan-json /path/to/your/laravel/app > index.json   # writes the full index
 
 Useful for verifying behavior on real codebases beyond `tests/Fixtures/`.
 
+The `scan` / `scan-json` recipes and `loom:scan` itself register the same scanner
+set from `Lucasp\Loom\Scanners\DefaultScanners` — the single source of truth for
+which scanners run. Add or remove scanners there, not in each consumer.
+
+## Benchmarking
+
+The benchmark suite measures scan cost across deterministic generated apps and
+gates on entry counts (not wall time). The `composer` scripts run on the host;
+`just bench [...]` runs them in Docker:
+
+```bash
+composer bench                            # run all sizes, print the table
+php benchmarks/bench.php --size=medium    # one size
+php benchmarks/bench.php --json           # machine-readable
+composer bench:baseline                   # (re)write benchmarks/baseline.json
+composer bench:assert                     # fail on count drift vs baseline
+```
+
+Regenerate and review the baseline whenever a change legitimately moves the
+counts. Full details in [benchmarks/README.md](../benchmarks/README.md); rationale
+in [ADR 0006](adr/0006-benchmark-suite.md).
+
 ## Repository structure
 
 ```

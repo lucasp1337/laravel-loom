@@ -489,6 +489,8 @@ just coverage # Pest with per-file coverage
 
 See [docs/contributing.md](docs/contributing.md) for the full list of recipes.
 
+A benchmark suite (`composer bench`) measures scan cost across generated tiny/medium/large apps and gates CI on deterministic counts — see [benchmarks/README.md](benchmarks/README.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) — pipeline, scanner contract, cross-link pass
