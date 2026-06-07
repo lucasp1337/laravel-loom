@@ -19,13 +19,14 @@ use Lucasp\Loom\Check\Rules\UnresolvedDispatchesRule;
 function checkValidIndex(array $overrides = []): array
 {
     $base = [
-        'loom_version' => '0.2.0',
+        'loom_version' => '0.3.0',
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00+00:00',
         'stats' => [
             'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
         'events' => [[
             'id' => 'App\\Events\\OrderPlaced',
@@ -53,6 +54,7 @@ function checkValidIndex(array $overrides = []): array
         'scheduled' => [],
         'mailables' => [],
         'notifications' => [],
+        'routes' => [],
     ];
 
     return array_replace($base, $overrides);

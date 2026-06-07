@@ -16,6 +16,7 @@ enum Facades: string
     case MAIL = 'Illuminate\\Support\\Facades\\Mail';
     case NOTIFICATION = 'Illuminate\\Support\\Facades\\Notification';
     case SCHEDULE = 'Illuminate\\Support\\Facades\\Schedule';
+    case ROUTE = 'Illuminate\\Support\\Facades\\Route';
 
     public function matches(string $className): bool
     {

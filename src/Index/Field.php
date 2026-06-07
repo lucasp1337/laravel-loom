@@ -54,4 +54,7 @@ enum Field: string
     case CHANNELS_DYNAMIC = 'channels_dynamic';
     case EXPRESSION = 'expression';
     case REASON = 'reason';
+    case URI = 'uri';
+    case CONTROLLER_FQCN = 'controller_fqcn';
+    case CONTROLLER_METHOD = 'controller_method';
 }

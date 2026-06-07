@@ -221,6 +221,7 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
     "observers": 1,
     "jobs": 1,
     "scheduled": 1,
+    "routes": 2,
     "mailables": 1,
     "notifications": 1,
     "unresolved_dispatches": 1,
@@ -321,6 +322,26 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "constraints": ["weekdays"],
       "file": "app/Console/Kernel.php",
       "line": 28
+    }
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "uri": "orders/{order}",
+      "name": "orders.show",
+      "controller_fqcn": "App\\Http\\Controllers\\OrderController",
+      "controller_method": "show",
+      "file": "routes/web.php",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "uri": "webhooks/stripe",
+      "name": null,
+      "controller_fqcn": null,
+      "controller_method": null,
+      "file": "routes/api.php",
+      "line": 7
     }
   ],
   "mailables": [

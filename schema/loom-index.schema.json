@@ -17,6 +17,7 @@
         "unresolved_dispatches",
         "closure_listeners",
         "scheduled",
+        "routes",
         "mailables",
         "notifications"
     ],
@@ -27,7 +28,7 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled", "mailables", "notifications"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled", "routes", "mailables", "notifications"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -37,6 +38,7 @@
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
                 "closure_listeners": { "type": "integer", "minimum": 0 },
                 "scheduled": { "type": "integer", "minimum": 0 },
+                "routes": { "type": "integer", "minimum": 0 },
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
             }
@@ -72,6 +74,10 @@
         "scheduled": {
             "type": "array",
             "items": { "$ref": "#/$defs/scheduleEntry" }
+        },
+        "routes": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/route" }
         },
         "mailables": {
             "type": "array",
@@ -311,6 +317,28 @@
                     "type": "array",
                     "items": { "type": "string" }
                 },
+                "file": { "type": "string" },
+                "line": { "type": "integer", "minimum": 1 }
+            }
+        },
+        "route": {
+            "type": "object",
+            "required": [
+                "method",
+                "uri",
+                "name",
+                "controller_fqcn",
+                "controller_method",
+                "file",
+                "line"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "ANY"] },
+                "uri": { "type": "string" },
+                "name": { "type": ["string", "null"] },
+                "controller_fqcn": { "type": ["string", "null"] },
+                "controller_method": { "type": ["string", "null"] },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 }
             }

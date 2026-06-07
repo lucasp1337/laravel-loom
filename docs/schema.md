@@ -17,6 +17,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
   "scheduled": array,             // task-scheduler entries
+  "routes": array,                // registered HTTP routes
   "mailables": array,             // discovered mailable classes
   "notifications": array,         // discovered notification classes
   "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
@@ -297,6 +298,32 @@ Cross-link is one-directional: `scheduled[*].target` with `kind: "job"` carries 
 
 See [docs/scanners/schedule.md](scanners/schedule.md) for behaviour details and known limitations.
 
+## `routes[]`
+
+Registered HTTP routes discovered from the application's route definitions. One entry per route.
+
+```
+{
+  "method": enum,                 // HTTP verb, uppercase
+  "uri": string,                  // route URI pattern (e.g. "orders/{order}")
+  "name": string | null,          // route name from ->name(...); null when unnamed
+  "controller_fqcn": string | null,   // FQCN of the controller; null for closure / non-controller routes
+  "controller_method": string | null, // controller action method; null for closure / non-controller routes
+  "file": string,                 // path to the route definition, relative to app root
+  "line": integer                 // 1-indexed line of the route definition
+}
+```
+
+`$defs/route`. All fields are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
+
+`method` enum:
+
+```
+GET, POST, PUT, PATCH, DELETE, OPTIONS, ANY
+```
+
+A route registered against multiple verbs that share one definition is reported as `ANY`. Routes whose action is a closure (or otherwise not a `Controller@method` callable) carry `null` for both `controller_fqcn` and `controller_method`; `name` is `null` whenever no `->name(...)` was applied.
+
 ## `mailables[]`
 
 Mailable classes discovered by `MailableScanner`. One entry per FQCN.
@@ -380,6 +407,7 @@ See [docs/scanners/notifications.md](scanners/notifications.md) for discovery pa
   "jobs": integer,
   "observers": integer,
   "scheduled": integer,
+  "routes": integer,
   "mailables": integer,
   "notifications": integer,
   "unresolved_dispatches": integer
@@ -395,5 +423,7 @@ Counts mirror the sizes of the corresponding arrays. `model_events` is intention
 - **Patch** — bug fix in scanner output that doesn't change the shape
 - **Minor** — additive: new optional fields, new enum values, new sections
 - **Major** — breaking: required field removed, type changed, enum value removed
+
+Adding the `routes[]` section is a **minor**-class additive change — a brand-new top-level section that existing consumers can ignore — taking `loom_version` to `0.3.0`.
 
 Schema changes go through the `schema-guardian` agent for review and require a CHANGELOG entry calling out the version implication. Pre-1.0, breaking changes are tolerated but not free — they should still be deliberate.
