@@ -263,9 +263,13 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
   "kind": enum,                   // "command" | "job" | "closure" | "exec"
   "name": string | null,          // from ->name(...); null when not named
   "target": string | null,        // depends on kind; see below
+  "arguments": array<string>,     // ->command(Class, [...]) parameters; [] for non-command kinds
+  "queue": string | null,         // job kind only; ->job($job, $queue) override
+  "connection": string | null,    // job kind only; ->job($job, $queue, $connection) override
   "cron": string | null,          // five-field cron expression
   "timezone": string | null,      // from ->timezone(...)
   "without_overlapping": boolean,
+  "without_overlapping_expires_at": integer | null, // ->withoutOverlapping($minutes); null when no literal arg
   "on_one_server": boolean,
   "run_in_background": boolean,
   "even_in_maintenance_mode": boolean, // from ->evenInMaintenanceMode()
@@ -275,7 +279,9 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 }
 ```
 
-`$defs/scheduleEntry`. All fields are required. `name`, `target`, and `cron` may be `null`; `timezone` may be `null`.
+`$defs/scheduleEntry`. All fields are required. `name`, `target`, `cron`, `timezone`, `queue`, `connection`, and `without_overlapping_expires_at` may be `null`.
+
+`arguments[]` is the literal parameters array passed to `->command(Class::class, [...])` — `command` kind only; `[]` for every other kind. Plain items render as the stringified value, keyed items as `"key=value"`, booleans as `"true"`/`"false"`; unresolvable items are skipped. `queue` and `connection` are the 2nd / 3rd `->job($job, $queue, $connection)` overrides, `job` kind only, `null` when absent. `without_overlapping_expires_at` is the expiry minutes from `->withoutOverlapping($minutes)`; it is `null` when `withoutOverlapping()` carries no literal argument — the framework default of 1440 is deliberately not fabricated. The `without_overlapping` boolean is independent and unchanged.
 
 `name` carries the schedule entry's `->name(...)` label (verbatim string) when one is declared, and is `null` otherwise. `even_in_maintenance_mode` is `true` only when `->evenInMaintenanceMode()` appears in the chain, mirroring Laravel's runtime gate that otherwise skips scheduled tasks while the app is in maintenance mode.
 

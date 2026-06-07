@@ -137,6 +137,28 @@ class Kernel
             ->daily()
             ->name('combined-task')
             ->evenInMaintenanceMode();
+
+        // withoutOverlapping with an explicit expiry minutes arg.
+        $schedule->command('overlap:expires')
+            ->daily()
+            ->withoutOverlapping(10);
+
+        // withoutOverlapping with no arg -> expiry null, flag still true.
+        $schedule->command('overlap:default')
+            ->daily()
+            ->withoutOverlapping();
+
+        // command(...) with an arguments array: list item, keyed item, bool.
+        $schedule->command('args:command', ['--force', 'user' => 1, 'dry' => true])
+            ->daily();
+
+        // job(...) with explicit queue + connection overrides.
+        $schedule->job(new SendInvoice(), 'emails', 'redis')
+            ->daily();
+
+        // job(...) with no queue/connection overrides -> both null.
+        $schedule->job(new SendInvoice())
+            ->hourly();
     }
 
     /**

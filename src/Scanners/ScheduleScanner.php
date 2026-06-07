@@ -164,10 +164,21 @@ final class ScheduleScanner implements Scanner
         foreach ($rawEntries as $raw) {
             $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
+            $arguments = $raw->kind === ScheduleKind::COMMAND
+                ? $this->resolveCommandArguments($raw->rootArgs)
+                : [];
+            $queue = $raw->kind === ScheduleKind::JOB
+                ? AstHelpers::scalarString($raw->rootArgs[1] ?? null)
+                : null;
+            $connection = $raw->kind === ScheduleKind::JOB
+                ? AstHelpers::scalarString($raw->rootArgs[2] ?? null)
+                : null;
+
             $cron = null;
             $name = null;
             $timezone = null;
             $withoutOverlapping = false;
+            $withoutOverlappingExpiresAt = null;
             $onOneServer = false;
             $runInBackground = false;
             $evenInMaintenanceMode = false;
@@ -214,6 +225,7 @@ final class ScheduleScanner implements Scanner
 
                 if ($method === 'withoutOverlapping') {
                     $withoutOverlapping = true;
+                    $withoutOverlappingExpiresAt = AstHelpers::scalarInt($args[0] ?? null);
 
                     continue;
                 }
@@ -248,9 +260,13 @@ final class ScheduleScanner implements Scanner
                 kind: $raw->kind,
                 name: $name,
                 target: $target,
+                arguments: $arguments,
+                queue: $queue,
+                connection: $connection,
                 cron: $cron,
                 timezone: $timezone,
                 withoutOverlapping: $withoutOverlapping,
+                withoutOverlappingExpiresAt: $withoutOverlappingExpiresAt,
                 onOneServer: $onOneServer,
                 runInBackground: $runInBackground,
                 evenInMaintenanceMode: $evenInMaintenanceMode,
@@ -301,6 +317,66 @@ final class ScheduleScanner implements Scanner
         $string = AstHelpers::scalarString($first);
         if ($string !== null) {
             return $this->normaliseAtCallable($string);
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolves the `$parameters` array of a scheduled command into a flat
+     * list. Plain items emit their literal value; keyed items emit "key=value".
+     * Unresolvable items are skipped rather than fabricated.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @return list<string>
+     */
+    private function resolveCommandArguments(array $rootArgs): array
+    {
+        $arg = $rootArgs[1] ?? null;
+        if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($arg->value->items as $item) {
+            $value = $this->scalarToString($item->value);
+            if ($value === null) {
+                continue;
+            }
+
+            if ($item->key === null) {
+                $out[] = $value;
+
+                continue;
+            }
+
+            $key = $this->scalarToString($item->key);
+            if ($key !== null) {
+                $out[] = $key.'='.$value;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Stringify a scalar literal node (string, int, or bool) or null if unresolvable. */
+    private function scalarToString(Node\Expr $node): ?string
+    {
+        $string = AstHelpers::scalarString($node);
+        if ($string !== null) {
+            return $string;
+        }
+
+        $int = AstHelpers::scalarInt($node);
+        if ($int !== null) {
+            return (string) $int;
+        }
+
+        if ($node instanceof Node\Expr\ConstFetch) {
+            $name = strtolower($node->name->toString());
+            if ($name === 'true' || $name === 'false') {
+                return $name;
+            }
         }
 
         return null;

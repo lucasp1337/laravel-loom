@@ -534,6 +534,83 @@ it('captures name and even_in_maintenance_mode together on one entry', function 
 });
 
 // ---------------------------------------------------------------------------
+// withoutOverlapping expiry
+// ---------------------------------------------------------------------------
+
+it('captures the expiry minutes from ->withoutOverlapping(10)', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 142);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('overlap:expires');
+    expect($entry->withoutOverlapping)->toBeTrue();
+    expect($entry->withoutOverlappingExpiresAt)->toBe(10);
+});
+
+it('leaves withoutOverlappingExpiresAt null for ->withoutOverlapping() with no arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 147);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('overlap:default');
+    expect($entry->withoutOverlapping)->toBeTrue();
+    expect($entry->withoutOverlappingExpiresAt)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Command arguments
+// ---------------------------------------------------------------------------
+
+it('captures command arguments: list item, keyed item, and bool', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 152);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
+    expect($entry->target)->toBe('args:command');
+    expect($entry->arguments)->toBe(['--force', 'user=1', 'dry=true']);
+});
+
+it('emits an empty arguments array for a command with no arguments array', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 21);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::COMMAND);
+    expect($entry->arguments)->toBe([]);
+});
+
+// ---------------------------------------------------------------------------
+// Job queue + connection overrides
+// ---------------------------------------------------------------------------
+
+it('captures queue and connection from ->job(new HeavyJob, "emails", "redis")', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 156);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::JOB);
+    expect($entry->queue)->toBe('emails');
+    expect($entry->connection)->toBe('redis');
+});
+
+it('leaves queue and connection null for ->job(new HeavyJob) with no overrides', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 160);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::JOB);
+    expect($entry->queue)->toBeNull();
+    expect($entry->connection)->toBeNull();
+    // JOB entries never carry command arguments.
+    expect($entry->arguments)->toBe([]);
+});
+
+it('defaults arguments:[] / queue:null / connection:null on a closure entry', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 31);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->kind)->toBe(ScheduleKind::CLOSURE);
+    expect($entry->arguments)->toBe([]);
+    expect($entry->queue)->toBeNull();
+    expect($entry->connection)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
 // Constraints
 // ---------------------------------------------------------------------------
 

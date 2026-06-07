@@ -41,9 +41,13 @@ One entry per chain, conforming to `$defs/scheduleEntry`:
   "kind": "command",
   "name": "send-daily-mail",
   "target": "mail:send {--queue=default}",
+  "arguments": [],
+  "queue": null,
+  "connection": null,
   "cron": "0 13 * * *",
   "timezone": "America/Chicago",
   "without_overlapping": true,
+  "without_overlapping_expires_at": null,
   "on_one_server": false,
   "run_in_background": false,
   "even_in_maintenance_mode": false,
@@ -74,11 +78,30 @@ Field semantics:
     - `"FQCN::method"` for callable tuples (`[Cls::class, 'method']`) and
       Laravel callable strings (`'App\\Cls@method'`).
   - `exec`: the shell command string verbatim.
+- **`arguments[]`** — the literal parameters array passed to
+  `->command(Class::class, [...])`. `command` kind only; `[]` for every
+  other kind. Plain items render as the stringified value; keyed items
+  render as `"key=value"`; booleans as `"true"`/`"false"`; items that
+  aren't statically resolvable are skipped. Example:
+  `->command(SendEmails::class, ['--force', 'user' => 1])` →
+  `["--force", "user=1"]`.
+- **`queue`** — string or `null`. `job` kind only: the queue override
+  from `->job($job, $queue, $connection)` (2nd argument). `null` when
+  absent or for non-`job` kinds.
+- **`connection`** — string or `null`. `job` kind only: the connection
+  override from `->job($job, $queue, $connection)` (3rd argument). `null`
+  when absent or for non-`job` kinds.
 - **`cron`** — five-field normalised cron expression (`"*/5 * * * *"`) or
   `null` if no recognised frequency helper appears in the chain. The
   recognised set is enumerated in ADR 0002 §3.
 - **`timezone`** — string from `->timezone('America/Chicago')` or `null`.
 - **`without_overlapping`** — `true` if `->withoutOverlapping()` appears.
+- **`without_overlapping_expires_at`** — integer or `null`. The expiry
+  minutes from `->withoutOverlapping($minutes)`. `null` when
+  `withoutOverlapping()` is called with no literal argument — the
+  framework default of 1440 is deliberately not fabricated (honesty over
+  completeness). Independent of the `without_overlapping` boolean, which
+  is unchanged.
 - **`on_one_server`** — `true` if `->onOneServer()` appears.
 - **`run_in_background`** — `true` if `->runInBackground()` appears.
 - **`even_in_maintenance_mode`** — `true` if `->evenInMaintenanceMode()`
