@@ -311,11 +311,14 @@ Registered HTTP routes discovered from the application's route definitions. One 
   "controller_method": string | null, // controller action method; null for closure / non-controller routes
   "middleware": array<string>,    // middleware identifiers applied to the route, including those inherited from enclosing groups; verbatim names (alias->class and group expansion are not resolved)
   "file": string,                 // path to the route definition, relative to app root
-  "line": integer                 // 1-indexed line of the route definition
+  "line": integer,                // 1-indexed line of the route definition
+  "dispatches": array             // events/jobs dispatched inside the route's controller method; same shape as listeners[*].dispatches
 }
 ```
 
 `$defs/route`. All fields are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
+
+`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. It is populated by the cross-link pass and stays empty until cross-linked, as well as for closure routes and routes whose controller cannot be resolved.
 
 `method` enum:
 

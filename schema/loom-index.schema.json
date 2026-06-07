@@ -331,7 +331,8 @@
                 "controller_method",
                 "middleware",
                 "file",
-                "line"
+                "line",
+                "dispatches"
             ],
             "additionalProperties": false,
             "properties": {
@@ -342,7 +343,11 @@
                 "controller_method": { "type": ["string", "null"] },
                 "middleware": { "type": "array", "items": { "type": "string" } },
                 "file": { "type": "string" },
-                "line": { "type": "integer", "minimum": 1 }
+                "line": { "type": "integer", "minimum": 1 },
+                "dispatches": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/dispatch" }
+                }
             }
         },
         "mailable": {

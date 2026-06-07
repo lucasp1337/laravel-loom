@@ -11,6 +11,7 @@ use Lucasp\Loom\Index\CrossLink\CrossLinkPhase;
 use Lucasp\Loom\Index\CrossLink\DispatchAttributionPhase;
 use Lucasp\Loom\Index\CrossLink\DispatchedFromPhase;
 use Lucasp\Loom\Index\CrossLink\HandledByPhase;
+use Lucasp\Loom\Index\CrossLink\RouteDispatchAttributionPhase;
 use Lucasp\Loom\Index\CrossLink\SortPhase;
 
 /**
@@ -37,6 +38,7 @@ final class CrossLinker
             new DispatchAttributionPhase,
             new ClosureDispatchAttributionPhase,
             new DispatchedFromPhase,
+            new RouteDispatchAttributionPhase,
             new SortPhase,
         ];
     }

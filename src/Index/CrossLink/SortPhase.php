@@ -59,6 +59,9 @@ final class SortPhase implements CrossLinkPhase
             Sections::NOTIFICATIONS->value => [
                 Field::NOTIFIED_FROM->value => [Field::FILE->value, Field::LINE->value, Field::METHOD->value],
             ],
+            Sections::ROUTES->value => [
+                Field::DISPATCHES->value => [Field::FILE->value, Field::LINE->value, Field::TARGET->value],
+            ],
         ];
     }
 }

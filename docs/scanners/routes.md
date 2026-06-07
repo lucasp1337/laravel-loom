@@ -8,9 +8,11 @@ enclosing `Route::group(...)` — prefix, name prefix, default controller,
 and middleware (see [Route groups](#route-groups) and
 [Middleware](#middleware)). `Route::resource()` / `Route::apiResource()`
 registrations are expanded into their constituent CRUD routes (see
-[Resource controllers](#resource-controllers)). The `dispatches[]`
-cross-links from the full proposal and middleware-group / alias resolution
-are deferred to follow-up PRs (see [Known limitations](#known-limitations)).
+[Resource controllers](#resource-controllers)). Each route also carries a
+`dispatches[]` cross-link — the events and jobs dispatched inside its
+controller method, joined during the cross-link pass (see
+[Dispatches](#dispatches)). Middleware-group / alias resolution is deferred
+to follow-up PRs (see [Known limitations](#known-limitations)).
 
 ## What it detects
 
@@ -62,7 +64,16 @@ One entry per route (one **per verb** for `match`), conforming to
   "controller_method": "show",
   "middleware": ["web", "auth"],
   "file": "routes/web.php",
-  "line": 14
+  "line": 14,
+  "dispatches": [
+    {
+      "target": "App\\Events\\UserViewed",
+      "kind": "event",
+      "confidence": "high",
+      "file": "app/Http/Controllers/UserController.php",
+      "line": 31
+    }
+  ]
 }
 ```
 
@@ -97,6 +108,13 @@ Field semantics:
 - **`file`** — path to the route file, relative to the app root (e.g.
   `routes/web.php`).
 - **`line`** — 1-indexed line of the route registration.
+- **`dispatches`** — the events and jobs dispatched inside the route's
+  controller method, each a `$defs/dispatch` reference
+  (`{target, kind, confidence, file, line}` — the same shape as
+  `listeners[*].dispatches` / `jobs[*].dispatches`). Populated by the
+  cross-link pass; `[]` for closure routes, unresolved-controller routes,
+  and any route whose controller method dispatches nothing. See
+  [Dispatches](#dispatches).
 
 `stats.routes` is added to the top-level stats block as the count of
 entries.
@@ -240,6 +258,40 @@ and `->shallow()` are **not** applied — the expansion always uses the
 default names and parameters above (see
 [Known limitations](#known-limitations)).
 
+### Dispatches
+
+Each route's `dispatches` field lists the events and jobs dispatched inside
+its controller method. It is the cross-section link issue #8 is fundamentally
+about: an event can now be traced back through the controller that dispatches
+it to the route that reaches that controller.
+
+The field is filled by the `RouteDispatchAttributionPhase` cross-link phase,
+not by the scanner itself — the raw scanner output seeds `dispatches: []`,
+and the phase fills it in. The match is by **(controller_fqcn,
+controller_method)**: every dispatch site DispatchScanner records carries its
+enclosing class and method, and a site is attributed to a route when that
+enclosing class+method equals the route's resolved controller and action. A
+controller method dispatching an event and a job lists both; the same
+controller method behind several routes (e.g. a `match` registration, or a
+resource action) attaches the dispatches to every matching route entry.
+
+What is captured: event and job dispatches — the same kinds the dispatch
+attribution emits elsewhere (each finalized to `kind: "event"` or
+`kind: "job"`). Mailables and notifications are not listed here; they are
+tracked through their own reverse-links (`mailables[*].sent_from`,
+`notifications[*].notified_from`).
+
+`dispatches` is `[]` for:
+
+- **Closure routes** — no controller identity to key on.
+- **Unresolved-controller routes** — `controller_fqcn` / `controller_method`
+  are `null`, so no site can match.
+- **Controller methods that dispatch nothing.**
+
+Because the field is populated during the cross-link pass, it is empty unless
+the index was built through `IndexBuilder` with `DispatchScanner` registered —
+which the `loom:scan` CLI always does.
+
 ## Known limitations
 
 These are deliberate scope boundaries, not bugs — each is planned
@@ -268,9 +320,6 @@ follow-up work.
   `Route::resources([...])` and `Route::apiResources([...])` emit no
   entries; only the single-resource `resource()` / `apiResource()` calls
   are expanded.
-- **No `dispatches[]` cross-links.** The full #8 proposal links each route
-  to the dispatch sites inside its handler. That cross-link is not in this
-  slice — it is a follow-up PR.
 - **Attribute routing not handled.** `#[Route(...)]` attributes on
   controller methods are invisible to this slice.
 - **Unresolvable actions emit null controller fields.** When the action

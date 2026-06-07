@@ -86,3 +86,9 @@ Route::get('/classmw', [HomeController::class, 'index'])->middleware([\App\Http\
 Route::middleware('auth')->prefix('dup')->group(function () {
     Route::get('/x', [HomeController::class, 'index'])->middleware('auth');
 });
+
+// ---------------------------------------------------------------------------
+// Slice 5: controller-method dispatch attribution (cross-link populates dispatches[])
+// ---------------------------------------------------------------------------
+
+Route::get('/checkout', [UserController::class, 'checkout'])->name('checkout');

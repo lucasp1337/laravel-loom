@@ -250,6 +250,7 @@ final class IndexSerializer
             Field::MIDDLEWARE->value => $e->middleware,
             Field::FILE->value => $e->file,
             Field::LINE->value => $e->line,
+            Field::DISPATCHES->value => $e->dispatches,
         ];
     }
 

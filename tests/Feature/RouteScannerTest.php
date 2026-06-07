@@ -506,6 +506,28 @@ it('reports file paths relative to the fixture root with forward slashes', funct
 });
 
 // ---------------------------------------------------------------------------
+// Dispatch attribution is a cross-link concern (slice 5)
+// ---------------------------------------------------------------------------
+
+it('leaves dispatches empty at scan time for a dispatching controller route', function () {
+    // The raw RouteScanner never runs the cross-link pass, so even a route whose
+    // controller method dispatches an event and a job emits dispatches = [].
+    $entry = routeBy(routeEntries(), 'GET', '/checkout');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->controllerFqcn)->toBe('App\\Http\\Controllers\\UserController');
+    expect($entry->controllerMethod)->toBe('checkout');
+    expect($entry->name)->toBe('checkout');
+    expect($entry->dispatches)->toBe([]);
+});
+
+it('leaves dispatches empty at scan time for every route entry', function () {
+    foreach (routeEntries() as $entry) {
+        expect($entry->dispatches)->toBe([]);
+    }
+});
+
+// ---------------------------------------------------------------------------
 // Sorting
 // ---------------------------------------------------------------------------
 

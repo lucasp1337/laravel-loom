@@ -147,17 +147,86 @@ it('serialises an expanded resource route end-to-end', function () {
     expect($update['controller_method'])->toBe('update');
 });
 
-it('leaves non-route sections empty for the route fixture', function () {
+it('leaves the listener-shaped sections empty for the route fixture', function () {
     $payload = buildRouteEndToEndPayload();
 
-    expect($payload['events'])->toBe([]);
+    // The fixture carries an event (App\Events\OrderPlaced) and a job
+    // (App\Jobs\ProcessOrder) so the cross-link can attribute dispatches to the
+    // /checkout route; every other section stays empty.
     expect($payload['listeners'])->toBe([]);
     expect($payload['observers'])->toBe([]);
     expect($payload['model_events'])->toBe([]);
-    expect($payload['jobs'])->toBe([]);
     expect($payload['unresolved_dispatches'])->toBe([]);
     expect($payload['closure_listeners'])->toBe([]);
     expect($payload['scheduled'])->toBe([]);
     expect($payload['mailables'])->toBe([]);
     expect($payload['notifications'])->toBe([]);
+});
+
+// ---------------------------------------------------------------------------
+// Dispatch attribution (slice 5): the cross-link populates routes[*].dispatches
+// ---------------------------------------------------------------------------
+
+/**
+ * Locate a serialised route by (method, uri).
+ *
+ * @param  array<int, array<string, mixed>>  $routes
+ * @return array<string, mixed>|null
+ */
+function serialisedRouteBy(array $routes, string $method, string $uri): ?array
+{
+    foreach ($routes as $route) {
+        if ($route['method'] === $method && $route['uri'] === $uri) {
+            return $route;
+        }
+    }
+
+    return null;
+}
+
+it('attributes controller-method dispatches to the route via cross-link', function () {
+    $payload = buildRouteEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $routes */
+    $routes = $payload['routes'];
+
+    $checkout = serialisedRouteBy($routes, 'GET', '/checkout');
+
+    expect($checkout)->not->toBeNull();
+    expect($checkout)->toHaveKey('dispatches');
+
+    /** @var array<int, array<string, mixed>> $dispatches */
+    $dispatches = $checkout['dispatches'];
+    expect($dispatches)->toHaveCount(2);
+
+    $byTarget = [];
+    foreach ($dispatches as $dispatch) {
+        foreach (['target', 'kind', 'confidence', 'file', 'line'] as $key) {
+            expect($dispatch)->toHaveKey($key);
+        }
+        $byTarget[$dispatch['target']] = $dispatch;
+    }
+
+    expect($byTarget)->toHaveKey('App\\Events\\OrderPlaced');
+    expect($byTarget['App\\Events\\OrderPlaced']['kind'])->toBe('event');
+
+    expect($byTarget)->toHaveKey('App\\Jobs\\ProcessOrder');
+    expect($byTarget['App\\Jobs\\ProcessOrder']['kind'])->toBe('job');
+});
+
+it('leaves dispatches empty for controller and closure routes that dispatch nothing', function () {
+    $payload = buildRouteEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $routes */
+    $routes = $payload['routes'];
+
+    $store = serialisedRouteBy($routes, 'POST', '/users');
+    expect($store)->not->toBeNull();
+    expect($store['controller_method'])->toBe('store');
+    expect($store['dispatches'])->toBe([]);
+
+    $closure = serialisedRouteBy($routes, 'GET', '/closure');
+    expect($closure)->not->toBeNull();
+    expect($closure['controller_fqcn'])->toBeNull();
+    expect($closure['dispatches'])->toBe([]);
 });

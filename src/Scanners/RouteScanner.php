@@ -159,6 +159,7 @@ final class RouteScanner implements Scanner
             middleware: $raw->middleware,
             file: $relativeFile,
             line: $raw->line,
+            dispatches: [],
         )];
     }
 
@@ -192,6 +193,7 @@ final class RouteScanner implements Scanner
                 middleware: $raw->middleware,
                 file: $relativeFile,
                 line: $raw->line,
+                dispatches: [],
             );
         }
 
@@ -243,6 +245,7 @@ final class RouteScanner implements Scanner
                 middleware: $raw->middleware,
                 file: $relativeFile,
                 line: $raw->line,
+                dispatches: [],
             );
         }
 

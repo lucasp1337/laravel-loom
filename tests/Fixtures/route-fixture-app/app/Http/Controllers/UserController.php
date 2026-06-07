@@ -29,4 +29,10 @@ class UserController
     public function any(): void
     {
     }
+
+    public function checkout(): void
+    {
+        event(new \App\Events\OrderPlaced);
+        \App\Jobs\ProcessOrder::dispatch();
+    }
 }

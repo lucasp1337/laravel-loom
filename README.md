@@ -333,7 +333,16 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "controller_method": "show",
       "middleware": ["web", "auth"],
       "file": "routes/web.php",
-      "line": 19
+      "line": 19,
+      "dispatches": [
+        {
+          "target": "App\\Events\\OrderShipped",
+          "kind": "event",
+          "confidence": "high",
+          "file": "app/Http/Controllers/OrderController.php",
+          "line": 42
+        }
+      ]
     },
     {
       "method": "POST",
@@ -343,7 +352,8 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "controller_method": null,
       "middleware": [],
       "file": "routes/api.php",
-      "line": 7
+      "line": 7,
+      "dispatches": []
     }
   ],
   "mailables": [
