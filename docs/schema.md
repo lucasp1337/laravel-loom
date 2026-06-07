@@ -267,6 +267,7 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
   "queue": string | null,         // job kind only; ->job($job, $queue) override
   "connection": string | null,    // job kind only; ->job($job, $queue, $connection) override
   "cron": string | null,          // five-field cron expression
+  "frequency": { "unit": "seconds", "every": integer } | null, // sub-minute interval; null otherwise
   "timezone": string | null,      // from ->timezone(...)
   "without_overlapping": boolean,
   "without_overlapping_expires_at": integer | null, // ->withoutOverlapping($minutes); null when no literal arg
@@ -279,7 +280,7 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 }
 ```
 
-`$defs/scheduleEntry`. All fields are required. `name`, `target`, `cron`, `timezone`, `queue`, `connection`, and `without_overlapping_expires_at` may be `null`.
+`$defs/scheduleEntry`. All fields are required. `name`, `target`, `cron`, `frequency`, `timezone`, `queue`, `connection`, and `without_overlapping_expires_at` may be `null`.
 
 `arguments[]` is the literal parameters array passed to `->command(Class::class, [...])` — `command` kind only; `[]` for every other kind. Plain items render as the stringified value, keyed items as `"key=value"`, booleans as `"true"`/`"false"`; unresolvable items are skipped. `queue` and `connection` are the 2nd / 3rd `->job($job, $queue, $connection)` overrides, `job` kind only, `null` when absent. `without_overlapping_expires_at` is the expiry minutes from `->withoutOverlapping($minutes)`; it is `null` when `withoutOverlapping()` carries no literal argument — the framework default of 1440 is deliberately not fabricated. The `without_overlapping` boolean is independent and unchanged.
 
@@ -293,6 +294,8 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 - `exec` — `->exec(string)`. `target` is the shell command string.
 
 `cron` is the canonical five-field expression for every recognised frequency helper (`daily` → `"0 0 * * *"`, `everyFiveMinutes` → `"*/5 * * * *"`, `cron('*/5 8-17 * * 1-5')` passed through verbatim). It is `null` when no recognised helper appears, when the helper's argument is a variable, or when the last frequency helper in the chain is unrecognised. The recognised set is enumerated in [ADR 0002 §3](adr/0002-schedule-scanner.md). When multiple frequency helpers chain together, last wins (mirroring Laravel's runtime).
+
+`frequency` carries a structured sub-minute interval — `{ "unit": "seconds", "every": <N> }` — for the seven sub-minute helpers (`everySecond` → `{ "unit": "seconds", "every": 1 }`, `everyTenSeconds` → `every: 10`; also `everyTwoSeconds`, `everyFiveSeconds`, `everyFifteenSeconds`, `everyTwentySeconds`, `everyThirtySeconds`). A five-field cron expression cannot express sub-minute intervals, so these entries carry `cron: null` and the interval lives in `frequency` instead. For every other entry `frequency` is `null`. At most one of `cron` / `frequency` is non-null: when a chain mixes cron-based and sub-minute helpers, last wins (mirroring Laravel's runtime) and the loser is cleared. `unit` is backed by the `FrequencyUnit` enum, currently `"seconds"` only. See [ADR 0004](adr/0004-sub-minute-frequencies.md).
 
 `constraints[]` carries opaque labels for non-cron restrictions: day-of-week (`"weekdays"`, `"sundays"`, …), time-window (`"between(8:00,17:00)"`, `"unlessBetween(...)"`), conditional (`"when(closure)"`, `"skip(closure)"`), and environment (`"environments(production,staging)"`). Sorted ascending. Constraints are emitted in addition to `cron` because Laravel evaluates them at runtime alongside the cron tick — they are not folded into the expression.
 

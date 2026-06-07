@@ -10,6 +10,7 @@ function scheduleFixturePath(): string
 }
 
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 
 /**
@@ -271,6 +272,71 @@ it('applies last-wins on multiple frequency helpers in a chain (->daily()->hourl
 
     expect($entry)->not->toBeNull();
     expect($entry->cron)->toBe('0 * * * *');
+});
+
+// ---------------------------------------------------------------------------
+// Sub-minute frequency helpers (structured frequency, cron null)
+// ---------------------------------------------------------------------------
+
+it('emits frequency {seconds, 15} and null cron for ->everyFifteenSeconds()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 164);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:fifteen');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(15);
+});
+
+it('emits frequency {seconds, 1} and null cron for ->everySecond()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 168);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:second');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(1);
+});
+
+it('emits frequency {seconds, 30} and null cron for ->everyThirtySeconds()', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 172);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:thirty');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(30);
+});
+
+it('leaves frequency null for an ordinary cron entry', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 24);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->frequency)->toBeNull();
+});
+
+it('last-wins ->everyFifteenSeconds()->daily(): cron set, frequency null', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 176);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:override-cron');
+    expect($entry->cron)->toBe('0 0 * * *');
+    expect($entry->frequency)->toBeNull();
+});
+
+it('last-wins ->daily()->everyFifteenSeconds(): cron null, frequency set', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 181);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('sub:override-frequency');
+    expect($entry->cron)->toBeNull();
+    expect($entry->frequency)->not->toBeNull();
+    expect($entry->frequency->unit)->toBe(FrequencyUnit::SECONDS);
+    expect($entry->frequency->every)->toBe(15);
 });
 
 // ---------------------------------------------------------------------------

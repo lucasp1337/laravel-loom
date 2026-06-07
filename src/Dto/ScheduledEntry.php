@@ -20,6 +20,7 @@ final class ScheduledEntry
         public readonly ?string $queue,
         public readonly ?string $connection,
         public readonly ?string $cron,
+        public readonly ?ScheduleFrequency $frequency,
         public readonly ?string $timezone,
         public readonly bool $withoutOverlapping,
         public readonly ?int $withoutOverlappingExpiresAt,

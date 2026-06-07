@@ -317,6 +317,7 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "queue": null,
       "connection": null,
       "cron": "0 13 * * *",
+      "frequency": null,
       "timezone": "America/Chicago",
       "without_overlapping": true,
       "without_overlapping_expires_at": null,

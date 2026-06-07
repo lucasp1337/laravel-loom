@@ -45,6 +45,7 @@ One entry per chain, conforming to `$defs/scheduleEntry`:
   "queue": null,
   "connection": null,
   "cron": "0 13 * * *",
+  "frequency": null,
   "timezone": "America/Chicago",
   "without_overlapping": true,
   "without_overlapping_expires_at": null,
@@ -93,7 +94,20 @@ Field semantics:
   when absent or for non-`job` kinds.
 - **`cron`** — five-field normalised cron expression (`"*/5 * * * *"`) or
   `null` if no recognised frequency helper appears in the chain. The
-  recognised set is enumerated in ADR 0002 §3.
+  recognised set is enumerated in ADR 0002 §3. Also `null` for sub-minute
+  helpers, whose interval is carried in `frequency` instead (see below).
+- **`frequency`** — structured sub-minute interval
+  `{ "unit": "seconds", "every": <N> }`, or `null`. Set only by the seven
+  sub-minute helpers, which a five-field cron cannot express:
+  - `everySecond` → `every: 1`, `everyTwoSeconds` → `2`,
+    `everyFiveSeconds` → `5`, `everyTenSeconds` → `10`,
+    `everyFifteenSeconds` → `15`, `everyTwentySeconds` → `20`,
+    `everyThirtySeconds` → `30`.
+
+  These entries carry `cron: null`. For every other entry `frequency` is
+  `null`. At most one of `cron` / `frequency` is non-null on any entry.
+  `unit` is backed by the `FrequencyUnit` enum (`"seconds"` only today). See
+  [ADR 0004](../adr/0004-sub-minute-frequencies.md).
 - **`timezone`** — string from `->timezone('America/Chicago')` or `null`.
 - **`without_overlapping`** — `true` if `->withoutOverlapping()` appears.
 - **`without_overlapping_expires_at`** — integer or `null`. The expiry
@@ -173,9 +187,16 @@ on existing primitives are widened.
 - **`quarterlyOn`**: `->quarterlyOn(15, '13:00')` →
   `cron: "0 13 15 1-12/3 *"` (day-of-quarter and time both honoured;
   both default — day `1`, time `0:00`).
+- **Sub-minute helpers**: `->everyTenSeconds()` →
+  `cron: null`, `frequency: { "unit": "seconds", "every": 10 }`. The seven
+  sub-minute helpers (`everySecond` … `everyThirtySeconds`) can't be a
+  five-field cron, so the interval lives in `frequency`.
 - **Last-wins on conflicting frequencies**: chain with multiple frequency
   helpers (`->daily()->hourly()`) reflects the last one. Matches
-  Laravel's runtime behaviour.
+  Laravel's runtime behaviour. This holds across the cron / sub-minute
+  boundary too: `->everyTenSeconds()->daily()` yields `cron: "0 0 * * *"`,
+  `frequency: null`; `->daily()->everyTenSeconds()` yields `cron: null`,
+  `frequency: { "unit": "seconds", "every": 10 }`. At most one is non-null.
 - **Tuple-callable in `->call`**: `->call([Reporter::class, 'send'])`
   emits `kind: "closure"`, `target: "App\\Reporter::send"`.
 - **`Class@method` callable in `->call`**: `->call('App\\Reporter@send')`
@@ -240,6 +261,8 @@ Triage checklist for missing schedule entries:
 
 Triage for unexpected `cron: null`:
 
+0. Is the helper sub-minute (`everySecond` … `everyThirtySeconds`)? Then
+   `cron: null` is expected — the interval is in `frequency`, not `cron`.
 1. Does the chain contain a frequency helper? If yes, check the helper
    name against the recognised set in ADR 0002 §3.
 2. Is the helper's argument a variable rather than a literal? Variable

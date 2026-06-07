@@ -230,6 +230,12 @@ final class IndexSerializer
             Field::QUEUE->value => $e->queue,
             Field::CONNECTION->value => $e->connection,
             Field::CRON->value => $e->cron,
+            Field::FREQUENCY->value => $e->frequency === null
+                ? null
+                : [
+                    Field::UNIT->value => $e->frequency->unit->value,
+                    Field::EVERY->value => $e->frequency->every,
+                ],
             Field::TIMEZONE->value => $e->timezone,
             Field::WITHOUT_OVERLAPPING->value => $e->withoutOverlapping,
             Field::WITHOUT_OVERLAPPING_EXPIRES_AT->value => $e->withoutOverlappingExpiresAt,

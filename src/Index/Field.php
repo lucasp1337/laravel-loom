@@ -43,6 +43,9 @@ enum Field: string
     case END_LINE = 'end_line';
     case NAME = 'name';
     case CRON = 'cron';
+    case FREQUENCY = 'frequency';
+    case UNIT = 'unit';
+    case EVERY = 'every';
     case TIMEZONE = 'timezone';
     case WITHOUT_OVERLAPPING = 'without_overlapping';
     case ON_ONE_SERVER = 'on_one_server';

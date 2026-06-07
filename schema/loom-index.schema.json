@@ -296,6 +296,7 @@
                 "queue",
                 "connection",
                 "cron",
+                "frequency",
                 "timezone",
                 "without_overlapping",
                 "without_overlapping_expires_at",
@@ -318,6 +319,20 @@
                 "queue": { "type": ["string", "null"] },
                 "connection": { "type": ["string", "null"] },
                 "cron": { "type": ["string", "null"] },
+                "frequency": {
+                    "oneOf": [
+                        { "type": "null" },
+                        {
+                            "type": "object",
+                            "required": ["unit", "every"],
+                            "additionalProperties": false,
+                            "properties": {
+                                "unit": { "enum": ["seconds"] },
+                                "every": { "type": "integer", "minimum": 1 }
+                            }
+                        }
+                    ]
+                },
                 "timezone": { "type": ["string", "null"] },
                 "without_overlapping": { "type": "boolean" },
                 "without_overlapping_expires_at": { "type": ["integer", "null"] },

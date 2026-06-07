@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
+use Lucasp\Loom\Dto\ScheduleFrequency;
+use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
@@ -33,6 +35,13 @@ final class ScheduleScanner implements Scanner
         'monthly', 'monthlyOn', 'twiceMonthly', 'lastDayOfMonth',
         'quarterly', 'quarterlyOn', 'yearly', 'yearlyOn',
         'cron',
+    ];
+
+    /** Sub-minute helpers can't be a 5-field cron; they emit a structured frequency in seconds. */
+    private const SUB_MINUTE_SECONDS = [
+        'everySecond' => 1, 'everyTwoSeconds' => 2, 'everyFiveSeconds' => 5,
+        'everyTenSeconds' => 10, 'everyFifteenSeconds' => 15,
+        'everyTwentySeconds' => 20, 'everyThirtySeconds' => 30,
     ];
 
     /** Day-of-week helpers configure runsOn constraints, not cron. */
@@ -175,6 +184,7 @@ final class ScheduleScanner implements Scanner
                 : null;
 
             $cron = null;
+            $frequency = null;
             $name = null;
             $timezone = null;
             $withoutOverlapping = false;
@@ -191,18 +201,28 @@ final class ScheduleScanner implements Scanner
                 $method = $chain[$i]->method;
                 $args = $chain[$i]->args;
 
+                if (isset(self::SUB_MINUTE_SECONDS[$method])) {
+                    $frequency = new ScheduleFrequency(FrequencyUnit::SECONDS, self::SUB_MINUTE_SECONDS[$method]);
+                    $cron = null;            // sub-minute can't be a cron; last-wins
+                    $cronWasSet = true;      // so a following safe modifier doesn't trip the unknown-method guard
+
+                    continue;
+                }
+
                 if (in_array($method, self::FREQUENCY_HELPERS, true)) {
                     // Last-wins, including null when args are unresolvable.
                     $cron = $this->cronFromHelper($method, $args);
+                    $frequency = null;       // a cron-based helper overrides any prior sub-minute frequency
                     $cronWasSet = true;
 
                     continue;
                 }
 
                 // Unknown method after a frequency helper: could be a future
-                // helper or a Schedule::macro. Null the cron to avoid lying.
+                // helper or a Schedule::macro. Null cron and frequency to avoid lying.
                 if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
                     $cron = null;
+                    $frequency = null;
                 }
 
                 if ($method === 'name') {
@@ -264,6 +284,7 @@ final class ScheduleScanner implements Scanner
                 queue: $queue,
                 connection: $connection,
                 cron: $cron,
+                frequency: $frequency,
                 timezone: $timezone,
                 withoutOverlapping: $withoutOverlapping,
                 withoutOverlappingExpiresAt: $withoutOverlappingExpiresAt,
