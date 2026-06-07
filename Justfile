@@ -44,6 +44,13 @@ coverage:
 test-filter filter:
     {{docker_run}} vendor/bin/pest --filter={{filter}}
 
+# Run the performance benchmark suite (generates tiny/medium/large apps).
+#   just bench               # print a table
+#   just bench --json        # machine-readable
+#   just bench --assert      # fail on count drift vs baseline.json
+bench *args:
+    {{docker_run}} php benchmarks/bench.php {{args}}
+
 # Open an interactive shell in the container.
 shell:
     docker run --rm -it -v $(pwd):/app {{image}} sh
@@ -73,10 +80,7 @@ scan target:
         {{image}} \
         php -r "require '/app/vendor/autoload.php'; \
             \$b = new Lucasp\Loom\Index\IndexBuilder(); \
-            \$b->register(new Lucasp\Loom\Scanners\EventScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\ListenerScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\ObserverScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\DispatchScanner()); \
+            Lucasp\Loom\Scanners\DefaultScanners::registerOn(\$b); \
             \$start = microtime(true); \
             \$index = \$b->build('/target', 'unknown'); \
             \$ms = number_format((microtime(true) - \$start) * 1000, 0); \
@@ -95,8 +99,5 @@ scan-json target:
         {{image}} \
         php -r "require '/app/vendor/autoload.php'; \
             \$b = new Lucasp\Loom\Index\IndexBuilder(); \
-            \$b->register(new Lucasp\Loom\Scanners\EventScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\ListenerScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\ObserverScanner()); \
-            \$b->register(new Lucasp\Loom\Scanners\DispatchScanner()); \
+            Lucasp\Loom\Scanners\DefaultScanners::registerOn(\$b); \
             echo json_encode(\$b->build('/target', 'unknown')->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);"

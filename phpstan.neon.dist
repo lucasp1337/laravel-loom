@@ -2,6 +2,8 @@ parameters:
     level: 8
     paths:
         - src
+        - benchmarks/src
+        - benchmarks/bench.php
     tmpDir: build/phpstan
     # Pin to a single process: PHPStan's default parallel workers deadlock under
     # the Docker-on-WSL2 toolchain and hang with no output. Single-process keeps

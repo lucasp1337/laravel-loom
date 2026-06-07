@@ -43,3 +43,5 @@ refactor, it's a reference doc, not an ADR.
   `frequency` object; cron stays null for sub-minute helpers.
 - [0005 — Index read model](0005-index-read-model.md) — read model decoupled
   from scanner DTOs, hydrated from the schema shape.
+- [0006 — Benchmark suite](0006-benchmark-suite.md) — gate on deterministic
+  counts, not wall time; deterministic generator over committed fixtures.
