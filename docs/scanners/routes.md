@@ -4,11 +4,11 @@ Discovers HTTP routes registered in `routes/*.php` and emits the
 `routes[]` section of the index.
 
 Route discovery covers individual registrations and the context of any
-enclosing `Route::group(...)` — prefix, name prefix, and default
-controller (see [Route groups](#route-groups)). Group `middleware`, the
-`middleware[]` / `dispatches[]` cross-links from the full proposal, and
-`resource()` expansion are deferred to follow-up PRs (see
-[Known limitations](#known-limitations)).
+enclosing `Route::group(...)` — prefix, name prefix, default controller,
+and middleware (see [Route groups](#route-groups) and
+[Middleware](#middleware)). The `dispatches[]` cross-links from the full
+proposal, `resource()` expansion, and middleware-group / alias resolution
+are deferred to follow-up PRs (see [Known limitations](#known-limitations)).
 
 ## What it detects
 
@@ -58,14 +58,15 @@ One entry per route (one **per verb** for `match`), conforming to
   "name": "admin.users.show",
   "controller_fqcn": "App\\Http\\Controllers\\UserController",
   "controller_method": "show",
+  "middleware": ["web", "auth"],
   "file": "routes/web.php",
   "line": 14
 }
 ```
 
-(The `uri` and `name` above reflect an enclosing
-`Route::prefix('admin')->name('admin.')` group applied to a leaf
-`Route::get('/users/{id}', ...)->name('users.show')`.)
+(The `uri`, `name`, and `middleware` above reflect an enclosing
+`Route::prefix('admin')->name('admin.')->middleware(['web', 'auth'])` group
+applied to a leaf `Route::get('/users/{id}', ...)->name('users.show')`.)
 
 Field semantics:
 
@@ -86,6 +87,11 @@ Field semantics:
   action, or `null` for closures and unresolvable actions.
 - **`controller_method`** — the action method; `__invoke` for invokable
   controllers; `null` when `controller_fqcn` is `null`.
+- **`middleware`** — the resolved middleware chain for the route: the
+  middleware of every enclosing group (outermost first) followed by the
+  route's own `->middleware(...)`, in source order, with exact-duplicate
+  names deduped. `[]` when neither the route nor any enclosing group
+  declares middleware. See [Middleware](#middleware).
 - **`file`** — path to the route file, relative to the app root (e.g.
   `routes/web.php`).
 - **`line`** — 1-indexed line of the route registration.
@@ -143,21 +149,65 @@ Three pieces of context are merged into the leaf route:
   tuple, a bare `Ctrl::class`, or a `'Class@method'` string keeps its own
   controller.
 
+### Middleware
+
+Each route's `middleware` field is the **resolved chain** Loom can see
+statically: the middleware of every enclosing group, outermost group to
+innermost, followed by the route's own `->middleware(...)`, in source
+order. Exact-duplicate names are deduped (first occurrence wins);
+otherwise order is preserved.
+
+Recognised forms, on both the route and a group:
+
+- Single string — `->middleware('auth')`.
+- Array — `->middleware(['auth', 'verified'])`.
+- Chained — `->middleware('a')->middleware('b')` accumulates `a`, `b`.
+- Variadic — `->middleware('a', 'b')`.
+- `::class` reference — resolved to the FQCN (e.g.
+  `->middleware(EnsureTokenIsValid::class)` →
+  `"App\\Http\\Middleware\\EnsureTokenIsValid"`).
+- Group middleware — via the fluent form
+  `Route::middleware([...])->group(...)` or the array-config form
+  `Route::group(['middleware' => [...]], fn)`.
+
+Middleware arguments with parameters are kept **verbatim**, including the
+parameter list: `->middleware('throttle:60,1')` records `"throttle:60,1"`,
+and `->middleware('can:update,post')` records `"can:update,post"`.
+
+Worked example:
+
+```php
+Route::middleware(['web', 'auth'])->prefix('account')->group(function () {
+    Route::get('/settings', [AccountController::class, 'settings'])
+        ->middleware('verified');
+});
+```
+
+The `/account/settings` route resolves to
+`middleware: ["web", "auth", "verified"]` — the two group entries
+(outermost first) followed by the route's own `verified`.
+
 ## Known limitations
 
-These are deliberate scope boundaries for slice 1, not bugs — each is
-planned follow-up work.
+These are deliberate scope boundaries, not bugs — each is planned
+follow-up work.
 
-- **Group `middleware` not applied.** A group's `middleware(...)` chain is
-  not folded into nested routes — there is no `middleware[]` field yet.
-  Group prefix, name prefix, and default controller *are* applied (see
-  [Route groups](#route-groups)); middleware is the next slice.
+- **Middleware groups are not expanded.** A middleware group name such as
+  `web` or `api` is captured **as-is**; its constituent classes are not
+  substituted in. Resolving a group to its members needs the HTTP kernel
+  config, which this scanner does not read.
+- **Middleware aliases are not resolved.** An alias like `auth` or
+  `throttle` is recorded under its alias name, not the class it maps to.
+  Alias-to-class resolution also needs kernel config.
+- **`withoutMiddleware(...)` is not applied.** Middleware removed from a
+  route or group via `->withoutMiddleware(...)` is **not** subtracted from
+  the resolved `middleware` chain — the field reflects only what is added.
 - **`Route::resource()` / `Route::apiResource()` not expanded.** These
   emit no entries; the implicit CRUD routes they generate are not
   synthesized. Deferred.
-- **No `middleware[]` or `dispatches[]` cross-links.** The full #8
-  proposal links each route to its middleware stack and to dispatch sites
-  inside its handler. Neither is in this slice — both are follow-up PRs.
+- **No `dispatches[]` cross-links.** The full #8 proposal links each route
+  to the dispatch sites inside its handler. That cross-link is not in this
+  slice — it is a follow-up PR.
 - **Attribute routing not handled.** `#[Route(...)]` attributes on
   controller methods are invisible to this slice.
 - **Unresolvable actions emit null controller fields.** When the action

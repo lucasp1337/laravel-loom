@@ -45,3 +45,27 @@ Route::prefix('v2')->group(function () {
 });
 
 Route::resource('photos', PhotoController::class);
+
+// ---------------------------------------------------------------------------
+// Slice 3: middleware
+// ---------------------------------------------------------------------------
+
+Route::get('/dashboard', [HomeController::class, 'index'])->middleware('auth');
+
+Route::get('/reports', [HomeController::class, 'index'])->middleware(['auth', 'verified']);
+
+Route::get('/billing', [HomeController::class, 'index'])->middleware('auth')->middleware('throttle:60,1');
+
+Route::middleware(['web', 'auth'])->prefix('account')->group(function () {
+    Route::get('/settings', [HomeController::class, 'index'])->middleware('verified');
+});
+
+Route::group(['prefix' => 'secure', 'middleware' => ['auth', 'can:admin']], function () {
+    Route::get('/audit', [HomeController::class, 'index']);
+});
+
+Route::get('/classmw', [HomeController::class, 'index'])->middleware([\App\Http\Middleware\EnsureActive::class]);
+
+Route::middleware('auth')->prefix('dup')->group(function () {
+    Route::get('/x', [HomeController::class, 'index'])->middleware('auth');
+});

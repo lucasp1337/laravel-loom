@@ -106,6 +106,26 @@ it('serialises a grouped route with the resolved prefix, name, and controller', 
     expect($dash['controller_method'])->toBe('index');
 });
 
+it('serialises the middleware field on a grouped route', function () {
+    $payload = buildRouteEndToEndPayload();
+
+    /** @var array<int, array<string, mixed>> $routes */
+    $routes = $payload['routes'];
+
+    $settings = null;
+    foreach ($routes as $route) {
+        if ($route['method'] === 'GET' && $route['uri'] === '/account/settings') {
+            $settings = $route;
+
+            break;
+        }
+    }
+
+    expect($settings)->not->toBeNull();
+    expect($settings)->toHaveKey('middleware');
+    expect($settings['middleware'])->toBe(['web', 'auth', 'verified']);
+});
+
 it('leaves non-route sections empty for the route fixture', function () {
     $payload = buildRouteEndToEndPayload();
 

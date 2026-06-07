@@ -16,23 +16,26 @@ final class RouteGroupContext
      * @param  list<string>  $prefixSegments  cumulative prefix segments, outermost first
      * @param  string  $namePrefix  cumulative name prefix ('' when none)
      * @param  ?Node\Expr  $controllerNode  nearest enclosing group's default-controller node, resolved to an FQCN at the emit boundary
+     * @param  list<Node\Expr>  $middlewareNodes  cumulative middleware argument nodes, outermost first; resolved to strings at the emit boundary
      */
     public function __construct(
         public readonly array $prefixSegments,
         public readonly string $namePrefix,
         public readonly ?Node\Expr $controllerNode,
+        public readonly array $middlewareNodes = [],
     ) {
     }
 
     /** The empty context used when no group encloses a route. */
     public static function empty(): self
     {
-        return new self(prefixSegments: [], namePrefix: '', controllerNode: null);
+        return new self(prefixSegments: [], namePrefix: '', controllerNode: null, middlewareNodes: []);
     }
 
     /**
      * Merge this cumulative context with one group's own attributes, producing
-     * the deeper cumulative frame. The deeper group's controller wins.
+     * the deeper cumulative frame. The deeper group's controller wins; its
+     * middleware is appended after the inherited middleware (outermost first).
      */
     public function merge(RouteGroupAttributes $own): self
     {
@@ -45,6 +48,7 @@ final class RouteGroupContext
             prefixSegments: $prefixSegments,
             namePrefix: $this->namePrefix.($own->name ?? ''),
             controllerNode: $own->controllerNode ?? $this->controllerNode,
+            middlewareNodes: [...$this->middlewareNodes, ...$own->middlewareNodes],
         );
     }
 }

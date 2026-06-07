@@ -213,6 +213,71 @@ it('leaves ungrouped routes unchanged by slice-2 group resolution', function () 
 });
 
 // ---------------------------------------------------------------------------
+// Middleware (slice 3)
+// ---------------------------------------------------------------------------
+
+it('resolves a route-level single middleware string', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/dashboard');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['auth']);
+});
+
+it('resolves a route-level middleware array', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/reports');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['auth', 'verified']);
+});
+
+it('accumulates chained ->middleware() calls in source order', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/billing');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['auth', 'throttle:60,1']);
+});
+
+it('prepends fluent group middleware before route-level middleware', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/account/settings');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['web', 'auth', 'verified']);
+});
+
+it('resolves array-config group middleware', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/secure/audit');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['auth', 'can:admin']);
+});
+
+it('resolves a ::class middleware reference to its FQCN', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/classmw');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['App\\Http\\Middleware\\EnsureActive']);
+});
+
+it('deduplicates exact-duplicate middleware across group and route level', function () {
+    $entry = routeBy(routeEntries(), 'GET', '/dup/x');
+
+    expect($entry)->not->toBeNull();
+    expect($entry->middleware)->toBe(['auth']);
+});
+
+it('emits an empty middleware list for an ungrouped route with no middleware', function () {
+    $entries = routeEntries();
+
+    $home = routeBy($entries, 'GET', '/');
+    expect($home)->not->toBeNull();
+    expect($home->middleware)->toBe([]);
+
+    $users = routeBy($entries, 'POST', '/users');
+    expect($users)->not->toBeNull();
+    expect($users->middleware)->toBe([]);
+});
+
+// ---------------------------------------------------------------------------
 // Resource (slice 1: emits nothing)
 // ---------------------------------------------------------------------------
 

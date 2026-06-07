@@ -247,6 +247,7 @@ final class IndexSerializer
             Field::NAME->value => $e->name,
             Field::CONTROLLER_FQCN->value => $e->controllerFqcn,
             Field::CONTROLLER_METHOD->value => $e->controllerMethod,
+            Field::MIDDLEWARE->value => $e->middleware,
             Field::FILE->value => $e->file,
             Field::LINE->value => $e->line,
         ];

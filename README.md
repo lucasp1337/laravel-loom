@@ -331,6 +331,7 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "name": "orders.show",
       "controller_fqcn": "App\\Http\\Controllers\\OrderController",
       "controller_method": "show",
+      "middleware": ["web", "auth"],
       "file": "routes/web.php",
       "line": 19
     },
@@ -340,6 +341,7 @@ Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) l
       "name": null,
       "controller_fqcn": null,
       "controller_method": null,
+      "middleware": [],
       "file": "routes/api.php",
       "line": 7
     }

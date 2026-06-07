@@ -309,6 +309,7 @@ Registered HTTP routes discovered from the application's route definitions. One 
   "name": string | null,          // group name prefix + ->name(...); null when unnamed
   "controller_fqcn": string | null,   // FQCN of the controller; null for closure / non-controller routes
   "controller_method": string | null, // controller action method; null for closure / non-controller routes
+  "middleware": array<string>,    // middleware identifiers applied to the route, including those inherited from enclosing groups; verbatim names (alias->class and group expansion are not resolved)
   "file": string,                 // path to the route definition, relative to app root
   "line": integer                 // 1-indexed line of the route definition
 }

@@ -380,6 +380,67 @@ final class AstHelpers
         return $channels;
     }
 
+    /**
+     * Resolve middleware argument nodes to verbatim identifier strings.
+     *
+     * Each node is one `->middleware(...)` / `'middleware' => ...` value:
+     *   - String_           → the literal ('auth', 'throttle:60,1' — params kept)
+     *   - Array_            → each item value resolved (String_ or Class::class)
+     *   - ClassConstFetch   → FQCN via classConstFqcn
+     * Unresolvable items (variables, concat, keyed array entries) are skipped.
+     * Groups ('web'/'api'), aliases, and withoutMiddleware are NOT expanded.
+     *
+     * @param  list<Node\Expr>  $nodes
+     * @return list<string>
+     */
+    public static function middlewareList(array $nodes): array
+    {
+        $out = [];
+        foreach ($nodes as $node) {
+            foreach (self::resolveMiddlewareNode($node) as $name) {
+                $out[] = $name;
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return list<string> */
+    private static function resolveMiddlewareNode(Node\Expr $node): array
+    {
+        if ($node instanceof Node\Scalar\String_) {
+            return [$node->value];
+        }
+
+        if ($node instanceof Node\Expr\ClassConstFetch) {
+            $fqcn = self::classConstFqcn($node);
+
+            return $fqcn !== null ? [$fqcn] : [];
+        }
+
+        if ($node instanceof Node\Expr\Array_) {
+            $out = [];
+            foreach ($node->items as $item) {
+                if ($item->key !== null) {
+                    continue;
+                }
+                if ($item->value instanceof Node\Scalar\String_) {
+                    $out[] = $item->value->value;
+
+                    continue;
+                }
+                $fqcn = self::classConstFqcn($item->value);
+                if ($fqcn !== null) {
+                    $out[] = $fqcn;
+                }
+            }
+
+            return $out;
+        }
+
+        return [];
+    }
+
     /** True when the class directly declares `implements $interfaceFqcn`. */
     public static function declaresInterface(Node\Stmt\Class_ $node, string $interfaceFqcn): bool
     {

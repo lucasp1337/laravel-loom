@@ -102,6 +102,12 @@ final class RouteChainVisitor extends NodeVisitorAbstract
             ? AstHelpers::classConstFqcn($context->controllerNode)
             : null;
 
+        // Resolve middleware here for the same reason as the controller: a
+        // `Foo::class` middleware needs NameResolver, which has run by now.
+        // Group middleware (outermost-first) precedes route-level middleware.
+        $middlewareNodes = [...$context->middlewareNodes, ...$this->routeLevelMiddleware($chain)];
+        $middleware = $this->dedupe(AstHelpers::middlewareList($middlewareNodes));
+
         $this->entries[] = new RouteChainEntry(
             rootMethod: $root['method'],
             rootArgs: $root['args'],
@@ -110,9 +116,55 @@ final class RouteChainVisitor extends NodeVisitorAbstract
             groupPrefix: $context->prefixSegments,
             groupNamePrefix: $context->namePrefix,
             groupController: $groupController,
+            middleware: $middleware,
         );
 
         return null;
+    }
+
+    /**
+     * Collect `->middleware(<args>)` argument nodes from a route's own chain,
+     * in source order, flattening variadic args. Index 0 is the root call.
+     *
+     * @param  list<RouteChainLink>  $chain
+     * @return list<Node\Expr>
+     */
+    private function routeLevelMiddleware(array $chain): array
+    {
+        $nodes = [];
+        for ($i = 1, $n = count($chain); $i < $n; $i++) {
+            if ($chain[$i]->method !== 'middleware') {
+                continue;
+            }
+            foreach ($chain[$i]->args as $arg) {
+                if ($arg instanceof Node\Arg) {
+                    $nodes[] = $arg->value;
+                }
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * Drop exact-string duplicates, preserving first occurrence.
+     *
+     * @param  list<string>  $names
+     * @return list<string>
+     */
+    private function dedupe(array $names): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($names as $name) {
+            if (isset($seen[$name])) {
+                continue;
+            }
+            $seen[$name] = true;
+            $out[] = $name;
+        }
+
+        return $out;
     }
 
     private function currentGroupContext(): RouteGroupContext
@@ -180,12 +232,32 @@ final class RouteChainVisitor extends NodeVisitorAbstract
         return new RouteGroupAttributes(prefix: null, name: null, controllerNode: null);
     }
 
+    /**
+     * Flatten the argument nodes of a single fluent `->middleware(...)` setter
+     * (variadic-aware).
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @return list<Node\Expr>
+     */
+    private function fluentMiddlewareArgs(array $args): array
+    {
+        $nodes = [];
+        foreach ($args as $arg) {
+            if ($arg instanceof Node\Arg) {
+                $nodes[] = $arg->value;
+            }
+        }
+
+        return $nodes;
+    }
+
     /** Read prefix/as/controller keys from a `Route::group([...], fn)` assoc array. */
     private function parseArrayConfig(Node\Expr\Array_ $array): RouteGroupAttributes
     {
         $prefix = null;
         $name = null;
         $controllerNode = null;
+        $middlewareNodes = [];
 
         foreach ($array->items as $item) {
             $key = AstHelpers::scalarString($item->key);
@@ -199,10 +271,17 @@ final class RouteChainVisitor extends NodeVisitorAbstract
                 $name = $this->normaliseName(AstHelpers::scalarString($item->value));
             } elseif ($key === 'controller') {
                 $controllerNode = $item->value;
+            } elseif ($key === 'middleware') {
+                $middlewareNodes = [$item->value];
             }
         }
 
-        return new RouteGroupAttributes(prefix: $prefix, name: $name, controllerNode: $controllerNode);
+        return new RouteGroupAttributes(
+            prefix: $prefix,
+            name: $name,
+            controllerNode: $controllerNode,
+            middlewareNodes: $middlewareNodes,
+        );
     }
 
     /**
@@ -214,18 +293,21 @@ final class RouteChainVisitor extends NodeVisitorAbstract
         $prefix = null;
         $name = null;
         $controllerNode = null;
+        // Collected outer-to-inner: the chain is walked inner-to-outer, so
+        // prepend each setter's args to keep source order.
+        $middlewareNodes = [];
 
         $current = $chain;
         while (true) {
             if ($current instanceof Node\Expr\MethodCall) {
                 $nameNode = $current->name;
-                $arg = $current->args[0] ?? null;
+                $args = $current->args;
                 $next = $current->var;
             } elseif ($current instanceof Node\Expr\StaticCall) {
                 // The fluent chain's terminal setter is a static call on the
                 // Route facade (e.g. Route::prefix('x')->...). Read it too.
                 $nameNode = $current->name;
-                $arg = $current->args[0] ?? null;
+                $args = $current->args;
                 $next = null;
             } else {
                 break;
@@ -233,6 +315,7 @@ final class RouteChainVisitor extends NodeVisitorAbstract
 
             if ($nameNode instanceof Node\Identifier) {
                 $method = $nameNode->toString();
+                $arg = $args[0] ?? null;
                 $value = $arg instanceof Node\Arg ? $arg->value : null;
 
                 if ($method === 'prefix') {
@@ -241,6 +324,8 @@ final class RouteChainVisitor extends NodeVisitorAbstract
                     $name ??= $this->normaliseName(AstHelpers::scalarString($value));
                 } elseif ($method === 'controller') {
                     $controllerNode ??= $value;
+                } elseif ($method === 'middleware') {
+                    $middlewareNodes = [...$this->fluentMiddlewareArgs($args), ...$middlewareNodes];
                 }
             }
 
@@ -250,7 +335,12 @@ final class RouteChainVisitor extends NodeVisitorAbstract
             $current = $next;
         }
 
-        return new RouteGroupAttributes(prefix: $prefix, name: $name, controllerNode: $controllerNode);
+        return new RouteGroupAttributes(
+            prefix: $prefix,
+            name: $name,
+            controllerNode: $controllerNode,
+            middlewareNodes: $middlewareNodes,
+        );
     }
 
     /** Trim wrapping slashes; treat empty as absent. */

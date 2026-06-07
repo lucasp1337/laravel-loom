@@ -150,6 +150,7 @@ final class RouteScanner implements Scanner
             name: $name,
             controllerFqcn: $action['fqcn'],
             controllerMethod: $action['method'],
+            middleware: $raw->middleware,
             file: $relativeFile,
             line: $raw->line,
         )];
@@ -182,6 +183,7 @@ final class RouteScanner implements Scanner
                 name: $name,
                 controllerFqcn: $action['fqcn'],
                 controllerMethod: $action['method'],
+                middleware: $raw->middleware,
                 file: $relativeFile,
                 line: $raw->line,
             );
