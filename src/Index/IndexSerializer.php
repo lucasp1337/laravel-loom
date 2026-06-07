@@ -15,6 +15,7 @@ use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\NotificationEntry;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\QueueConfigData;
+use Lucasp\Loom\Dto\RouteEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use RuntimeException;
@@ -58,6 +59,7 @@ final class IndexSerializer
             $entry instanceof NotificationEntry => $this->notification($entry),
             $entry instanceof ClosureListenerEntry => $this->closureListener($entry),
             $entry instanceof ScheduledEntry => $this->scheduled($entry),
+            $entry instanceof RouteEntry => $this->route($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
             $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
             default => throw new RuntimeException('IndexSerializer cannot serialize '.$entry::class),
@@ -231,6 +233,20 @@ final class IndexSerializer
             Field::RUN_IN_BACKGROUND->value => $e->runInBackground,
             Field::EVEN_IN_MAINTENANCE_MODE->value => $e->evenInMaintenanceMode,
             Field::CONSTRAINTS->value => $e->constraints,
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function route(RouteEntry $e): array
+    {
+        return [
+            Field::METHOD->value => $e->method,
+            Field::URI->value => $e->uri,
+            Field::NAME->value => $e->name,
+            Field::CONTROLLER_FQCN->value => $e->controllerFqcn,
+            Field::CONTROLLER_METHOD->value => $e->controllerMethod,
             Field::FILE->value => $e->file,
             Field::LINE->value => $e->line,
         ];

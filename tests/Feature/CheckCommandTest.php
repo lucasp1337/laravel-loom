@@ -13,13 +13,14 @@ use Illuminate\Contracts\Console\Kernel;
 function checkCommandIndex(array $overrides = []): array
 {
     $base = [
-        'loom_version' => '0.2.0',
+        'loom_version' => '0.3.0',
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00+00:00',
         'stats' => [
             'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
         'events' => [[
             'id' => 'App\\Events\\OrderPlaced',
@@ -47,6 +48,7 @@ function checkCommandIndex(array $overrides = []): array
         'scheduled' => [],
         'mailables' => [],
         'notifications' => [],
+        'routes' => [],
     ];
 
     return array_replace($base, $overrides);
@@ -113,6 +115,7 @@ it('exits 1 when an event is orphaned', function () {
             'events' => 1, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);
@@ -130,6 +133,7 @@ it('exits 1 in strict mode with an unresolved dispatch', function () {
             'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);
@@ -147,6 +151,7 @@ it('does not fail on the same unresolved dispatch without strict mode', function
             'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);
@@ -269,6 +274,7 @@ it('passes when --skip suppresses the only failing rule', function () {
             'events' => 1, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled' => 0, 'mailables' => 0, 'notifications' => 0,
+            'routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);

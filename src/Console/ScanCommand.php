@@ -14,6 +14,7 @@ use Lucasp\Loom\Scanners\ListenerScanner;
 use Lucasp\Loom\Scanners\MailableScanner;
 use Lucasp\Loom\Scanners\NotificationScanner;
 use Lucasp\Loom\Scanners\ObserverScanner;
+use Lucasp\Loom\Scanners\RouteScanner;
 use Lucasp\Loom\Scanners\ScheduleScanner;
 
 class ScanCommand extends Command
@@ -36,6 +37,7 @@ class ScanCommand extends Command
         $builder->register(new NotificationScanner);
         $builder->register(new DispatchScanner);
         $builder->register(new ScheduleScanner);
+        $builder->register(new RouteScanner);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();

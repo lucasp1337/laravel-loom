@@ -19,4 +19,5 @@ enum Sections: string
     case SCHEDULED = 'scheduled';
     case MAILABLES = 'mailables';
     case NOTIFICATIONS = 'notifications';
+    case ROUTES = 'routes';
 }

@@ -47,6 +47,7 @@ src/
     ScheduleScanner.php
     MailableScanner.php
     NotificationScanner.php
+    RouteScanner.php
     DispatchScanner.php
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/

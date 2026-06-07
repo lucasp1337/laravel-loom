@@ -13,7 +13,7 @@ use RuntimeException;
  */
 class IndexBuilder
 {
-    public const LOOM_VERSION = '0.2.0';
+    public const LOOM_VERSION = '0.3.0';
 
     /** @var array<int, Scanner> */
     private array $scanners = [];
