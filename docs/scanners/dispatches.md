@@ -9,6 +9,8 @@ This is the most cross-cutting scanner. It runs last (after EventScanner, Listen
 DispatchScanner walks every PHP file under `app/` and records dispatch sites in any class method body. Recognized forms:
 
 - `event(new SomeEvent(...))` and `event(SomeEvent::class)` — `kind: event`, `form: helper`
+- `broadcast(new SomeEvent(...))` and `broadcast(SomeEvent::class)` — `kind: event`, `form: helper` (the broadcast-path twin of `event()`; event at arg 0)
+- `broadcast_if($cond, new SomeEvent(...))` and `broadcast_unless($cond, SomeEvent::class)` — `kind: event`, `form: helper`. The event is arg 1; the leading condition does not affect resolution. A dynamic event arg (`broadcast($var)`) emits an `unresolved_dispatches[]` entry like any other helper form.
 - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` — `kind: event`, `form: facade`
 - `dispatch(new SomeJob(...))` and `dispatch(SomeJob::class)` — `kind: job`, `form: job_helper`
 - `Bus::dispatch(new SomeJob(...))` — `kind: job`, `form: bus_facade`
@@ -172,7 +174,7 @@ EventScanner's dispatch-site seeding ensures most Dispatchable-form events are a
 - **`dispatchSync`, `dispatchNow`, `dispatchAfterResponse`, `Bus::dispatchSync`, `Bus::dispatchNow`.** Not recognized. Synchronous and after-response dispatches are intentionally out of scope.
 - **`Bus::chain([...])`, `Bus::batch([...])`.** The chained/batched job array contents are not enumerated. The dispatch call itself is not recorded and the inner jobs do not surface in `jobs[*].dispatched_from`.
 - **Container-form dispatch.** `app(Dispatcher::class)->dispatch(...)` (a dispatcher resolved from the container) is unresolved — only the `event()` / `Event::dispatch()` / `dispatch()` / `Bus::dispatch()` / Dispatchable forms above are recognised.
-- **`broadcast(new Event)` / `ShouldBroadcast`.** The broadcast dispatch path is not recognised. A broadcast-only event reaches `events[]` only if it is also dispatched through a recognised form.
+- **`ShouldBroadcast` marker interface.** Not surfaced as a flag. The `broadcast(...)` / `broadcast_if(...)` / `broadcast_unless(...)` *dispatch* forms ARE recognised as event dispatches (see "What it detects"), but the `ShouldBroadcast` contract on an event class itself is not introspected.
 - **`Queue::push(...)`, `Queue::later(...)`.** Not recognized.
 - **Trait-method dispatches.** Sites in trait methods record the trait's FQCN as `classFqcn`. The trait FQCN won't match any listener or observer entry, so the dispatch won't light up `dispatches[]` — but it can still populate `events[*].dispatched_from` if its target is a known event.
 - **Top-level dispatches (script-level code).** Skipped entirely.

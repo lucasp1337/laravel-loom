@@ -49,7 +49,8 @@ it('silently ignores dynamic and string-interpolated event() calls', function ()
     expect($fqcns)->toContain('App\\Events\\Nested\\InventoryAdjusted');
     expect($fqcns)->toContain('App\\Events\\AbstractDomainEvent');
     expect($fqcns)->toContain('App\\Outside\\CustomEvent');
-    expect($fqcns)->toHaveCount(4);
+    expect($fqcns)->toContain('App\\Outside\\BroadcastOnly');
+    expect($fqcns)->toHaveCount(5);
 });
 
 it('trims X::dispatch() Dispatchable candidates whose file is outside app/Events/', function () {

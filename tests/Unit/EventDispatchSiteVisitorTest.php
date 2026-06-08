@@ -72,6 +72,48 @@ it('resolves event(App\\Events\\Foo::class)', function () {
     expect($targets[0]->form)->toBe(DispatchForm::HELPER);
 });
 
+it('resolves broadcast(new App\\Events\\Foo()) for events[] discovery', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Services;
+
+    use App\Events\Foo;
+
+    function run(): void
+    {
+        broadcast(new Foo());
+    }
+    PHP;
+
+    $targets = runEventDispatchSiteVisitor($source);
+
+    expect($targets)->toHaveCount(1);
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe(DispatchForm::HELPER);
+});
+
+it('resolves broadcast(App\\Events\\Foo::class) for events[] discovery', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Services;
+
+    use App\Events\Foo;
+
+    function run(): void
+    {
+        broadcast(Foo::class);
+    }
+    PHP;
+
+    $targets = runEventDispatchSiteVisitor($source);
+
+    expect($targets)->toHaveCount(1);
+    expect($targets[0]->fqcn)->toBe('App\\Events\\Foo');
+    expect($targets[0]->form)->toBe(DispatchForm::HELPER);
+});
+
 it('resolves Event::dispatch(Foo::class) with the Event facade imported', function () {
     $source = <<<'PHP'
     <?php

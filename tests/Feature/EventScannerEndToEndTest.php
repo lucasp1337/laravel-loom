@@ -27,11 +27,12 @@ it('counts discovered events in stats.events', function () {
     $payload = $builder->build(eventEndToEndFixturePath(), '12.x')->toArray();
 
     // Three classes under app/Events/ (OrderPlaced, Nested\InventoryAdjusted,
-    // AbstractDomainEvent) plus App\Outside\CustomEvent, which is discovered
-    // via the helper-form event(new CustomEvent(...)) in Checkout.php and
-    // bypasses the app/Events/ trim. SendReceipt is trimmed because every
-    // hit is the Dispatchable static-call form.
-    expect($payload['stats']['events'])->toBe(4);
+    // AbstractDomainEvent) plus two out-of-tree classes seeded from dispatch
+    // sites in Checkout.php: App\Outside\CustomEvent via event(new ...) and
+    // App\Outside\BroadcastOnly via broadcast(new ...). Both bypass the
+    // app/Events/ trim. SendReceipt is trimmed because every hit is the
+    // Dispatchable static-call form.
+    expect($payload['stats']['events'])->toBe(5);
 });
 
 it('includes the known event FQCNs', function () {
@@ -46,6 +47,7 @@ it('includes the known event FQCNs', function () {
     expect($fqcns)->toContain('App\\Events\\Nested\\InventoryAdjusted');
     expect($fqcns)->toContain('App\\Events\\AbstractDomainEvent');
     expect($fqcns)->toContain('App\\Outside\\CustomEvent');
+    expect($fqcns)->toContain('App\\Outside\\BroadcastOnly');
 });
 
 it('leaves non-event sections as empty arrays, not null', function () {

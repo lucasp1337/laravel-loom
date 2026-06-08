@@ -6,7 +6,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
-- **Scanner API audit (#30)** — recognise conditional `dispatchIf`/`dispatchUnless` Dispatchable forms (jobs and events) and `Event::listen([A, B], ...)` array-of-events; `docs/scanners/*` limitations refreshed.
+- **Scanner accuracy audit** — recognise `broadcast()`/`broadcast_if()`/`broadcast_unless()` as event dispatch sites, the `daysOfMonth(...)` schedule helper (cron `0 0 d1,d2 * *`), conditional `dispatchIf`/`dispatchUnless` Dispatchable forms, and `Event::listen([A, B], ...)` array-of-events; `docs/scanners/*` limitations refreshed. #28 #29 #30
 
 - **Performance benchmark suite** — `composer bench` / `bench:assert` over deterministic tiny/medium/large generated apps; CI gates on counts, not wall time. #18 — see [benchmarks/README.md](benchmarks/README.md) and [ADR-0006](docs/adr/0006-benchmark-suite.md).
 
