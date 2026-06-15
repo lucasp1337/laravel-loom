@@ -6,6 +6,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- **GitHub Action** — composite `action.yml` runs `loom:scan` + `loom:check` (+ best-effort base-ref `loom:diff`) and posts a sticky PR comment; inputs `php-version`/`laravel-version`/`strict`/`comment-on-pr`/`fail-on-diff`, outputs `index-path`/`unresolved-count`/`diff-summary`. Closes #12. Also closes #10 (`loom:check` CI gate — added baseline-growth, orphan, cyclic-dispatch and `--skip` coverage) and #34 (SOLID/enums/scanner-dedup sweep, verified complete). See [docs/github-action.md](docs/github-action.md).
+
 - **Scanner accuracy audit** — recognise `broadcast()`/`broadcast_if()`/`broadcast_unless()` as event dispatch sites, the `daysOfMonth(...)` schedule helper (cron `0 0 d1,d2 * *`), conditional `dispatchIf`/`dispatchUnless` Dispatchable forms, and `Event::listen([A, B], ...)` array-of-events; `docs/scanners/*` limitations refreshed. #28 #29 #30
 
 - **Performance benchmark suite** — `composer bench` / `bench:assert` over deterministic tiny/medium/large generated apps; CI gates on counts, not wall time. #18 — see [benchmarks/README.md](benchmarks/README.md) and [ADR-0006](docs/adr/0006-benchmark-suite.md).
