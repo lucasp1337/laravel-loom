@@ -1,0 +1,236 @@
+name: "Laravel Loom"
+description: "Scan a Laravel app's event-driven architecture, gate on policy, and report drift on PRs."
+author: "Lucas Palka"
+
+branding:
+  icon: "git-pull-request"
+  color: "purple"
+
+inputs:
+  php-version:
+    description: "PHP version to set up."
+    required: false
+    default: "8.3"
+  laravel-version:
+    description: "Laravel version to report. Empty auto-detects from composer.lock."
+    required: false
+    default: ""
+  strict:
+    description: "Run loom:check --strict (fail on any unresolved dispatch, not just new ones)."
+    required: false
+    default: "false"
+  comment-on-pr:
+    description: "Post/update a sticky PR comment with the check + diff summary (pull_request events only)."
+    required: false
+    default: "true"
+  fail-on-diff:
+    description: "Fail the action when loom:diff reports architectural changes vs the base ref."
+    required: false
+    default: "false"
+  working-directory:
+    description: "Path to the Laravel app root (the directory that has artisan and composer.json)."
+    required: false
+    default: "."
+
+outputs:
+  index-path:
+    description: "Absolute path to the index.json written by loom:scan."
+    value: ${{ steps.scan.outputs.index-path }}
+  unresolved-count:
+    description: "Number of unresolved-dispatch violations reported by loom:check."
+    value: ${{ steps.check.outputs.unresolved-count }}
+  diff-summary:
+    description: "One-line summary of the diff vs the base ref (empty when no base diff was run)."
+    value: ${{ steps.diff.outputs.diff-summary }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: dom, mbstring, xml
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: composer install --no-interaction --prefer-dist
+
+    - name: Detect Laravel version
+      id: detect
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        version="${{ inputs.laravel-version }}"
+        if [ -z "$version" ] && [ -f composer.lock ]; then
+          version="$(jq -r '
+            (.packages // []) + (."packages-dev" // [])
+            | map(select(.name == "laravel/framework"))
+            | (.[0].version // "")
+            | ltrimstr("v")
+          ' composer.lock)"
+        fi
+        echo "Laravel version: ${version:-unknown}"
+        echo "laravel-version=${version}" >> "$GITHUB_OUTPUT"
+
+    - name: Scan
+      id: scan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        php artisan loom:scan
+        index_path="$(pwd)/storage/loom/index.json"
+        if [ ! -f "$index_path" ]; then
+          echo "::error::loom:scan did not produce $index_path"
+          exit 1
+        fi
+        echo "index-path=${index_path}" >> "$GITHUB_OUTPUT"
+
+    - name: Diff against base ref
+      id: diff
+      if: github.event_name == 'pull_request'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        INDEX_PATH: ${{ steps.scan.outputs.index-path }}
+      run: |
+        summary=""
+        diff_md=""
+        base_index="$(mktemp -d)/base-index.json"
+        base_tree="$(mktemp -d)/loom-base"
+
+        # Build a base index by scanning the base ref in a detached worktree.
+        # Best-effort: if anything fails (shallow clone, deps won't install at
+        # base, etc.) we skip the diff rather than fail the build.
+        if git fetch --no-tags --depth=1 origin "$BASE_REF" 2>/dev/null \
+          && git worktree add --detach "$base_tree" FETCH_HEAD 2>/dev/null \
+          && (cd "$base_tree" && composer install --no-interaction --prefer-dist --quiet 2>/dev/null && php artisan loom:scan >/dev/null 2>&1) \
+          && [ -f "$base_tree/storage/loom/index.json" ]; then
+          cp "$base_tree/storage/loom/index.json" "$base_index"
+        else
+          base_index=""
+        fi
+        git worktree remove --force "$base_tree" 2>/dev/null || git worktree prune 2>/dev/null || true
+
+        if [ -n "$base_index" ] && [ -f "$base_index" ]; then
+          set +e
+          php artisan loom:diff "$base_index" "$INDEX_PATH" --format=markdown > diff.md
+          diff_code=$?
+          set -e
+          case "$diff_code" in
+            0) summary="No architectural changes vs ${BASE_REF}." ;;
+            1) summary="Architectural changes detected vs ${BASE_REF}." ; diff_md="$(cat diff.md)" ;;
+            *) summary="loom:diff failed (exit ${diff_code})." ;;
+          esac
+          echo "diff-code=${diff_code}" >> "$GITHUB_OUTPUT"
+        else
+          summary="Diff skipped (no base index could be built)."
+          echo "diff-code=0" >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "diff-summary=${summary}" >> "$GITHUB_OUTPUT"
+        {
+          echo "diff-markdown<<LOOM_EOF"
+          echo "$diff_md"
+          echo "LOOM_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check
+      id: check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INDEX_PATH: ${{ steps.scan.outputs.index-path }}
+      run: |
+        args=("$INDEX_PATH")
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          args+=("--strict")
+        fi
+
+        # JSON for parsing the unresolved count; markdown for the PR comment.
+        set +e
+        json="$(php artisan loom:check "${args[@]}" --format=json)"
+        check_code=$?
+        php artisan loom:check "${args[@]}" --format=markdown > check.md
+        set -e
+
+        unresolved="$(printf '%s' "$json" | jq -r '
+          (.rules // [])
+          | map(select(.key == "unresolved-dispatches"))
+          | (.[0].violations // [] | length)
+        ')"
+        [ -n "$unresolved" ] || unresolved="0"
+
+        echo "unresolved-count=${unresolved}" >> "$GITHUB_OUTPUT"
+        echo "check-code=${check_code}" >> "$GITHUB_OUTPUT"
+        echo "Check exit code: ${check_code}; unresolved dispatches: ${unresolved}"
+
+    - name: Comment on PR
+      if: ${{ always() && inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        DIFF_SUMMARY: ${{ steps.diff.outputs.diff-summary }}
+        DIFF_MARKDOWN: ${{ steps.diff.outputs.diff-markdown }}
+      run: |
+        marker="<!-- laravel-loom -->"
+        body="$(mktemp)"
+        {
+          echo "$marker"
+          echo "# Laravel Loom"
+          echo
+          if [ -n "${DIFF_SUMMARY}" ]; then
+            echo "_${DIFF_SUMMARY}_"
+            echo
+          fi
+          if [ -s check.md ]; then
+            cat check.md
+          else
+            echo "## loom:check"
+            echo "All checks passed."
+          fi
+          if [ -n "${DIFF_MARKDOWN}" ]; then
+            echo
+            echo "<details><summary>Architectural diff</summary>"
+            echo
+            echo "${DIFF_MARKDOWN}"
+            echo
+            echo "</details>"
+          fi
+        } > "$body"
+
+        # Sticky comment: edit the existing one if present, else create.
+        existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+          --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" 2>/dev/null || true)"
+
+        if [ -n "$existing" ]; then
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" \
+            -f body="$(cat "$body")" >/dev/null
+        else
+          gh pr comment "$PR_NUMBER" --body-file "$body"
+        fi
+
+    - name: Fail on policy / diff
+      shell: bash
+      run: |
+        check_code="${{ steps.check.outputs.check-code }}"
+        diff_code="${{ steps.diff.outputs.diff-code }}"
+        fail_on_diff="${{ inputs.fail-on-diff }}"
+
+        # Check failures always fail the build (1 = policy violation, 2 = error).
+        if [ -n "$check_code" ] && [ "$check_code" -ne 0 ]; then
+          echo "::error::loom:check failed (exit ${check_code})."
+          exit "$check_code"
+        fi
+
+        # Diff governs the build only when fail-on-diff is true.
+        if [ "$fail_on_diff" = "true" ] && [ "${diff_code:-0}" = "1" ]; then
+          echo "::error::Architectural changes detected and fail-on-diff is enabled."
+          exit 1
+        fi
+
+        echo "Loom passed."
