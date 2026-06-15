@@ -10,6 +10,7 @@ EventScanner uses two discovery paths and merges them by FQCN:
 
 2. **Dispatch-site seeding across `app/`.** EventScanner walks every PHP file under `app/` and records statically resolvable targets from:
    - `event(new SomeEvent(...))` and `event(SomeEvent::class)` (`form: helper`). The first argument is extracted even with trailing args, so `event(new SomeEvent($payload), $extraArgs)` seeds `SomeEvent`. Plain-old-PHP-object events (no `Dispatchable` trait) are discovered this way.
+   - `broadcast(new SomeEvent(...))` and `broadcast(SomeEvent::class)` (`form: helper`). The bare broadcast form seeds discovery the same way `event(...)` does, so broadcast-only events reach `events[]`. (The conditional `broadcast_if`/`broadcast_unless` forms are emitted as dispatch sites by DispatchScanner but are not used for discovery seeding here.)
    - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` (`form: facade`)
    - `SomeEvent::dispatch(...)`, `SomeEvent::dispatchIf($cond, ...)`, and `SomeEvent::dispatchUnless($cond, ...)` (`form: dispatchable`). The conditional forms resolve to the same target as `dispatch(...)`; the leading condition argument is ignored for resolution.
 
@@ -56,14 +57,14 @@ Entries are sorted by `fqcn` ascending. `id` always equals `fqcn` (the schema re
 - **Closure / arrow-function event classes.** Anonymous classes have no FQCN and are skipped.
 - **Vendor / storage directories.** Never walked. Loom only scans `app/`.
 - **`Event::listen('eloquent.*', …)`** — these are model events, not class events. They appear in `model_events[]`, not `events[]`. See [observers.md](observers.md).
-- **`broadcast(new Event)` / `ShouldBroadcast`.** The broadcast dispatch path is not recognised as a dispatch site, so an event that is only broadcast (never dispatched via `event()` / `Event::dispatch()` / a Dispatchable form) is discovered only if it lives under `app/Events/`.
+- **`ShouldBroadcast` marker interface.** Not surfaced as a flag. The bare `broadcast(new Event)` / `broadcast(Event::class)` form IS now recognised and seeds discovery (see "What it detects"), so a broadcast-only event reaches `events[]`. The conditional `broadcast_if`/`broadcast_unless` forms are not used for discovery seeding, so an event dispatched *only* through those, outside `app/Events/`, is not discovered.
 
 ## When something looks wrong
 
 Triage checklist for missing events:
 
 1. Is the event class under `app/Events/`? Yes → should be discovered via filesystem walk.
-2. Is it dispatched via `event(...)` or `Event::dispatch(...)`? Yes → should be discovered via dispatch-site seeding, with file/line from its declaration if the PSR-4 guess can find it.
+2. Is it dispatched via `event(...)`, `broadcast(...)`, or `Event::dispatch(...)`? Yes → should be discovered via dispatch-site seeding, with file/line from its declaration if the PSR-4 guess can find it.
 3. Is it dispatched only via `SomeClass::dispatch(...)` and located outside `app/Events/`? That's the documented limitation above.
 4. Is it referenced dynamically (`event($var)`)? Check `unresolved_dispatches[]` — the dispatch site should be there.
 5. Does the file parse cleanly? Run `php -l path/to/file.php`. Parse errors are silently swallowed.

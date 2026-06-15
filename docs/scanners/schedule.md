@@ -213,6 +213,13 @@ on existing primitives are widened.
 - **`quarterlyOn`**: `->quarterlyOn(15, '13:00')` →
   `cron: "0 13 15 1-12/3 *"` (day-of-quarter and time both honoured;
   both default — day `1`, time `0:00`).
+- **`daysOfMonth`**: `->daysOfMonth(1, 15)` → `cron: "0 0 1,15 * *"`.
+  Accepts variadic ints (`->daysOfMonth(1, 15)`) or a single array
+  literal (`->daysOfMonth([2, 16])`); Laravel runs these at 00:00.
+  Unlike the day-of-week `->days(...)` constraint, this is a frequency
+  helper that produces a cron and chains safely after another frequency
+  (`->daily()->daysOfMonth(10)` → `"0 0 10 * *"`). `cron: null` when no
+  day argument resolves statically (`->daysOfMonth($var)`).
 - **Sub-minute helpers**: `->everyTenSeconds()` →
   `cron: null`, `frequency: { "unit": "seconds", "every": 10 }`. The seven
   sub-minute helpers (`everySecond` … `everyThirtySeconds`) can't be a
@@ -257,6 +264,15 @@ on existing primitives are widened.
 - **`->ping*()` callbacks**: `->pingBefore(url)`, `->thenPing(url)`,
   `->pingOnSuccess`, `->pingOnFailure` are not captured. They're a
   notification side-effect, not part of the schedule's identity.
+- **Generic `->repeatEvery($seconds)`**: only the seven named sub-minute
+  helpers (`everySecond` … `everyThirtySeconds`) populate `frequency`.
+  The general `repeatEvery(int)` form with an arbitrary divisor of 60 is
+  not recognised — deferred as niche. The named helpers cover the common
+  cases; if added later it slots into the existing `frequency` object
+  with no schema break.
+- **`->evenWhenPaused()`** (L11): not captured. Would need a new boolean
+  field; deferred to a future slice. Distinct from
+  `even_in_maintenance_mode`, which is captured.
 - **`Bus::chain([...])` or `Bus::batch([...])` invoked inside a
   closure schedule**: not captured — closures are skipped by
   DispatchScanner. The schedule entry itself is captured (as a
