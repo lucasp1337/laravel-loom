@@ -484,6 +484,16 @@ A composite action gates pull requests on Loom: it scans the branch, checks the 
 
 The action runs inside your Laravel app (the repo that has laravel-loom installed). Inputs, outputs, and the baseline trade-off are in [docs/github-action.md](docs/github-action.md).
 
+## MCP server
+
+`loom:mcp` starts a local, read-only [MCP](https://modelcontextprotocol.io) server over the index, so an AI agent can query your event graph instead of grepping source. It runs embedded — `laravel/mcp` auto-discovers it, nothing to wire up.
+
+```bash
+php artisan loom:mcp   # serves storage/loom/index.json over stdio
+```
+
+It exposes eleven tools — lookups (`list-entities`, `get-entity`), edges (`handlers-for`, `dispatch-sites-for`, `dispatches-from`), chains (`events-following`, `route-to-events`), and analysis (`impact-of-change`, `find-orphans`). Point any stdio MCP client at `php artisan loom:mcp` with your project as the working directory. The full tool reference and client config are in [docs/mcp.md](docs/mcp.md).
+
 ## Requirements
 
 - PHP **8.3+**
@@ -510,6 +520,7 @@ A benchmark suite (`composer bench`) measures scan cost across generated tiny/me
 - [Schema](docs/schema.md) — JSON schema reference
 - [Index PHP API](docs/index-api.md) — load an index into typed objects (`IndexLoader`, getters, value objects)
 - [GitHub Action](docs/github-action.md) — the composite action that gates PRs on Loom
+- [MCP server](docs/mcp.md) — the embedded `loom:mcp` server and its eleven tools for AI agents
 - [Scanners](docs/scanners/) — per-scanner behavior, edge cases, known limitations
 - [Contributing](docs/contributing.md) — toolchain, Docker workflow, how to add a scanner
 
