@@ -6,6 +6,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- **Embedded MCP server** — `php artisan loom:mcp` exposes the index to AI agents over stdio (Laravel-Boost style, via `laravel/mcp`), read-only, with 11 tools (lookups, edges, chains, impact analysis) built on the Index read-model; auto-scans a missing snapshot and reloads on change. Closes #20. See [docs/mcp.md](docs/mcp.md).
+
 - **GitHub Action** — composite `action.yml` runs `loom:scan` + `loom:check` (+ best-effort base-ref `loom:diff`) and posts a sticky PR comment; inputs `php-version`/`laravel-version`/`strict`/`comment-on-pr`/`fail-on-diff`, outputs `index-path`/`unresolved-count`/`diff-summary`. Closes #12. Also closes #10 (`loom:check` CI gate — added baseline-growth, orphan, cyclic-dispatch and `--skip` coverage) and #34 (SOLID/enums/scanner-dedup sweep, verified complete). See [docs/github-action.md](docs/github-action.md).
 
 - **Scanner accuracy audit** — recognise `broadcast()`/`broadcast_if()`/`broadcast_unless()` as event dispatch sites, the `daysOfMonth(...)` schedule helper (cron `0 0 d1,d2 * *`), conditional `dispatchIf`/`dispatchUnless` Dispatchable forms, and `Event::listen([A, B], ...)` array-of-events; `docs/scanners/*` limitations refreshed. #28 #29 #30
