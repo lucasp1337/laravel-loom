@@ -65,6 +65,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Fixed
 
+- Handler `dispatches[]` no longer lists mail/notification sends; they feed `sent_from` / `notified_from`. ([#76](https://github.com/lucasp1337/laravel-loom/pull/76))
 - **Cross-link Phase 3 dispatch attribution for non-`handle` listener methods.** Previously, the listener-dispatch join keyed on the literal method name `handle`, so dispatches emitted from `handleOrderPlaced()` / `handleRefund()` / any custom handler method were silently dropped from `listeners[*].dispatches`. The join now matches when the dispatch's enclosing method is in the listener's `handles[*].method` set, so dispatches from custom handler methods are attributed to the listener.
 
 ## [0.1.0](https://github.com/lucasp1337/laravel-loom/releases/tag/v0.1.0) - 2026-05-16

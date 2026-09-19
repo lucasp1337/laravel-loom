@@ -27,7 +27,7 @@ final class RouteDispatchAttributionPhase implements CrossLinkPhase
                 continue;
             }
 
-            $payload = DispatchEntry::fromSite($site);
+            $payload = DispatchEntry::forHandler($site);
             if ($payload === null) {
                 continue;
             }

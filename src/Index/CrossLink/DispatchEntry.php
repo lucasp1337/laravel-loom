@@ -9,9 +9,9 @@ use Lucasp\Loom\Index\Field;
 
 /**
  * Shared, stateless builder for the dispatch object the schema attaches to a
- * handler's `dispatches[]` — `{target, kind, confidence, file, line}`. Both
- * {@see DispatchAttributionPhase} (class listeners/jobs/observers) and
- * {@see ClosureDispatchAttributionPhase} (closure listeners) emit this shape.
+ * handler's `dispatches[]` — `{target, kind, confidence, file, line}`. The
+ * attribution phases (class listeners/jobs/observers, routes, closure
+ * listeners) all emit this shape via {@see self::forHandler()}.
  */
 final class DispatchEntry
 {
@@ -20,10 +20,9 @@ final class DispatchEntry
      * the site can't form a valid dispatch (kind still ambiguous/unknown, or
      * a missing/mis-typed target, file, or line). Callers skip on null.
      *
-     * Kind filtering here is deliberately minimal — only AMBIGUOUS and unknown
-     * are rejected, preserving the original class-listener behavior (which
-     * accepted any resolved kind). Callers that need a stricter set (closure
-     * listeners only carry event|job) filter the returned `kind` themselves.
+     * Only AMBIGUOUS and unknown kinds are rejected here; mailable and
+     * notification sites are valid (they feed `sent_from` / `notified_from`).
+     * Handler `dispatches[]` must use {@see self::forHandler()} instead.
      *
      * @param  array<string, mixed>  $site
      * @return array{target: string, kind: string, confidence: string, file: string, line: int}|null
@@ -51,5 +50,24 @@ final class DispatchEntry
             Field::FILE->value => $file,
             Field::LINE->value => $line,
         ];
+    }
+
+    /**
+     * Like {@see self::fromSite()} but restricted to the kinds a handler's
+     * `dispatches[]` may carry per the schema (event|job).
+     *
+     * @param  array<string, mixed>  $site
+     * @return array{target: string, kind: string, confidence: string, file: string, line: int}|null
+     */
+    public static function forHandler(array $site): ?array
+    {
+        $payload = self::fromSite($site);
+        if ($payload === null) {
+            return null;
+        }
+
+        $kind = DispatchKinds::tryFrom($payload[Field::KIND->value]);
+
+        return $kind === DispatchKinds::EVENT || $kind === DispatchKinds::JOB ? $payload : null;
     }
 }
