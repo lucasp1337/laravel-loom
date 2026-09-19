@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Operational guide for AI agents working on this repo. Humans should read `README.md` and `docs/` instead — those are written for you.
+Operational guide for AI agents working on this repo. Humans should read `README.md` and `docs/` (consumer-facing) or `CONTRIBUTING.md` and `docs/contributing/` (contributor-only) instead.
 
 This file is for the parts that don't fit anywhere else: conventions that aren't enforced by tests, mistakes that have been made before, and the boundaries between subagents.
 
@@ -8,7 +8,7 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ## Scope
 
-Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `mailables`, `notifications`, `unresolved_dispatches`. Planned for v1.0: routes — tracked under the [v1.0 milestone](https://github.com/lucasp1337/laravel-loom/milestone/1).
+Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `mailables`, `notifications`, `routes`, `unresolved_dispatches`. All are in `schema/loom-index.schema.json`.
 
 Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
 
@@ -17,7 +17,7 @@ Out of scope, and not just "later":
 - Data-model and access-control primitives — models, migrations, validators, policies, gates
 - Runtime tracing / queue worker observation
 - Code-quality metrics (complexity, fat-class detection, line counts)
-- Visualization features beyond the read-only browser UI in #19
+- Visualization features beyond the read-only browser UI (`src/Ui`)
 - Laravel < 11
 
 Loom's domain is the *control flow* of a Laravel app — what dispatches what, what handles what, what runs when. Routes and schedules are part of that (an HTTP request fires a controller method; cron fires a job at 2am), even though they aren't strictly "event-driven" in the `Event::dispatch()` sense. Models and migrations are not.
@@ -30,10 +30,13 @@ When a subagent proposes a feature, the test is: *does this enrich the existing 
 
 ```
 src/
-  LoomServiceProvider.php          # registers the two artisan commands
+  LoomServiceProvider.php          # registers the artisan commands, the MCP server, and the UI
   Console/
     ScanCommand.php                 # loom:scan — writes storage/loom/index.json
     ShowCommand.php                 # loom:show [filter] — prints the index
+    DiffCommand.php                 # loom:diff — compares two indexes
+    CheckCommand.php                # loom:check — policy gate over an index
+    McpCommand.php                  # loom:mcp — embedded MCP server over stdio
   Contracts/
     Scanner.php                     # the one-method contract every scanner implements
   Index/
@@ -41,6 +44,9 @@ src/
     IndexBuilder.php                # orchestrates scanners + runs the cross-link pass
     IndexLoader.php                 # hydrates an Index from a written index.json (public consumer API)
     Model/                          # final readonly read-model value objects (public consumer API)
+  Check/                            # loom:check rules, runner, formatters
+  Diff/                             # loom:diff engine
+  Mcp/                              # embedded MCP server (depends on Query)
   Query/                            # IndexQuery + IndexSource/SnapshotIndexSource + DTOs/enums: transport-agnostic questions over the Index (shared by MCP and UI)
   Ui/                               # read-only browser UI (Livewire + Alpine + vendored cytoscape); depends on Query, never on Mcp
   Scanners/
@@ -66,7 +72,9 @@ tests/
   Feature/                          # scanner + IndexBuilder tests, fixture-driven
   Fixtures/                         # minimal app trees per scenario
 
-docs/                               # contributor docs — start here for everything else
+docs/                               # consumer-facing docs (published site) — no src paths, ADR or issue refs
+  contributing/                     # contributor-only: architecture, class-hierarchy, adr/, design/
+CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules, how to add a scanner
 ```
 
 ---
@@ -101,9 +109,9 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 **Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
 
-**DTOs, not associative arrays, for inter-component data.** Visitors emit `list<SomeDto>` from `src/Dto/`, never `array<int, array{...}>`. Scanners consume DTOs and only build the schema-shaped associative arrays at the emit boundary (the final step of `scan()`). The cross-link pass operates on the schema-shape since that IS the JSON contract — but everything before that boundary is typed. See `docs/contributing.md#data-transfer-dtos-not-arrays`.
+**DTOs, not associative arrays, for inter-component data.** Visitors emit `list<SomeDto>` from `src/Dto/`, never `array<int, array{...}>`. Scanners consume DTOs and only build the schema-shaped associative arrays at the emit boundary (the final step of `scan()`). The cross-link pass operates on the schema-shape since that IS the JSON contract — but everything before that boundary is typed. See `CONTRIBUTING.md#data-transfer-dtos-not-arrays`.
 
-**Consumer read model vs scanner DTOs.** The public consumption surface is `IndexLoader`, the typed getters/lookups on `Index`, and the `Lucasp\Loom\Index\Model\` value objects (each `final readonly`, hydrated from the JSON/array shape). That's what external tools (UI, MCP server) depend on. The `Lucasp\Loom\Dto\*Entry` classes are internal scanner build inputs — NOT part of the consumer API; don't expose them or couple consumers to them. See [docs/index-api.md](docs/index-api.md) and [ADR 0005](docs/adr/0005-index-read-model.md).
+**Consumer read model vs scanner DTOs.** The public consumption surface is `IndexLoader`, the typed getters/lookups on `Index`, and the `Lucasp\Loom\Index\Model\` value objects (each `final readonly`, hydrated from the JSON/array shape). That's what external tools (UI, MCP server) depend on. The `Lucasp\Loom\Dto\*Entry` classes are internal scanner build inputs — NOT part of the consumer API; don't expose them or couple consumers to them. See [docs/reference/php-api.md](docs/reference/php-api.md) and [ADR 0005](docs/contributing/adr/0005-index-read-model.md).
 
 ---
 
@@ -130,7 +138,7 @@ After cross-link: strip `_dispatch_sites` from the merged sections before constr
 | `schema-guardian` | `schema/loom-index.schema.json` | Any change to output shape; veto power on the schema |
 | `test-engineer` | Pest tests, fixture apps, Testbench harness | After any scanner or IndexBuilder change |
 | `quality-inspector` | PHPStan level 8, Pint, AST-code smells | Pre-commit, post-feature |
-| `doc-writer` | README, sample outputs, CHANGELOG, scanner docs | User-facing prose changes |
+| `doc-writer` | README, `docs/`, sample outputs, CHANGELOG | User-facing prose changes |
 
 Slash commands wire chains together:
 - `/add-scanner <Name>` — architect → schema-guardian → ast-specialist → test-engineer → quality-inspector → doc-writer
@@ -158,7 +166,7 @@ Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. T
 
 - **Use `php artisan event:list` as a data source.** Loom re-derives from source for accuracy, to surface things Laravel's command misses (observers, dispatch sites, unresolved dispatches with file/line), and to work on a checked-out repo without booting the app. The runtime command requires a fully-booted Laravel app; Loom does not.
 - **Modify the schema without `schema-guardian` review.** Schema changes are breaking or near-breaking; they need explicit version-bump reasoning.
-- **Add CLI flags or output formats** beyond `loom:scan` (no flags) and `loom:show [filter]` (one optional positional argument). The two-command surface is deliberately frozen.
+- **Add commands, CLI flags or output formats** beyond the shipped surface (`loom:scan`, `loom:show`, `loom:diff`, `loom:check`, `loom:mcp`) without a maintainer decision. The surface is deliberately small.
 - **Skip cases silently when you can emit `unresolved_dispatches`.** Better to flag a gap than hide it.
 - **Commit failing checks.** PHPStan, Pint, and Pest all green before any commit lands.
 - **Add dependencies without strong justification.** Every new dependency is a contributor friction point.
@@ -170,3 +178,5 @@ Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. T
 See the **Scope** section near the top of this file for what's emitted today vs planned for v1.0. If something doesn't fit either list, stop and ask a human — don't bolt it onto an existing scanner. A genuinely new primitive gets its own scanner via `/add-scanner`.
 
 The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.
+
+**Docs rules.** `docs/` is consumer-facing: no `src/` paths, ADR or issue references, and never hand-written command output (the drift-guard test `tests/Docs/DocsInSyncTest.php` checks it against real output). One fact lives on one page. Contributor material goes in `docs/contributing/` or `CONTRIBUTING.md`. CHANGELOG entries are one short line each, linking the PR.
