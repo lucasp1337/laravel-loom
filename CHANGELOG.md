@@ -4,6 +4,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Fixed
+
+- `Event::listen(function (Event $e) {...})` now infers the event from the closure's type hint ([#79](https://github.com/lucasp1337/laravel-loom/issues/79)).
+
 ### Breaking
 
 - Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
