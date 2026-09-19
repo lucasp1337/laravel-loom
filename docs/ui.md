@@ -4,7 +4,7 @@ A read-only browser view of the index, served by your Laravel app at `/loom`. It
 
 ## Requirements
 
-- A written index at `storage/loom/index.json` (or the path in `loom.ui.index_path`). Run `php artisan loom:scan` first.
+- A written index at `storage/loom/index.json` (or the path in `loom.index_path`). Run `php artisan loom:scan` first.
 - Livewire 3 (installed as a dependency of the package).
 - Access allowed by the `viewLoom` gate (see below).
 
@@ -38,7 +38,7 @@ This writes `config/loom.php`. The `ui` block:
 | `path` | `LOOM_PATH` | `loom` | URI prefix. |
 | `domain` | `LOOM_DOMAIN` | `null` | Optional domain to serve from. |
 | `middleware` | none | `['web']` | Middleware applied before the `viewLoom` gate check. The gate check always runs. |
-| `index_path` | `LOOM_INDEX_PATH` | `null` | Snapshot to read. `null` means `storage/loom/index.json`. |
+| `index_path` | none | `null` | Optional UI-only override of the top-level `loom.index_path` (env `LOOM_INDEX_PATH`, default `storage/loom/index.json`). |
 | `chain_depth` | none | `3` | Default depth on the chain page, clamped to 1-5. |
 
 If routes are cached (`route:cache`), the UI routes are not registered by the package on that boot; clear the cache or cache after enabling.

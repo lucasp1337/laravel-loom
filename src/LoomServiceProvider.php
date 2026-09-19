@@ -16,6 +16,7 @@ use Lucasp\Loom\Index\IndexLoader;
 use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Query\IndexQuery;
+use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Ui\LoomUiServiceProvider;
 
 class LoomServiceProvider extends ServiceProvider
@@ -25,10 +26,15 @@ class LoomServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(dirname(__DIR__).'/config/loom.php', 'loom');
         $this->app->register(LoomUiServiceProvider::class);
 
+        $this->app->singleton(IndexPath::class, fn ($app): IndexPath => new IndexPath(
+            $app->make('config'),
+            $app->storagePath('loom/index.json'),
+        ));
+
         $this->app->singleton(IndexRepository::class, fn ($app): IndexRepository => new IndexRepository(
             $app->make(IndexLoader::class),
             $app->make(Artisan::class),
-            $app->storagePath('loom/index.json'),
+            $app->make(IndexPath::class)->resolve(),
         ));
 
         // Resolved fresh per tool call; it re-reads the repository's index on

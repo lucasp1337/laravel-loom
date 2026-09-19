@@ -12,7 +12,7 @@
         <p>The snapshot exists but is not a valid Loom index. Re-run the scan to write a fresh one.</p>
     @else
         <h1>No index found</h1>
-        <p>Loom reads <code>storage/loom/index.json</code>. Nothing is there yet, run a scan and reload this page.</p>
+        <p>Loom reads <code>{{ $path }}</code>. Nothing is there yet, run a scan and reload this page.</p>
     @endif
     <x-loom::copy-command command="php artisan loom:scan" />
     <small>The scan takes a few seconds on a mid-sized app and writes a single deterministic JSON file.</small>

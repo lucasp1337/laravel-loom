@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 use Lucasp\Loom\Index\IndexLoader;
-use Lucasp\Loom\Index\SnapshotIndexSource;
-use Lucasp\Loom\Query\IndexSource;
+use Lucasp\Loom\Query\SnapshotIndexSource;
+use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Ui\Http\AssetController;
 use Lucasp\Loom\Ui\Http\Middleware\AuthorizeLoom;
 use Lucasp\Loom\Ui\Http\Middleware\RequireIndex;
@@ -40,11 +40,10 @@ final class LoomUiServiceProvider extends ServiceProvider
         $this->app->singleton(LoomConfig::class, fn ($app): LoomConfig => new LoomConfig($app->make('config')));
 
         // The UI reads the snapshot only; unlike the MCP server it never scans.
-        $this->app->singleton(IndexSource::class, fn ($app): IndexSource => new SnapshotIndexSource(
+        $this->app->singleton(UiContext::class, fn ($app): UiContext => new UiContext(new SnapshotIndexSource(
             $app->make(IndexLoader::class),
-            $app->make(LoomConfig::class)->indexPath() ?? $app->storagePath('loom/index.json'),
-        ));
-        $this->app->singleton(UiContext::class, fn ($app): UiContext => new UiContext($app->make(IndexSource::class)));
+            $app->make(IndexPath::class)->resolve(),
+        )));
         $this->app->bind(AppChangeClock::class, fn ($app): AppChangeClock => new GitAppChangeClock($app->basePath()));
     }
 

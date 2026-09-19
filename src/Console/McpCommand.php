@@ -25,7 +25,15 @@ final class McpCommand extends Command
     public function handle(Registrar $registrar, IndexRepository $repository): int
     {
         $snapshot = $this->option('snapshot');
-        if (is_string($snapshot) && $snapshot !== '') {
+        $hasSnapshot = is_string($snapshot) && $snapshot !== '';
+
+        if ($hasSnapshot && $this->option('scan')) {
+            $this->components->error('--scan writes the default index and cannot be combined with --snapshot.');
+
+            return self::FAILURE;
+        }
+
+        if ($hasSnapshot) {
             $repository->useSnapshot($snapshot);
         }
 
@@ -33,8 +41,17 @@ final class McpCommand extends Command
             $repository->disableAutoScan();
         }
 
-        if ($this->option('scan')) {
-            $this->call('loom:scan');
+        // Silent: anything on stdout before the server starts would corrupt the JSON-RPC stream.
+        if ($this->option('scan') && $this->callSilently('loom:scan') !== self::SUCCESS) {
+            $this->components->error('loom:scan failed; not starting the MCP server.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('no-scan') && ! $repository->isAvailable()) {
+            $this->components->error("No index at [{$repository->path()}] and --no-scan is set. Run `php artisan loom:scan` first.");
+
+            return self::FAILURE;
         }
 
         $server = $registrar->getLocalServer('loom');

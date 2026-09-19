@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Index\IndexLoader;
-use Lucasp\Loom\Index\SnapshotIndexSource;
 use Lucasp\Loom\Query\IndexUnavailableException;
+use Lucasp\Loom\Query\SnapshotIndexSource;
 
 function snapshotFile(string $scannedAt): string
 {
@@ -33,7 +33,6 @@ it('reloads when the file changes on disk', function () {
     $data['scanned_at'] = 'two';
     file_put_contents($path, json_encode($data));
     touch($path, time() + 10);
-    clearstatcache();
 
     expect($source->index()->scannedAt)->toBe('two');
 });
@@ -51,3 +50,28 @@ it('wraps an unparseable snapshot', function () {
 
     (new SnapshotIndexSource(new IndexLoader, $path))->index();
 })->throws(IndexUnavailableException::class, 'could not be loaded');
+
+it('sees two same-second writes of different size', function () {
+    $path = snapshotFile('one');
+    $mtime = filemtime($path);
+    $source = new SnapshotIndexSource(new IndexLoader, $path);
+    expect($source->index()->scannedAt)->toBe('one');
+
+    $data = json_decode((string) file_get_contents($path), true);
+    $data['scanned_at'] = 'a-much-longer-value';
+    file_put_contents($path, json_encode($data));
+    touch($path, $mtime);
+
+    expect($source->index()->scannedAt)->toBe('a-much-longer-value');
+});
+
+it('keeps serving the last good index when a reload fails', function () {
+    $path = snapshotFile('good');
+    $source = new SnapshotIndexSource(new IndexLoader, $path);
+    $good = $source->index();
+
+    file_put_contents($path, '{"half":');
+
+    expect($source->index())->toBe($good)
+        ->and($source->payload()['scanned_at'])->toBe('good');
+});
