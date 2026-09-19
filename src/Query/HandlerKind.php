@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Query;
 /**
  * What handles an event. Observers are absent on purpose: the index links
  * observers to model events, not to entries of `events[]`.
+ *
+ * @internal
  */
 enum HandlerKind: string
 {

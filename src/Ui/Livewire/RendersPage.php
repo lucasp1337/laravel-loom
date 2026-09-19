@@ -9,6 +9,8 @@ use Illuminate\Contracts\View\View;
 /**
  * Renders a full-page component view with data for the shared layout
  * (`title`, `crumbs`, `active`).
+ *
+ * @internal
  */
 trait RendersPage
 {

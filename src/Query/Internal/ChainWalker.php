@@ -14,6 +14,7 @@ use Lucasp\Loom\Query\Dto\EventChain;
 use Lucasp\Loom\Query\HandlerKind;
 
 /** Depth-bounded, cycle-safe walk of the event/dispatch graph. Dispatches are class-level except on routes. */
+/** @internal */
 final class ChainWalker
 {
     public function __construct(private readonly Index $index)

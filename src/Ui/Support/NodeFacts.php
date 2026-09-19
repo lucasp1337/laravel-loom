@@ -17,6 +17,8 @@ use Lucasp\Loom\Ui\NodeType;
 /**
  * Side-panel content for one chain node: header names, fact rows, and the
  * page the "Go to page" button opens.
+ *
+ * @internal
  */
 final readonly class NodeFacts
 {

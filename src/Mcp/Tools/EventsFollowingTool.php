@@ -13,6 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('events-following')]
 #[Description('Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3).')]
 final class EventsFollowingTool extends Tool

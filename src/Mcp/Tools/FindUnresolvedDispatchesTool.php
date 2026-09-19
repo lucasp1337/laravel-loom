@@ -13,6 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('find-unresolved-dispatches')]
 #[Description('List dispatch sites the scanner could not statically resolve to a target, with the raw expression, reason, file and line. Surfaces what static analysis could not pin down.')]
 final class FindUnresolvedDispatchesTool extends Tool

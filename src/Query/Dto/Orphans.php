@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Query\Dto;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Listener;
 
+/** @internal */
 final readonly class Orphans
 {
     /**

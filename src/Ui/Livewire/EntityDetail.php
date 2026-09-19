@@ -17,6 +17,8 @@ use Lucasp\Loom\Ui\UiContext;
 
 /**
  * Generic detail page for any entity kind; events use {@see EventDetail}.
+ *
+ * @internal
  */
 #[Layout('loom::layouts.app')]
 class EntityDetail extends Component

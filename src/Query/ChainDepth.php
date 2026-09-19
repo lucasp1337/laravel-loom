@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Query;
 
 /**
  * Bounds for handler-to-dispatch hops followed when walking an event chain.
+ *
+ * @internal
  */
 final class ChainDepth
 {

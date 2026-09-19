@@ -9,6 +9,8 @@ use Lucasp\Loom\Query\HandlerKind;
 /**
  * One handler of one event in a chain, with what it dispatches. `file`/`line`
  * locate the handler and are not part of the legacy array shape.
+ *
+ * @internal
  */
 final readonly class ChainEdge
 {

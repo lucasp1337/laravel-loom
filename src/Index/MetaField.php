@@ -9,6 +9,7 @@ namespace Lucasp\Loom\Index;
  */
 enum MetaField: string
 {
+    case SCHEMA_VERSION = 'schema_version';
     case LOOM_VERSION = 'loom_version';
     case SCANNED_AT = 'scanned_at';
     case LARAVEL_VERSION = 'laravel_version';

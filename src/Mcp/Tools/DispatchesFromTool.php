@@ -13,6 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('dispatches-from')]
 #[Description('Given a method, what does it directly dispatch? Returns the events and jobs dispatched from a Class::method (also accepts Class@method or a bare Class), with kind, confidence, file and line.')]
 final class DispatchesFromTool extends Tool

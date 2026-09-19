@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+/** @internal */
 final readonly class Page
 {
     /** @param  list<object>  $items */

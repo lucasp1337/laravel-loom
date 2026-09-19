@@ -16,6 +16,8 @@ use Lucasp\Loom\Query\EntityKind;
  *
  * Scores: exact full name 100, exact short name 90, short-name prefix 70,
  * substring of the full name 50, substring of the file path 20.
+ *
+ * @internal
  */
 final class Searcher
 {

@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Query;
 /**
  * Machine-readable framing of an {@see Dto\ImpactReport}. Each transport
  * renders these to prose itself.
+ *
+ * @internal
  */
 enum ImpactNote: string
 {

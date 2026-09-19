@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Lets the request through only when the UI is active in this environment and the `viewLoom` gate allows it.
+ *
+ * @internal
  */
 final class AuthorizeLoom
 {

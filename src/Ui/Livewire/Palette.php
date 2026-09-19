@@ -14,6 +14,8 @@ use Lucasp\Loom\Ui\UiContext;
 
 /**
  * Global search behind the command palette.
+ *
+ * @internal
  */
 class Palette extends Component
 {

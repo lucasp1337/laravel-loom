@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Query;
 
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
@@ -36,6 +37,8 @@ use Lucasp\Loom\Query\Internal\SectionReader;
  * Transport-agnostic questions over the Loom index, shared by the embedded MCP
  * server and the UI. Reads the index from its {@see IndexSource} on every call
  * so a rewritten snapshot is picked up.
+ *
+ * @internal
  */
 final class IndexQuery
 {
@@ -196,6 +199,24 @@ final class IndexQuery
             EntityKind::MAILABLE => $index->findMailable($fqcn),
             EntityKind::NOTIFICATION => $index->findNotification($fqcn),
         };
+    }
+
+    /**
+     * The raw index entry (snake_case, as in the schema) for an entity, or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function rawEntity(EntityKind $kind, string $fqcn): ?array
+    {
+        $needle = ltrim($fqcn, '\\');
+        foreach ($this->index()->sections[$kind->section()->value] ?? [] as $entry) {
+            $candidate = $entry[Field::FQCN->value] ?? null;
+            if (is_string($candidate) && ltrim($candidate, '\\') === $needle) {
+                return $entry;
+            }
+        }
+
+        return null;
     }
 
     /** @return list<SectionInfo> in index body order */

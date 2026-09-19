@@ -43,6 +43,7 @@ $listener = static fn (string $name, string $handles, array $dispatches, bool $q
 $handler = static fn (string $name): array => ['listener' => "App\\Listeners\\{$name}", 'method' => 'handle'];
 
 return [
+    'schema_version' => '1.0',
     'loom_version' => '0.3.0',
     'scanned_at' => '2026-01-01T00:00:00+00:00',
     'laravel_version' => '12.x',
@@ -86,7 +87,7 @@ return [
         ],
     ],
     'model_events' => [
-        ['id' => 'App\\Models\\Order.created', 'model' => 'App\\Models\\Order', 'event' => 'created', 'handled_by' => ['App\\Observers\\OrderObserver']],
+        ['id' => 'App\\Models\\Order.created', 'model' => 'App\\Models\\Order', 'event' => 'created', 'handled_by' => [['handler' => 'App\\Observers\\OrderObserver', 'method' => 'created', 'file' => 'app/Observers/OrderObserver.php', 'line' => 5]]],
     ],
     'jobs' => [
         [

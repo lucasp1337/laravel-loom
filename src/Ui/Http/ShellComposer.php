@@ -12,6 +12,8 @@ use Lucasp\Loom\Ui\UiContext;
 
 /**
  * Feeds the shared layout: sidebar sections with counts, index meta, stale notice.
+ *
+ * @internal
  */
 final class ShellComposer
 {

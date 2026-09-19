@@ -328,16 +328,18 @@ One entry per `(observerFqcn, modelFqcn)` pair. An observer registered against m
   "kind": "model_event",
   "model": "App\\Models\\User",
   "event": "created",
-  "handled_by": ["App\\Observers\\UserObserver::created"]
+  "handled_by": [
+    { "handler": "App\\Observers\\UserObserver", "method": "created", "file": "app/Observers/UserObserver.php", "line": 8 }
+  ]
 }
 ```
 
 One entry per `(model, hook)` pair. `handled_by` aggregates:
 
-- Observer-hook references — every observer that observes `model` and has `hook` in its `hooks` list contributes `"ObserverFqcn::hook"`
-- Path 3 handlers — every `Event::listen('eloquent.{hook}: {model}', ...)` registration contributes `"HandlerFqcn::method"`
+- Observer-hook references — every observer that observes `model` and has `hook` in its `hooks` list contributes `{handler: ObserverFqcn, method: hook}` at the observer class location
+- Path 3 handlers — every `Event::listen('eloquent.{hook}: {model}', ...)` registration contributes `{handler, method}` at the `Event::listen` call location
 
-`handled_by` is deduped and sorted. If a `(model, hook)` pair has no observer hook method and no path-C handler, no `model_events` entry is emitted — the section catalogs actual handlers, not every possible model event.
+`handled_by` is deduped on `handler::method` (observer wins over `Event::listen`) and sorted by it. If a `(model, hook)` pair has no observer hook method and no path-C handler, no `model_events` entry is emitted — the section catalogs actual handlers, not every possible model event.
 
 Entries are sorted by `id` ascending.
 

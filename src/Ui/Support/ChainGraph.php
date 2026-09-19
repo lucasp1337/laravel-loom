@@ -16,6 +16,8 @@ use Lucasp\Loom\Ui\NodeType;
  * Depth-first from the root event. Every occurrence gets a path key, so the
  * same class can appear on several branches; an event already drawn earlier
  * becomes a childless cycle node instead of a loop edge.
+ *
+ * @internal
  */
 final class ChainGraph
 {

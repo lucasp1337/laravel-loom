@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Ui;
 
 /**
  * Gate abilities the UI checks.
+ *
+ * @internal
  */
 enum LoomAbility: string
 {

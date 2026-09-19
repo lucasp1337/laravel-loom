@@ -16,6 +16,8 @@ use Lucasp\Loom\Ui\Dto\FactRow;
  *
  * Walking the read model's own public properties keeps a new field visible
  * without touching a view.
+ *
+ * @internal
  */
 final class EntityFacts
 {

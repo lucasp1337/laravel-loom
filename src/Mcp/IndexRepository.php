@@ -12,6 +12,8 @@ use Lucasp\Loom\Query\SnapshotIndexSource;
 /**
  * The MCP server's index source: a snapshot source that, when auto-scan is on
  * and the snapshot is missing, runs `loom:scan` once to produce it.
+ *
+ * @internal
  */
 final class IndexRepository extends SnapshotIndexSource
 {

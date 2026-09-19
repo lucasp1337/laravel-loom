@@ -42,7 +42,7 @@ final class DiffSpecRegistry
                 self::byKeys([Field::ID]),
                 [],
                 [
-                    new SubListSpec(Field::HANDLED_BY, self::scalarMember()),
+                    new SubListSpec(Field::HANDLED_BY, self::memberByKeys([Field::HANDLER, Field::METHOD])),
                 ],
             ),
             new SectionDiffSpec(

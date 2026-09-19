@@ -12,6 +12,7 @@ use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\MailableEntry;
 use Lucasp\Loom\Dto\ModelEventEntry;
+use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\NotificationEntry;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\QueueConfigData;
@@ -128,7 +129,12 @@ final class IndexSerializer
             Field::KIND->value => 'model_event',
             Field::MODEL->value => $e->model,
             Field::EVENT->value => $e->event,
-            Field::HANDLED_BY->value => $e->handledBy,
+            Field::HANDLED_BY->value => array_map(fn (ModelEventHandler $h): array => [
+                Field::HANDLER->value => $h->handler,
+                Field::METHOD->value => $h->method,
+                Field::FILE->value => $h->file,
+                Field::LINE->value => $h->line,
+            ], $e->handledBy),
         ];
     }
 

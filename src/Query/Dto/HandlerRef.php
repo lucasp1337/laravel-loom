@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Query\Dto;
 use Lucasp\Loom\Query\HandlerKind;
 
 /** A handler as listed in an impact report; closures use `file:line` and method `closure`. */
+/** @internal */
 final readonly class HandlerRef
 {
     public function __construct(

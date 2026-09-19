@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Ui;
 use Closure;
 use Lucasp\Loom\Query\SortField;
 
+/** @internal */
 final readonly class ColumnSpec
 {
     /** @param  Closure  $value  receives the read-model item, returns the cell text */

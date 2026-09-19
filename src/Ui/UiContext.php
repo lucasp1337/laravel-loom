@@ -10,6 +10,8 @@ use Lucasp\Loom\Ui\Support\Links;
 
 /**
  * The UI's view of the index: a snapshot-backed source and the query layer over it.
+ *
+ * @internal
  */
 final readonly class UiContext
 {

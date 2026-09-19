@@ -40,6 +40,7 @@ use Lucasp\Loom\Index\ScheduleKind;
 function representativeIndexArray(): array
 {
     return [
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'scanned_at' => '2026-06-07T12:00:00+00:00',
         'laravel_version' => '12.x',
@@ -70,7 +71,12 @@ function representativeIndexArray(): array
                 'kind' => 'model_event',
                 'model' => 'App\\Models\\User',
                 'event' => 'created',
-                'handled_by' => ['App\\Observers\\UserObserver'],
+                'handled_by' => [[
+                    'handler' => 'App\\Observers\\UserObserver',
+                    'method' => 'created',
+                    'file' => 'app/Observers/UserObserver.php',
+                    'line' => 8,
+                ]],
             ],
         ],
         'listeners' => [
@@ -316,7 +322,11 @@ it('hydrates a model event', function () {
     expect($modelEvent->id)->toBe('model_event:App\\Models\\User:created');
     expect($modelEvent->model)->toBe('App\\Models\\User');
     expect($modelEvent->event)->toBe('created');
-    expect($modelEvent->handledBy)->toBe(['App\\Observers\\UserObserver']);
+    expect($modelEvent->handledBy)->toHaveCount(1);
+    expect($modelEvent->handledBy[0]->handler)->toBe('App\\Observers\\UserObserver');
+    expect($modelEvent->handledBy[0]->method)->toBe('created');
+    expect($modelEvent->handledBy[0]->file)->toBe('app/Observers/UserObserver.php');
+    expect($modelEvent->handledBy[0]->line)->toBe(8);
 });
 
 it('hydrates a listener with enum registration and nested dispatches', function () {

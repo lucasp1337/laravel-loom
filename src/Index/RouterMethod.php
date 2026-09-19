@@ -24,6 +24,9 @@ final class RouterMethod
         'options' => 'OPTIONS',
     ];
 
+    /** Verbs a route entry may carry (`match` verbs outside this set are dropped). */
+    public const EMITTED_VERBS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
+
     public const ANY = 'any';
 
     public const MATCH = 'match';

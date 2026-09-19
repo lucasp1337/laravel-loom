@@ -363,7 +363,10 @@ final class RouteScanner implements Scanner
             if (! $item->value instanceof Node\Scalar\String_) {
                 return [];
             }
-            $verbs[] = strtoupper($item->value->value);
+            $verb = strtoupper($item->value->value);
+            if (in_array($verb, RouterMethod::EMITTED_VERBS, true)) {
+                $verbs[] = $verb;
+            }
         }
 
         return $verbs;

@@ -12,6 +12,8 @@ use Lucasp\Loom\Query\IndexQuery;
 
 /**
  * Builds UI URLs for index entities. One place that knows the route names.
+ *
+ * @internal
  */
 final class Links
 {

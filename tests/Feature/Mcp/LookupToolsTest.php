@@ -46,6 +46,21 @@ it('gets an existing entity by kind and fqcn', function () {
         ->assertSee('App\\\\Listeners\\\\SendShipmentNotification');
 });
 
+it('returns the raw snake_case index entry for an entity', function () {
+    mcpUseIndex(mcpTempIndex([
+        'jobs' => [
+            ['fqcn' => 'App\\Jobs\\Ship', 'file' => 'app/Jobs/Ship.php', 'line' => 4, 'queued' => true, 'queue_config' => ['queue' => 'q', 'connection' => null, 'tries' => null, 'timeout' => null, 'delay' => null, 'backoff' => null], 'dispatched_from' => [], 'dispatches' => []],
+        ],
+    ]));
+
+    LoomMcpServer::tool(GetEntityTool::class, ['kind' => 'job', 'fqcn' => 'App\\Jobs\\Ship'])
+        ->assertOk()
+        ->assertSee('"queue_config"')
+        ->assertSee('"dispatched_from"')
+        ->assertDontSee('queueConfig')
+        ->assertDontSee('dispatchedFrom');
+});
+
 it('errors when the requested entity is missing', function () {
     mcpUseIndex(mcpTempIndex());
 

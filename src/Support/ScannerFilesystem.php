@@ -40,13 +40,17 @@ trait ScannerFilesystem
         }
     }
 
+    /**
+     * @throws \InvalidArgumentException when the path is outside the app root
+     *                                   (the index never carries absolute paths)
+     */
     private function relativePath(string $appRoot, string $absolute): string
     {
         $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        $relative = str_starts_with($absolute, $prefix)
-            ? substr($absolute, strlen($prefix))
-            : $absolute;
+        if (! str_starts_with($absolute, $prefix)) {
+            throw new \InvalidArgumentException("Path is outside the app root: {$absolute}");
+        }
 
-        return ltrim(str_replace(DIRECTORY_SEPARATOR, '/', $relative), '/');
+        return str_replace(DIRECTORY_SEPARATOR, '/', substr($absolute, strlen($prefix)));
     }
 }

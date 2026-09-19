@@ -14,6 +14,7 @@ use Lucasp\Loom\Mcp\ImpactNoteFormatter;
 use Lucasp\Loom\Query\ChangeKind;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('impact-of-change')]
 #[Description('Blast-radius report for removing or renaming a class. For an event: who dispatches it, who handles it (named + closure listeners), and the transitive downstream chain. For a listener/job: which events it handles and whether removing it would orphan an event (an event whose only handler is this class). Notes call out what static analysis cannot determine.')]
 final class ImpactOfChangeTool extends Tool

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Query\Dto;
 
 /**
  * Transitive handler/dispatch chain rooted at an event, bounded by depth.
+ *
+ * @internal
  */
 final readonly class EventChain
 {
@@ -26,23 +28,17 @@ final readonly class EventChain
     }
 
     /**
-     * @param  bool  $extended  also emit `cycles` and `truncated` (omitted from the legacy MCP shape)
      * @return array<string, mixed>
      */
-    public function toArray(bool $extended = false): array
+    public function toArray(): array
     {
-        $out = [
+        return [
             'root' => $this->root,
             'depth' => $this->depth,
             'edges' => array_map(static fn (ChainEdge $e): array => $e->toArray(), $this->edges),
             'events_reached' => $this->eventsReached,
+            'cycles' => array_map(static fn (ChainCycle $c): array => $c->toArray(), $this->cycles),
+            'truncated' => $this->truncated,
         ];
-
-        if ($extended) {
-            $out['cycles'] = array_map(static fn (ChainCycle $c): array => $c->toArray(), $this->cycles);
-            $out['truncated'] = $this->truncated;
-        }
-
-        return $out;
     }
 }

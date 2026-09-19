@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Sections;
 
 /**
  * Entity type as the UI presents it: badge glyph, label and CSS modifier.
+ *
+ * @internal
  */
 enum NodeType: string
 {

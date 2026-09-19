@@ -15,6 +15,7 @@ use Lucasp\Loom\Ui\NodeType;
 use Lucasp\Loom\Ui\Support\Fqcn;
 use Lucasp\Loom\Ui\UiContext;
 
+/** @internal */
 #[Layout('loom::layouts.app')]
 class EventDetail extends Component
 {

@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Query\Dto;
 
 use Lucasp\Loom\Index\Model\DispatchSite;
 
+/** @internal */
 final readonly class DispatchSiteSet
 {
     /** @param  list<DispatchSite>  $sites */

@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Ui\Dto;
 
 use Lucasp\Loom\Ui\NodeType;
 
+/** @internal */
 final readonly class DownstreamDispatch
 {
     public function __construct(

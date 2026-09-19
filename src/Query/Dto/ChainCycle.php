@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Query\Dto;
 /**
  * A handler dispatching an event the walk already reached (a true cycle, or a
  * diamond re-converging). The walk does not descend into it again.
+ *
+ * @internal
  */
 final readonly class ChainCycle
 {

@@ -8,6 +8,8 @@ use Lucasp\Loom\Index\Sections;
 
 /**
  * Entities addressable by FQCN through {@see IndexQuery::entity()}.
+ *
+ * @internal
  */
 enum EntityKind: string
 {

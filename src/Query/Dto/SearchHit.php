@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Query\Dto;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
 
+/** @internal */
 final readonly class SearchHit
 {
     /**
