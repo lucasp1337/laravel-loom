@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui\Support;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\Dto\SearchHit;
 use Lucasp\Loom\Query\EntityKind;
@@ -14,9 +15,6 @@ use Lucasp\Loom\Query\IndexQuery;
  */
 final class Links
 {
-    /** @var array<string, ?string> */
-    private array $resolved = [];
-
     public function __construct(private readonly IndexQuery $query)
     {
     }
@@ -28,7 +26,7 @@ final class Links
 
     public function section(Sections $section, ?string $search = null): string
     {
-        return route('loom.section', array_filter(['section' => $section->value, 'q' => $search]));
+        return route('loom.section', Arr::whereNotNull(['section' => $section->value, 'q' => $search]));
     }
 
     public function entity(EntityKind $kind, string $fqcn): string
@@ -42,7 +40,7 @@ final class Links
 
     public function chain(string $eventFqcn, ?int $depth = null): string
     {
-        return route('loom.chain', array_filter(['fqcn' => Fqcn::toSlug($eventFqcn), 'depth' => $depth]));
+        return route('loom.chain', Arr::whereNotNull(['fqcn' => Fqcn::toSlug($eventFqcn), 'depth' => $depth]));
     }
 
     public function hit(SearchHit $hit): string
@@ -62,20 +60,12 @@ final class Links
     /** Page for a class that appears in the index under any entity kind, or null. */
     public function forFqcn(string $fqcn): ?string
     {
-        if (array_key_exists($fqcn, $this->resolved)) {
-            return $this->resolved[$fqcn];
-        }
-
-        $url = null;
-        if (str_contains($fqcn, '\\')) {
-            foreach (EntityKind::cases() as $kind) {
-                if ($this->query->entity($kind, $fqcn) !== null) {
-                    $url = $this->entity($kind, $fqcn);
-                    break;
-                }
+        foreach (EntityKind::cases() as $kind) {
+            if ($this->query->entity($kind, $fqcn) !== null) {
+                return $this->entity($kind, $fqcn);
             }
         }
 
-        return $this->resolved[$fqcn] = $url;
+        return null;
     }
 }

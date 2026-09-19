@@ -10,7 +10,7 @@ it('shows the run-a-scan state when the snapshot is missing', function () {
     unlink($this->snapshot);
 
     $this->get('/loom')
-        ->assertOk()
+        ->assertStatus(503)
         ->assertSee('No index found')
         ->assertSee('php artisan loom:scan');
 
@@ -21,7 +21,7 @@ it('shows the could-not-load state for an invalid snapshot', function () {
     file_put_contents($this->snapshot, '{"not":"an index"}');
 
     $this->get('/loom')
-        ->assertOk()
+        ->assertStatus(503)
         ->assertSee('Index could not be loaded')
         ->assertSee('php artisan loom:scan');
 });

@@ -29,7 +29,7 @@ final class RequireIndex
                 'unreadable' => $this->context->source->isAvailable(),
                 'message' => $e->getMessage(),
                 'path' => $this->context->source->path(),
-            ]);
+            ], 503);
         }
 
         return $next($request);

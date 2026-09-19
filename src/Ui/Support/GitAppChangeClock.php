@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui\Support;
 
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -16,8 +17,22 @@ final class GitAppChangeClock implements AppChangeClock
     {
     }
 
+    private const TTL_SECONDS = 30;
+
     public function lastChange(): ?int
     {
+        // 0 caches an "unknown" result so a missing git isn't retried every render.
+        $cached = Cache::remember('loom.app_change.'.md5($this->basePath), self::TTL_SECONDS, fn (): int => $this->probe() ?? 0);
+
+        return $cached > 0 ? $cached : null;
+    }
+
+    private function probe(): ?int
+    {
+        if (! class_exists(Process::class)) {
+            return null;
+        }
+
         try {
             $process = new Process(['git', 'log', '-1', '--format=%ct', '--', 'app'], $this->basePath, null, null, 3);
             $process->run();

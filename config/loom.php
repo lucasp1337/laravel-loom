@@ -21,7 +21,7 @@ return [
         // Optional UI-only override of the top-level `index_path`.
         'index_path' => null,
 
-        // Default chain depth on the chain page (clamped to 1-5).
+        // Default chain depth on the chain page (clamped to 1-6).
         'chain_depth' => 3,
     ],
 ];

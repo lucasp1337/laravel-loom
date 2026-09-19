@@ -222,10 +222,10 @@ final class IndexQuery
 
     public function list(Sections $section, ?SectionQuery $query = null): Page
     {
-        $query ??= new SectionQuery();
+        $query ??= new SectionQuery;
         $items = SectionReader::items($this->index(), $section);
 
-        $needle = $query->search === null ? '' : strtolower(trim($query->search));
+        $needle = $query->search === null ? '' : mb_strtolower(trim($query->search));
         $items = array_values(array_filter($items, function (object $item) use ($query, $needle): bool {
             foreach ($query->filters as $property => $expected) {
                 if (SectionReader::comparable($item, $property) !== SectionReader::normalise($expected)) {
@@ -234,8 +234,9 @@ final class IndexQuery
             }
 
             return $needle === ''
-                || str_contains(strtolower(SectionReader::name($item)), $needle)
-                || str_contains(strtolower(SectionReader::file($item)), $needle);
+                || str_contains(mb_strtolower(SectionReader::name($item)), $needle)
+                || str_contains(mb_strtolower(SectionReader::path($item)), $needle)
+                || str_contains(mb_strtolower(SectionReader::file($item)), $needle);
         }));
 
         if ($query->sort !== null) {
@@ -243,7 +244,8 @@ final class IndexQuery
         }
 
         $perPage = max(1, $query->perPage);
-        $page = max(1, $query->page);
+        $lastPage = max(1, (int) ceil(count($items) / $perPage));
+        $page = min($lastPage, max(1, $query->page));
 
         return new Page(array_slice($items, ($page - 1) * $perPage, $perPage), count($items), $page, $perPage);
     }
@@ -384,6 +386,7 @@ final class IndexQuery
     {
         $key = static fn (object $item): string|int => match ($field) {
             SortField::NAME => strtolower(SectionReader::name($item)),
+            SortField::URI => strtolower(SectionReader::path($item)),
             SortField::FILE => strtolower(SectionReader::file($item)),
             SortField::HANDLER_COUNT => SectionReader::handlerCount($item),
             SortField::DISPATCH_COUNT => SectionReader::dispatchCount($item),

@@ -63,7 +63,7 @@
 
                 onKey: function (e) {
                     var t = e.target;
-                    var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+                    var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
                     if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
                         e.preventDefault();
@@ -74,8 +74,8 @@
                         if (this.palette) { this.closePalette(); } else { this.drawer = false; window.dispatchEvent(new CustomEvent('loom-escape')); }
                         return;
                     }
-                    if (typing || e.metaKey || e.ctrlKey || e.altKey) { return; }
-                    if (e.key === '/') { e.preventDefault(); this.openPalette(); return; }
+                    if (typing || this.palette || e.metaKey || e.ctrlKey || e.altKey) { return; }
+                    if (e.key === '/') { e.preventDefault(); this.pending = false; this.openPalette(); return; }
 
                     if (this.pending) {
                         this.pending = false;
