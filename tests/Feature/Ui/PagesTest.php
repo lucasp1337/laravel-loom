@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Livewire\Livewire;
 use Lucasp\Loom\Index\Sections;
+use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Tests\Feature\Ui\UiSnapshot;
 use Lucasp\Loom\Ui\Livewire\ChainPage;
 use Lucasp\Loom\Ui\Livewire\Dashboard;
@@ -11,6 +12,8 @@ use Lucasp\Loom\Ui\Livewire\EntityDetail;
 use Lucasp\Loom\Ui\Livewire\EventDetail;
 use Lucasp\Loom\Ui\Livewire\Palette;
 use Lucasp\Loom\Ui\Livewire\SectionIndex;
+use Lucasp\Loom\Ui\Support\AppChangeClock;
+use Lucasp\Loom\Ui\UiContext;
 
 uses(UiSnapshot::class);
 
@@ -139,9 +142,9 @@ it('walks the chain to the configured depth', function () {
         ->and($depth3['depth'])->toBe(3);
 });
 
-it('clamps chain depth to 1-5', function () {
+it('clamps chain depth to the shared bounds', function () {
     $test = Livewire::test(ChainPage::class, ['fqcn' => ORDER])->call('setDepth', 99);
-    expect($test->get('depth'))->toBe(5);
+    expect($test->get('depth'))->toBe(ChainDepth::MAX);
 
     $test->call('setDepth', 0);
     expect($test->get('depth'))->toBe(1);
@@ -196,8 +199,8 @@ it('searches across entities from the palette', function () {
 
 it('applies the stale banner when app/ changed after the scan', function () {
     app()->bind(
-        Lucasp\Loom\Ui\Support\AppChangeClock::class,
-        fn () => new class implements Lucasp\Loom\Ui\Support\AppChangeClock
+        AppChangeClock::class,
+        fn () => new class implements AppChangeClock
         {
             public function lastChange(): ?int
             {
@@ -207,4 +210,15 @@ it('applies the stale banner when app/ changed after the scan', function () {
     );
 
     $this->get('/loom')->assertSee('Index is 7 days older than your last commit to app/');
+});
+
+it('tolerates non-numeric page and depth query values', function () {
+    $this->get('/loom/events?page=abc')->assertOk();
+    $this->get('/loom/events?page=999')->assertOk()->assertSee('rows');
+    $this->get('/loom/chain/App.Events.OrderPlaced?depth=abc')->assertOk();
+});
+
+it('keeps a search term of zero in section links', function () {
+    expect(app(UiContext::class)->links->section(Sections::EVENTS, '0'))
+        ->toContain('q=0');
 });

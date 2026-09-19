@@ -10,6 +10,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Lucasp\Loom\Index\Sections;
+use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Ui\LoomConfig;
 use Lucasp\Loom\Ui\NodeType;
@@ -24,11 +25,13 @@ class ChainPage extends Component
 {
     use RendersPage;
 
+    private const MAX_COLLAPSED = 200;
+
     #[Locked]
     public string $root = '';
 
     #[Url(except: '')]
-    public ?int $depth = null;
+    public int|string|null $depth = null;
 
     #[Url(except: '')]
     public ?string $node = null;
@@ -57,7 +60,7 @@ class ChainPage extends Component
     {
         $this->collapsed = in_array($key, $this->collapsed, true)
             ? array_values(array_diff($this->collapsed, [$key]))
-            : [...$this->collapsed, $key];
+            : array_slice([...$this->collapsed, $key], -self::MAX_COLLAPSED);
     }
 
     public function render(UiContext $ui, LoomConfig $config): View
@@ -66,8 +69,8 @@ class ChainPage extends Component
             abort(response()->view('loom::errors.not-found', ['fqcn' => $this->root], 404));
         }
 
-        $depth = LoomConfig::clampDepth($this->depth ?? $config->chainDepth());
-        $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), $this->collapsed, $this->node);
+        $depth = is_numeric($this->depth) ? LoomConfig::clampDepth((int) $this->depth) : $config->chainDepth();
+        $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), array_slice(array_values(array_filter($this->collapsed, is_string(...))), 0, self::MAX_COLLAPSED), $this->node);
 
         $panel = null;
         foreach ($graph['nodes'] as $node) {
@@ -81,7 +84,7 @@ class ChainPage extends Component
         return $this->renderPage('loom::livewire.chain-page', [
             'graph' => $graph,
             'depth' => $depth,
-            'depths' => range(LoomConfig::CHAIN_MIN, LoomConfig::CHAIN_MAX),
+            'depths' => range(ChainDepth::MIN, ChainDepth::MAX),
             'panel' => $panel,
             'short' => Fqcn::short($this->root),
             'hasHandlers' => count($graph['nodes']) > 1,

@@ -53,6 +53,12 @@ final class SectionReader
         };
     }
 
+    /** Display path for routes ("/orders"), the name otherwise. */
+    public static function path(object $item): string
+    {
+        return $item instanceof Route ? '/'.ltrim($item->uri, '/') : self::name($item);
+    }
+
     public static function file(object $item): string
     {
         return self::stringProperty($item, 'file');

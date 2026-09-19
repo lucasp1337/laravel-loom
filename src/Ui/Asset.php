@@ -26,8 +26,15 @@ enum Asset: string
         };
     }
 
-    /** Short content hash, used as a cache-busting query on the asset URL. */
+    /** Short content hash, used as a cache-busting query on the asset URL; computed once per process. */
     public function version(): string
+    {
+        static $versions = [];
+
+        return $versions[$this->value] ??= $this->hash();
+    }
+
+    private function hash(): string
     {
         $hash = @md5_file($this->path());
 

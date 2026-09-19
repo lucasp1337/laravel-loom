@@ -12,10 +12,6 @@ use Lucasp\Loom\Query\ChainDepth;
  */
 final class LoomConfig
 {
-    public const CHAIN_MIN = 1;
-
-    public const CHAIN_MAX = 5;
-
     public function __construct(private readonly Repository $config)
     {
     }
@@ -28,8 +24,9 @@ final class LoomConfig
     public function path(): string
     {
         $path = $this->config->get('loom.ui.path', 'loom');
+        $path = is_string($path) ? trim($path, '/') : '';
 
-        return is_string($path) ? trim($path, '/') : 'loom';
+        return $path === '' ? 'loom' : $path;
     }
 
     public function domain(): ?string
@@ -63,6 +60,6 @@ final class LoomConfig
 
     public static function clampDepth(int $depth): int
     {
-        return max(self::CHAIN_MIN, min(self::CHAIN_MAX, $depth));
+        return ChainDepth::clamp($depth);
     }
 }

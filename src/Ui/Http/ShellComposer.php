@@ -29,7 +29,7 @@ final class ShellComposer
         $nav = [];
         $go = ['d' => $this->context->links->dashboard()];
         foreach ($query->sections() as $info) {
-            if ($info->present && $info->inStats) {
+            if ($info->present && $info->listed) {
                 $spec = SectionPresentation::for($info->section);
                 $url = $this->context->links->section($info->section);
                 $nav[] = new NavItem($info->section, $spec->label, $info->count, $url);

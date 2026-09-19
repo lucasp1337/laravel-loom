@@ -45,7 +45,7 @@ final class LoomUiServiceProvider extends ServiceProvider
             $app->make(LoomConfig::class)->indexPath() ?? $app->storagePath('loom/index.json'),
         ));
         $this->app->singleton(UiContext::class, fn ($app): UiContext => new UiContext($app->make(IndexSource::class)));
-        $this->app->bind(AppChangeClock::class, fn ($app): AppChangeClock => new GitAppChangeClock($app->basePath()));
+        $this->app->singleton(AppChangeClock::class, fn ($app): AppChangeClock => new GitAppChangeClock($app->basePath()));
     }
 
     public function boot(): void
@@ -99,7 +99,7 @@ final class LoomUiServiceProvider extends ServiceProvider
             return;
         }
 
-        $group = array_filter(['prefix' => $config->path(), 'domain' => $config->domain()]);
+        $group = ['prefix' => $config->path(), ...($config->domain() === null ? [] : ['domain' => $config->domain()])];
 
         // Static files stay outside the gate so the 403 page can still load its CSS.
         Route::group($group, function (): void {

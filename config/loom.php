@@ -17,7 +17,7 @@ return [
         // Snapshot the UI reads; null means storage/loom/index.json.
         'index_path' => env('LOOM_INDEX_PATH'),
 
-        // Default chain depth on the chain page (clamped to 1-5).
+        // Default chain depth on the chain page (clamped to 1-6).
         'chain_depth' => 3,
     ],
 ];

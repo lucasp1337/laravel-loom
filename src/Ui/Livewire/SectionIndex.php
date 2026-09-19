@@ -38,11 +38,11 @@ class SectionIndex extends Component
     #[Url(except: '')]
     public string $sort = '';
 
-    #[Url(except: 'asc')]
+    #[Url(except: SortDirection::ASC->value)]
     public string $dir = SortDirection::ASC->value;
 
     #[Url(except: 1)]
-    public int $page = 1;
+    public int|string $page = 1;
 
     public function mount(string $section): void
     {
@@ -81,6 +81,11 @@ class SectionIndex extends Component
         $this->page = max(1, $page);
     }
 
+    private function pageNumber(): int
+    {
+        return is_numeric($this->page) ? max(1, (int) $this->page) : 1;
+    }
+
     public function render(UiContext $ui): View
     {
         $section = Sections::from($this->section);
@@ -90,7 +95,7 @@ class SectionIndex extends Component
         $dir = SortDirection::tryFrom($this->dir) ?? SortDirection::ASC;
         $search = trim($this->search) === '' ? null : trim($this->search);
 
-        $page = $ui->query->list($section, new SectionQuery($search, [], $sort, $dir, $this->page, self::PER_PAGE));
+        $page = $ui->query->list($section, new SectionQuery($search, [], $sort, $dir, $this->pageNumber(), self::PER_PAGE));
         $total = $this->totalRows($ui, $section);
 
         $rows = [];

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\IndexLoader;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Route;
@@ -15,6 +16,7 @@ use Lucasp\Loom\Query\HandlerKind;
 use Lucasp\Loom\Query\ImpactEntity;
 use Lucasp\Loom\Query\ImpactNote;
 use Lucasp\Loom\Query\IndexQuery;
+use Lucasp\Loom\Query\IndexSource;
 use Lucasp\Loom\Query\SortDirection;
 use Lucasp\Loom\Query\SortField;
 
@@ -25,13 +27,13 @@ function queryFor(array $overrides = []): IndexQuery
     $data = array_merge(require __DIR__.'/../../Fixtures/query-index.php', $overrides);
     $index = (new IndexLoader)->fromArray($data);
 
-    return new IndexQuery(new class($index) implements \Lucasp\Loom\Query\IndexSource
+    return new IndexQuery(new class($index) implements IndexSource
     {
-        public function __construct(private readonly \Lucasp\Loom\Index\Index $index)
+        public function __construct(private readonly Index $index)
         {
         }
 
-        public function index(): \Lucasp\Loom\Index\Index
+        public function index(): Index
         {
             return $this->index;
         }
@@ -340,7 +342,7 @@ it('describes every section in registry order', function () {
         ->and($byName['events']->count)->toBe(5)
         ->and($byName['events']->detailKind)->toBe(EntityKind::EVENT)
         ->and($byName['routes']->detailKind)->toBeNull()
-        ->and($byName['model_events']->inStats)->toBeFalse();
+        ->and($byName['model_events']->listed)->toBeFalse();
 });
 
 it('lists a section with pagination', function () {
@@ -409,10 +411,13 @@ it('lists every section without error', function () {
     }
 });
 
-it('names routes by verb and uri when sorting', function () {
-    $page = queryFor()->list(Sections::ROUTES, new SectionQuery(sort: SortField::NAME));
+it('sorts routes by displayed uri and by verb-prefixed name', function () {
+    $q = queryFor();
+    $label = static fn (Route $r) => $r->method.' '.$r->uri;
 
-    expect(array_map(static fn (Route $r) => $r->method.' '.$r->uri, $page->items))
+    expect(array_map($label, $q->list(Sections::ROUTES, new SectionQuery(sort: SortField::URI))->items))
+        ->toBe(['GET health', 'POST orders', 'GET /ping'])
+        ->and(array_map($label, $q->list(Sections::ROUTES, new SectionQuery(sort: SortField::NAME))->items))
         ->toBe(['GET /ping', 'GET health', 'POST orders']);
 });
 
@@ -491,4 +496,15 @@ it('breaks search ties by label, applies the limit, and ignores empty terms', fu
         ->and($q->search('   '))->toBe([])
         ->and($q->search('zzzz-none'))->toBe([])
         ->and(count($labels))->toBeGreaterThan(2);
+});
+
+it('clamps an out-of-range page to the last page', function () {
+    $page = queryFor()->list(Sections::EVENTS, new SectionQuery(page: 999, perPage: 2));
+
+    expect($page->page)->toBe($page->lastPage())->and($page->items)->not->toBeEmpty();
+});
+
+it('matches a route by leading-slash search', function () {
+    expect(queryFor()->list(Sections::ROUTES, new SectionQuery(search: '/ping'))->total)->toBe(1)
+        ->and(queryFor()->search('/ping'))->not->toBeEmpty();
 });

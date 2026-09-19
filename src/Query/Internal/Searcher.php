@@ -41,13 +41,15 @@ final class Searcher
     ];
 
     public function __construct(private readonly Index $index)
+
     {
+
     }
 
     /** @return list<SearchHit> */
     public function search(string $term, int $limit): array
     {
-        $needle = strtolower(trim($term));
+        $needle = mb_strtolower(trim($term));
         if ($needle === '' || $limit < 1) {
             return [];
         }
@@ -73,8 +75,12 @@ final class Searcher
         $name = SectionReader::name($item);
         $file = SectionReader::file($item);
         $short = $this->shortName($item, $name);
+        // Route short names drop the leading slash, so a "/orders" query must too.
+        if ($item instanceof Route) {
+            $needle = ltrim($needle, '/') ?: $needle;
+        }
 
-        $score = $this->score($needle, strtolower($name), strtolower($short), strtolower($file), $item);
+        $score = $this->score($needle, mb_strtolower($name), mb_strtolower($short), mb_strtolower($file), $item);
         if ($score === 0) {
             return null;
         }
@@ -94,7 +100,7 @@ final class Searcher
     private function score(string $needle, string $name, string $short, string $file, object $item): int
     {
         // A route's name is a second exact-match handle alongside "VERB uri".
-        $routeName = $item instanceof Route && $item->name !== null ? strtolower($item->name) : null;
+        $routeName = $item instanceof Route && $item->name !== null ? mb_strtolower($item->name) : null;
 
         return match (true) {
             $needle === $name => self::EXACT,

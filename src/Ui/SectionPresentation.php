@@ -184,7 +184,7 @@ final class SectionPresentation
                 'Loom found no routes in routes/.',
                 [
                     new ColumnSpec('method', 'Method', static fn (Route $r): string => $r->method, ColumnRole::TEXT),
-                    new ColumnSpec('uri', 'URI', static fn (Route $r): string => '/'.ltrim($r->uri, '/'), ColumnRole::NAME, SortField::NAME),
+                    new ColumnSpec('uri', 'URI', static fn (Route $r): string => '/'.ltrim($r->uri, '/'), ColumnRole::NAME, SortField::URI),
                     self::text('action', 'Action', static fn (Route $r): string => $r->controllerFqcn === null
                         ? 'closure'
                         : $r->controllerFqcn.'::'.($r->controllerMethod ?? '__invoke')),

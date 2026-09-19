@@ -13,7 +13,7 @@ final readonly class SectionInfo
         public Sections $section,
         public int $count,
         public bool $present,
-        public bool $inStats,
+        public bool $listed,
         public ?EntityKind $detailKind,
     ) {
     }
