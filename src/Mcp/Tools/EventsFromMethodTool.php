@@ -10,19 +10,14 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
-use Lucasp\Loom\Mcp\EventGraph;
+use Lucasp\Loom\Query\ChainDepth;
+use Lucasp\Loom\Query\IndexQuery;
 
 #[Name('events-from-method')]
 #[Description('Transitive closure starting from a Class::method (or Class@method, or a bare Class for every method): what it dispatches, then the event chain following each dispatched event. Depth bounds the chain (1..6, default 3). Method granularity is exact only for routes; listeners/observers/jobs resolve at class level.')]
 final class EventsFromMethodTool extends Tool
 {
-    private const DEPTH_MIN = 1;
-
-    private const DEPTH_MAX = 6;
-
-    private const DEPTH_DEFAULT = 3;
-
-    public function __construct(private readonly EventGraph $graph)
+    public function __construct(private readonly IndexQuery $query)
     {
     }
 
@@ -35,7 +30,7 @@ final class EventsFromMethodTool extends Tool
                 ->required(),
             'depth' => $schema->integer()
                 ->description('How many handler→dispatch hops to follow per chain (clamped to 1..6).')
-                ->default(self::DEPTH_DEFAULT),
+                ->default(ChainDepth::DEFAULT),
         ];
     }
 
@@ -46,10 +41,10 @@ final class EventsFromMethodTool extends Tool
             'depth' => 'sometimes|integer',
         ]);
 
-        $depth = max(self::DEPTH_MIN, min(self::DEPTH_MAX, (int) ($validated['depth'] ?? self::DEPTH_DEFAULT)));
+        $depth = (int) ($validated['depth'] ?? ChainDepth::DEFAULT);
 
         return Response::text((string) json_encode(
-            $this->graph->fromMethod($validated['method_fqcn'], $depth),
+            $this->query->eventsFromMethod($validated['method_fqcn'], $depth)->toArray(),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         ));
     }

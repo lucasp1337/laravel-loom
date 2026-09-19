@@ -10,6 +10,7 @@ use Lucasp\Loom\Check\CheckRunner;
 use Lucasp\Loom\Check\Format\CheckFormatterFactory;
 use Lucasp\Loom\Check\Format\UnknownCheckFormatException;
 use Lucasp\Loom\Check\RuleKey;
+use Lucasp\Loom\Support\IndexPath;
 
 class CheckCommand extends Command
 {
@@ -31,7 +32,7 @@ class CheckCommand extends Command
     {
         $indexPath = $this->stringArg('index');
         if ($indexPath === '') {
-            $indexPath = $this->laravel->storagePath('loom/index.json');
+            $indexPath = $this->laravel->make(IndexPath::class)->resolve();
         }
 
         $index = $this->decode($indexPath);

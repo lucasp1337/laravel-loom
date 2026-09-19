@@ -10,12 +10,12 @@ It starts a local, read-only [MCP](https://modelcontextprotocol.io) server over 
 php artisan loom:mcp
 ```
 
-The command resolves an index, then hands control to the stdio transport (JSON-RPC over stdin/stdout). By default it serves `storage/loom/index.json`: if that file is missing it runs `loom:scan` once to produce it, and it reloads automatically whenever the file changes on disk (watched by mtime — re-running `loom:scan` in another terminal is enough to refresh a running server).
+The command resolves an index, then hands control to the stdio transport (JSON-RPC over stdin/stdout). By default it serves `storage/loom/index.json`: if that file is missing it runs `loom:scan` once to produce it, and it reloads automatically whenever the file changes on disk (watched by mtime and size; a corrupt rewrite keeps the last good index — re-running `loom:scan` in another terminal is enough to refresh a running server).
 
 | Flag             | Effect                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------- |
 | `--snapshot=PATH`| Serve a specific index JSON instead of the default. The file is used as-is; auto-scan is off (you own it). |
-| `--scan`         | Run a fresh `loom:scan` before serving.                                                                 |
+| `--scan`         | Run a fresh `loom:scan` before serving. Cannot be combined with `--snapshot`.                           |
 | `--no-scan`      | Never auto-scan. Require the snapshot to already exist; error out if it doesn't.                        |
 
 ## Connecting an agent

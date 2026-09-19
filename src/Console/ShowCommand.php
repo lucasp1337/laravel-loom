@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
+use Lucasp\Loom\Support\IndexPath;
 
 class ShowCommand extends Command
 {
@@ -14,7 +15,7 @@ class ShowCommand extends Command
 
     public function handle(): int
     {
-        $path = $this->laravel->storagePath('loom/index.json');
+        $path = $this->laravel->make(IndexPath::class)->resolve();
         if (! is_file($path)) {
             $this->error("Loom index not found at {$path}. Run `php artisan loom:scan` first.");
 

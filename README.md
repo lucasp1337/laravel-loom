@@ -494,6 +494,10 @@ php artisan loom:mcp   # serves storage/loom/index.json over stdio
 
 It exposes eleven tools — lookups (`list-entities`, `get-entity`), edges (`handlers-for`, `dispatch-sites-for`, `dispatches-from`), chains (`events-following`, `route-to-events`), and analysis (`impact-of-change`, `find-orphans`). Point any stdio MCP client at `php artisan loom:mcp` with your project as the working directory. The full tool reference and client config are in [docs/mcp.md](docs/mcp.md).
 
+## Browser UI
+
+A read-only UI at `/loom` browses the index: dashboard, section tables, entity detail, and an event chain graph. It reads `storage/loom/index.json`, so run `php artisan loom:scan` first. Access is gated by `viewLoom`, which allows the `local` environment only by default. Config, the gate override, URLs, and shortcuts are in [docs/ui.md](docs/ui.md).
+
 ## Requirements
 
 - PHP **8.3+**
@@ -520,6 +524,7 @@ A benchmark suite (`composer bench`) measures scan cost across generated tiny/me
 - [Schema](docs/schema.md) — JSON schema reference
 - [Index PHP API](docs/index-api.md) — load an index into typed objects (`IndexLoader`, getters, value objects)
 - [GitHub Action](docs/github-action.md) — the composite action that gates PRs on Loom
+- [Browser UI](docs/ui.md) — the read-only `/loom` UI: config, gate, screens, shortcuts
 - [MCP server](docs/mcp.md) — the embedded `loom:mcp` server and its eleven tools for AI agents
 - [Scanners](docs/scanners/) — per-scanner behavior, edge cases, known limitations
 - [Contributing](docs/contributing.md) — toolchain, Docker workflow, how to add a scanner
