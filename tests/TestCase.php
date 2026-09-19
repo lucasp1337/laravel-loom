@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Tests;
 
 use Illuminate\Foundation\Application;
 use Laravel\Mcp\Server\McpServiceProvider;
+use Livewire\LivewireServiceProvider;
 use Lucasp\Loom\LoomServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -22,7 +23,15 @@ class TestCase extends Orchestra
         // tools rely on.
         return [
             McpServiceProvider::class,
+            LivewireServiceProvider::class,
             LoomServiceProvider::class,
         ];
+    }
+
+    /** @param  Application  $app */
+    protected function defineEnvironment($app): void
+    {
+        // The UI runs the `web` middleware group, which needs an app key.
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
     }
 }

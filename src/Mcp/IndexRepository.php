@@ -7,7 +7,8 @@ namespace Lucasp\Loom\Mcp;
 use Illuminate\Contracts\Console\Kernel as Artisan;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\IndexLoader;
-use RuntimeException;
+use Lucasp\Loom\Query\IndexSource;
+use Lucasp\Loom\Query\IndexUnavailableException;
 
 /**
  * Resolves the Loom index for the MCP server. Holds the snapshot path and the
@@ -16,7 +17,7 @@ use RuntimeException;
  * calls are the only consumer). When auto-scan is on and the snapshot is
  * missing, it runs `loom:scan` once to produce it.
  */
-final class IndexRepository
+final class IndexRepository implements IndexSource
 {
     private string $path;
 
@@ -60,6 +61,11 @@ final class IndexRepository
         return $this->path;
     }
 
+    public function isAvailable(): bool
+    {
+        return file_exists($this->path);
+    }
+
     /**
      * The typed read-model, reloaded if the snapshot changed since last access.
      */
@@ -68,7 +74,7 @@ final class IndexRepository
         $this->refresh();
 
         if ($this->index === null) {
-            throw new RuntimeException("Loom index could not be loaded from [{$this->path}].");
+            throw IndexUnavailableException::unloadable($this->path);
         }
 
         return $this->index;
@@ -93,7 +99,7 @@ final class IndexRepository
 
         $mtime = @filemtime($this->path);
         if ($mtime === false) {
-            throw new RuntimeException("Loom index not found at [{$this->path}]. Run `php artisan loom:scan` first.");
+            throw IndexUnavailableException::missing($this->path);
         }
 
         if ($this->index !== null && $mtime === $this->loadedMtime) {

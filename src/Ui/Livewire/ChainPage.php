@@ -1,0 +1,104 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lucasp\Loom\Ui\Livewire;
+
+use Illuminate\Contracts\View\View;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
+use Livewire\Component;
+use Lucasp\Loom\Index\Sections;
+use Lucasp\Loom\Query\EntityKind;
+use Lucasp\Loom\Ui\LoomConfig;
+use Lucasp\Loom\Ui\NodeType;
+use Lucasp\Loom\Ui\Support\ChainGraph;
+use Lucasp\Loom\Ui\Support\Fqcn;
+use Lucasp\Loom\Ui\Support\NodeFacts;
+use Lucasp\Loom\Ui\UiContext;
+
+/**
+ * Chain page state. Livewire owns depth, selection and collapsed nodes and
+ * ships the graph as data; the Alpine `loomChain` component owns the canvas.
+ */
+#[Layout('loom::layouts.app')]
+class ChainPage extends Component
+{
+    use RendersPage;
+
+    #[Locked]
+    public string $root = '';
+
+    #[Url(except: '')]
+    public ?int $depth = null;
+
+    #[Url(except: '')]
+    public ?string $node = null;
+
+    /** @var list<string> */
+    public array $collapsed = [];
+
+    public function mount(string $fqcn): void
+    {
+        $this->root = Fqcn::fromSlug($fqcn);
+        $this->node ??= $this->root;
+    }
+
+    public function setDepth(int $depth): void
+    {
+        $this->depth = LoomConfig::clampDepth($depth);
+        $this->collapsed = [];
+    }
+
+    public function select(?string $id): void
+    {
+        $this->node = $id;
+    }
+
+    public function toggle(string $key): void
+    {
+        $this->collapsed = in_array($key, $this->collapsed, true)
+            ? array_values(array_diff($this->collapsed, [$key]))
+            : [...$this->collapsed, $key];
+    }
+
+    public function render(UiContext $ui, LoomConfig $config): View
+    {
+        if ($ui->query->entity(EntityKind::EVENT, $this->root) === null) {
+            abort(response()->view('loom::errors.not-found', ['fqcn' => $this->root], 404));
+        }
+
+        $depth = LoomConfig::clampDepth($this->depth ?? $config->chainDepth());
+        $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), $this->collapsed, $this->node);
+
+        $panel = null;
+        foreach ($graph['nodes'] as $node) {
+            if ($this->node !== null && $node['id'] === $this->node && $node['type'] !== NodeType::CYCLE->value) {
+                $type = NodeType::from(is_string($node['type']) ? $node['type'] : '');
+                $panel = NodeFacts::for($ui->query, $ui->links, $type, $this->node);
+                break;
+            }
+        }
+
+        return $this->renderPage('loom::livewire.chain-page', [
+            'graph' => $graph,
+            'depth' => $depth,
+            'depths' => range(LoomConfig::CHAIN_MIN, LoomConfig::CHAIN_MAX),
+            'panel' => $panel,
+            'short' => Fqcn::short($this->root),
+            'hasHandlers' => count($graph['nodes']) > 1,
+            'links' => $ui->links,
+            'types' => [NodeType::EVENT, NodeType::LISTENER, NodeType::CLOSURE, NodeType::JOB, NodeType::MAILABLE, NodeType::NOTIFICATION, NodeType::CYCLE],
+        ], [
+            'title' => 'Chain · '.Fqcn::short($this->root),
+            'crumbs' => [
+                ['loom', $ui->links->dashboard()],
+                ['events', $ui->links->section(Sections::EVENTS)],
+                [Fqcn::short($this->root), $ui->links->entity(EntityKind::EVENT, $this->root)],
+                ['chain', null],
+            ],
+            'active' => Sections::EVENTS,
+        ]);
+    }
+}

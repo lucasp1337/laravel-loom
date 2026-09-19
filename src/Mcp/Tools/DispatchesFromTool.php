@@ -10,13 +10,14 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
-use Lucasp\Loom\Mcp\EventGraph;
+use Lucasp\Loom\Query\Dto\DispatchRef;
+use Lucasp\Loom\Query\IndexQuery;
 
 #[Name('dispatches-from')]
 #[Description('Given a method, what does it directly dispatch? Returns the events and jobs dispatched from a Class::method (also accepts Class@method or a bare Class), with kind, confidence, file and line.')]
 final class DispatchesFromTool extends Tool
 {
-    public function __construct(private readonly EventGraph $graph)
+    public function __construct(private readonly IndexQuery $query)
     {
     }
 
@@ -38,7 +39,10 @@ final class DispatchesFromTool extends Tool
             return Response::error('method_fqcn is required.');
         }
 
-        $dispatches = $this->graph->dispatchesFromMethod($methodFqcn);
+        $dispatches = array_map(
+            static fn (DispatchRef $d): array => $d->toArray(),
+            $this->query->dispatchesFrom($methodFqcn),
+        );
 
         return Response::text((string) json_encode([
             'method' => $methodFqcn,

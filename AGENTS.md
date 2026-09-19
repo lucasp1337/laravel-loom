@@ -41,6 +41,8 @@ src/
     IndexBuilder.php                # orchestrates scanners + runs the cross-link pass
     IndexLoader.php                 # hydrates an Index from a written index.json (public consumer API)
     Model/                          # final readonly read-model value objects (public consumer API)
+  Query/                            # IndexQuery + DTOs/enums: transport-agnostic questions over the Index (shared by MCP and UI)
+  Ui/                               # read-only browser UI (Livewire + Alpine + vendored cytoscape); depends on Query, never on Mcp
   Scanners/
     EventScanner.php
     ListenerScanner.php

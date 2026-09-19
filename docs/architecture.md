@@ -17,6 +17,8 @@ Programmatic consumers don't run the pipeline: they load a written `index.json` 
 
 `loom:check` is the policy gate, layered like the diff engine: a `CheckRuleRegistry` (mirroring the diff layer's spec registry) supplies an ordered set of rules from `src/Check/Rules/` keyed by the `RuleKey` enum, `CheckRunner` runs them against a loaded `Index` and collects violations, and a parallel `CheckFormatter` layer renders the result as text, JSON, or markdown. Like `loom:diff` it reads a written index rather than running scanners. See [Checking an index](check.md) for the command surface.
 
+The MCP server and the browser UI share one read layer, `src/Query/`. `IndexQuery` answers transport-agnostic questions over a loaded `Index` (sections, search, handlers, dispatch sites, chains, impact, orphans) and returns DTOs and enums. `Lucasp\Loom\Mcp` and `Lucasp\Loom\Ui` are adapters on top of it and do not depend on each other. Each supplies its own `IndexSource`: MCP scans a missing snapshot, the UI only reads the file. See [Browser UI](ui.md) and [MCP server](mcp.md).
+
 ## The Scanner contract
 
 ```php
