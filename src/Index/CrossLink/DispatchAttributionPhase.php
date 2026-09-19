@@ -28,7 +28,7 @@ final class DispatchAttributionPhase implements CrossLinkPhase
                 continue;
             }
 
-            $payload = DispatchEntry::fromSite($site);
+            $payload = DispatchEntry::forHandler($site);
             if ($payload === null) {
                 continue;
             }

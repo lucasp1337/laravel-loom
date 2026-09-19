@@ -189,7 +189,11 @@ describe('ObserverScanner model_events output', function () {
         expect($entry)->not->toBeNull();
         expect($entry->model)->toBe('App\\Models\\Product');
         expect($entry->event)->toBe('deleted');
-        expect($entry->handledBy)->toBe(['App\\Handlers\\InvoiceHandler::deleted']);
+        expect($entry->handledBy)->toHaveCount(1);
+        expect($entry->handledBy[0]->handler)->toBe('App\\Handlers\\InvoiceHandler');
+        expect($entry->handledBy[0]->method)->toBe('deleted');
+        expect($entry->handledBy[0]->file)->toBe('app/Providers/AppServiceProvider.php');
+        expect($entry->handledBy[0]->line)->toBeGreaterThan(0);
     });
 
     it('dedupes (User, creating) from observer hook + path C listen string', function () {
@@ -198,16 +202,19 @@ describe('ObserverScanner model_events output', function () {
         $entry = modelEventById($modelEvents, 'eloquent.creating: App\\Models\\User');
 
         expect($entry)->not->toBeNull();
-        expect($entry->handledBy)->toBe(['App\\Observers\\UserObserver::creating']);
+        expect($entry->handledBy)->toHaveCount(1);
+        expect($entry->handledBy[0]->handler)->toBe('App\\Observers\\UserObserver');
+        expect($entry->handledBy[0]->method)->toBe('creating');
     });
 
     it('sorts handled_by entries inside each model_event', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
         foreach ($modelEvents as $entry) {
-            $sorted = $entry->handledBy;
+            $keys = array_map(fn ($h): string => $h->handler.'::'.$h->method, $entry->handledBy);
+            $sorted = $keys;
             sort($sorted, SORT_STRING);
-            expect($entry->handledBy)->toBe($sorted);
+            expect($keys)->toBe($sorted);
         }
     });
 

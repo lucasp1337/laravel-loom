@@ -158,6 +158,19 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
+        if ($name === 'broadcast') {
+            $this->recordHelperOrFacade($node, $node->args, DispatchForm::HELPER, DispatchKinds::EVENT, 'broadcast');
+
+            return;
+        }
+
+        if ($name === 'broadcast_if' || $name === 'broadcast_unless') {
+            // Conditional forms: $boolean is arg 0, the event is arg 1.
+            $this->recordHelperOrFacade($node, array_slice($node->args, 1), DispatchForm::HELPER, DispatchKinds::EVENT, $name);
+
+            return;
+        }
+
         if ($name === 'dispatch') {
             $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch');
         }

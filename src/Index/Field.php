@@ -17,6 +17,7 @@ enum Field: string
     case DISPATCHED_FROM = 'dispatched_from';
     case HANDLED_BY = 'handled_by';
     case LISTENER = 'listener';
+    case HANDLER = 'handler';
     case METHOD = 'method';
     case MODEL = 'model';
     case EVENT = 'event';

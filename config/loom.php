@@ -2,5 +2,33 @@
 
 declare(strict_types=1);
 
-// Reserved for v0.2+. v0.1 has no configurable options — the spec is locked.
-return [];
+return [
+    // Snapshot written by loom:scan and read by the CLI, MCP server and UI;
+    // null means storage/loom/index.json.
+    'index_path' => env('LOOM_INDEX_PATH'),
+
+    'ui' => [
+        // Kill switch. The UI is also mounted only in the environments below.
+        'enabled' => env('LOOM_UI_ENABLED', true),
+
+        // App environments that mount the UI. In any other environment no
+        // route, asset, view or gate exists (plain 404).
+        'environments' => ['local'],
+
+        // Listing `production` above is ignored unless this is true.
+        'allow_in_production' => false,
+
+        // URI prefix and optional domain the UI is served under.
+        'path' => env('LOOM_PATH', 'loom'),
+        'domain' => env('LOOM_DOMAIN'),
+
+        // Applied before the built-in `viewLoom` gate check, which always runs.
+        'middleware' => ['web'],
+
+        // Optional UI-only override of the top-level `index_path`.
+        'index_path' => null,
+
+        // Default chain depth on the chain page (clamped to 1-6).
+        'chain_depth' => 3,
+    ],
+];

@@ -51,7 +51,8 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if (strtolower($node->name->toString()) !== 'event') {
+        $fn = strtolower($node->name->toString());
+        if ($fn !== 'event' && $fn !== 'broadcast') {
             return;
         }
 

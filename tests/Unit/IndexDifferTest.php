@@ -17,6 +17,7 @@ use Lucasp\Loom\Diff\Result\FieldChange;
 function differBaseIndex(): array
 {
     return [
+        'schema_version' => '1.0',
         'loom_version' => '1.0.0',
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00+00:00',

@@ -43,3 +43,19 @@ it('emits jobs as an empty array and stats.jobs as 0 for an empty app', function
     expect($payload['stats']['jobs'])->toBe(0);
     expect($builder->validate($payload))->toBe([]);
 });
+
+it('stamps the current schema_version and rejects absolute file paths', function () {
+    $builder = new Lucasp\Loom\Index\IndexBuilder;
+    $payload = $builder->build(sys_get_temp_dir(), '12.x')->toArray();
+
+    expect($payload['schema_version'])->toBe(Lucasp\Loom\Index\IndexSchema::VERSION);
+
+    $payload['events'][] = [
+        'id' => 'A', 'fqcn' => 'A', 'kind' => 'class', 'file' => '/abs/A.php', 'line' => 1,
+        'dispatched_from' => [], 'handled_by' => [],
+    ];
+    expect($builder->validate($payload))->not->toBe([]);
+
+    $payload['events'][0]['file'] = 'app/A.php';
+    expect($builder->validate($payload))->toBe([]);
+});

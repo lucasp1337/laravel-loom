@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
+use Lucasp\Loom\Index\IndexLoadException;
+use Lucasp\Loom\Index\IndexSchema;
 use Lucasp\Loom\Diff\Format\FormatterFactory;
 use Lucasp\Loom\Diff\Format\UnknownDiffFormatException;
 use Lucasp\Loom\Diff\IndexDiffer;
@@ -26,6 +28,14 @@ class DiffCommand extends Command
         $old = $this->decode($this->stringArg('old'));
         $new = $this->decode($this->stringArg('new'));
         if ($old === null || $new === null) {
+            return 2;
+        }
+
+        try {
+            IndexSchema::assertComparable($old, $new);
+        } catch (IndexLoadException $e) {
+            $this->error($e->getMessage());
+
             return 2;
         }
 

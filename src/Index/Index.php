@@ -44,6 +44,7 @@ final class Index
         public readonly string $scannedAt,
         public readonly string $laravelVersion,
         public readonly array $sections = [],
+        public readonly string $schemaVersion = IndexSchema::VERSION,
     ) {
     }
 
@@ -216,6 +217,7 @@ final class Index
         }
 
         $payload = [
+            MetaField::SCHEMA_VERSION->value => $this->schemaVersion,
             MetaField::LOOM_VERSION->value => $this->loomVersion,
             MetaField::SCANNED_AT->value => $this->scannedAt,
             MetaField::LARAVEL_VERSION->value => $this->laravelVersion,

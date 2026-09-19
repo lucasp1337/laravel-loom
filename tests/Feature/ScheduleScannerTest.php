@@ -474,6 +474,44 @@ it('emits "days(?)" when ->days() has an unresolvable arg', function () {
     expect($entry->constraints)->toContain('days(?)');
 });
 
+// ---------------------------------------------------------------------------
+// daysOfMonth helper
+// ---------------------------------------------------------------------------
+
+it('normalises variadic ->daysOfMonth(1, 15) to "0 0 1,15 * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 194);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('daysofmonth:variadic');
+    expect($entry->cron)->toBe('0 0 1,15 * *');
+});
+
+it('normalises array-form ->daysOfMonth([2, 16]) to "0 0 2,16 * *"', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 198);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('daysofmonth:array');
+    expect($entry->cron)->toBe('0 0 2,16 * *');
+});
+
+it('keeps the cron when ->daysOfMonth() is chained after another frequency helper', function () {
+    // ->daily()->daysOfMonth(10) — daysOfMonth is last-wins and must not trip
+    // the unknown-method guard that nulls cron.
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 203);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('daysofmonth:chained');
+    expect($entry->cron)->toBe('0 0 10 * *');
+});
+
+it('sets cron to null when ->daysOfMonth() has an unresolvable arg', function () {
+    $entry = scheduleEntryAt(scheduleEntries(), 'app/Console/Kernel.php', 208);
+
+    expect($entry)->not->toBeNull();
+    expect($entry->target)->toBe('daysofmonth:dynamic');
+    expect($entry->cron)->toBeNull();
+});
+
 it('does not emit chains declared outside the schedule() method', function () {
     // Kernel.php has a `helper(Schedule $schedule)` method with a
     // ->command('decoy:command')->daily() chain. The kernel-form discovery

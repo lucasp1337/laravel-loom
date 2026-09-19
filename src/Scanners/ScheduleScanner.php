@@ -32,7 +32,7 @@ final class ScheduleScanner implements Scanner
         'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
         'daily', 'dailyAt', 'twiceDaily', 'twiceDailyAt',
         'weekly', 'weeklyOn',
-        'monthly', 'monthlyOn', 'twiceMonthly', 'lastDayOfMonth',
+        'monthly', 'monthlyOn', 'twiceMonthly', 'daysOfMonth', 'lastDayOfMonth',
         'quarterly', 'quarterlyOn', 'yearly', 'yearlyOn',
         'cron',
     ];
@@ -582,6 +582,13 @@ final class ScheduleScanner implements Scanner
 
                 return $minute.' '.$hour.' '.$first.','.$second.' * *';
 
+            case 'daysOfMonth':
+                // Accepts variadic ints (daysOfMonth(1, 15)) or a single array
+                // (daysOfMonth([1, 15])). Laravel runs these at 00:00.
+                $days = $this->collectDayArgs($args);
+
+                return $days === [] ? null : '0 0 '.implode(',', $days).' * *';
+
             case 'lastDayOfMonth':
                 $time = AstHelpers::scalarString($args[0] ?? null) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
@@ -684,33 +691,46 @@ final class ScheduleScanner implements Scanner
         }
 
         if ($method === 'days') {
-            // Accepts variadic ints (days(0, 3)) or a single array (days([0, 3])).
-            $values = [];
-            foreach ($args as $arg) {
-                if (! $arg instanceof Node\Arg) {
-                    continue;
-                }
-                $int = AstHelpers::scalarInt($arg);
-                if ($int !== null) {
-                    $values[] = $int;
-
-                    continue;
-                }
-                if ($arg->value instanceof Node\Expr\Array_) {
-                    foreach ($arg->value->items as $item) {
-                        $itemInt = AstHelpers::scalarInt($item->value);
-                        if ($itemInt !== null) {
-                            $values[] = $itemInt;
-                        }
-                    }
-                }
-            }
+            $values = $this->collectDayArgs($args);
 
             // "days(?)" signals an unresolved arg without fabricating a value.
             return $values === [] ? 'days(?)' : 'days('.implode(',', $values).')';
         }
 
         return null;
+    }
+
+    /**
+     * Collects statically-resolvable day integers from a variadic int list
+     * (days(0, 3)) or a single array argument (days([0, 3])).
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @return list<int>
+     */
+    private function collectDayArgs(array $args): array
+    {
+        $values = [];
+        foreach ($args as $arg) {
+            if (! $arg instanceof Node\Arg) {
+                continue;
+            }
+            $int = AstHelpers::scalarInt($arg);
+            if ($int !== null) {
+                $values[] = $int;
+
+                continue;
+            }
+            if ($arg->value instanceof Node\Expr\Array_) {
+                foreach ($arg->value->items as $item) {
+                    $itemInt = AstHelpers::scalarInt($item->value);
+                    if ($itemInt !== null) {
+                        $values[] = $itemInt;
+                    }
+                }
+            }
+        }
+
+        return $values;
     }
 
     private function dedupeKey(ScheduledEntry $entry): string

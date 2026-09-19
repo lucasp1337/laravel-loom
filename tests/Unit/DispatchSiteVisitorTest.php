@@ -78,6 +78,126 @@ it('recognises event(Foo::class) as helper + event', function () {
     expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
 });
 
+it('recognises broadcast(new Foo()) as helper + event', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            broadcast(new Foo());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
+});
+
+it('recognises broadcast(Foo::class) as helper + event', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            broadcast(Foo::class);
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
+});
+
+it('recognises broadcast_if($cond, new Foo()) with the event re-based to arg 1', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go($cond): void {
+            broadcast_if($cond, new Foo());
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
+});
+
+it('recognises broadcast_unless($cond, Foo::class) with the event re-based to arg 1', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go($cond): void {
+            broadcast_unless($cond, Foo::class);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->target)->toBe('App\\Events\\Foo');
+    expect($sites[0]->form)->toBe(DispatchForm::HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
+});
+
+it('records broadcast($variable) as dynamic_class_name unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($variable): void {
+            broadcast($variable);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+    expect($unresolved[0]->expression)->toContain('broadcast(');
+});
+
+it('records broadcast_if($cond, $variable) as dynamic_class_name unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go($cond, $variable): void {
+            broadcast_if($cond, $variable);
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
+
 it('recognises Event::dispatch(Foo::class) as facade + event', function () {
     $source = <<<'PHP'
     <?php

@@ -1,0 +1,681 @@
+{
+    "tools": {
+        "list-entities": {
+            "name": "list-entities",
+            "title": "List Entities Tool",
+            "description": "List every entity in one index section (events, listeners, observers, jobs, routes, ...) verbatim from the index, with a count. Use this to enumerate what the scanner found before drilling into a single entity with get-entity.",
+            "inputSchema": {
+                "properties": {
+                    "section": {
+                        "description": "The index section to list.",
+                        "enum": [
+                            "events",
+                            "listeners",
+                            "observers",
+                            "model_events",
+                            "jobs",
+                            "unresolved_dispatches",
+                            "closure_listeners",
+                            "scheduled",
+                            "mailables",
+                            "notifications",
+                            "routes"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "section"
+                ]
+            },
+            "annotations": []
+        },
+        "get-entity": {
+            "name": "get-entity",
+            "title": "Get Entity Tool",
+            "description": "Fetch a single entity by kind (event, listener, observer, job, mailable, notification) and fully-qualified class name, returning the raw index entry (snake_case, exactly as in the index schema).",
+            "inputSchema": {
+                "properties": {
+                    "kind": {
+                        "description": "The kind of entity to fetch.",
+                        "enum": [
+                            "event",
+                            "listener",
+                            "observer",
+                            "job",
+                            "mailable",
+                            "notification"
+                        ],
+                        "type": "string"
+                    },
+                    "fqcn": {
+                        "description": "The fully-qualified class name of the entity.",
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "kind",
+                    "fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "dispatch-sites-for": {
+            "name": "dispatch-sites-for",
+            "title": "Dispatch Sites For Tool",
+            "description": "Where is this event dispatched? Returns every source location (file, line, method) that dispatches the given event class, from the static index.",
+            "inputSchema": {
+                "properties": {
+                    "event_fqcn": {
+                        "description": "Fully-qualified event class name, e.g. App\\Events\\OrderPlaced.",
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "event_fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "handlers-for": {
+            "name": "handlers-for",
+            "title": "Handlers For Tool",
+            "description": "Who handles this event? Returns the named listeners (class, method, queued) and anonymous closure listeners (file, line, queued) bound to the given event class.",
+            "inputSchema": {
+                "properties": {
+                    "event_fqcn": {
+                        "description": "Fully-qualified event class name, e.g. App\\Events\\OrderPlaced.",
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "event_fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "dispatches-from": {
+            "name": "dispatches-from",
+            "title": "Dispatches From Tool",
+            "description": "Given a method, what does it directly dispatch? Returns the events and jobs dispatched from a Class::method (also accepts Class@method or a bare Class), with kind, confidence, file and line.",
+            "inputSchema": {
+                "properties": {
+                    "method_fqcn": {
+                        "description": "Method reference: Class::method, Class@method, or a bare Class for every method, e.g. App\\Http\\Controllers\\OrderController::store.",
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "method_fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "events-following": {
+            "name": "events-following",
+            "title": "Events Following Tool",
+            "description": "Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3).",
+            "inputSchema": {
+                "properties": {
+                    "event_fqcn": {
+                        "description": "The fully-qualified class name of the event to follow.",
+                        "type": "string"
+                    },
+                    "depth": {
+                        "description": "How many handler→dispatch hops to follow (clamped to 1..6).",
+                        "default": 3,
+                        "type": "integer"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "event_fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "events-from-method": {
+            "name": "events-from-method",
+            "title": "Events From Method Tool",
+            "description": "Transitive closure starting from a Class::method (or Class@method, or a bare Class for every method): what it dispatches, then the event chain following each dispatched event. Depth bounds the chain (1..6, default 3). Method granularity is exact only for routes; listeners/observers/jobs resolve at class level.",
+            "inputSchema": {
+                "properties": {
+                    "method_fqcn": {
+                        "description": "The method to start from, e.g. App\\Http\\Controllers\\OrderController::store.",
+                        "type": "string"
+                    },
+                    "depth": {
+                        "description": "How many handler→dispatch hops to follow per chain (clamped to 1..6).",
+                        "default": 3,
+                        "type": "integer"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "method_fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "route-to-events": {
+            "name": "route-to-events",
+            "title": "Route To Events Tool",
+            "description": "Resolve an HTTP route (verb + URI) to the event chain its controller action triggers. Matches case-insensitively on verb and exactly on URI (leading slash optional), then follows the controller method through the dispatch graph (depth 1..6, default 3). Closure or unresolved-controller routes return an empty chain with a note.",
+            "inputSchema": {
+                "properties": {
+                    "method": {
+                        "description": "The HTTP verb, e.g. GET or POST (case-insensitive).",
+                        "type": "string"
+                    },
+                    "uri": {
+                        "description": "The route URI, e.g. orders or /orders (leading slash optional).",
+                        "type": "string"
+                    },
+                    "depth": {
+                        "description": "How many handler→dispatch hops to follow per chain (clamped to 1..6).",
+                        "default": 3,
+                        "type": "integer"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "method",
+                    "uri"
+                ]
+            },
+            "annotations": []
+        },
+        "impact-of-change": {
+            "name": "impact-of-change",
+            "title": "Impact Of Change Tool",
+            "description": "Blast-radius report for removing or renaming a class. For an event: who dispatches it, who handles it (named + closure listeners), and the transitive downstream chain. For a listener/job: which events it handles and whether removing it would orphan an event (an event whose only handler is this class). Notes call out what static analysis cannot determine.",
+            "inputSchema": {
+                "properties": {
+                    "fqcn": {
+                        "description": "The fully-qualified class name being changed (event, listener, or job).",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "description": "The kind of change. Affects the framing of the notes only.",
+                        "default": "remove",
+                        "enum": [
+                            "remove",
+                            "rename"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "fqcn"
+                ]
+            },
+            "annotations": []
+        },
+        "find-orphans": {
+            "name": "find-orphans",
+            "title": "Find Orphans Tool",
+            "description": "List dead-weight in the event graph: orphan events (dispatched from nowhere AND handled by nothing) and idle listeners (registered but handling no events). A review aid — dynamically dispatched or reflection-registered cases may not surface statically.",
+            "inputSchema": {
+                "type": "object",
+                "properties": []
+            },
+            "annotations": []
+        },
+        "find-unresolved-dispatches": {
+            "name": "find-unresolved-dispatches",
+            "title": "Find Unresolved Dispatches Tool",
+            "description": "List dispatch sites the scanner could not statically resolve to a target, with the raw expression, reason, file and line. Surfaces what static analysis could not pin down.",
+            "inputSchema": {
+                "type": "object",
+                "properties": []
+            },
+            "annotations": []
+        }
+    },
+    "cases": {
+        "following.default": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true}"
+            ],
+            "errors": []
+        },
+        "following.depth1": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":1,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\"],\"cycles\":[],\"truncated\":true}"
+            ],
+            "errors": []
+        },
+        "following.depth0_clamped": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":1,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\"],\"cycles\":[],\"truncated\":true}"
+            ],
+            "errors": []
+        },
+        "following.depth99_clamped": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":6,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false}"
+            ],
+            "errors": []
+        },
+        "following.cycle": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\Ping\",\"depth\":6,\"edges\":[{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false}"
+            ],
+            "errors": []
+        },
+        "following.closure_and_listener": {
+            "content": [
+                "{\"root\":\"App\\\\Events\\\\ReceiptSent\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false}"
+            ],
+            "errors": []
+        },
+        "following.unknown": {
+            "content": [
+                "{\"root\":\"App\\\\Nope\",\"depth\":3,\"edges\":[],\"events_reached\":[\"App\\\\Nope\"],\"cycles\":[],\"truncated\":false}"
+            ],
+            "errors": []
+        },
+        "following.missing_arg": {
+            "content": [
+                "The event fqcn field is required."
+            ],
+            "errors": [
+                "The event fqcn field is required."
+            ]
+        },
+        "from_method.colons": {
+            "content": [
+                "{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController::store\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}],\"chains\":[{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true}]}"
+            ],
+            "errors": []
+        },
+        "from_method.at": {
+            "content": [
+                "{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController@store\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}],\"chains\":[{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":2,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\"],\"cycles\":[],\"truncated\":true}]}"
+            ],
+            "errors": []
+        },
+        "from_method.bare_class": {
+            "content": [
+                "{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}],\"chains\":[{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true}]}"
+            ],
+            "errors": []
+        },
+        "from_method.listener_class": {
+            "content": [
+                "{\"method\":\"App\\\\Listeners\\\\PingListener::handle\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}],\"chains\":[{\"root\":\"App\\\\Events\\\\Pong\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\Pong\",\"App\\\\Events\\\\Ping\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Pong\"}],\"truncated\":false}]}"
+            ],
+            "errors": []
+        },
+        "from_method.unknown": {
+            "content": [
+                "{\"method\":\"App\\\\Nope::missing\",\"dispatches\":[],\"chains\":[]}"
+            ],
+            "errors": []
+        },
+        "from_method.missing_arg": {
+            "content": [
+                "The method fqcn field is required."
+            ],
+            "errors": [
+                "The method fqcn field is required."
+            ]
+        },
+        "dispatches_from.route_dedupe": {
+            "content": [
+                "{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController::store\",\"count\":2,\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}]}"
+            ],
+            "errors": []
+        },
+        "dispatches_from.other_method": {
+            "content": [
+                "{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController::update\",\"count\":0,\"dispatches\":[]}"
+            ],
+            "errors": []
+        },
+        "dispatches_from.observer": {
+            "content": [
+                "{\"method\":\"App\\\\Observers\\\\OrderObserver\",\"count\":1,\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":12}]}"
+            ],
+            "errors": []
+        },
+        "dispatches_from.job": {
+            "content": [
+                "{\"method\":\"App\\\\Jobs\\\\SendMail@handle\",\"count\":1,\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}"
+            ],
+            "errors": []
+        },
+        "dispatches_from.empty": {
+            "content": [
+                "method_fqcn is required."
+            ],
+            "errors": [
+                "method_fqcn is required."
+            ]
+        },
+        "sites.found": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"count\":1,\"dispatch_sites\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}]}"
+            ],
+            "errors": []
+        },
+        "sites.none": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\Lonely\",\"count\":0,\"dispatch_sites\":[]}"
+            ],
+            "errors": []
+        },
+        "sites.empty": {
+            "content": [
+                "event_fqcn is required."
+            ],
+            "errors": [
+                "event_fqcn is required."
+            ]
+        },
+        "handlers.listener": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"listeners\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"queued\":false}],\"closure_listeners\":[]}"
+            ],
+            "errors": []
+        },
+        "handlers.queued_listener": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\Ping\",\"listeners\":[{\"listener\":\"App\\\\Listeners\\\\PingListener\",\"method\":\"handle\",\"queued\":true}],\"closure_listeners\":[]}"
+            ],
+            "errors": []
+        },
+        "handlers.with_closure": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"listeners\":[{\"listener\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"method\":\"handle\",\"queued\":false}],\"closure_listeners\":[{\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":30,\"queued\":true}]}"
+            ],
+            "errors": []
+        },
+        "handlers.none": {
+            "content": [
+                "{\"event\":\"App\\\\Events\\\\Lonely\",\"listeners\":[],\"closure_listeners\":[]}"
+            ],
+            "errors": []
+        },
+        "handlers.empty": {
+            "content": [
+                "event_fqcn is required."
+            ],
+            "errors": [
+                "event_fqcn is required."
+            ]
+        },
+        "route.post": {
+            "content": [
+                "{\"route\":{\"method\":\"POST\",\"uri\":\"orders\",\"name\":\"orders.store\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\OrderController\",\"controller_method\":\"store\",\"middleware\":[\"web\"],\"file\":\"routes/web.php\",\"line\":12},\"chain\":{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController::store\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}],\"chains\":[{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true}]}}"
+            ],
+            "errors": []
+        },
+        "route.depth1": {
+            "content": [
+                "{\"route\":{\"method\":\"POST\",\"uri\":\"orders\",\"name\":\"orders.store\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\OrderController\",\"controller_method\":\"store\",\"middleware\":[\"web\"],\"file\":\"routes/web.php\",\"line\":12},\"chain\":{\"method\":\"App\\\\Http\\\\Controllers\\\\OrderController::store\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}],\"chains\":[{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":1,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\"],\"cycles\":[],\"truncated\":true}]}}"
+            ],
+            "errors": []
+        },
+        "route.closure": {
+            "content": [
+                "{\"route\":{\"method\":\"GET\",\"uri\":\"health\",\"name\":null,\"controller_fqcn\":null,\"controller_method\":null,\"middleware\":[],\"file\":\"routes/web.php\",\"line\":3},\"note\":\"Route has no resolved controller (closure or unresolved action); no event chain available.\",\"chain\":null}"
+            ],
+            "errors": []
+        },
+        "route.invoke": {
+            "content": [
+                "{\"route\":{\"method\":\"GET\",\"uri\":\"/ping\",\"name\":\"ping\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\PingController\",\"controller_method\":null,\"middleware\":[],\"file\":\"routes/web.php\",\"line\":5},\"chain\":{\"method\":\"App\\\\Http\\\\Controllers\\\\PingController::__invoke\",\"dispatches\":[],\"chains\":[]}}"
+            ],
+            "errors": []
+        },
+        "route.slash_stored": {
+            "content": [
+                "{\"route\":{\"method\":\"GET\",\"uri\":\"/ping\",\"name\":\"ping\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\PingController\",\"controller_method\":null,\"middleware\":[],\"file\":\"routes/web.php\",\"line\":5},\"chain\":{\"method\":\"App\\\\Http\\\\Controllers\\\\PingController::__invoke\",\"dispatches\":[],\"chains\":[]}}"
+            ],
+            "errors": []
+        },
+        "route.missing": {
+            "content": [
+                "No route found for DELETE nope."
+            ],
+            "errors": [
+                "No route found for DELETE nope."
+            ]
+        },
+        "route.verb_mismatch": {
+            "content": [
+                "No route found for GET orders."
+            ],
+            "errors": [
+                "No route found for GET orders."
+            ]
+        },
+        "impact.event": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Removing this event orphans its 1 handler; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.event_rename": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"rename\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Renaming this event requires updating all 1 dispatch site and 1 handler below.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.event_singular": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"method\":\"handle\",\"kind\":\"listener\"},{\"listener\":\"app/Providers/EventServiceProvider.php:30\",\"method\":\"closure\",\"kind\":\"closure\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\ReceiptSent\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false},\"notes\":[\"Removing this event orphans its 2 handlers; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.event_none": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Events\\\\Lonely\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[],\"handlers\":[],\"downstream\":{\"root\":\"App\\\\Events\\\\Lonely\",\"depth\":3,\"edges\":[],\"events_reached\":[\"App\\\\Events\\\\Lonely\"],\"cycles\":[],\"truncated\":false},\"notes\":[\"Removing this event orphans its 0 handlers; its 0 dispatch sites would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.listener_orphans": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.listener_rename": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"kind\":\"rename\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.listener_no_orphans": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Listeners\\\\SendReceipt\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\OrderPlaced\"],\"would_orphan_events\":[\"App\\\\Events\\\\OrderPlaced\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\OrderPlaced.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.listener_would_orphan": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\Ping\"],\"would_orphan_events\":[\"App\\\\Events\\\\Ping\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\Ping.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.listener_idle": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Listeners\\\\Idle\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.job": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"remove\",\"entity\":\"job\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.unknown": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Nope\",\"kind\":\"remove\",\"entity\":\"unknown\",\"dispatchers\":[],\"handlers\":[],\"downstream\":null,\"notes\":[\"No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.\"]}"
+            ],
+            "errors": []
+        },
+        "impact.bad_kind": {
+            "content": [
+                "Unknown kind [explode]; expected one of: remove, rename."
+            ],
+            "errors": [
+                "Unknown kind [explode]; expected one of: remove, rename."
+            ]
+        },
+        "orphans": {
+            "content": [
+                "{\"orphan_events\":[{\"fqcn\":\"App\\\\Events\\\\Lonely\",\"kind\":\"class\",\"file\":\"app/Events/Lonely.php\",\"line\":10}],\"idle_listeners\":[{\"fqcn\":\"App\\\\Listeners\\\\Idle\",\"file\":\"app/Listeners/Idle.php\",\"line\":5}]}"
+            ],
+            "errors": []
+        },
+        "unresolved": {
+            "content": [
+                "{\"count\":1,\"unresolved_dispatches\":[{\"file\":\"app/A.php\",\"line\":10,\"expression\":\"dispatch($job)\",\"reason\":\"dynamic_class_name\"}]}"
+            ],
+            "errors": []
+        },
+        "entity.event": {
+            "content": [
+                "{\"kind\":\"event\",\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"found\":true,\"entity\":{\"id\":\"App\\\\Events\\\\OrderPlaced\",\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"class\",\"file\":\"app/Events/OrderPlaced.php\",\"line\":10,\"handled_by\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\"}],\"dispatched_from\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}]}}"
+            ],
+            "errors": []
+        },
+        "entity.listener": {
+            "content": [
+                "{\"kind\":\"listener\",\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"file\":\"app/Listeners/PingListener.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":true,\"handles\":[{\"event\":\"App\\\\Events\\\\Ping\",\"method\":\"handle\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}}"
+            ],
+            "errors": []
+        },
+        "entity.observer": {
+            "content": [
+                "{\"kind\":\"observer\",\"fqcn\":\"App\\\\Observers\\\\OrderObserver\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Observers\\\\OrderObserver\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":8,\"observes\":\"App\\\\Models\\\\Order\",\"registration\":\"observe_call\",\"hooks\":[\"created\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":12}]}}"
+            ],
+            "errors": []
+        },
+        "entity.job": {
+            "content": [
+                "{\"kind\":\"job\",\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":null,\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}}"
+            ],
+            "errors": []
+        },
+        "entity.mailable": {
+            "content": [
+                "{\"kind\":\"mailable\",\"fqcn\":\"App\\\\Mail\\\\Receipt\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Mail\\\\Receipt\",\"file\":\"app/Mail/Receipt.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"sent_from\":[{\"file\":\"app/Jobs/SendMail.php\",\"line\":20,\"method\":\"handle\"}]}}"
+            ],
+            "errors": []
+        },
+        "entity.notification": {
+            "content": [
+                "{\"kind\":\"notification\",\"fqcn\":\"App\\\\Notifications\\\\Shipped\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Notifications\\\\Shipped\",\"file\":\"app/Notifications/Shipped.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"notified_from\":[],\"channels\":[\"mail\"],\"channels_dynamic\":false}}"
+            ],
+            "errors": []
+        },
+        "entity.unknown_kind": {
+            "content": [
+                "Unknown kind [route]."
+            ],
+            "errors": [
+                "Unknown kind [route]."
+            ]
+        },
+        "entity.missing": {
+            "content": [
+                "No job found for App\\Nope."
+            ],
+            "errors": [
+                "No job found for App\\Nope."
+            ]
+        },
+        "entity.missing_arg": {
+            "content": [
+                "The fqcn field is required."
+            ],
+            "errors": [
+                "The fqcn field is required."
+            ]
+        },
+        "list.events": {
+            "content": [
+                "{\"section\":\"events\",\"count\":5,\"items\":[{\"id\":\"App\\\\Events\\\\OrderPlaced\",\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"class\",\"file\":\"app/Events/OrderPlaced.php\",\"line\":10,\"handled_by\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\"}],\"dispatched_from\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}]},{\"id\":\"App\\\\Events\\\\ReceiptSent\",\"fqcn\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"class\",\"file\":\"app/Events/ReceiptSent.php\",\"line\":10,\"handled_by\":[{\"listener\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"method\":\"handle\"}],\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7,\"method\":\"dispatch\"}]},{\"id\":\"App\\\\Events\\\\Ping\",\"fqcn\":\"App\\\\Events\\\\Ping\",\"kind\":\"class\",\"file\":\"app/Events/Ping.php\",\"line\":10,\"handled_by\":[{\"listener\":\"App\\\\Listeners\\\\PingListener\",\"method\":\"handle\"}],\"dispatched_from\":[{\"file\":\"app/Listeners/PongListener.php\",\"line\":7,\"method\":\"dispatch\"}]},{\"id\":\"App\\\\Events\\\\Pong\",\"fqcn\":\"App\\\\Events\\\\Pong\",\"kind\":\"class\",\"file\":\"app/Events/Pong.php\",\"line\":10,\"handled_by\":[{\"listener\":\"App\\\\Listeners\\\\PongListener\",\"method\":\"handle\"}],\"dispatched_from\":[{\"file\":\"app/Listeners/PingListener.php\",\"line\":7,\"method\":\"dispatch\"}]},{\"id\":\"App\\\\Events\\\\Lonely\",\"fqcn\":\"App\\\\Events\\\\Lonely\",\"kind\":\"class\",\"file\":\"app/Events/Lonely.php\",\"line\":10,\"handled_by\":[],\"dispatched_from\":[]}]}"
+            ],
+            "errors": []
+        },
+        "list.listeners": {
+            "content": [
+                "{\"section\":\"listeners\",\"count\":5,\"items\":[{\"fqcn\":\"App\\\\Listeners\\\\SendReceipt\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":false,\"handles\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"method\":\"handle\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"file\":\"app/Listeners/ArchiveReceipt.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":false,\"handles\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"method\":\"handle\"}],\"dispatches\":[]},{\"fqcn\":\"App\\\\Listeners\\\\Idle\",\"file\":\"app/Listeners/Idle.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":false,\"handles\":[],\"dispatches\":[]},{\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"file\":\"app/Listeners/PingListener.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":true,\"handles\":[{\"event\":\"App\\\\Events\\\\Ping\",\"method\":\"handle\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"fqcn\":\"App\\\\Listeners\\\\PongListener\",\"file\":\"app/Listeners/PongListener.php\",\"line\":5,\"registration\":\"auto_discovered\",\"queued\":false,\"handles\":[{\"event\":\"App\\\\Events\\\\Pong\",\"method\":\"handle\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}]}"
+            ],
+            "errors": []
+        },
+        "list.closure_listeners": {
+            "content": [
+                "{\"section\":\"closure_listeners\",\"count\":1,\"items\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":30,\"end_line\":34,\"registration\":\"event_listen_call\",\"queued\":true,\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]}]}"
+            ],
+            "errors": []
+        },
+        "list.observers": {
+            "content": [
+                "{\"section\":\"observers\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Observers\\\\OrderObserver\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":8,\"observes\":\"App\\\\Models\\\\Order\",\"registration\":\"observe_call\",\"hooks\":[\"created\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":12}]}]}"
+            ],
+            "errors": []
+        },
+        "list.model_events": {
+            "content": [
+                "{\"section\":\"model_events\",\"count\":1,\"items\":[{\"id\":\"App\\\\Models\\\\Order.created\",\"model\":\"App\\\\Models\\\\Order\",\"event\":\"created\",\"handled_by\":[{\"handler\":\"App\\\\Observers\\\\OrderObserver\",\"method\":\"created\",\"file\":\"app/Observers/OrderObserver.php\",\"line\":5}]}]}"
+            ],
+            "errors": []
+        },
+        "list.jobs": {
+            "content": [
+                "{\"section\":\"jobs\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":null,\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}]}"
+            ],
+            "errors": []
+        },
+        "list.mailables": {
+            "content": [
+                "{\"section\":\"mailables\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Mail\\\\Receipt\",\"file\":\"app/Mail/Receipt.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"sent_from\":[{\"file\":\"app/Jobs/SendMail.php\",\"line\":20,\"method\":\"handle\"}]}]}"
+            ],
+            "errors": []
+        },
+        "list.notifications": {
+            "content": [
+                "{\"section\":\"notifications\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Notifications\\\\Shipped\",\"file\":\"app/Notifications/Shipped.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"notified_from\":[],\"channels\":[\"mail\"],\"channels_dynamic\":false}]}"
+            ],
+            "errors": []
+        },
+        "list.scheduled_empty": {
+            "content": [
+                "{\"section\":\"scheduled\",\"count\":0,\"items\":[]}"
+            ],
+            "errors": []
+        },
+        "list.routes": {
+            "content": [
+                "{\"section\":\"routes\",\"count\":3,\"items\":[{\"method\":\"POST\",\"uri\":\"orders\",\"name\":\"orders.store\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\OrderController\",\"controller_method\":\"store\",\"middleware\":[\"web\"],\"file\":\"routes/web.php\",\"line\":12,\"dispatches\":[{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":22}]},{\"method\":\"GET\",\"uri\":\"health\",\"name\":null,\"controller_fqcn\":null,\"controller_method\":null,\"middleware\":[],\"file\":\"routes/web.php\",\"line\":3,\"dispatches\":[]},{\"method\":\"GET\",\"uri\":\"/ping\",\"name\":\"ping\",\"controller_fqcn\":\"App\\\\Http\\\\Controllers\\\\PingController\",\"controller_method\":null,\"middleware\":[],\"file\":\"routes/web.php\",\"line\":5,\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Http/Controllers/PingController.php\",\"line\":11}]}]}"
+            ],
+            "errors": []
+        },
+        "list.unresolved": {
+            "content": [
+                "{\"section\":\"unresolved_dispatches\",\"count\":1,\"items\":[{\"file\":\"app/A.php\",\"line\":10,\"expression\":\"dispatch($job)\",\"reason\":\"dynamic_class_name\"}]}"
+            ],
+            "errors": []
+        },
+        "list.unknown": {
+            "content": [
+                "Unknown section [widgets]."
+            ],
+            "errors": [
+                "Unknown section [widgets]."
+            ]
+        }
+    }
+}

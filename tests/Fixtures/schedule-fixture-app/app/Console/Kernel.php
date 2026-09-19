@@ -189,6 +189,24 @@ class Kernel
             $schedule->command('grouped:beta')
                 ->hourly();
         });
+
+        // daysOfMonth(...) variadic ints -> "0 0 1,15 * *" (runs at 00:00).
+        $schedule->command('daysofmonth:variadic')
+            ->daysOfMonth(1, 15);
+
+        // daysOfMonth([...]) single-array form -> "0 0 2,16 * *".
+        $schedule->command('daysofmonth:array')
+            ->daysOfMonth([2, 16]);
+
+        // daysOfMonth chained after another frequency -> last-wins, cron set
+        // and NOT nulled by the unknown-method guard.
+        $schedule->command('daysofmonth:chained')
+            ->daily()
+            ->daysOfMonth(10);
+
+        // daysOfMonth with an unresolvable arg -> cron null.
+        $schedule->command('daysofmonth:dynamic')
+            ->daysOfMonth($pick);
     }
 
     /**
