@@ -1002,7 +1002,7 @@ decisions (discovery strategy, cron normalisation, cross-link shape).
 
 ### What it detects
 
-ScheduleScanner walks three discovery surfaces and merges results by
+ScheduleScanner walks four discovery surfaces and merges results by
 `(file, line)`:
 
 1. **`Console\Kernel::schedule(Schedule $schedule)`** — any class
@@ -1021,6 +1021,11 @@ ScheduleScanner walks three discovery surfaces and merges results by
    or `Schedule::exec(...)` is captured (where `Schedule` resolves to
    `Illuminate\Support\Facades\Schedule`). Useful for schedules registered
    in service providers or in package boot logic.
+
+4. **`routes/console.php`** — walked with the same facade-form visitor as
+   surface 3; Laravel 11+ apps put `Schedule::...` calls here by default.
+   Entries carry the `routes/console.php` relative path and dedupe on the
+   usual key.
 
 Each captured root call is the start of a fluent chain. The visitor walks
 down the chain collecting `(methodName, args)` for every link, then

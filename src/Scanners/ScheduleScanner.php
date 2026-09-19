@@ -18,7 +18,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 use PhpParser\Node;
 
 /**
- * Discovers entries declared in Laravel's task scheduler.
+ * Discovers entries declared in Laravel's task scheduler (Kernel, bootstrap/app.php,
+ * routes/console.php and Schedule facade calls under app/).
  */
 final class ScheduleScanner implements Scanner
 {
@@ -85,6 +86,12 @@ final class ScheduleScanner implements Scanner
         foreach ($this->discoverBootstrapForm($appRoot) as $entry) {
             $entries[$this->dedupeKey($entry)] = $entry;
         }
+        foreach ($this->discoverConsoleRoutesForm($appRoot) as $entry) {
+            $key = $this->dedupeKey($entry);
+            if (! isset($entries[$key])) {
+                $entries[$key] = $entry;
+            }
+        }
         foreach ($this->discoverFacadeForm($appRoot) as $entry) {
             $key = $this->dedupeKey($entry);
             if (! isset($entries[$key])) {
@@ -127,6 +134,24 @@ final class ScheduleScanner implements Scanner
         }
 
         $visitor = new ScheduleChainVisitor(ScheduleMode::BOOTSTRAP);
+        if ($this->walker->walk($file, [$visitor]) === null) {
+            return [];
+        }
+
+        return $this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file));
+    }
+
+    /**
+     * @return list<ScheduledEntry>
+     */
+    private function discoverConsoleRoutesForm(string $appRoot): array
+    {
+        $file = $appRoot.DIRECTORY_SEPARATOR.'routes'.DIRECTORY_SEPARATOR.'console.php';
+        if (! is_file($file)) {
+            return [];
+        }
+
+        $visitor = new ScheduleChainVisitor(ScheduleMode::FACADE);
         if ($this->walker->walk($file, [$visitor]) === null) {
             return [];
         }

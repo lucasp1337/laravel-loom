@@ -818,7 +818,30 @@ it('reports file paths relative to the fixture root with forward slashes', funct
         expect($file)->not->toStartWith('/');
         // Every fixture surface lives under one of these top-level roots.
         $isUnderApp = str_starts_with($file, 'app/');
-        $isBootstrap = $file === 'bootstrap/app.php';
+        $isBootstrap = $file === 'bootstrap/app.php' || $file === 'routes/console.php';
         expect($isUnderApp || $isBootstrap)->toBeTrue();
     }
+});
+
+it('discovers Schedule facade entries declared in routes/console.php', function () {
+    $entries = array_values(array_filter(
+        (new ScheduleScanner)->scan(scheduleFixturePath())['scheduled'],
+        fn (ScheduledEntry $e): bool => $e->file === 'routes/console.php',
+    ));
+
+    expect($entries)->toHaveCount(3);
+
+    $cmd = $entries[0];
+    expect($cmd->kind)->toBe(ScheduleKind::COMMAND)
+        ->and($cmd->cron)->toBe('30 3 * * *');
+
+    $closure = $entries[1];
+    expect($closure->kind)->toBe(ScheduleKind::CLOSURE)
+        ->and($closure->cron)->toBe('0 * * * *')
+        ->and($closure->name)->toBe('console-routes-closure');
+
+    $chained = $entries[2];
+    expect($chained->target)->toBe('console-routes:prune')
+        ->and($chained->cron)->toBe('0 0 * * 0')
+        ->and($chained->onOneServer)->toBeTrue();
 });
