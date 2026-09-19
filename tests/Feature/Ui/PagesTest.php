@@ -173,10 +173,16 @@ it('selects the root by default and shows node facts in the panel', function () 
     Livewire::test(ChainPage::class, ['fqcn' => ORDER])
         ->assertSet('node', 'App\Events\OrderPlaced')
         ->assertSee('Handlers')
-        ->call('select', 'App\Listeners\SendReceipt')
+        ->call('select', 'App\Events\OrderPlaced>App\Listeners\SendReceipt::handle')
         ->assertSee('Registration')
         ->call('select', null)
         ->assertSee('Select a node to see its details.');
+});
+
+it('drops a selected node that is no longer in the graph', function () {
+    Livewire::test(ChainPage::class, ['fqcn' => ORDER])
+        ->call('select', 'App\Events\OrderPlaced>Gone')
+        ->assertSet('node', null);
 });
 
 it('captions an event without handlers', function () {

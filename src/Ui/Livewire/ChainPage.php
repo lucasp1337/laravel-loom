@@ -48,9 +48,9 @@ class ChainPage extends Component
         $this->collapsed = [];
     }
 
-    public function select(?string $id): void
+    public function select(?string $key): void
     {
-        $this->node = $id;
+        $this->node = $key;
     }
 
     public function toggle(string $key): void
@@ -70,12 +70,21 @@ class ChainPage extends Component
         $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), $this->collapsed, $this->node);
 
         $panel = null;
+        $found = false;
         foreach ($graph['nodes'] as $node) {
-            if ($this->node !== null && $node['id'] === $this->node && $node['type'] !== NodeType::CYCLE->value) {
-                $type = NodeType::from(is_string($node['type']) ? $node['type'] : '');
-                $panel = NodeFacts::for($ui->query, $ui->links, $type, $this->node);
-                break;
+            if ($node['key'] !== $this->node) {
+                continue;
             }
+            $found = true;
+            if ($node['type'] !== NodeType::CYCLE->value) {
+                $type = NodeType::from(is_string($node['type']) ? $node['type'] : '');
+                $panel = NodeFacts::for($ui->query, $ui->links, $type, is_string($node['id']) ? $node['id'] : '');
+            }
+            break;
+        }
+
+        if (! $found) {
+            $this->node = null;
         }
 
         return $this->renderPage('loom::livewire.chain-page', [

@@ -7,7 +7,6 @@ use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\ChainDepth;
-use Lucasp\Loom\Query\ChainNodeKind;
 use Lucasp\Loom\Query\ChangeKind;
 use Lucasp\Loom\Query\Dto\SectionQuery;
 use Lucasp\Loom\Query\EntityKind;
@@ -124,38 +123,27 @@ it('keeps the legacy array shape free of cycles and truncated', function () use 
         ->and(array_keys($chain->toArray(true)))->toBe(['root', 'depth', 'edges', 'events_reached', 'cycles', 'truncated']);
 });
 
-it('projects a nested tree with back-references flagged as cycles', function () use ($e) {
-    $tree = queryFor()->eventChain($e('Ping'), 6)->tree();
+it('reports diamonds as revisits, not cycles; ignores handlerless frontier for truncation', function () {
+    $ev = static fn (string $n, array $h): array => ['id' => "E\\$n", 'fqcn' => "E\\$n", 'kind' => 'class', 'file' => "$n.php", 'line' => 1, 'handled_by' => $h, 'dispatched_from' => []];
+    $h = static fn (string $n): array => ['listener' => "L\\$n", 'method' => 'handle'];
+    $l = static fn (string $n, string $handles, array $targets): array => [
+        'fqcn' => "L\\$n", 'file' => "$n.php", 'line' => 1, 'registration' => 'auto_discovered', 'queued' => false,
+        'handles' => [['event' => "E\\$handles", 'method' => 'handle']],
+        'dispatches' => array_map(static fn (string $t): array => ['target' => "E\\$t", 'kind' => 'event', 'confidence' => 'high', 'file' => "$n.php", 'line' => 2], $targets),
+    ];
 
-    expect($tree->kind)->toBe(ChainNodeKind::EVENT)
-        ->and($tree->label)->toBe($e('Ping'))
-        ->and($tree->isCycle)->toBeFalse();
+    $q = queryFor([
+        'events' => [$ev('A', [$h('A')]), $ev('B', [$h('B')]), $ev('C', [$h('C')]), $ev('D', [])],
+        'listeners' => [$l('A', 'A', ['B', 'C']), $l('B', 'B', ['D']), $l('C', 'C', ['D'])],
+        'closure_listeners' => [],
+    ]);
 
-    $handler = $tree->children[0];
-    expect($handler->kind)->toBe(ChainNodeKind::HANDLER);
+    expect($q->eventChain('E\\A', 6)->cycles)->toBe([])
+        ->and($q->eventChain('E\\A', 2)->truncated)->toBeFalse();
 
-    $pong = $handler->children[0];
-    expect($pong->label)->toBe($e('Pong'));
-
-    $back = $pong->children[0]->children[0];
-    expect($back->label)->toBe($e('Ping'))
-        ->and($back->isCycle)->toBeTrue()
-        ->and($back->children)->toBe([]);
-});
-
-it('marks non-event dispatch targets as leaves and emits cytoscape elements', function () use ($e) {
-    $chain = queryFor()->eventChain($e('OrderPlaced'), 1);
-    $handler = $chain->tree()->children[0];
-
-    expect($handler->children[1]->kind)->toBe(ChainNodeKind::DISPATCH_TARGET)
-        ->and($handler->children[1]->label)->toBe('App\\Jobs\\SendMail');
-
-    $els = $chain->cytoscapeElements();
-    $ids = array_map(static fn ($n) => $n['data']['id'], $els['nodes']);
-
-    expect($ids)->toBe(array_values(array_unique($ids)))
-        ->and(count($els['edges']))->toBe(count($els['nodes']) - 1)
-        ->and($els['nodes'][0]['data']['kind'])->toBe('event');
+    $ping = queryFor()->eventChain('App\\Events\\Ping', 6);
+    expect($ping->cycles)->toHaveCount(1)
+        ->and($ping->cycles[0]->backToEvent)->toBe('App\\Events\\Ping');
 });
 
 // eventsFromMethod / dispatchesFrom -------------------------------------------

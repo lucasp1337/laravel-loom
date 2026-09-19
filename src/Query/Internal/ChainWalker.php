@@ -25,7 +25,8 @@ final class ChainWalker
     {
         $edges = [];
         $reached = [];
-        $cycles = [];
+        $successors = [];
+        $revisits = [];
         $visited = [];
         $frontier = [$eventFqcn];
 
@@ -54,8 +55,9 @@ final class ChainWalker
                         if ($dispatch->kind !== DispatchKinds::EVENT) {
                             continue;
                         }
+                        $successors[$event][$dispatch->target] = true;
                         if (isset($visited[$dispatch->target])) {
-                            $cycles[] = new ChainCycle($handler->ref, $dispatch->target);
+                            $revisits[] = [$handler->ref, $event, $dispatch->target];
                         } else {
                             $next[] = $dispatch->target;
                         }
@@ -68,13 +70,43 @@ final class ChainWalker
 
         $truncated = false;
         foreach ($frontier as $event) {
-            if (! isset($visited[$event])) {
+            if (! isset($visited[$event]) && $this->handlersOf($event) !== []) {
                 $truncated = true;
                 break;
             }
         }
 
+        // A revisit is a cycle only when the target leads back to the dispatching event.
+        $cycles = [];
+        foreach ($revisits as [$ref, $event, $target]) {
+            if ($this->reaches($successors, $target, $event)) {
+                $cycles[] = new ChainCycle($ref, $target);
+            }
+        }
+
         return new EventChain($eventFqcn, $depth, $edges, $reached, $cycles, $truncated);
+    }
+
+    /** @param  array<string, array<string, true>>  $successors */
+    private function reaches(array $successors, string $from, string $to): bool
+    {
+        $seen = [$from => true];
+        $stack = [$from];
+
+        while ($stack !== []) {
+            $current = array_pop($stack);
+            if ($current === $to) {
+                return true;
+            }
+            foreach (array_keys($successors[$current] ?? []) as $next) {
+                if (! isset($seen[$next])) {
+                    $seen[$next] = true;
+                    $stack[] = $next;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -92,25 +124,25 @@ final class ChainWalker
         foreach ($this->index->routes() as $route) {
             if ($route->controllerFqcn === $class
                 && ($method === null || $route->controllerMethod === $method)) {
-                $out = [...$out, ...$route->dispatches];
+                array_push($out, ...$route->dispatches);
             }
         }
 
         foreach ($this->index->listeners() as $listener) {
             if ($listener->fqcn === $class) {
-                $out = [...$out, ...$listener->dispatches];
+                array_push($out, ...$listener->dispatches);
             }
         }
 
         foreach ($this->index->observers() as $observer) {
             if ($observer->fqcn === $class) {
-                $out = [...$out, ...$observer->dispatches];
+                array_push($out, ...$observer->dispatches);
             }
         }
 
         foreach ($this->index->jobs() as $job) {
             if ($job->fqcn === $class) {
-                $out = [...$out, ...$job->dispatches];
+                array_push($out, ...$job->dispatches);
             }
         }
 
@@ -125,11 +157,17 @@ final class ChainWalker
     private function handlersOf(string $eventFqcn): array
     {
         $handlers = [];
+        $seen = [];
 
         foreach ($this->index->handlersOf($eventFqcn) as $handler) {
+            $ref = $handler->listener.'::'.$handler->method;
+            if (isset($seen[$ref])) {
+                continue;
+            }
+            $seen[$ref] = true;
             $listener = $this->index->findListener($handler->listener);
             $handlers[] = new WalkedHandler(
-                $handler->listener.'::'.$handler->method,
+                $ref,
                 HandlerKind::LISTENER,
                 $listener?->file,
                 $listener?->line,

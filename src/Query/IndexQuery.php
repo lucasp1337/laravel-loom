@@ -148,6 +148,11 @@ final class IndexQuery
             ? []
             : array_map(static fn ($handle): string => $handle->event, $listener->handles);
 
+        $closureEvents = [];
+        foreach ($index->closureListeners() as $closure) {
+            $closureEvents[$closure->event] = true;
+        }
+
         // An event whose only handler is this class is left unhandled by removing it.
         $orphaned = [];
         foreach ($handles as $eventFqcn) {
@@ -155,14 +160,7 @@ final class IndexQuery
                 $index->handlersOf($eventFqcn),
                 static fn ($handler): bool => $handler->listener !== $fqcn,
             );
-            $hasClosure = false;
-            foreach ($index->closureListeners() as $closure) {
-                if ($closure->event === $eventFqcn) {
-                    $hasClosure = true;
-                    break;
-                }
-            }
-            if ($others === [] && ! $hasClosure) {
+            if ($others === [] && ! isset($closureEvents[$eventFqcn])) {
                 $orphaned[] = $eventFqcn;
             }
         }
@@ -389,21 +387,12 @@ final class IndexQuery
             SortField::DISPATCH_COUNT => SectionReader::dispatchCount($item),
         };
 
-        // Decorate with the source position so equal keys keep their order.
-        $decorated = [];
-        foreach ($items as $position => $item) {
-            $decorated[] = [$key($item), $position, $item];
-        }
+        usort($items, static function (object $a, object $b) use ($key, $dir): int {
+            $cmp = $key($a) <=> $key($b);
 
-        usort($decorated, static function (array $a, array $b) use ($dir): int {
-            $cmp = $a[0] <=> $b[0];
-            if ($cmp !== 0) {
-                return $dir === SortDirection::DESC ? -$cmp : $cmp;
-            }
-
-            return $a[1] <=> $b[1];
+            return $dir === SortDirection::DESC ? -$cmp : $cmp;
         });
 
-        return array_map(static fn (array $row): object => $row[2], $decorated);
+        return $items;
     }
 }

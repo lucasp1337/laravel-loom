@@ -213,6 +213,7 @@
                     var columns = {};
                     var nodes = g.nodes.map(function (n) {
                         var col = columns[n.depth] = (columns[n.depth] || []);
+                        n.row = col.length;
                         col.push(n.key);
                         return n;
                     });
@@ -224,7 +225,7 @@
                                 id: n.key, gid: n.id, type: n.type, label: n.label + (n.collapsed ? ' ⊕' : ''),
                                 collapsed: n.collapsed ? 1 : 0, hasChildren: n.hasChildren ? 1 : 0, sel: n.selected ? 1 : 0
                             },
-                            position: { x: n.depth * 210, y: (col.indexOf(n.key) - (col.length - 1) / 2) * 74 }
+                            position: { x: n.depth * 210, y: (n.row - (col.length - 1) / 2) * 74 }
                         };
                     }).concat(g.edges.map(function (e) {
                         return { group: 'edges', data: { id: e.s + '=>' + e.t, source: e.s, target: e.t } };
@@ -262,7 +263,7 @@
                         wheelSensitivity: 0.2, minZoom: 0.3, maxZoom: 2
                     });
 
-                    cy.on('tap', 'node', function (evt) { self.$wire.select(evt.target.data('gid')); });
+                    cy.on('tap', 'node', function (evt) { self.$wire.select(evt.target.id()); });
                     cy.on('tap', function (evt) { if (evt.target === cy) { self.$wire.select(null); } });
                     cy.on('dbltap', 'node', function (evt) {
                         if (evt.target.data('hasChildren')) { self.$wire.toggle(evt.target.id()); }

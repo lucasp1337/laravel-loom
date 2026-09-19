@@ -65,7 +65,7 @@
 
     <ul class="loom-sr" aria-label="Chain nodes">
         @foreach ($graph['nodes'] as $node)
-            <li wire:key="n-{{ $node['key'] }}"><button type="button" wire:click="select(@js($node['id']))">{{ str_replace("\n", ' ', $node['label']) }}</button></li>
+            <li wire:key="n-{{ $node['key'] }}"><button type="button" wire:click="select(@js($node['key']))">{{ str_replace("\n", ' ', $node['label']) }}</button></li>
         @endforeach
     </ul>
 </div>
