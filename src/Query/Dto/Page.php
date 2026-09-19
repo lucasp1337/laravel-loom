@@ -6,7 +6,7 @@ namespace Lucasp\Loom\Query\Dto;
 
 final readonly class Page
 {
-    /** @param  list<object>  $items  read-model objects */
+    /** @param  list<object>  $items */
     public function __construct(
         public array $items,
         public int $total,

@@ -49,13 +49,13 @@
                     @foreach ($rows as $row)
                         <tr wire:key="row-{{ $result->page }}-{{ $loop->index }}">
                             @foreach ($spec->columns as $i => $column)
-                                <td @class(['num' => $column->role === $roleNumber, 'file' => $column->role === $roleFile, 'name' => $column->role === $roleName]) title="{{ $row['cells'][$i] }}">
-                                    @if ($column->role === $roleName && $row['url'] !== null)
-                                        <a href="{{ $row['url'] }}">{{ $row['cells'][$i] }}</a>
+                                <td @class(['num' => $column->role === $roleNumber, 'file' => $column->role === $roleFile, 'name' => $column->role === $roleName]) title="{{ $row->cells[$i] }}">
+                                    @if ($column->role === $roleName && $row->url !== null)
+                                        <a href="{{ $row->url }}">{{ $row->cells[$i] }}</a>
                                     @else
-                                        {{ $row['cells'][$i] }}
+                                        {{ $row->cells[$i] }}
                                     @endif
-                                    @if ($column->role === $roleName && $row['orphan'])
+                                    @if ($column->role === $roleName && $row->orphan)
                                         <span class="loom-badge loom-badge--attn">orphan</span>
                                     @endif
                                 </td>

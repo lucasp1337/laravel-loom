@@ -7,9 +7,9 @@
     <div class="loom-nav">
         <a href="{{ $links->dashboard() }}" @if (($active ?? null) === null && request()->routeIs('loom.dashboard')) aria-current="page" @endif>Dashboard</a>
         @foreach ($nav as $item)
-            <a href="{{ $item['url'] }}" @if (($active ?? null) === $item['section']) aria-current="page" @endif>
-                {{ $item['label'] }}
-                <span class="loom-count">{{ $item['count'] }}</span>
+            <a href="{{ $item->url }}" @if (($active ?? null) === $item->section) aria-current="page" @endif>
+                {{ $item->label }}
+                <span class="loom-count">{{ $item->count }}</span>
             </a>
         @endforeach
     </div>

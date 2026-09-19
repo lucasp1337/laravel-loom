@@ -2,13 +2,13 @@
     <input data-palette-input type="text" wire:model.live.debounce.120ms="term" x-on:input="cursor = 0"
            placeholder="Search events, listeners, jobs, routes…" autocomplete="off" spellcheck="false" aria-label="Search">
     <div class="loom-palette__list">
-        @forelse ($groups as $group => $hits)
-            <div class="loom-palette__group">{{ $group }}</div>
-            @foreach ($hits as $hit)
-                <a class="loom-palette__item" data-palette-item href="{{ $hit['url'] }}">
-                    <x-loom::badge :type="$hit['type']" />
-                    <span class="n">{{ $hit['label'] }}</span>
-                    <span class="m">{{ $hit['subtitle'] }}</span>
+        @forelse ($groups as $group)
+            <div class="loom-palette__group">{{ $group->label }}</div>
+            @foreach ($group->items as $hit)
+                <a class="loom-palette__item" data-palette-item href="{{ $hit->url }}">
+                    <x-loom::badge :type="$hit->type" />
+                    <span class="n">{{ $hit->label }}</span>
+                    <span class="m">{{ $hit->subtitle }}</span>
                 </a>
             @endforeach
         @empty

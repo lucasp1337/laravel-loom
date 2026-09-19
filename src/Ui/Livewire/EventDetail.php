@@ -8,9 +8,9 @@ use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
-use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
+use Lucasp\Loom\Ui\Dto\DownstreamDispatch;
 use Lucasp\Loom\Ui\NodeType;
 use Lucasp\Loom\Ui\Support\Fqcn;
 use Lucasp\Loom\Ui\UiContext;
@@ -44,14 +44,13 @@ class EventDetail extends Component
         $downstream = [];
         foreach ($query->eventChain($this->fqcn, 1)->edges as $edge) {
             foreach ($edge->dispatches as $dispatch) {
-                $downstream[] = [
-                    'type' => NodeType::forDispatch($dispatch->kind),
-                    'target' => $dispatch->target,
-                    'url' => $ui->links->forFqcn($dispatch->target),
-                    'via' => $edge->handler,
-                    'location' => $dispatch->file.':'.$dispatch->line,
-                    'isEvent' => $dispatch->kind === DispatchKinds::EVENT,
-                ];
+                $downstream[] = new DownstreamDispatch(
+                    NodeType::forDispatch($dispatch->kind),
+                    $dispatch->target,
+                    $ui->links->forFqcn($dispatch->target),
+                    $edge->handler,
+                    $dispatch->file.':'.$dispatch->line,
+                );
             }
         }
 

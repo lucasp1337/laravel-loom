@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Ui\Livewire;
 
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
+use Lucasp\Loom\Ui\Dto\PaletteGroup;
+use Lucasp\Loom\Ui\Dto\PaletteItem;
 use Lucasp\Loom\Ui\NodeType;
 use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\UiContext;
@@ -21,17 +23,21 @@ class Palette extends Component
 
     public function render(UiContext $ui): View
     {
-        $groups = [];
+        $byGroup = [];
         $count = 0;
         foreach ($ui->query->search($this->term, self::LIMIT) as $hit) {
-            $group = SectionPresentation::for($hit->section)->label;
-            $groups[$group][] = [
-                'type' => NodeType::forSection($hit->section) ?? NodeType::EVENT,
-                'label' => $hit->label,
-                'subtitle' => $hit->subtitle,
-                'url' => $ui->links->hit($hit),
-            ];
+            $byGroup[SectionPresentation::for($hit->section)->label][] = new PaletteItem(
+                NodeType::forSection($hit->section) ?? NodeType::EVENT,
+                $hit->label,
+                $hit->subtitle,
+                $ui->links->hit($hit),
+            );
             $count++;
+        }
+
+        $groups = [];
+        foreach ($byGroup as $label => $items) {
+            $groups[] = new PaletteGroup((string) $label, $items);
         }
 
         return app('view')->make('loom::livewire.palette', ['term' => trim($this->term), 'groups' => $groups, 'count' => $count]);

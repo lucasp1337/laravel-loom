@@ -14,6 +14,7 @@ use Lucasp\Loom\Query\Dto\SectionQuery;
 use Lucasp\Loom\Query\SortDirection;
 use Lucasp\Loom\Query\SortField;
 use Lucasp\Loom\Ui\ColumnRole;
+use Lucasp\Loom\Ui\Dto\TableRow;
 use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\SectionSpec;
 use Lucasp\Loom\Ui\UiContext;
@@ -98,11 +99,7 @@ class SectionIndex extends Component
             foreach ($spec->columns as $column) {
                 $cells[] = $column->cell($item);
             }
-            $rows[] = [
-                'cells' => $cells,
-                'url' => $this->rowUrl($ui, $spec, $item),
-                'orphan' => $spec->isOrphan($item),
-            ];
+            $rows[] = new TableRow($cells, $this->rowUrl($ui, $spec, $item), $spec->isOrphan($item));
         }
 
         return $this->renderPage('loom::livewire.section-index', [

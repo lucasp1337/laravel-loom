@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Http;
 
 use Illuminate\Contracts\View\View;
+use Lucasp\Loom\Ui\Dto\NavItem;
 use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\Support\StaleIndex;
 use Lucasp\Loom\Ui\UiContext;
@@ -31,7 +32,7 @@ final class ShellComposer
             if ($info->present && $info->inStats) {
                 $spec = SectionPresentation::for($info->section);
                 $url = $this->context->links->section($info->section);
-                $nav[] = ['section' => $info->section, 'label' => $spec->label, 'count' => $info->count, 'url' => $url];
+                $nav[] = new NavItem($info->section, $spec->label, $info->count, $url);
                 if ($spec->shortcut !== null) {
                     $go[$spec->shortcut] = $url;
                 }

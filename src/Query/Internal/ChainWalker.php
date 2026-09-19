@@ -13,13 +13,7 @@ use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\Dto\EventChain;
 use Lucasp\Loom\Query\HandlerKind;
 
-/**
- * Depth-bounded, cycle-safe traversal of the event/dispatch graph.
- *
- * Granularity: listeners, observers and jobs expose dispatches at class level
- * (the read model does not tag a dispatch with its originating method); only
- * routes carry a resolved (controller, method) pair.
- */
+/** Depth-bounded, cycle-safe walk of the event/dispatch graph. Dispatches are class-level except on routes. */
 final class ChainWalker
 {
     public function __construct(private readonly Index $index)
@@ -48,20 +42,20 @@ final class ChainWalker
                 foreach ($this->handlersOf($event) as $handler) {
                     $edges[] = new ChainEdge(
                         $event,
-                        $handler['ref'],
-                        $handler['kind'],
-                        $handler['dispatches'],
+                        $handler->ref,
+                        $handler->kind,
+                        $handler->dispatches,
                         $level,
-                        $handler['file'],
-                        $handler['line'],
+                        $handler->file,
+                        $handler->line,
                     );
 
-                    foreach ($handler['dispatches'] as $dispatch) {
+                    foreach ($handler->dispatches as $dispatch) {
                         if ($dispatch->kind !== DispatchKinds::EVENT) {
                             continue;
                         }
                         if (isset($visited[$dispatch->target])) {
-                            $cycles[] = new ChainCycle($handler['ref'], $dispatch->target);
+                            $cycles[] = new ChainCycle($handler->ref, $dispatch->target);
                         } else {
                             $next[] = $dispatch->target;
                         }
@@ -126,7 +120,7 @@ final class ChainWalker
     /**
      * Named listeners (via `handled_by`) and closure listeners bound to the event.
      *
-     * @return list<array{ref: string, kind: HandlerKind, file: ?string, line: ?int, dispatches: list<DispatchRef>}>
+     * @return list<WalkedHandler>
      */
     private function handlersOf(string $eventFqcn): array
     {
@@ -134,24 +128,24 @@ final class ChainWalker
 
         foreach ($this->index->handlersOf($eventFqcn) as $handler) {
             $listener = $this->index->findListener($handler->listener);
-            $handlers[] = [
-                'ref' => $handler->listener.'::'.$handler->method,
-                'kind' => HandlerKind::LISTENER,
-                'file' => $listener?->file,
-                'line' => $listener?->line,
-                'dispatches' => $this->refs($listener !== null ? $listener->dispatches : []),
-            ];
+            $handlers[] = new WalkedHandler(
+                $handler->listener.'::'.$handler->method,
+                HandlerKind::LISTENER,
+                $listener?->file,
+                $listener?->line,
+                $this->refs($listener !== null ? $listener->dispatches : []),
+            );
         }
 
         foreach ($this->index->closureListeners() as $closure) {
             if ($closure->event === $eventFqcn) {
-                $handlers[] = [
-                    'ref' => $closure->file.':'.$closure->line,
-                    'kind' => HandlerKind::CLOSURE,
-                    'file' => $closure->file,
-                    'line' => $closure->line,
-                    'dispatches' => $this->refs($closure->dispatches),
-                ];
+                $handlers[] = new WalkedHandler(
+                    $closure->file.':'.$closure->line,
+                    HandlerKind::CLOSURE,
+                    $closure->file,
+                    $closure->line,
+                    $this->refs($closure->dispatches),
+                );
             }
         }
 

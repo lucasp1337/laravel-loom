@@ -18,10 +18,7 @@ use Lucasp\Loom\Ui\Support\Fqcn;
 use Lucasp\Loom\Ui\Support\NodeFacts;
 use Lucasp\Loom\Ui\UiContext;
 
-/**
- * Chain page state. Livewire owns depth, selection and collapsed nodes and
- * ships the graph as data; the Alpine `loomChain` component owns the canvas.
- */
+/** Livewire owns depth, selection and collapsed nodes; Alpine `loomChain` owns the canvas. */
 #[Layout('loom::layouts.app')]
 class ChainPage extends Component
 {

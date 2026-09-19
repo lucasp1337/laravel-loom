@@ -59,10 +59,10 @@
             <ul class="loom-list">
                 @foreach ($downstream as $item)
                     <li>
-                        <x-loom::badge :type="$item['type']" />
-                        @if ($item['url'] !== null)<a class="name" href="{{ $item['url'] }}">{{ $item['target'] }}</a>@else<span class="name">{{ $item['target'] }}</span>@endif
-                        <span class="loom-muted">from {{ $item['via'] }}</span>
-                        <span class="loc">{{ $item['location'] }}</span>
+                        <x-loom::badge :type="$item->type" />
+                        @if ($item->url !== null)<a class="name" href="{{ $item->url }}">{{ $item->target }}</a>@else<span class="name">{{ $item->target }}</span>@endif
+                        <span class="loom-muted">from {{ $item->via }}</span>
+                        <span class="loc">{{ $item->location }}</span>
                     </li>
                 @endforeach
             </ul>

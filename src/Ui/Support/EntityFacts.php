@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Support;
 
 use BackedEnum;
+use Illuminate\Support\Str;
+use Lucasp\Loom\Ui\Dto\FactCell;
+use Lucasp\Loom\Ui\Dto\FactRow;
 
 /**
  * Turns any read-model entity into label/value rows the generic detail page
@@ -13,9 +16,6 @@ use BackedEnum;
  *
  * Walking the read model's own public properties keeps a new field visible
  * without touching a view.
- *
- * @phpstan-type Cell array{text: string, url: ?string}
- * @phpstan-type Row array{label: string, cells: list<Cell>, columns: list<string>, table: list<list<Cell>>}
  */
 final class EntityFacts
 {
@@ -26,9 +26,7 @@ final class EntityFacts
     {
     }
 
-    /**
-     * @return list<array{label: string, cells: list<array{text: string, url: ?string}>, columns: list<string>, table: list<list<array{text: string, url: ?string}>>}>
-     */
+    /** @return list<FactRow> */
     public function rows(object $entity): array
     {
         $rows = [];
@@ -44,39 +42,26 @@ final class EntityFacts
         return $rows;
     }
 
-    /**
-     * @return array{label: string, cells: list<array{text: string, url: ?string}>, columns: list<string>, table: list<list<array{text: string, url: ?string}>>}
-     */
-    private function row(string $property, mixed $value): array
+    private function row(string $property, mixed $value): FactRow
     {
-        $label = ucfirst(str_replace('_', ' ', strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', $property))));
-        $row = ['label' => $label, 'cells' => [], 'columns' => [], 'table' => []];
+        $label = Str::headline($property);
 
         if (is_array($value) && $value !== [] && is_object(reset($value))) {
-            $first = get_object_vars((object) reset($value));
-            $row['columns'] = array_map(static fn (string $c): string => ucfirst(str_replace('_', ' ', $c)), array_keys($first));
+            $columns = array_map(Str::headline(...), array_keys(get_object_vars((object) reset($value))));
+            $table = [];
             foreach ($value as $item) {
-                $row['table'][] = array_map(fn (mixed $v): array => $this->cell($v), array_values(is_object($item) ? get_object_vars($item) : []));
+                $table[] = array_map(fn (mixed $v): FactCell => $this->cell($v), array_values(is_object($item) ? get_object_vars($item) : []));
             }
 
-            return $row;
+            return new FactRow($label, columns: $columns, table: $table);
         }
 
-        if (is_array($value)) {
-            foreach ($value as $item) {
-                $row['cells'][] = $this->cell($item);
-            }
+        $items = is_array($value) ? $value : [$value];
 
-            return $row;
-        }
-
-        $row['cells'][] = $this->cell($value);
-
-        return $row;
+        return new FactRow($label, cells: array_map(fn (mixed $v): FactCell => $this->cell($v), array_values($items)));
     }
 
-    /** @return array{text: string, url: ?string} */
-    private function cell(mixed $value): array
+    private function cell(mixed $value): FactCell
     {
         $text = match (true) {
             $value === null => "\u{2014}",
@@ -86,7 +71,7 @@ final class EntityFacts
             default => (string) json_encode($this->flatten($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         };
 
-        return ['text' => $text, 'url' => is_string($value) ? $this->links->forFqcn($value) : null];
+        return new FactCell($text, is_string($value) ? $this->links->forFqcn($value) : null);
     }
 
     private function flatten(mixed $value): mixed
