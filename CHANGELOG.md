@@ -7,7 +7,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 ### Breaking
 
 - Index files from 0.2 no longer validate. Required fields added without a `loom_version` bump: `closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
-- `livewire/livewire` and `laravel/mcp` are now installed with the package.
+- `livewire/livewire` and `laravel/mcp` (^1.0) are now installed with the package.
 
 ### Added
 
