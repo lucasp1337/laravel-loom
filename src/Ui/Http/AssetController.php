@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Http;
 
 use Lucasp\Loom\Ui\Asset;
+use Lucasp\Loom\Ui\LoomConfig;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
@@ -14,6 +15,10 @@ final class AssetController
 {
     public function __invoke(string $file): BinaryFileResponse
     {
+        if (! app(LoomConfig::class)->servesIn(app()->environment())) {
+            abort(404);
+        }
+
         $asset = Asset::tryFrom($file) ?? abort(404);
 
         if (! is_file($asset->path())) {

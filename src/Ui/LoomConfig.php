@@ -21,6 +21,36 @@ final class LoomConfig
         return (bool) $this->config->get('loom.ui.enabled', true);
     }
 
+    /** @return list<string> */
+    public function environments(): array
+    {
+        $environments = $this->config->get('loom.ui.environments', ['local']);
+
+        return is_array($environments) ? array_values(array_filter($environments, is_string(...))) : ['local'];
+    }
+
+    public function allowInProduction(): bool
+    {
+        return $this->config->get('loom.ui.allow_in_production', false) === true;
+    }
+
+    /** Whether the UI may exist at all in the given app environment. */
+    public function servesIn(string $environment): bool
+    {
+        return $this->enabled()
+            && in_array($environment, $this->environments(), true)
+            && ($environment !== 'production' || $this->allowInProduction());
+    }
+
+    /** True when production is listed but not allowed, so the UI stays off. */
+    public function blockedProduction(string $environment): bool
+    {
+        return $this->enabled()
+            && $environment === 'production'
+            && in_array($environment, $this->environments(), true)
+            && ! $this->allowInProduction();
+    }
+
     public function path(): string
     {
         $path = $this->config->get('loom.ui.path', 'loom');

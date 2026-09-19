@@ -13,7 +13,9 @@ php artisan vendor:publish --tag=loom-config
 | Key | Env variable | Default | Meaning |
 | --- | --- | --- | --- |
 | `index_path` | `LOOM_INDEX_PATH` | `null` | Where `loom:scan` writes the index and where the CLI, MCP server and UI read it. `null` means `storage/loom/index.json`. |
-| `ui.enabled` | `LOOM_UI_ENABLED` | `true` | Mounts the UI. When `false`, no routes, pages or gate exist. |
+| `ui.enabled` | `LOOM_UI_ENABLED` | `true` | Kill switch. When `false`, no routes, pages or gate exist in any environment. |
+| `ui.environments` | none | `['local']` | App environments that mount the UI. Elsewhere nothing is registered and `/loom` returns 404. |
+| `ui.allow_in_production` | none | `false` | Listing `production` in `ui.environments` is ignored unless this is `true`. A warning is logged when it is listed but not allowed. |
 | `ui.path` | `LOOM_PATH` | `loom` | URI prefix. Slashes at either end are trimmed; an empty value falls back to `loom`. |
 | `ui.domain` | `LOOM_DOMAIN` | `null` | Serve the UI only on this domain. `null` serves it on every domain. |
 | `ui.middleware` | none | `['web']` | Middleware that runs before the `viewLoom` gate check. The gate check always runs. |
@@ -24,7 +26,7 @@ The keys are addressed as `loom.ui.enabled`, `loom.index_path` and so on. The `u
 
 ## The viewLoom gate
 
-The gate is not a config key. By default it allows the `local` environment and denies everything else with a 403. Define `Gate::define('viewLoom', ...)` in your app to replace it. An example is in [Browse the UI](../guides/browse-the-ui.md#open-it-on-staging).
+The gate is not a config key. By default it allows the `local` environment and denies everything else with a 403. It only runs in environments listed in `ui.environments`; in any other environment the UI isn't mounted and the response is a 404, not a 403. Define `Gate::define('viewLoom', ...)` in your app to replace it. An example is in [Browse the UI](../guides/browse-the-ui.md#open-it-on-staging).
 
 !!! warning "Route caching hides changes"
-    `enabled`, `path`, `domain` and `middleware` are read when routes are registered. If you use `php artisan route:cache`, run `php artisan route:clear` after changing them.
+    `path`, `domain` and `middleware` are read when routes are registered. The environment guard is re-checked on every request, so it works with cached routes. If you use `php artisan route:cache`, run `php artisan route:clear` after changing them.

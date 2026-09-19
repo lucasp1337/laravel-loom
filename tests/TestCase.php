@@ -12,6 +12,12 @@ use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
 {
+    /** App environment the provider boots under; the UI mounts in `local` only by default. */
+    protected string $loomEnvironment = 'local';
+
+    /** @var array<string, mixed> */
+    protected array $loomConfig = [];
+
     /**
      * @param  Application  $app
      * @return array<int, class-string>
@@ -33,5 +39,10 @@ class TestCase extends Orchestra
     {
         // The UI runs the `web` middleware group, which needs an app key.
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
+        $app['env'] = $this->loomEnvironment;
+
+        foreach ($this->loomConfig as $key => $value) {
+            $app['config']->set($key, $value);
+        }
     }
 }

@@ -103,6 +103,7 @@ The dashboard's counters link to each section. The Orphans card lists up to eigh
 | 503 `No index found` | Nothing at the index path | Run `php artisan loom:scan` and reload. The page has a copy button for the command |
 | 503 `Index could not be loaded` | The file exists but isn't a valid index | Run `php artisan loom:scan` again; the message shows the parse error |
 | 403 | The `viewLoom` gate said no | See [Open it on staging](#open-it-on-staging) |
+| 404 on `/loom` | The environment isn't in `ui.environments`, or the UI is disabled | See [Open it on staging](#open-it-on-staging) |
 | 404 | The class isn't in the index | Check the spelling, or scan again if you just added it |
 | `Index is 6 days older than your last commit to app/` | Code changed after the scan | Run `php artisan loom:scan` |
 
@@ -113,9 +114,15 @@ The stale banner compares the index's scan time with the newest git commit touch
 
 ## Open it on staging
 
-By default only the `local` environment can open the UI. Everywhere else the page returns 403, because the index lists your file paths and internal class names.
+By default the UI exists only in the `local` environment. In any other environment nothing is registered, so `/loom` returns 404. The index lists your file paths and internal class names, so this is deliberate.
 
-To open it elsewhere, define a `viewLoom` gate in `App\Providers\AppServiceProvider`. Yours replaces the default.
+To open it on staging, add the environment to `config/loom.php`, then define a `viewLoom` gate in `App\Providers\AppServiceProvider`. Yours replaces the default.
+
+```php
+'ui' => [
+    'environments' => ['local', 'staging'],
+],
+```
 
 ```php
 use App\Models\User;
@@ -128,12 +135,12 @@ public function boot(): void
 }
 ```
 
-Only those two signed-in users can open `/loom` on staging. A guest passes `null`, which is not in the list, so guests get 403.
+Only those two signed-in users can open `/loom` on staging. A guest passes `null`, which is not in the list, so guests get 403. A 403 means the UI is mounted and the gate refused you; a 404 means the environment isn't listed.
 
 The gate runs on the first page load and again on every click inside a page, so revoking access takes effect on the next interaction. The stylesheet and script files under `/loom/assets` are the exception: they're served outside the gate so the 403 page can still load its own styles.
 
 !!! warning "The gate is the only lock"
-    `ui.middleware` runs before the gate, but removing the gate isn't an option: the check always runs. Don't define a gate that returns `true` on a production host.
+    `ui.middleware` runs before the gate, but removing the gate isn't an option: the check always runs. `production` is ignored in `ui.environments` unless `ui.allow_in_production` is `true`. Leave it off; if you must, keep a strict gate.
 
 ## Change the URL, turn it off, publish the config
 
@@ -156,12 +163,12 @@ php artisan vendor:publish --tag=loom-config
 That writes `config/loom.php`. Every key is in [UI configuration](../reference/ui-config.md).
 
 !!! warning "Cached routes freeze the UI's URL"
-    With `php artisan route:cache`, the UI's routes are frozen into the cache file as they were at cache time. Change `LOOM_PATH`, `LOOM_DOMAIN` or `LOOM_UI_ENABLED` and nothing happens until you run `php artisan route:clear` (or re-cache). The same applies if you cached before Loom was installed: `/loom` returns 404.
+    With `php artisan route:cache`, the UI's routes are frozen into the cache file as they were at cache time. Change `LOOM_PATH`, `LOOM_DOMAIN` or `LOOM_UI_ENABLED` and nothing happens until you run `php artisan route:clear` (or re-cache). The environment guard is the exception: it is re-checked on every request. The same applies if you cached before Loom was installed: `/loom` returns 404.
 
 ## What the UI doesn't do
 
 - **It's read-only.** Nothing you click changes code, the index or your app.
 - **It shows what the scan found.** A dispatch Loom couldn't resolve is in the `unresolved_dispatches` list, not in the chain. [Why was my code missed?](why-was-my-code-missed.md) covers the causes.
-- **It's a development tool.** Installed with `--dev`, it isn't in a `composer install --no-dev` build. If you install it in production anyway, keep the default gate.
+- **It's a development tool.** Installed with `--dev`, it isn't in a `composer install --no-dev` build. Install it with `--dev` and don't expose it in production. If you install it there anyway, leave `ui.allow_in_production` off.
 
 You're done when `/loom` shows your counts and the chain for `OrderPlaced` lists the listeners you expect.

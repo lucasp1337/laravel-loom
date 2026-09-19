@@ -24,6 +24,19 @@ trait UiSnapshot
         Gate::define(LoomAbility::VIEW->value, fn ($user = null): bool => true);
     }
 
+    /** @param  array<string, mixed>  $config */
+    public function bootUiAs(string $environment, array $config = [], bool $openGate = true): void
+    {
+        $this->loomEnvironment = $environment;
+        $this->loomConfig = $config;
+        $this->refreshApplication();
+        config()->set('loom.ui.index_path', $this->snapshot);
+
+        if ($openGate) {
+            Gate::define(LoomAbility::VIEW->value, fn ($user = null): bool => true);
+        }
+    }
+
     protected function tearDownUiSnapshot(): void
     {
         @unlink($this->snapshot);

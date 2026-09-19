@@ -57,7 +57,7 @@ That is an excerpt: the scan wrote `storage/loom/index.json`, and `loom:show` pr
 - Not a style linter. It has no opinion on your code beyond the [check rules](docs/reference/check-rules-and-formats.md) you turn on.
 
 > [!NOTE]
-> Install with `--dev`. The UI, the MCP server and the `viewLoom` gate then disappear from `composer install --no-dev` production builds.
+> Install with `--dev`. The UI, the MCP server and the `viewLoom` gate then disappear from `composer install --no-dev` production builds. The UI is also mounted only in `local` unless you list more environments in `loom.ui.environments`.
 
 ## Requirements
 
