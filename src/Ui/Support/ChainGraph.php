@@ -28,6 +28,9 @@ final class ChainGraph
     /** @var array<string, true> */
     private array $seen = [];
 
+    /** @var array<string, true> */
+    private array $usedKeys = [];
+
     /** @var array<string, list<ChainEdge>> */
     private array $edgesByEvent = [];
 
@@ -91,7 +94,7 @@ final class ChainGraph
         $closure = $edge->handlerKind === HandlerKind::CLOSURE;
         [$id, $method] = $closure ? [$edge->handler, null] : $this->splitHandler($edge->handler);
         $type = $closure ? NodeType::CLOSURE : NodeType::LISTENER;
-        $key = $this->key($parentKey, $id);
+        $key = $this->key($parentKey, $edge->handler);
         $collapsed = in_array($key, $this->collapsed, true);
         $dispatches = $edge->dispatches;
 
@@ -111,7 +114,14 @@ final class ChainGraph
             return;
         }
 
+        $drawn = [];
         foreach ($dispatches as $dispatch) {
+            $identity = $dispatch->kind->value.'|'.$dispatch->target;
+            if (isset($drawn[$identity])) {
+                continue;
+            }
+            $drawn[$identity] = true;
+
             if ($dispatch->kind === DispatchKinds::EVENT) {
                 $this->event($dispatch->target, $key, $depth + 1);
 
@@ -152,7 +162,7 @@ final class ChainGraph
             'sub' => $sub,
             'hasChildren' => $hasChildren,
             'collapsed' => $collapsed,
-            'selected' => $type !== NodeType::CYCLE && $id === $this->selected,
+            'selected' => $key === $this->selected,
         ];
 
         if ($parentKey !== null) {
@@ -162,7 +172,13 @@ final class ChainGraph
 
     private function key(?string $parentKey, string $id): string
     {
-        return $parentKey === null ? $id : $parentKey.'>'.$id;
+        $key = $parentKey === null ? $id : $parentKey.'>'.$id;
+        for ($n = 2; isset($this->usedKeys[$key]); $n++) {
+            $key = ($parentKey === null ? $id : $parentKey.'>'.$id).'#'.$n;
+        }
+        $this->usedKeys[$key] = true;
+
+        return $key;
     }
 
     private function label(NodeType $type, string $id): string
