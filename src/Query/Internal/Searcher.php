@@ -41,7 +41,6 @@ final class Searcher
     ];
 
     public function __construct(private readonly Index $index)
-
     {
 
     }

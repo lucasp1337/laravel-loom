@@ -22,7 +22,12 @@ final class GitAppChangeClock implements AppChangeClock
     public function lastChange(): ?int
     {
         // 0 caches an "unknown" result so a missing git isn't retried every render.
-        $cached = Cache::remember('loom.app_change.'.md5($this->basePath), self::TTL_SECONDS, fn (): int => $this->probe() ?? 0);
+        try {
+            $cached = Cache::remember('loom.app_change.'.md5($this->basePath), self::TTL_SECONDS, fn (): int => $this->probe() ?? 0);
+        } catch (Throwable) {
+            // An unavailable cache store (e.g. a database store without its table) must not break the page.
+            $cached = $this->probe() ?? 0;
+        }
 
         return $cached > 0 ? $cached : null;
     }
