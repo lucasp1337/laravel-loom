@@ -59,6 +59,8 @@ final class IndexLoader
      */
     public function fromArray(array $data): Index
     {
+        IndexSchema::assertSupported($data);
+
         $sections = [];
         foreach (SectionRegistry::names() as $name) {
             $section = $data[$name] ?? [];
@@ -71,6 +73,7 @@ final class IndexLoader
             scannedAt: $this->meta($data, MetaField::SCANNED_AT),
             laravelVersion: $this->meta($data, MetaField::LARAVEL_VERSION),
             sections: $sections,
+            schemaVersion: $this->meta($data, MetaField::SCHEMA_VERSION),
         );
     }
 

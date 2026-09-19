@@ -5,10 +5,6 @@ repo_url: https://github.com/lucasp1337/laravel-loom
 repo_name: lucasp1337/laravel-loom
 edit_uri: edit/main/docs/
 
-# Docs live in docs/ and are authored as plain Markdown — the same files
-# contributors edit day to day. This site is built from them locally
-# (`just docs-deploy`); nothing here changes the in-repo, PR-reviewed,
-# version-with-the-code workflow.
 docs_dir: docs
 
 theme:
@@ -61,31 +57,20 @@ plugins:
 
 nav:
   - Home: index.md
-  - What Loom detects: what-loom-detects.md
-  - The index: the-index.md
-  - Diffing indexes: diff.md
-  - Checking an index: check.md
+  - Getting started: getting-started.md
+  - Concepts:
+      - What Loom sees: concepts/what-loom-sees.md
+      - The index: concepts/the-index.md
+  - Guides:
+      - Browse the UI: guides/browse-the-ui.md
+      - Ask an agent: guides/ask-an-agent.md
+      - Gate your CI: guides/gate-your-ci.md
+      - Why was my code missed?: guides/why-was-my-code-missed.md
   - Reference:
-      - Architecture: architecture.md
-      - Schema: schema.md
-      - Scanners:
-          - Events: scanners/events.md
-          - Listeners: scanners/listeners.md
-          - Closure listeners: scanners/closure-listeners.md
-          - Observers: scanners/observers.md
-          - Dispatches: scanners/dispatches.md
-          - Jobs: scanners/jobs.md
-          - Mailables: scanners/mailables.md
-          - Notifications: scanners/notifications.md
-          - Schedule: scanners/schedule.md
-      - Support:
-          - Class hierarchy resolver: support/class-hierarchy.md
-      - Decision records:
-          - Overview: adr/README.md
-          - 0001 — Class hierarchy resolver: adr/0001-class-hierarchy-resolver.md
-          - 0002 — Schedule scanner: adr/0002-schedule-scanner.md
-          - 0003 — Mailables & notifications: adr/0003-mailables-notifications.md
-          - 0004 — Sub-minute frequencies: adr/0004-sub-minute-frequencies.md
-          - 0005 — Index read model: adr/0005-index-read-model.md
-          - 0006 — Benchmark suite: adr/0006-benchmark-suite.md
-  - Contributing: contributing.md
+      - Commands: reference/commands.md
+      - Check rules and formats: reference/check-rules-and-formats.md
+      - GitHub Action: reference/action.md
+      - MCP tools: reference/mcp-tools.md
+      - Schema: reference/schema.md
+      - PHP API: reference/php-api.md
+  - Upgrading: upgrading.md

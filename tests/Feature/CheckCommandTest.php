@@ -31,6 +31,7 @@ function checkCommandStats(array $overrides = []): array
 function checkCommandIndex(array $overrides = []): array
 {
     $base = [
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00+00:00',
@@ -561,3 +562,12 @@ it('fails without the skip and passes once the failing rule is skipped', functio
     }
     $this->artisan('loom:check', $with)->assertExitCode(0);
 })->with('single failing rule');
+
+it('exits 2 and asks for a re-scan when the index has no schema_version', function () {
+    $index = checkCommandIndex();
+    unset($index['schema_version']);
+
+    $this->artisan('loom:check', ['index' => checkTempIndex($index)])
+        ->expectsOutputToContain('loom:scan')
+        ->assertExitCode(2);
+});

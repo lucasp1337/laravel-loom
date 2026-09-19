@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ModelEventEntry;
+use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Index\ObserverRegistration;
@@ -52,7 +53,7 @@ final class ObserverScanner implements Scanner
         /** @var array<int, array{model: string, observer: string, registration: ObserverRegistration}> $observerRegs */
         $observerRegs = [];
 
-        /** @var array<int, array{model: string, hook: string, handler: string, method: string}> $listenEntries */
+        /** @var array<int, array{model: string, hook: string, handler: string, method: string, file: string, line: int}> $listenEntries */
         $listenEntries = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
@@ -104,6 +105,8 @@ final class ObserverScanner implements Scanner
                     'hook' => $entry->hook,
                     'handler' => $entry->handler,
                     'method' => $entry->method,
+                    'file' => $relative,
+                    'line' => $entry->line,
                 ];
             }
         }
@@ -174,12 +177,12 @@ final class ObserverScanner implements Scanner
 
     /**
      * @param  array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>  $observers
-     * @param  array<int, array{model: string, hook: string, handler: string, method: string}>  $listenEntries
-     * @return array<string, array{model: string, event: string, handled_by: list<string>}>
+     * @param  array<int, array{model: string, hook: string, handler: string, method: string, file: string, line: int}>  $listenEntries
+     * @return array<string, array{model: string, event: string, handled_by: list<ModelEventHandler>}>
      */
     private function buildModelEvents(array $observers, array $listenEntries): array
     {
-        /** @var array<string, array{model: string, event: string, handled_by: array<string, true>}> $acc */
+        /** @var array<string, array{model: string, event: string, handled_by: array<string, ModelEventHandler>}> $acc */
         $acc = [];
 
         foreach ($observers as $observer) {
@@ -192,7 +195,12 @@ final class ObserverScanner implements Scanner
                         'handled_by' => [],
                     ];
                 }
-                $acc[$key]['handled_by'][$observer['fqcn'].'::'.$hook] = true;
+                $acc[$key]['handled_by'][$observer['fqcn'].'::'.$hook] = new ModelEventHandler(
+                    handler: $observer['fqcn'],
+                    method: $hook,
+                    file: $observer['file'],
+                    line: $observer['line'],
+                );
             }
         }
 
@@ -205,7 +213,12 @@ final class ObserverScanner implements Scanner
                     'handled_by' => [],
                 ];
             }
-            $acc[$key]['handled_by'][$entry['handler'].'::'.$entry['method']] = true;
+            $acc[$key]['handled_by'][$entry['handler'].'::'.$entry['method']] ??= new ModelEventHandler(
+                handler: $entry['handler'],
+                method: $entry['method'],
+                file: $entry['file'],
+                line: $entry['line'],
+            );
         }
 
         $out = [];
@@ -213,8 +226,9 @@ final class ObserverScanner implements Scanner
             if ($data['handled_by'] === []) {
                 continue;
             }
-            $handlers = array_keys($data['handled_by']);
-            sort($handlers);
+            $handlers = $data['handled_by'];
+            ksort($handlers);
+            $handlers = array_values($handlers);
             $out[$key] = [
                 'model' => $data['model'],
                 'event' => $data['event'],
@@ -252,7 +266,7 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @param  array<string, array{model: string, event: string, handled_by: list<string>}>  $modelEvents
+     * @param  array<string, array{model: string, event: string, handled_by: list<ModelEventHandler>}>  $modelEvents
      * @return list<ModelEventEntry>
      */
     private function emitModelEvents(array $modelEvents): array

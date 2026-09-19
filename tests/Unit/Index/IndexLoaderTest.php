@@ -14,6 +14,7 @@ use Lucasp\Loom\Index\IndexLoadException;
 function minimalIndexArray(): array
 {
     return [
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'scanned_at' => '2026-06-07T12:00:00+00:00',
         'laravel_version' => '12.x',
@@ -106,6 +107,7 @@ it('throws when a JSON array is given (decodes to a list, then fails missing met
 
 it('throws when a required meta field is missing', function () {
     (new IndexLoader)->fromArray([
+        'schema_version' => '1.0',
         'scanned_at' => '2026-06-07T12:00:00+00:00',
         'laravel_version' => '12.x',
     ]);
@@ -113,6 +115,7 @@ it('throws when a required meta field is missing', function () {
 
 it('throws when scanned_at is missing', function () {
     (new IndexLoader)->fromArray([
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'laravel_version' => '12.x',
     ]);
@@ -120,6 +123,7 @@ it('throws when scanned_at is missing', function () {
 
 it('throws when laravel_version is missing', function () {
     (new IndexLoader)->fromArray([
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'scanned_at' => '2026-06-07T12:00:00+00:00',
     ]);
@@ -130,3 +134,40 @@ it('memoizes hydrated sections so repeated getter calls return the same instance
 
     expect($index->events()[0])->toBe($index->events()[0]);
 });
+
+it('accepts the same schema major with any minor', function () {
+    $index = (new IndexLoader)->fromArray([
+        'schema_version' => '1.7',
+        'loom_version' => '9.9.9',
+        'scanned_at' => '2026-06-07T12:00:00Z',
+        'laravel_version' => '12.x',
+    ]);
+
+    expect($index->schemaVersion)->toBe('1.7');
+});
+
+it('rejects an index with no schema_version and tells the user to re-scan', function () {
+    (new IndexLoader)->fromArray([
+        'loom_version' => '0.3.0',
+        'scanned_at' => '2026-06-07T12:00:00Z',
+        'laravel_version' => '12.x',
+    ]);
+})->throws(IndexLoadException::class, 'loom:scan');
+
+it('rejects a newer schema major', function () {
+    (new IndexLoader)->fromArray([
+        'schema_version' => '2.0',
+        'loom_version' => '2.0.0',
+        'scanned_at' => '2026-06-07T12:00:00Z',
+        'laravel_version' => '12.x',
+    ]);
+})->throws(IndexLoadException::class, 'newer');
+
+it('rejects an older schema major', function () {
+    (new IndexLoader)->fromArray([
+        'schema_version' => '0.9',
+        'loom_version' => '0.3.0',
+        'scanned_at' => '2026-06-07T12:00:00Z',
+        'laravel_version' => '12.x',
+    ]);
+})->throws(IndexLoadException::class, 'older');

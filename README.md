@@ -7,522 +7,72 @@
 
 <p align="center">
   <a href="https://github.com/lucasp1337/laravel-loom/actions/workflows/run-tests.yml"><img src="https://github.com/lucasp1337/laravel-loom/actions/workflows/run-tests.yml/badge.svg?branch=main" alt="Tests"></a>
-  <a href="https://github.com/lucasp1337/laravel-loom/actions/workflows/phpstan.yml"><img src="https://github.com/lucasp1337/laravel-loom/actions/workflows/phpstan.yml/badge.svg?branch=main" alt="PHPStan"></a>
-  <a href="https://codecov.io/gh/lucasp1337/laravel-loom"><img src="https://codecov.io/gh/lucasp1337/laravel-loom/graph/badge.svg" alt="Coverage"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
 </p>
 
 # Laravel Loom
 
-*Architecture as data.*
+Loom is a static analyzer that maps a Laravel app's events, listeners, jobs, mailables, notifications, schedules and routes into a JSON index, a browser UI and an MCP server.
 
-Loom statically analyzes a Laravel app's event-driven primitives and writes a deterministic JSON file: every event, listener, observer, job, schedule, mailable, notification, and dispatch site, each with its file path and line number. It reads source with `nikic/php-parser` — no app boot, no runtime tracing, no `vendor/` required — so it sees what's actually in your code, not just what Laravel happened to register at boot.
+Laravel wires an event up in several places at once: dispatched in a controller, handled by a listener that was auto-discovered from a type hint, and observed by a closure in a provider. Loom reads your source and answers "what happens when `OrderPlaced` fires?" in one lookup, with a file and line for every hop.
 
 ```bash
 composer require lucasp1337/laravel-loom --dev
-php artisan loom:scan          # writes storage/loom/index.json
+php artisan loom:scan
+php artisan loom:show OrderPlaced
 ```
-
-## Usage
-
-```bash
-php artisan loom:scan               # writes storage/loom/index.json
-php artisan loom:show               # prints the index
-php artisan loom:show OrderPlaced   # filters by FQCN substring
-```
-
-Add `storage/loom/index.json` to `.gitignore` if you don't want to commit it.
-
-## What it finds
-
-Click any item to see what gets picked up.
-
-<details>
-<summary><strong>Events</strong> — <code>app/Events/**</code>, plus any class dispatched via <code>event()</code> / <code>Event::dispatch()</code></summary>
-
-```php
-namespace App\Events;
-
-class OrderPlaced {}   // any class under app/Events/
-
-// ...or any class dispatched statically, wherever it lives:
-event(new OrderPlaced($order));
-Event::dispatch(new OrderPlaced($order));
-OrderPlaced::dispatch($order);   // counts as an event when it resolves under app/Events/
-```
-
-</details>
-
-<details>
-<summary><strong>Listeners</strong> — auto-discovery, <code>$listen</code> arrays, <code>Event::listen()</code>, and subscribers</summary>
-
-```php
-// Auto-discovered from the typed handle() argument
-class SendOrderConfirmation
-{
-    public function handle(OrderPlaced $event): void {}
-}
-
-// $listen array on EventServiceProvider
-protected $listen = [
-    OrderPlaced::class => [SendOrderConfirmation::class],
-];
-
-// Event::listen() anywhere under app/
-Event::listen(OrderPlaced::class, SendOrderConfirmation::class);
-
-// Subscriber
-class OrderSubscriber
-{
-    public function subscribe(Dispatcher $events): array
-    {
-        return [OrderPlaced::class => 'onOrderPlaced'];
-    }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>Closure listeners</strong> — closures registered as listeners, in their own section</summary>
-
-```php
-Event::listen(OrderPlaced::class, function (OrderPlaced $event) {
-    // captured in closure_listeners[], not listeners[]
-});
-```
-
-</details>
-
-<details>
-<summary><strong>Observers</strong> — <code>Model::observe()</code>, <code>#[ObservedBy]</code>, and <code>eloquent.*</code> model events</summary>
-
-```php
-#[ObservedBy(UserObserver::class)]
-class User extends Model {}
-
-// ...or registered imperatively
-User::observe(UserObserver::class);
-
-// ...or via an eloquent.* model event
-Event::listen('eloquent.created: '.User::class, $callback);
-```
-
-</details>
-
-<details>
-<summary><strong>Jobs</strong> — <code>app/Jobs/**</code>, plus any class dispatched via <code>dispatch()</code> / <code>X::dispatch()</code>, with queue config</summary>
-
-```php
-class ProcessOrder implements ShouldQueue   // any class under app/Jobs/
-{
-    public $connection = 'redis';   // queue config read from properties
-    public $queue = 'high';
-    public $tries = 3;
-}
-
-// ...or any class dispatched as a job (located via PSR-4, so DDD layouts work):
-dispatch(new ProcessOrder($order));
-ProcessOrder::dispatch($order);
-Bus::dispatch(new ProcessOrder($order));
-
-// chain-wrapped targets resolve through the chain, and dispatch-time
-// modifiers are captured as an `overrides` object on the dispatch site:
-ProcessOrder::dispatch($order)->onQueue('high')->onConnection('redis');
-dispatch((new ProcessOrder($order))->delay(60))->afterCommit();
-```
-
-Statically-resolvable dispatch-time modifiers — `->onQueue()`, `->onConnection()`, `->delay()` (integer seconds), `->locale()`, `->mailer()`, `->afterCommit()` — are recorded as an optional `overrides` object on the dispatch site. `queue_config` still reflects class-default declarations; `overrides` records what the call site changed.
-
-</details>
-
-<details>
-<summary><strong>Schedule</strong> — <code>Kernel::schedule()</code>, <code>bootstrap/app.php</code>, and <code>Schedule::*</code> chains, normalized to cron</summary>
-
-```php
-// In Kernel::schedule(), bootstrap/app.php withSchedule(), or a Schedule:: chain under app/
-$schedule->command('mail:send')->dailyAt('13:00')->weekdays();
-$schedule->job(new ProcessOrder)->everyFiveMinutes();
-Schedule::call(fn () => cleanup())->hourly();
-```
-
-</details>
-
-<details>
-<summary><strong>Mailables</strong> — <code>app/Mail/**</code>, plus <code>Mail::send()</code> and <code>Mail::to()->send()</code> chains, with queue config</summary>
-
-```php
-class OrderShipped extends Mailable implements ShouldQueue {}   // any class under app/Mail/
-
-// ...or any class sent via Mail::
-Mail::to($user)->send(new OrderShipped($order));
-Mail::queue(new OrderShipped($order));
-```
-
-</details>
-
-<details>
-<summary><strong>Notifications</strong> — <code>app/Notifications/**</code>, plus <code>notify()</code> / <code>Notification::send()</code>, with channels</summary>
-
-```php
-class InvoicePaid extends Notification   // any class under app/Notifications/
-{
-    public function via($notifiable): array
-    {
-        return ['mail', 'database', 'slack'];   // channels read from a static via() literal
-    }
-}
-
-// ...or any class sent via notify()/Notification::
-$user->notify(new InvoicePaid($invoice));
-Notification::send($users, new InvoicePaid($invoice));
-
-// the optional 3rd argument to Notification::send()/sendNow() restricts the
-// dispatch to a channel set; a literal filter is captured as `channels` on
-// the dispatch site:
-Notification::send($users, new InvoicePaid($invoice), ['mail', SlackChannel::class]);
-```
-
-A literal channel-filter argument on `Notification::send()` / `Notification::sendNow()` — an array of string channel names and/or `Class::class` channel constants — is recorded as an optional `channels` array on the `notified_from` dispatch site, using the same value shape as `via()`. It's captured only on the facade form (the `->notify(...)` method form has no channel-filter argument) and omitted when the argument is absent, empty, or non-literal.
-
-</details>
-
-<details>
-<summary><strong>Dispatches</strong> — every handler body, cross-linked back to the listener, observer, or job it runs in</summary>
-
-```php
-class SendOrderConfirmation
-{
-    public function handle(OrderPlaced $event): void
-    {
-        // attributed to this listener as listeners[].dispatches
-        event(new OrderConfirmationSent($event->order));
-    }
-}
-```
-
-</details>
-
-Dynamic calls Loom can't resolve statically (`event($var)`, container lookups) land in `unresolved_dispatches[]` with a reason and a `file:line` rather than being dropped silently. Per-scanner behavior and limitations live in [docs/scanners/](docs/scanners/).
-
-## Sample output
-
-<details>
-<summary>Click to expand a representative scan against a small Laravel 13 app</summary>
 
 ```json
 {
-  "loom_version": "0.2.0",
-  "scanned_at": "2026-05-16T19:25:54Z",
-  "laravel_version": "13.7",
-  "stats": {
-    "events": 1,
-    "listeners": 1,
-    "observers": 1,
-    "jobs": 1,
-    "scheduled": 1,
-    "routes": 2,
-    "mailables": 1,
-    "notifications": 1,
-    "unresolved_dispatches": 1,
-    "closure_listeners": 1
-  },
   "events": [
     {
       "id": "App\\Events\\OrderPlaced",
-      "fqcn": "App\\Events\\OrderPlaced",
-      "kind": "class",
       "file": "app/Events/OrderPlaced.php",
-      "line": 11,
+      "line": 5,
       "dispatched_from": [
-        { "file": "app/Services/Checkout.php", "line": 87, "method": "App\\Services\\Checkout::finalize" }
+        { "file": "app/Http/Controllers/OrderController.php", "line": 11, "method": "App\\Http\\Controllers\\OrderController::store" }
       ],
       "handled_by": [
         { "listener": "App\\Listeners\\SendOrderConfirmation", "method": "handle" }
-      ]
-    }
-  ],
-  "model_events": [
-    {
-      "id": "eloquent.creating: App\\Models\\User",
-      "kind": "model_event",
-      "model": "App\\Models\\User",
-      "event": "creating",
-      "handled_by": ["App\\Observers\\UserObserver::creating"]
-    }
-  ],
-  "listeners": [
-    {
-      "fqcn": "App\\Listeners\\SendOrderConfirmation",
-      "file": "app/Listeners/SendOrderConfirmation.php",
-      "line": 14,
-      "handles": [
-        { "event": "App\\Events\\OrderPlaced", "method": "handle" }
-      ],
-      "registration": "auto_discovered",
-      "queued": true,
-      "dispatches": [
-        {
-          "target": "App\\Events\\OrderConfirmationSent",
-          "kind": "event",
-          "confidence": "high",
-          "file": "app/Listeners/SendOrderConfirmation.php",
-          "line": 31
-        }
-      ]
-    }
-  ],
-  "observers": [
-    {
-      "fqcn": "App\\Observers\\UserObserver",
-      "file": "app/Observers/UserObserver.php",
-      "line": 9,
-      "observes": "App\\Models\\User",
-      "registration": "attribute",
-      "hooks": ["created", "deleted", "updated"],
-      "dispatches": []
-    }
-  ],
-  "jobs": [
-    {
-      "fqcn": "App\\Jobs\\ProcessOrder",
-      "file": "app/Jobs/ProcessOrder.php",
-      "line": 14,
-      "queued": true,
-      "queue_config": {
-        "connection": "redis",
-        "queue": "high",
-        "delay": null,
-        "tries": 3,
-        "timeout": 60,
-        "backoff": null
-      },
-      "dispatched_from": [
-        {
-          "file": "app/Services/Checkout.php",
-          "line": 91,
-          "method": "App\\Services\\Checkout::finalize",
-          "overrides": { "connection": "redis", "queue": "high", "delay": 60 }
-        }
-      ],
-      "dispatches": []
-    }
-  ],
-  "scheduled": [
-    {
-      "kind": "command",
-      "name": null,
-      "target": "mail:send {--queue=default}",
-      "arguments": [],
-      "queue": null,
-      "connection": null,
-      "cron": "0 13 * * *",
-      "frequency": null,
-      "timezone": "America/Chicago",
-      "without_overlapping": true,
-      "without_overlapping_expires_at": null,
-      "on_one_server": false,
-      "run_in_background": false,
-      "even_in_maintenance_mode": false,
-      "constraints": ["weekdays"],
-      "file": "app/Console/Kernel.php",
-      "line": 28
-    }
-  ],
-  "routes": [
-    {
-      "method": "GET",
-      "uri": "orders/{order}",
-      "name": "orders.show",
-      "controller_fqcn": "App\\Http\\Controllers\\OrderController",
-      "controller_method": "show",
-      "middleware": ["web", "auth"],
-      "file": "routes/web.php",
-      "line": 19,
-      "dispatches": [
-        {
-          "target": "App\\Events\\OrderShipped",
-          "kind": "event",
-          "confidence": "high",
-          "file": "app/Http/Controllers/OrderController.php",
-          "line": 42
-        }
-      ]
-    },
-    {
-      "method": "POST",
-      "uri": "webhooks/stripe",
-      "name": null,
-      "controller_fqcn": null,
-      "controller_method": null,
-      "middleware": [],
-      "file": "routes/api.php",
-      "line": 7,
-      "dispatches": []
-    }
-  ],
-  "mailables": [
-    {
-      "fqcn": "App\\Mail\\OrderShipped",
-      "file": "app/Mail/OrderShipped.php",
-      "line": 18,
-      "queued": true,
-      "queue_config": {
-        "connection": null,
-        "queue": "mail",
-        "delay": null,
-        "tries": 3,
-        "timeout": null,
-        "backoff": null
-      },
-      "sent_from": [
-        {
-          "file": "app/Services/Checkout.php",
-          "line": 94,
-          "method": "App\\Services\\Checkout::finalize",
-          "overrides": { "locale": "fr", "mailer": "ses" }
-        }
-      ]
-    }
-  ],
-  "notifications": [
-    {
-      "fqcn": "App\\Notifications\\InvoicePaid",
-      "file": "app/Notifications/InvoicePaid.php",
-      "line": 22,
-      "queued": true,
-      "queue_config": {
-        "connection": null,
-        "queue": "notifications",
-        "delay": null,
-        "tries": null,
-        "timeout": null,
-        "backoff": null
-      },
-      "channels": ["mail", "database", "slack"],
-      "channels_dynamic": false,
-      "notified_from": [
-        {
-          "file": "app/Services/Billing.php",
-          "line": 51,
-          "method": "App\\Services\\Billing::charge",
-          "overrides": { "queue": "emails" }
-        },
-        {
-          "file": "app/Services/Billing.php",
-          "line": 88,
-          "method": "App\\Services\\Billing::charge",
-          "channels": ["mail", "App\\Channels\\SlackChannel"]
-        }
-      ]
-    }
-  ],
-  "unresolved_dispatches": [
-    {
-      "file": "app/Services/Notifier.php",
-      "line": 42,
-      "expression": "event($eventClass)",
-      "reason": "dynamic_class_name"
-    }
-  ],
-  "closure_listeners": [
-    {
-      "event": "App\\Events\\OrderPlaced",
-      "file": "app/Providers/EventServiceProvider.php",
-      "line": 38,
-      "end_line": 40,
-      "registration": "event_listen_call",
-      "queued": false,
-      "dispatches": [
-        {
-          "target": "App\\Events\\OrderConfirmationSent",
-          "kind": "event",
-          "confidence": "high",
-          "file": "app/Providers/EventServiceProvider.php",
-          "line": 39
-        }
       ]
     }
   ]
 }
 ```
 
-</details>
+That is an excerpt: the scan wrote `storage/loom/index.json`, and `loom:show` printed it filtered to `OrderPlaced`. Open `/loom` in your local app to browse the same data. [Getting started](docs/getting-started.md) walks through it step by step.
 
-The JSON shape is defined by `schema/loom-index.schema.json` and validated on every scan.
+## What you can do with it
 
-## Consuming the index (PHP API)
+- **See the wiring.** Every primitive, forward and backward, in [one index](docs/concepts/the-index.md). What gets picked up is in [what Loom sees](docs/concepts/what-loom-sees.md).
+- **Browse it.** A read-only UI at `/loom`: [browse the UI](docs/guides/browse-the-ui.md).
+- **Ask an agent.** `php artisan loom:mcp` serves the index to an MCP client: [ask an agent](docs/guides/ask-an-agent.md).
+- **Gate your CI.** `loom:check` fails pull requests that add dead events or dispatch cycles, and `loom:diff` shows how the architecture changed between branches: [gate your CI](docs/guides/gate-your-ci.md).
+- **Read it from code.** Load the index into typed PHP objects: [PHP API](docs/reference/php-api.md).
 
-`loom:show` is for humans; for programs, load a written index into typed objects with `IndexLoader`. The getters and lookups on `Index` return read-model value objects from `Lucasp\Loom\Index\Model\` — no raw-array digging.
+## What it is not
 
-```php
-use Lucasp\Loom\Index\IndexLoader;
+- Not a runtime tracer. Loom never boots your app or watches a request, so it reports what your source says, not what a given request did.
+- Not complete for dynamic code. A dispatch like `event($class)` can't be resolved from source. Loom lists it under `unresolved_dispatches` with a file and line instead of guessing.
+- Not a style linter. It has no opinion on your code beyond the [check rules](docs/reference/check-rules-and-formats.md) you turn on.
 
-$index = (new IndexLoader())->fromFile('storage/loom/index.json');
-
-foreach ($index->events() as $event) {
-    echo $event->fqcn, "\n";
-}
-
-foreach ($index->handlersOf('App\\Events\\OrderShipped') as $handler) {
-    echo "  handled by {$handler->listener}::{$handler->method}\n";
-}
-```
-
-This is the supported surface for tools that consume an index. See [docs/index-api.md](docs/index-api.md) for the full loader, getters, lookups, and value-object reference.
-
-## GitHub Action
-
-A composite action gates pull requests on Loom: it scans the branch, checks the index against policy, diffs it against the base ref, and posts a sticky PR comment.
-
-```yaml
-- uses: actions/checkout@v4
-- uses: lucasp1337/laravel-loom@v1
-  with:
-    strict: "true"
-```
-
-The action runs inside your Laravel app (the repo that has laravel-loom installed). Inputs, outputs, and the baseline trade-off are in [docs/github-action.md](docs/github-action.md).
-
-## MCP server
-
-`loom:mcp` starts a local, read-only [MCP](https://modelcontextprotocol.io) server over the index, so an AI agent can query your event graph instead of grepping source. It runs embedded — `laravel/mcp` auto-discovers it, nothing to wire up.
-
-```bash
-php artisan loom:mcp   # serves storage/loom/index.json over stdio
-```
-
-It exposes eleven tools — lookups (`list-entities`, `get-entity`), edges (`handlers-for`, `dispatch-sites-for`, `dispatches-from`), chains (`events-following`, `route-to-events`), and analysis (`impact-of-change`, `find-orphans`). Point any stdio MCP client at `php artisan loom:mcp` with your project as the working directory. The full tool reference and client config are in [docs/mcp.md](docs/mcp.md).
+> [!NOTE]
+> Install with `--dev`. The UI, the MCP server and the `viewLoom` gate then disappear from `composer install --no-dev` production builds. The UI is also mounted only in `local` unless you list more environments in `loom.ui.environments`.
 
 ## Requirements
 
-- PHP **8.3+**
-- Laravel **11, 12, or 13**
+- PHP 8.3 or newer
+- Laravel 11, 12 or 13
 
-## Local development
-
-Running the package needs only PHP 8.3+, but the test suite needs `ext-mbstring`, `ext-xml`, `ext-dom`, and `ext-xmlwriter`. A `Dockerfile` and `Justfile` are provided so you can run the full toolchain without those extensions on your host:
-
-```bash
-just build    # build the Docker dev image (once)
-just install  # composer install
-just check    # PHPStan + Pint --test + Pest
-just coverage # Pest with per-file coverage
-```
-
-See [docs/contributing.md](docs/contributing.md) for the full list of recipes.
-
-A benchmark suite (`composer bench`) measures scan cost across generated tiny/medium/large apps and gates CI on deterministic counts — see [benchmarks/README.md](benchmarks/README.md).
+`livewire/livewire` and `laravel/mcp` (^1.0) are required dependencies; Composer installs them with Loom (see [upgrading](docs/upgrading.md)).
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) — pipeline, scanner contract, cross-link pass
-- [Schema](docs/schema.md) — JSON schema reference
-- [Index PHP API](docs/index-api.md) — load an index into typed objects (`IndexLoader`, getters, value objects)
-- [GitHub Action](docs/github-action.md) — the composite action that gates PRs on Loom
-- [MCP server](docs/mcp.md) — the embedded `loom:mcp` server and its eleven tools for AI agents
-- [Scanners](docs/scanners/) — per-scanner behavior, edge cases, known limitations
-- [Contributing](docs/contributing.md) — toolchain, Docker workflow, how to add a scanner
+Start at [getting started](docs/getting-started.md), or see the [command reference](docs/reference/commands.md) and the [JSON schema](docs/reference/schema.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

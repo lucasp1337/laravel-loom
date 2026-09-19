@@ -120,3 +120,50 @@ it('every docs/*.md reference in tracked files points at a real file', function 
 
     expect($missing)->toBe([], "Dangling docs references:\n  ".implode("\n  ", $missing));
 });
+
+it('every relative markdown link resolves from its own directory', function () {
+    $root = realpath(dirname(__DIR__, 2));
+    expect($root)->not->toBeFalse();
+
+    $files = [];
+    foreach (['README.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'CHANGELOG.md', 'benchmarks/README.md'] as $name) {
+        if (is_file($root.'/'.$name)) {
+            $files[] = $root.'/'.$name;
+        }
+    }
+    foreach (['docs', '.github'] as $dir) {
+        if (! is_dir($root.'/'.$dir)) {
+            continue;
+        }
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root.'/'.$dir, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $entry) {
+            if ($entry instanceof SplFileInfo && $entry->isFile() && strtolower($entry->getExtension()) === 'md') {
+                $files[] = $entry->getPathname();
+            }
+        }
+    }
+
+    $broken = [];
+    foreach ($files as $file) {
+        // Fenced and inline code are examples, not links.
+        $prose = (string) preg_replace(['/```.*?```/s', '/`[^`\n]*`/'], '', (string) file_get_contents($file));
+        preg_match_all('/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/', $prose, $matches);
+        foreach ($matches[1] as $target) {
+            if (preg_match('#^([a-z][a-z0-9+.-]*:|//|\#)#i', $target)) {
+                continue;
+            }
+            $path = (string) preg_replace('/[#?].*$/', '', $target);
+            if ($path === '') {
+                continue;
+            }
+            $abs = str_starts_with($path, '/') ? $root.$path : dirname($file).'/'.$path;
+            if (! file_exists($abs)) {
+                $broken[] = str_replace($root.'/', '', $file)." → $target";
+            }
+        }
+    }
+
+    expect($broken)->toBe([], "Dangling relative links:\n  ".implode("\n  ", $broken));
+});

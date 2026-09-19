@@ -13,24 +13,34 @@ use Lucasp\Loom\Console\McpCommand;
 use Lucasp\Loom\Console\ScanCommand;
 use Lucasp\Loom\Console\ShowCommand;
 use Lucasp\Loom\Index\IndexLoader;
-use Lucasp\Loom\Mcp\EventGraph;
 use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Mcp\LoomMcpServer;
+use Lucasp\Loom\Query\IndexQuery;
+use Lucasp\Loom\Support\IndexPath;
+use Lucasp\Loom\Ui\LoomUiServiceProvider;
 
 class LoomServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(IndexRepository::class, fn ($app): IndexRepository => new IndexRepository(
-            $app->make(IndexLoader::class),
-            $app->make(Artisan::class),
+        $this->mergeConfigFrom(dirname(__DIR__).'/config/loom.php', 'loom');
+        $this->app->register(LoomUiServiceProvider::class);
+
+        $this->app->singleton(IndexPath::class, fn ($app): IndexPath => new IndexPath(
+            $app->make('config'),
             $app->storagePath('loom/index.json'),
         ));
 
-        // The graph is a thin read-only view over whatever index the repository
-        // currently holds, so it is resolved fresh per tool call.
-        $this->app->bind(EventGraph::class, fn ($app): EventGraph => new EventGraph(
-            $app->make(IndexRepository::class)->index(),
+        $this->app->singleton(IndexRepository::class, fn ($app): IndexRepository => new IndexRepository(
+            $app->make(IndexLoader::class),
+            $app->make(Artisan::class),
+            $app->make(IndexPath::class)->resolve(),
+        ));
+
+        // Resolved fresh per tool call; it re-reads the repository's index on
+        // every question, so a rescanned snapshot is picked up.
+        $this->app->bind(IndexQuery::class, fn ($app): IndexQuery => new IndexQuery(
+            $app->make(IndexRepository::class),
         ));
     }
 

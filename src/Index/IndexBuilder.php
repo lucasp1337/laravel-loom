@@ -128,6 +128,7 @@ class IndexBuilder
     private function buildIndex(array $sections, string $laravelVersion): Index
     {
         return new Index(
+            schemaVersion: IndexSchema::VERSION,
             loomVersion: self::LOOM_VERSION,
             scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
             laravelVersion: $laravelVersion,

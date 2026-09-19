@@ -7,7 +7,7 @@ namespace Lucasp\Loom\Dto;
 final class ModelEventEntry
 {
     /**
-     * @param  list<string>  $handledBy
+     * @param  list<ModelEventHandler>  $handledBy
      */
     public function __construct(
         public readonly string $id,

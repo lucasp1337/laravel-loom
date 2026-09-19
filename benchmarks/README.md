@@ -9,7 +9,7 @@ The suite gates CI on **deterministic counts**, not wall-clock time. Counts are
 reproducible and catch real regressions — a scanner that starts under- or
 over-counting the fixtures. Wall time is measured and reported, but only gated
 opt-in for same-machine comparison. See
-[ADR 0006](../docs/adr/0006-benchmark-suite.md) for the rationale.
+[ADR 0006](../docs/contributing/adr/0006-benchmark-suite.md) for the rationale.
 
 ## What it measures
 
