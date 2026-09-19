@@ -21,6 +21,8 @@ use Lucasp\Loom\Ui\UiContext;
 
 /**
  * One table component for every section, driven by {@see SectionPresentation}.
+ *
+ * @internal
  */
 #[Layout('loom::layouts.app')]
 class SectionIndex extends Component

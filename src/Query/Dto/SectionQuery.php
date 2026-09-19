@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Query\Dto;
 use Lucasp\Loom\Query\SortDirection;
 use Lucasp\Loom\Query\SortField;
 
+/** @internal */
 final readonly class SectionQuery
 {
     /**

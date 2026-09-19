@@ -12,6 +12,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('find-orphans')]
 #[Description('List dead-weight in the event graph: orphan events (dispatched from nowhere AND handled by nothing) and idle listeners (registered but handling no events). A review aid — dynamically dispatched or reflection-registered cases may not surface statically.')]
 final class FindOrphansTool extends Tool

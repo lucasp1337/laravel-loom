@@ -6,7 +6,8 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
 
 ```
 {
-  "loom_version": string,        // semver of Loom that produced this index
+  "schema_version": string,       // "MAJOR.MINOR" of this document shape, e.g. "1.0"
+  "loom_version": string,        // semver of Loom that produced this index (informational)
   "scanned_at": string,           // ISO 8601 UTC timestamp
   "laravel_version": string,      // detected Laravel version of the scanned app
   "stats": object,                // counts by section
@@ -92,9 +93,22 @@ Synthetic entries representing Eloquent model events. Emitted directly by `Obser
   "kind": "model_event",
   "model": string,                // FQCN of the model
   "event": string,                // hook name
-  "handled_by": array<string>     // "ObserverFqcn::{hook}" strings, sorted + deduped
+  "handled_by": array<object>     // {handler, method, file, line}, sorted by handler::method, deduped
 }
 ```
+
+`handled_by[]` entry:
+
+```
+{
+  "handler": string,              // FQCN of the observer or Event::listen target
+  "method": string,               // observer hook or listener method
+  "file": string,                 // observer class file, or the file holding the Event::listen call
+  "line": integer                 // observer class line, or the Event::listen call line
+}
+```
+
+The entry shape differs from `events[*].handled_by` (`{listener, method}`) on purpose: model-event handlers include observers, which are not listeners.
 
 Valid `event` values (the canonical Eloquent hook enum):
 
@@ -431,14 +445,49 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
 
 Counts mirror the sizes of the corresponding arrays. `model_events` is intentionally not in `stats` — it's derived data, not a primary discovery output.
 
+## Paths
+
+Every `file` is relative to the app root, forward-slashed, and never absolute. The schema rejects a leading `/`, `\` or drive letter.
+
 ## Versioning and breaking changes
 
-`loom_version` is the version of the index shape. The intent is semver: patch for output fixes, minor for additive changes (new optional fields, new sections), major for removed or retyped fields.
+Two versions, two jobs:
 
-Loom is pre-1.0, and in practice that promise is looser than it sounds. The changelog shows:
+- `schema_version` (`"MAJOR.MINOR"`) is the version of the document shape. **Consumers key on this.** The schema pins the major (`^1\.[0-9]+$`).
+- `loom_version` is the version of the package that wrote the file. It is informational; nothing should branch on it.
 
-- New top-level sections have been added with a minor bump (`routes[]` took `loom_version` from `0.2.0` to `0.3.0`).
-- New **required** fields have been added to existing entries without any bump: `closure_listeners[].end_line`, `scheduled[].name` and `scheduled[].even_in_maintenance_mode`. An index written by an older release fails validation against the current schema.
+Rules for `schema_version`:
+
+| Change | Bump |
+| --- | --- |
+| New optional field, new enum value, new section | Minor |
+| Required field made optional | Minor |
+| New **required** field | Major |
+| Optional field made required | Major |
+| Field renamed, retyped or removed; enum value removed; section removed | Major |
+| Bug fix that doesn't change shape | None |
+
+Reader behaviour, in `IndexLoader`, `loom:check` and `loom:diff`:
+
+- Same major, any minor: loads. Unknown keys are ignored.
+- Missing `schema_version` (written before 1.0), older major or newer major: refused with a message to re-run `php artisan loom:scan`. There is no migration; the index is a derived file.
+- `loom:diff` refuses to compare two indexes with different majors, and exits `2`.
+
+`schema_version` `1.0` is the baseline. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
+
+Because the schema sets `additionalProperties: false`, a consumer that validates with a stored copy of the schema will reject a later minor. Validate with the schema shipped in the same release as the producer, or don't validate.
+
+## Open enums
+
+Some enums grow in minor releases. Consumers must tolerate values they don't know and must not fail on them:
+
+- `kind` on dispatch entries (`event`, `job` today)
+- `registration` on listeners and observers
+- `reason` on `unresolved_dispatches[]`
+- `confidence`: only `high` is emitted today; `medium` and `low` are reserved, ordered `high > medium > low`
+- `routes[].method`
+
+Removing or renaming a value is a major change. Adding one is minor.
 
 What to do about it:
 

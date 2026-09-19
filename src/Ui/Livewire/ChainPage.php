@@ -20,6 +20,7 @@ use Lucasp\Loom\Ui\Support\NodeFacts;
 use Lucasp\Loom\Ui\UiContext;
 
 /** Livewire owns depth, selection and collapsed nodes; Alpine `loomChain` owns the canvas. */
+/** @internal */
 #[Layout('loom::layouts.app')]
 class ChainPage extends Component
 {

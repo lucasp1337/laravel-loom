@@ -9,6 +9,7 @@ use Lucasp\Loom\Mcp\Tools\FindUnresolvedDispatchesTool;
 function mcpTempIndex(array $overrides = []): string
 {
     $index = array_merge([
+        'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'scanned_at' => '2026-01-01T00:00:00+00:00',
         'laravel_version' => '12.x',

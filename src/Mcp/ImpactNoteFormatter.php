@@ -10,6 +10,8 @@ use Lucasp\Loom\Query\ImpactNote;
 
 /**
  * Renders {@see ImpactNote} codes as the prose the MCP tool has always returned.
+ *
+ * @internal
  */
 final class ImpactNoteFormatter
 {

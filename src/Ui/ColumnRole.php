@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Ui;
 
 /**
  * How a table cell is styled and aligned.
+ *
+ * @internal
  */
 enum ColumnRole: string
 {

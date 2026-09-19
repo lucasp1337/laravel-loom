@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Model\Route;
 /**
  * A route and the event chain its controller action triggers. `chain` is null
  * for closure or unresolved-controller routes.
+ *
+ * @internal
  */
 final readonly class RouteChain
 {

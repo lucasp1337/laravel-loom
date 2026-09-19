@@ -13,8 +13,9 @@ use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('get-entity')]
-#[Description('Fetch a single entity by kind (event, listener, observer, job, mailable, notification) and fully-qualified class name, returning its full read-model record including dispatch sites and handler chains where applicable.')]
+#[Description('Fetch a single entity by kind (event, listener, observer, job, mailable, notification) and fully-qualified class name, returning the raw index entry (snake_case, exactly as in the index schema).')]
 final class GetEntityTool extends Tool
 {
     public function __construct(private readonly IndexQuery $query)
@@ -49,7 +50,7 @@ final class GetEntityTool extends Tool
             return Response::error("Unknown kind [{$validated['kind']}].");
         }
 
-        $entity = $this->query->entity($kind, $fqcn);
+        $entity = $this->query->rawEntity($kind, $fqcn);
 
         if ($entity === null) {
             return Response::error("No {$kind->value} found for {$fqcn}.");

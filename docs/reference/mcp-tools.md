@@ -28,8 +28,7 @@ A method reference (`method_fqcn`) is `Class::method`, `Class@method`, or a bare
 
 Errors come back as a text message instead of JSON. Empty results are not errors, except where a tool below says otherwise.
 
-!!! warning "Chain output doesn't report truncation"
-    `events-following`, `events-from-method` and `route-to-events` don't say when `depth` cut a chain short, and don't mark cycles. `events_reached` lists the events whose handlers were expanded, so a `target` that isn't in it was left unexpanded.
+Chain output always carries `truncated` (`true` when `depth` cut a chain short) and `cycles` (events revisited on a path). `events_reached` lists the events whose handlers were expanded, so a `target` that isn't in it was left unexpanded.
 
 ## Lookups
 
@@ -93,8 +92,7 @@ Fetches one class's record by kind and name.
 
 A missing class returns `No job found for App\Nope.` (with the kind you asked for), and an unknown `kind` returns `Unknown kind [route].`
 
-!!! warning "Event records use camelCase keys"
-    For `kind: "event"`, `entity` uses `dispatchedFrom` and `handledBy`, where `list-entities` and the index use `dispatched_from` and `handled_by`. The other kinds match the index.
+`entity` is the raw index entry, snake_case, identical to what `list-entities` and `index.json` carry.
 
 ## Edges
 
@@ -177,7 +175,9 @@ Follows an event to its handlers, what they dispatch, and the handlers of those 
       ]
     }
   ],
-  "events_reached": ["App\\Events\\ReceiptSent", "App\\Events\\Ping"]
+  "events_reached": ["App\\Events\\ReceiptSent", "App\\Events\\Ping"],
+  "cycles": [],
+  "truncated": false
 }
 ```
 

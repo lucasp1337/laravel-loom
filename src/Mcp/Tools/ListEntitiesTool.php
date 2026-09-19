@@ -14,6 +14,7 @@ use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Mcp\IndexRepository;
 use ValueError;
 
+/** @internal */
 #[Name('list-entities')]
 #[Description('List every entity in one index section (events, listeners, observers, jobs, routes, ...) verbatim from the index, with a count. Use this to enumerate what the scanner found before drilling into a single entity with get-entity.')]
 final class ListEntitiesTool extends Tool

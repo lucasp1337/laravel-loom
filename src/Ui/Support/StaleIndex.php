@@ -10,6 +10,8 @@ use Throwable;
 
 /**
  * Decides whether the snapshot predates the last change to app/.
+ *
+ * @internal
  */
 final class StaleIndex
 {

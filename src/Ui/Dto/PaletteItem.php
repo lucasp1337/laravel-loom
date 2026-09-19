@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Ui\Dto;
 
 use Lucasp\Loom\Ui\NodeType;
 
+/** @internal */
 final readonly class PaletteItem
 {
     public function __construct(

@@ -2,6 +2,15 @@
 
 Regenerate the index after every upgrade: `php artisan loom:scan`. An index written by an older release may fail validation against the current schema.
 
+## To schema 1.0
+
+The index now carries a required `schema_version` (`"1.0"`). Readers (`IndexLoader`, `loom:check`, `loom:diff`) refuse an index without it, or with a different major, and tell you to re-run `php artisan loom:scan`.
+
+- `model_events[].handled_by` entries are now `{handler, method, file, line}` objects instead of `"Fqcn::hook"` strings.
+- `file` is always relative to the app root; paths outside the root are an error rather than absolute.
+- `routes[].method` may be `HEAD`.
+- MCP `get-entity` returns the raw snake_case index entry, and chain tools always include `truncated` and `cycles`.
+
 ## From 0.2 to 0.3 and later
 
 ### New hard requirements

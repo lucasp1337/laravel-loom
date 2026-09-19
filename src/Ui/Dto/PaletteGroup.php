@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui\Dto;
 
+/** @internal */
 final readonly class PaletteGroup
 {
     /** @param  list<PaletteItem>  $items */

@@ -8,6 +8,7 @@ use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Model\Dispatch;
 
+/** @internal */
 final readonly class DispatchRef
 {
     public function __construct(

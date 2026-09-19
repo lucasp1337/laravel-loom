@@ -11,6 +11,7 @@ declare(strict_types=1);
 function diffCommandIndex(): array
 {
     return [
+        'schema_version' => '1.0',
         'loom_version' => '1.0.0',
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00+00:00',
@@ -204,4 +205,30 @@ it('emits section headers for the markdown format when entries change', function
     $this->artisan('loom:diff', ['old' => $a, 'new' => $b, '--format' => 'markdown'])
         ->expectsOutputToContain('## listeners')
         ->assertExitCode(1);
+});
+
+it('exits 2 and refuses to diff indexes with different schema majors', function () {
+    $newer = diffCommandIndex();
+    $newer['schema_version'] = '2.0';
+
+    $this->artisan('loom:diff', ['old' => diffTempIndex(diffCommandIndex()), 'new' => diffTempIndex($newer)])
+        ->expectsOutputToContain('different schema majors')
+        ->assertExitCode(2);
+});
+
+it('diffs across schema minors', function () {
+    $newer = diffCommandIndex();
+    $newer['schema_version'] = '1.3';
+
+    $this->artisan('loom:diff', ['old' => diffTempIndex(diffCommandIndex()), 'new' => diffTempIndex($newer)])
+        ->assertExitCode(0);
+});
+
+it('exits 2 when an index has no schema_version', function () {
+    $old = diffCommandIndex();
+    unset($old['schema_version']);
+
+    $this->artisan('loom:diff', ['old' => diffTempIndex($old), 'new' => diffTempIndex(diffCommandIndex())])
+        ->expectsOutputToContain('loom:scan')
+        ->assertExitCode(2);
 });

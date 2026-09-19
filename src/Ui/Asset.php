@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Ui;
 
 /**
  * The only files the asset route will serve, from `resources/dist`.
+ *
+ * @internal
  */
 enum Asset: string
 {

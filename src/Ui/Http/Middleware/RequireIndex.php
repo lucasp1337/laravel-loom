@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Renders the missing/unreadable-index state in place of any page when the
  * snapshot cannot be loaded.
+ *
+ * @internal
  */
 final class RequireIndex
 {

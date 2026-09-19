@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Ui\Support;
 
 /**
  * When app/ last changed, for the stale-index banner.
+ *
+ * @internal
  */
 interface AppChangeClock
 {

@@ -118,11 +118,10 @@ it('returns an empty chain for unknown or unhandled events', function () use ($e
         ->and($q->eventChain($e('Lonely'))->truncated)->toBeFalse();
 });
 
-it('keeps the legacy array shape free of cycles and truncated', function () use ($e) {
+it('always emits cycles and truncated in the array shape', function () use ($e) {
     $chain = queryFor()->eventChain($e('Ping'));
 
-    expect(array_keys($chain->toArray()))->toBe(['root', 'depth', 'edges', 'events_reached'])
-        ->and(array_keys($chain->toArray(true)))->toBe(['root', 'depth', 'edges', 'events_reached', 'cycles', 'truncated']);
+    expect(array_keys($chain->toArray()))->toBe(['root', 'depth', 'edges', 'events_reached', 'cycles', 'truncated']);
 });
 
 it('reports diamonds as revisits, not cycles; ignores handlerless frontier for truncation', function () {

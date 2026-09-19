@@ -20,6 +20,8 @@ use Lucasp\Loom\Mcp\Tools\RouteToEventsTool;
 /**
  * The embedded Loom MCP server: a stdio, read-only tool surface over the Loom
  * index, registered as `Mcp::local('loom', ...)` and started by `loom:mcp`.
+ *
+ * @internal
  */
 final class LoomMcpServer extends Server
 {

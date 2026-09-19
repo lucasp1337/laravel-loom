@@ -131,7 +131,7 @@ typed enums (listed below the tables).
 | Model | Fields |
 |---|---|
 | `Event` | `string $id`, `string $fqcn`, `string $kind`, `string $file`, `int $line`, `list<DispatchSite> $dispatchedFrom`, `list<Handler> $handledBy` |
-| `ModelEvent` | `string $id`, `string $model`, `string $event`, `list<string> $handledBy` |
+| `ModelEvent` | `string $id`, `string $model`, `string $event`, `list<ModelEventHandler> $handledBy` |
 | `Listener` | `string $fqcn`, `string $file`, `int $line`, `list<Handle> $handles`, `ListenerRegistration $registration`, `bool $queued`, `list<Dispatch> $dispatches` |
 | `ClosureListener` | `string $event`, `string $file`, `int $line`, `int $endLine`, `ListenerRegistration $registration`, `bool $queued`, `list<Dispatch> $dispatches` |
 | `Observer` | `string $fqcn`, `string $file`, `int $line`, `string $observes`, `ObserverRegistration $registration`, `list<string> $hooks`, `list<Dispatch> $dispatches` |
@@ -152,6 +152,7 @@ typed enums (listed below the tables).
 | `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff` |
 | `Frequency` | `FrequencyUnit $unit`, `int $every` — a sub-minute schedule frequency (`scheduled[*].frequency`); present only when `cron` is `null` |
 | `Handle` | `string $event`, `string $method` — a listener's event→method binding (`listeners[*].handles`) |
+| `ModelEventHandler` | `string $handler`, `string $method`, `string $file`, `int $line` — an observer hook or `Event::listen` target on `model_events[*].handled_by` |
 | `Handler` | `string $listener`, `string $method` — an event's listener→method binding (`events[*].handled_by`) |
 
 `DispatchSite::$overrides` is `null` when the call site applied no fluent

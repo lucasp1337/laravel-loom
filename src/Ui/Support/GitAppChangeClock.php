@@ -10,6 +10,8 @@ use Throwable;
 
 /**
  * Last commit touching app/, best effort: any git problem reads as "unknown".
+ *
+ * @internal
  */
 final class GitAppChangeClock implements AppChangeClock
 {

@@ -12,6 +12,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('dispatch-sites-for')]
 #[Description('Where is this event dispatched? Returns every source location (file, line, method) that dispatches the given event class, from the static index.')]
 final class DispatchSitesForTool extends Tool

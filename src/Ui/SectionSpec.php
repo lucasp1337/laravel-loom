@@ -10,6 +10,8 @@ use Lucasp\Loom\Query\EntityKind;
 
 /**
  * How one index section is presented: label, columns, empty state and detail target.
+ *
+ * @internal
  */
 final readonly class SectionSpec
 {

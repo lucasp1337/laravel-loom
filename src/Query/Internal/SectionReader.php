@@ -20,6 +20,8 @@ use Lucasp\Loom\Index\Sections;
 /**
  * Uniform access to any section's read-model items: the display name, file and
  * fan counts that list sorting/filtering and search need.
+ *
+ * @internal
  */
 final class SectionReader
 {

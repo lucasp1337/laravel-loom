@@ -6,7 +6,12 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Breaking
 
-- Index files from 0.2 no longer validate. Required fields added without a `loom_version` bump: `closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
+- Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
+- Index gains a required `schema_version` (`"1.0"`). `IndexLoader`, `loom:check` and `loom:diff` refuse a missing or different major; `loom:diff` refuses cross-major.
+- `model_events[].handled_by` is now `{handler, method, file, line}` objects, not `"Fqcn::hook"` strings.
+- `file` paths must be relative; the absolute-path fallback is removed and the schema rejects absolute paths.
+- MCP `get-entity` returns the raw snake_case index entry.
+- MCP chain tools always emit `truncated` and `cycles`.
 - `livewire/livewire` and `laravel/mcp` (^1.0) are now installed with the package.
 
 ### Added
@@ -30,6 +35,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Changed
 
+- `routes[].method` accepts `HEAD`; unknown `Route::match` verbs are dropped.
+- `src/Query`, `src/Ui` and `src/Mcp` classes are marked `@internal`.
 - Dispatch targets behind a fluent chain (`X::class` or `new X` under modifiers) now resolve to their class name.
 - Jobs and listeners report `queued: true` when a parent class or trait implements `ShouldQueue`.
 

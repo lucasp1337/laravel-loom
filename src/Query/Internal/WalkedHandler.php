@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Query\Internal;
 use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\HandlerKind;
 
+/** @internal */
 final readonly class WalkedHandler
 {
     /** @param  list<DispatchRef>  $dispatches */

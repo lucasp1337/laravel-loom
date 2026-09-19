@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Ui\Support;
 /**
  * FQCN helpers. URL slugs use dots for namespace separators, which class names
  * never contain, so the mapping is lossless and avoids `%5C` in links.
+ *
+ * @internal
  */
 final class Fqcn
 {

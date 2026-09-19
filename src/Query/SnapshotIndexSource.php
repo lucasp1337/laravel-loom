@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\IndexLoadException;
  * Serves the index from a written `index.json`, reloading whenever the file's
  * mtime or size changes. Never scans: a missing snapshot is reported, not
  * created. A failed reload keeps serving the last good index.
+ *
+ * @internal
  */
 class SnapshotIndexSource implements IndexSource
 {
@@ -83,12 +85,12 @@ class SnapshotIndexSource implements IndexSource
 
         try {
             [$index, $payload] = $this->load();
-        } catch (IndexLoadException) {
+        } catch (IndexLoadException $e) {
             if ($this->index !== null) {
                 return;
             }
 
-            throw IndexUnavailableException::unloadable($this->path);
+            throw IndexUnavailableException::unloadable($this->path, $e->getMessage());
         }
 
         $this->index = $index;

@@ -9,6 +9,8 @@ use Lucasp\Loom\Query\ChainDepth;
 
 /**
  * Typed access to the `loom.ui` config block.
+ *
+ * @internal
  */
 final class LoomConfig
 {

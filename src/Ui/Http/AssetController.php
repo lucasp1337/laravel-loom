@@ -10,6 +10,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Serves the bundled static files, and only those named by {@see Asset}.
+ *
+ * @internal
  */
 final class AssetController
 {

@@ -14,6 +14,8 @@ use Lucasp\Loom\Query\ImpactNote;
  * Blast radius of removing or renaming a class. Which fields are populated
  * depends on `entity`: events carry dispatchers/handlers/downstream, listeners
  * and jobs carry handles/wouldOrphanEvents/dispatches.
+ *
+ * @internal
  */
 final readonly class ImpactReport
 {

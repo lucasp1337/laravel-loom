@@ -10,6 +10,7 @@ The index opens with metadata and a `stats` block, then carries one array per pr
 
 ```json
 {
+  "schema_version": "1.0",
   "loom_version": "...",
   "scanned_at": "2026-05-16T19:25:54Z",
   "laravel_version": "13.7",

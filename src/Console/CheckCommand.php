@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
+use Lucasp\Loom\Index\IndexLoadException;
+use Lucasp\Loom\Index\IndexSchema;
 use Lucasp\Loom\Check\CheckContext;
 use Lucasp\Loom\Check\CheckRunner;
 use Lucasp\Loom\Check\Format\CheckFormatterFactory;
@@ -134,6 +136,14 @@ class CheckCommand extends Command
         }
 
         /** @var array<string,mixed> $data */
+        try {
+            IndexSchema::assertSupported($data);
+        } catch (IndexLoadException $e) {
+            $this->error("{$path}: ".$e->getMessage());
+
+            return null;
+        }
+
         return $data;
     }
 }

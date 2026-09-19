@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Ui\Dto;
 
 use Lucasp\Loom\Index\Sections;
 
+/** @internal */
 final readonly class NavItem
 {
     public function __construct(

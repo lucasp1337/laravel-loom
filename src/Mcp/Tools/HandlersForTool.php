@@ -12,6 +12,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('handlers-for')]
 #[Description('Who handles this event? Returns the named listeners (class, method, queued) and anonymous closure listeners (file, line, queued) bound to the given event class.')]
 final class HandlersForTool extends Tool

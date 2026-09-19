@@ -12,6 +12,7 @@ use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\UiContext;
 
+/** @internal */
 #[Layout('loom::layouts.app')]
 class Dashboard extends Component
 {

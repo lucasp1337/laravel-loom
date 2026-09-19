@@ -10,6 +10,7 @@ use Lucasp\Loom\Index\Model\Job;
 use Lucasp\Loom\Index\Model\Listener;
 use Lucasp\Loom\Index\Model\Mailable;
 use Lucasp\Loom\Index\Model\ModelEvent;
+use Lucasp\Loom\Index\Model\ModelEventHandler;
 use Lucasp\Loom\Index\Model\Notification;
 use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
@@ -22,6 +23,8 @@ use Lucasp\Loom\Query\SortField;
 /**
  * Presentation registry: one {@see SectionSpec} per {@see Sections} case. A new
  * section shows up in the UI by adding its spec here; a test fails until then.
+ *
+ * @internal
  */
 final class SectionPresentation
 {
@@ -88,7 +91,7 @@ final class SectionPresentation
                     new ColumnSpec('id', 'Model event', static fn (ModelEvent $m): string => $m->id, ColumnRole::NAME, SortField::NAME),
                     self::text('model', 'Model', static fn (ModelEvent $m): string => $m->model),
                     self::text('event', 'Event', static fn (ModelEvent $m): string => $m->event),
-                    self::text('handled_by', 'Handled by', static fn (ModelEvent $m): string => implode(', ', $m->handledBy)),
+                    self::text('handled_by', 'Handled by', static fn (ModelEvent $m): string => implode(', ', array_map(static fn (ModelEventHandler $h): string => $h->handler.'::'.$h->method, $m->handledBy))),
                 ],
             ),
             Sections::JOBS => new SectionSpec(

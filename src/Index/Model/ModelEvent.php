@@ -13,7 +13,7 @@ use Lucasp\Loom\Index\Field;
  */
 final readonly class ModelEvent
 {
-    /** @param  list<string>  $handledBy */
+    /** @param  list<ModelEventHandler>  $handledBy */
     public function __construct(
         public string $id,
         public string $model,
@@ -29,7 +29,7 @@ final readonly class ModelEvent
             id: Hydrate::string($data, Field::ID),
             model: Hydrate::string($data, Field::MODEL),
             event: Hydrate::string($data, Field::EVENT),
-            handledBy: Hydrate::stringList($data, Field::HANDLED_BY),
+            handledBy: Hydrate::list($data, Field::HANDLED_BY, ModelEventHandler::fromArray(...)),
         );
     }
 }

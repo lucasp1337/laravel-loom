@@ -13,6 +13,7 @@ use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\IndexQuery;
 
+/** @internal */
 #[Name('route-to-events')]
 #[Description('Resolve an HTTP route (verb + URI) to the event chain its controller action triggers. Matches case-insensitively on verb and exactly on URI (leading slash optional), then follows the controller method through the dispatch graph (depth 1..6, default 3). Closure or unresolved-controller routes return an empty chain with a note.')]
 final class RouteToEventsTool extends Tool

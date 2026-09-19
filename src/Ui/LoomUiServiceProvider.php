@@ -31,6 +31,8 @@ use Lucasp\Loom\Ui\Support\GitAppChangeClock;
 /**
  * Wires the browser UI. Registered by the main provider; the UI is removable
  * by dropping that one call.
+ *
+ * @internal
  */
 final class LoomUiServiceProvider extends ServiceProvider
 {
