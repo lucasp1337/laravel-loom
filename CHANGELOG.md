@@ -33,6 +33,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `composer bench` performance suite that gates on counts, not wall time. See [benchmarks/README.md](benchmarks/README.md). ([#61](https://github.com/lucasp1337/laravel-loom/pull/61))
 - `ScheduleScanner` and `JobsScanner` for `scheduled[]` and `jobs[]`.
 
+### Fixed
+
+- `ScheduleScanner` now reads `routes/console.php`. ([#75](https://github.com/lucasp1337/laravel-loom/issues/75))
+
 ### Changed
 
 - `routes[].method` accepts `HEAD`; unknown `Route::match` verbs are dropped.

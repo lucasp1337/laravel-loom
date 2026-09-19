@@ -164,10 +164,7 @@ public function via(object $notifiable): array
 
 ### A scheduled task is missing
 
-Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, and `Schedule::` calls in any file under `app/`. It does not read `routes/console.php`, which is where Laravel 11 and later put schedules by default.
-
-!!! warning "Schedules in routes/console.php are not scanned"
-    If your `Schedule::command(...)` calls live in `routes/console.php`, they won't appear in `scheduled`. Move them into `->withSchedule(function (Schedule $schedule) { ... })` in `bootstrap/app.php`, or into a service provider under `app/`.
+Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under `app/`. Schedules declared anywhere else (for example a package or a custom directory) are not scanned.
 
 **Confirm:** `jq '.scheduled[] | {target, cron}' storage/loom/index.json` lists the task.
 
