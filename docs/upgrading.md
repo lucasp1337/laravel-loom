@@ -27,4 +27,4 @@ See [Schema](reference/schema.md) for the full shape.
 
 ### The browser UI and the `viewLoom` gate
 
-The read-only UI at `/loom` is on by default. It is allowed only in the `local` environment. To open it elsewhere, define the `viewLoom` gate yourself, or turn the UI off with `LOOM_UI_ENABLED=false`. See [Commands](reference/commands.md#configuration) for the settings.
+The read-only UI at `/loom` is on by default. It is mounted only in the `local` environment; elsewhere `/loom` returns 404. To open it elsewhere, add the environment to `loom.ui.environments` and define the `viewLoom` gate yourself, or turn the UI off with `LOOM_UI_ENABLED=false`. See [Commands](reference/commands.md#configuration) for the settings.

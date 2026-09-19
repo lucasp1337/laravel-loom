@@ -11,7 +11,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
-- Browser UI at `/loom`: dashboard, tables, entity pages, chain graph and search. Local-only unless you define the `viewLoom` gate. See [docs/guides/browse-the-ui.md](docs/guides/browse-the-ui.md).
+- Browser UI at `/loom`: dashboard, tables, entity pages, chain graph and search. Local-only: other environments must be listed in `ui.environments`, and `production` also needs `ui.allow_in_production`. See [docs/guides/browse-the-ui.md](docs/guides/browse-the-ui.md).
 - `loom:mcp`: read-only MCP server over stdio with 11 tools for AI agents. See [docs/guides/ask-an-agent.md](docs/guides/ask-an-agent.md). ([#66](https://github.com/lucasp1337/laravel-loom/pull/66))
 - GitHub Action that runs `loom:scan`, `loom:check` and a base-branch diff, then comments on the PR. See [docs/reference/action.md](docs/reference/action.md). ([#65](https://github.com/lucasp1337/laravel-loom/pull/65))
 - `loom:check`: baseline growth, orphan and cyclic-dispatch rules, and `--skip`. ([#65](https://github.com/lucasp1337/laravel-loom/pull/65))
