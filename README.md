@@ -64,7 +64,7 @@ That is an excerpt: the scan wrote `storage/loom/index.json`, and `loom:show` pr
 - PHP 8.3 or newer
 - Laravel 11, 12 or 13
 
-`livewire/livewire` and `laravel/mcp` are required dependencies; Composer installs them with Loom (see [upgrading](docs/upgrading.md)).
+`livewire/livewire` and `laravel/mcp` (^1.0) are required dependencies; Composer installs them with Loom (see [upgrading](docs/upgrading.md)).
 
 ## Documentation
 
