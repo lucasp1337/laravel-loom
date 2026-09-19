@@ -6,7 +6,7 @@ Regenerate the index after every upgrade: `php artisan loom:scan`. An index writ
 
 ### New hard requirements
 
-`livewire/livewire` (^3.8) and `laravel/mcp` are now installed with Loom. Composer pulls them in; if your app pins conflicting versions, resolve that first.
+`livewire/livewire` (^3.8) and `laravel/mcp` (^1.0) are now installed with Loom. Composer pulls them in; if your app pins conflicting versions, resolve that first. Apps pinning `laravel/mcp` 0.x must upgrade to ^1.0.
 
 ### Index shape changes
 

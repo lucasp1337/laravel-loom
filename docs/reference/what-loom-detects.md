@@ -24,3 +24,4 @@ Loom parses source without running your app. It scans `app/`, plus `routes/` for
 - Files with syntax errors are skipped without a message.
 - Anything inside `vendor/` is treated as opaque, so `queued` and `via()` inherited from a package don't show.
 - Dispatch links from listeners, jobs and observers come from the registered handler method only. Routes attribute by controller method.
+- Handler `dispatches[]` lists only events and jobs. Mail and notification sends inside a handler appear in `mailables[].sent_from` and `notifications[].notified_from` instead.

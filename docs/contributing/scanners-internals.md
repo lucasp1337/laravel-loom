@@ -503,6 +503,8 @@ The cross-link pass consumes this to populate the three cross-linked fields belo
 
 #### Cross-link populates these from `_dispatch_sites`
 
+Handler `dispatches[]` (listeners, jobs, observers, routes, closure listeners) only carry `event` and `job` kinds. Mail and notification sends inside a handler feed `mailables[*].sent_from` / `notifications[*].notified_from` but are not listed in `dispatches[]`.
+
 **`listeners[*].dispatches`** — entries whose `classFqcn` matches a listener AND whose enclosing method is in that listener's `handles[*].method` set. Built as `$defs/dispatch`:
 
 ```json

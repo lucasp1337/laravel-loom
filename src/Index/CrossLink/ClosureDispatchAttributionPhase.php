@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
-use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
@@ -54,15 +53,8 @@ final class ClosureDispatchAttributionPhase implements CrossLinkPhase
                     continue;
                 }
 
-                $payload = DispatchEntry::fromSite($site);
+                $payload = DispatchEntry::forHandler($site);
                 if ($payload === null) {
-                    continue;
-                }
-
-                // Closure dispatches[] only carries event|job per the schema;
-                // drop mailable/notification (which the shared builder allows).
-                $kind = DispatchKinds::tryFrom($payload[Field::KIND->value]);
-                if ($kind !== DispatchKinds::EVENT && $kind !== DispatchKinds::JOB) {
                     continue;
                 }
 
