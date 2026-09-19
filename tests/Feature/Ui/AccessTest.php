@@ -21,17 +21,17 @@ it('renders the 403 page when the gate denies', function () {
         ->assertSee('viewLoom');
 });
 
-it('denies outside the local environment by default and allows in local', function () {
+it('allows the default gate in local and 404s once the environment leaves it', function () {
     // Drop the test override so the shipped default applies.
     app()->make(Illuminate\Contracts\Auth\Access\Gate::class)->define(
         LoomAbility::VIEW->value,
         fn (?Illuminate\Contracts\Auth\Authenticatable $user = null): bool => app()->environment('local'),
     );
 
-    $this->get('/loom')->assertForbidden();
-
-    app()['env'] = 'local';
     $this->get('/loom')->assertOk();
+
+    app()['env'] = 'staging';
+    $this->get('/loom')->assertNotFound();
 });
 
 it('lets an app-defined gate win over the default', function () {

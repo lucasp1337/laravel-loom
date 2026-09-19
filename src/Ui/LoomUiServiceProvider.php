@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Ui;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -55,7 +56,13 @@ final class LoomUiServiceProvider extends ServiceProvider
             dirname(__DIR__, 2).'/config/loom.php' => $this->app->configPath('loom.php'),
         ], 'loom-config');
 
-        if (! $config->enabled()) {
+        $environment = $this->app->environment();
+
+        if ($config->blockedProduction($environment)) {
+            Log::warning('Loom UI not mounted: `production` is listed in loom.ui.environments but loom.ui.allow_in_production is not true.');
+        }
+
+        if (! $config->servesIn($environment)) {
             return;
         }
 
