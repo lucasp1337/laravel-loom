@@ -207,21 +207,14 @@ it('captures inner-chain delay override and omits overrides on plain sites', fun
     }
 });
 
-// gap: Bus::chain([new ProcessOrder, new SendInvoice]) does not currently
-// surface either job in dispatched_from. The DispatchSiteVisitor only
-// recognises direct dispatch forms (helper, facade, Dispatchable static).
-// Asserting the no-op behaviour so a future fix is detectable.
-it('does NOT surface Bus::chain([...]) targets in dispatched_from (documented silent gap)', function () {
+it('surfaces Bus::chain([...]) targets in dispatched_from', function () {
     $payload = buildJobsEndToEndPayload();
 
-    // ProcessOrder IS dispatched from Checkout::finalize, but NOT from
-    // Billing::charge via the Bus::chain expression — guard only on Billing.
     $processOrder = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\ProcessOrder');
     expect($processOrder)->not->toBeNull();
-    $methods = array_column($processOrder['dispatched_from'], 'method');
-    expect($methods)->not->toContain('App\\Services\\Billing::charge');
+    expect(array_column($processOrder['dispatched_from'], 'method'))->toContain('App\\Services\\Billing::charge');
 
     $sendInvoice = jobEntryByFqcn($payload['jobs'], 'App\\Jobs\\SendInvoice');
     expect($sendInvoice)->not->toBeNull();
-    expect($sendInvoice['dispatched_from'])->toBe([]);
+    expect(array_column($sendInvoice['dispatched_from'], 'method'))->toContain('App\\Services\\Billing::charge');
 });
