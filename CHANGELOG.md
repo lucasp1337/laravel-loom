@@ -7,6 +7,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 ### Fixed
 
 - `Event::listen(function (Event $e) {...})` now infers the event from the closure's type hint ([#79](https://github.com/lucasp1337/laravel-loom/issues/79)).
+- `Bus::chain([...])` and `Bus::batch([...])` jobs are now recorded as dispatch sites; non-literal lists go to `unresolved_dispatches`.
 
 ### Breaking
 

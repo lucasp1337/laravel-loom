@@ -448,6 +448,7 @@ DispatchScanner walks every PHP file under `app/` and records dispatch sites in 
 - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` — `kind: event`, `form: facade`
 - `dispatch(new SomeJob(...))` and `dispatch(SomeJob::class)` — `kind: job`, `form: job_helper`
 - `Bus::dispatch(new SomeJob(...))` — `kind: job`, `form: bus_facade`
+- `Bus::chain([...])` and `Bus::batch([...])` — one `kind: job` site per literal item (`new X`, `X::class`); a non-literal list or item goes to `unresolved_dispatches`. `withChain`/`->chain()` on a dispatched job is not detected.
 - `SomeClass::dispatch(...)` Dispatchable trait — `kind: ambiguous` at the visitor level, finalized by the cross-link pass against `events[]`
 - `SomeClass::dispatchIf($cond, ...)` and `SomeClass::dispatchUnless($cond, ...)` conditional Dispatchable forms — resolved exactly like `SomeClass::dispatch(...)` (the static class is the target; the leading condition argument does not affect resolution). Same `kind: ambiguous` → cross-link finalization. These exist only as static Dispatchable-trait forms; there is no `Event::dispatchIf` / `Event::dispatchUnless` facade form (Laravel's `Event` facade has no such methods), so no facade conditional form is recognised.
 

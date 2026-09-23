@@ -1204,3 +1204,48 @@ it('never captures channels for the ->notify(...) method form', function () {
     expect($sites[0]->target)->toBe('App\\Notifications\\InvoicePaid');
     expect($sites[0]->channels)->toBeNull();
 });
+
+it('records each literal job in Bus::chain and Bus::batch', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\A;
+    use App\Jobs\B;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go(): void {
+            Bus::chain([new A, B::class])->dispatch();
+            Bus::batch([new B])->dispatch();
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($unresolved)->toBe([]);
+    expect(array_map(fn ($s) => $s->target, $sites))->toBe(['App\\Jobs\\A', 'App\\Jobs\\B', 'App\\Jobs\\B']);
+    expect($sites[0]->form)->toBe(DispatchForm::JOB_HELPER);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
+    expect($sites[0]->method)->toBe('go');
+});
+
+it('sends non-literal Bus::chain and dynamic items to unresolved', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\A;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go($jobs, $j): void {
+            Bus::chain($jobs)->dispatch();
+            Bus::batch([new A, $j])->dispatch();
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($unresolved)->toHaveCount(2);
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
