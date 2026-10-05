@@ -297,7 +297,7 @@ it('keeps both pairs when one listener handles the same event under auto-discove
 it('discovers all closure listeners across $listen, Event::listen, and subscriber sources', function () {
     $closures = (new ListenerScanner)->scan(listenerFixturePath())['closure_listeners'];
 
-    expect($closures)->toHaveCount(5);
+    expect($closures)->toHaveCount(8);
 });
 
 it('sorts closure_listeners by (event, file, line) ascending', function () {
@@ -308,7 +308,10 @@ it('sorts closure_listeners by (event, file, line) ascending', function () {
         new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Listeners/ImperativeSubscriber.php', line: 18, endLine: 18, registration: ListenerRegistration::SUBSCRIBER, queued: false),
         new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 26, endLine: 26, registration: ListenerRegistration::LISTEN_ARRAY, queued: false),
         new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/EventServiceProvider.php', line: 45, endLine: 45, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\OrderPlaced', file: 'app/Providers/TypedClosureServiceProvider.php', line: 16, endLine: 18, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\RestockScheduled', file: 'app/Providers/TypedClosureServiceProvider.php', line: 19, endLine: 19, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
         new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/EventServiceProvider.php', line: 46, endLine: 48, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
+        new ClosureListenerEntry(event: 'App\\Events\\StockLow', file: 'app/Providers/TypedClosureServiceProvider.php', line: 19, endLine: 19, registration: ListenerRegistration::EVENT_LISTEN_CALL, queued: false),
     ]);
 });
 
@@ -333,7 +336,7 @@ it('attributes registration correctly per closure listener source', function () 
     expect($byRegistration)->toBe([
         'subscriber' => 2,
         'listen_array' => 1,
-        'event_listen_call' => 2,
+        'event_listen_call' => 5,
     ]);
 });
 

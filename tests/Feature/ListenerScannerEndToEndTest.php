@@ -212,8 +212,8 @@ it('counts closure listeners in stats.closure_listeners', function () {
 
     $payload = $builder->build(listenerEndToEndFixturePath(), '12.x')->toArray();
 
-    expect($payload['stats']['closure_listeners'])->toBe(5);
-    expect($payload['closure_listeners'])->toHaveCount(5);
+    expect($payload['stats']['closure_listeners'])->toBe(8);
+    expect($payload['closure_listeners'])->toHaveCount(8);
 });
 
 it('produces a schema-valid index with closure listeners populated', function () {
@@ -237,6 +237,9 @@ it('passes through closure listener entries from the scanner into the index in s
         'App\\Events\\OrderPlaced',
         'App\\Events\\OrderPlaced',
         'App\\Events\\OrderPlaced',
+        'App\\Events\\OrderPlaced',
+        'App\\Events\\RestockScheduled',
+        'App\\Events\\StockLow',
         'App\\Events\\StockLow',
     ]);
 });

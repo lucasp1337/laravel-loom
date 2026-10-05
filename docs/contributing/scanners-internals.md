@@ -201,6 +201,8 @@ Three discovery paths:
 
 2. **Closure as the second argument of a dispatcher `listen()` call.** `Event::listen(OrderPlaced::class, fn ($e) => …)` anywhere under `app/`. Emitted with `registration: "event_listen_call"`. The class-shape filter that applies to `$listen` walks does NOT apply here — any qualifying `listen()` call does. This covers both the `Event::` facade form and the container-resolved dispatcher forms (`$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)`, `$this->app->make(Dispatcher::class)->listen(...)`, and a local variable assigned from one of those) — see the [ListenerScanner container-form registrations](#container-form-registrations) for the exact receiver shapes and their limitations.
 
+   **Inferred event.** `Event::listen(function (OrderPlaced $e) { … })` (closure or arrow function as the *first* argument) takes the event from the first parameter's type, resolved through `use` imports. Nullable hints unwrap; union hints emit one entry per class. Untyped, `object`, `mixed` or other builtin hints have no event and are skipped.
+
 3. **Closure inside a subscriber's `subscribe()` body** — either as a return-array value (`return [OrderPlaced::class => fn ($e) => …]`) or as the second argument to an imperative `$events->listen(OrderPlaced::class, fn ($e) => …)` call against the dispatcher parameter. Applies to any class registered as a subscriber (via `$subscribe` array or `Event::subscribe(...)`). Both sub-cases emit with `registration: "subscriber"`.
 
 Both `Closure` (long-form `function ($e) { … }`) and `ArrowFunction` (`fn ($e) => …`) are detected. The event key may be a `::class` reference or a raw string (`'user.created'`).
