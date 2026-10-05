@@ -201,6 +201,8 @@ Three discovery paths:
 
 2. **Closure as the second argument of a dispatcher `listen()` call.** `Event::listen(OrderPlaced::class, fn ($e) => …)` anywhere under `app/`. Emitted with `registration: "event_listen_call"`. The class-shape filter that applies to `$listen` walks does NOT apply here — any qualifying `listen()` call does. This covers both the `Event::` facade form and the container-resolved dispatcher forms (`$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)`, `$this->app->make(Dispatcher::class)->listen(...)`, and a local variable assigned from one of those) — see the [ListenerScanner container-form registrations](#container-form-registrations) for the exact receiver shapes and their limitations.
 
+   **Inferred event.** `Event::listen(function (OrderPlaced $e) { … })` (closure or arrow function as the *first* argument) takes the event from the first parameter's type, resolved through `use` imports. Nullable hints unwrap; union hints emit one entry per class. Untyped, `object`, `mixed` or other builtin hints have no event and are skipped.
+
 3. **Closure inside a subscriber's `subscribe()` body** — either as a return-array value (`return [OrderPlaced::class => fn ($e) => …]`) or as the second argument to an imperative `$events->listen(OrderPlaced::class, fn ($e) => …)` call against the dispatcher parameter. Applies to any class registered as a subscriber (via `$subscribe` array or `Event::subscribe(...)`). Both sub-cases emit with `registration: "subscriber"`.
 
 Both `Closure` (long-form `function ($e) { … }`) and `ArrowFunction` (`fn ($e) => …`) are detected. The event key may be a `::class` reference or a raw string (`'user.created'`).
@@ -446,6 +448,7 @@ DispatchScanner walks every PHP file under `app/` and records dispatch sites in 
 - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` — `kind: event`, `form: facade`
 - `dispatch(new SomeJob(...))` and `dispatch(SomeJob::class)` — `kind: job`, `form: job_helper`
 - `Bus::dispatch(new SomeJob(...))` — `kind: job`, `form: bus_facade`
+- `Bus::chain([...])` and `Bus::batch([...])` — one `kind: job` site per literal item (`new X`, `X::class`); a non-literal list or item goes to `unresolved_dispatches`. `withChain`/`->chain()` on a dispatched job is not detected.
 - `SomeClass::dispatch(...)` Dispatchable trait — `kind: ambiguous` at the visitor level, finalized by the cross-link pass against `events[]`
 - `SomeClass::dispatchIf($cond, ...)` and `SomeClass::dispatchUnless($cond, ...)` conditional Dispatchable forms — resolved exactly like `SomeClass::dispatch(...)` (the static class is the target; the leading condition argument does not affect resolution). Same `kind: ambiguous` → cross-link finalization. These exist only as static Dispatchable-trait forms; there is no `Event::dispatchIf` / `Event::dispatchUnless` facade form (Laravel's `Event` facade has no such methods), so no facade conditional form is recognised.
 

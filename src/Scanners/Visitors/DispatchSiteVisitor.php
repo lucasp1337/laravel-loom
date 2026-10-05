@@ -216,6 +216,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
+        if (Facades::BUS->matches($className) && in_array($methodName, ['chain', 'batch'], true)) {
+            $this->recordJobList($node, $node->args, 'Bus::'.$methodName);
+
+            return;
+        }
+
         // dispatchSync / dispatchNow intentionally skipped.
         if (! in_array($methodName, self::DISPATCHABLE_METHODS, true)) {
             return;
@@ -476,6 +482,52 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             line: $callNode->getStartLine(),
             expression: $expression,
             reason: $reason,
+        );
+    }
+
+    /**
+     * Bus::chain([...]) / Bus::batch([...]): one job site per literal item; a
+     * non-literal list or item is recorded as unresolved.
+     *
+     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     */
+    private function recordJobList(Node\Expr $callNode, array $args, string $callLabel): void
+    {
+        $first = $args[0] ?? null;
+        if (! $first instanceof Node\Arg) {
+            return;
+        }
+
+        if (! $first->value instanceof Node\Expr\Array_) {
+            $this->recordUnresolvedList($callNode, $first->value, $callLabel);
+
+            return;
+        }
+
+        foreach ($first->value->items as $item) {
+            $value = $item->value;
+            $resolved = AstHelpers::resolveStaticClass($value);
+            if ($resolved !== null && ! $item->unpack) {
+                $this->emitResolved($callNode, $resolved, DispatchForm::JOB_HELPER, DispatchKinds::JOB, $value);
+
+                continue;
+            }
+
+            $this->recordUnresolvedList($callNode, $value, $callLabel);
+        }
+    }
+
+    private function recordUnresolvedList(Node\Expr $callNode, Node\Expr $value, string $callLabel): void
+    {
+        if ($this->shouldSkipUnresolved()) {
+            return;
+        }
+
+        $this->unresolved[] = new UnresolvedDispatchRecord(
+            file: null,
+            line: $callNode->getStartLine(),
+            expression: $this->renderExpression($callNode, $callLabel),
+            reason: $this->classifyUnresolvedReason($value),
         );
     }
 
