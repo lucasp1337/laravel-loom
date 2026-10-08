@@ -7,9 +7,6 @@ The action scans your branch, runs `loom:check`, diffs against the pull request'
 !!! warning "Loom must already be installed in your app"
     The action runs `composer install` in your app and then `php artisan loom:scan`. If your app doesn't require `lucasp1337/laravel-loom` (as a dev dependency), the scan fails with "command not defined". The action doesn't bundle a Laravel app.
 
-!!! note "No release tag includes the action yet"
-    `v0.1.0` and `v0.2.0` predate it, so the only ref that works today is a branch such as `main`. Pin to a tag once a release ships it.
-
 ## Minimal workflow
 
 ```yaml
@@ -25,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: lucasp1337/laravel-loom@main
+      - uses: lucasp1337/laravel-loom@v0.3.0
 ```
 
 ## Inputs
