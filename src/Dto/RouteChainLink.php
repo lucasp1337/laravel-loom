@@ -14,7 +14,7 @@ use PhpParser\Node;
 final class RouteChainLink
 {
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     public function __construct(
         public readonly string $method,

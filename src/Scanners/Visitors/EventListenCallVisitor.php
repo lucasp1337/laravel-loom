@@ -122,7 +122,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
      * Extract the (event, listener) pair from a `listen(event, listener)`
      * arg list, shared by the facade and container receiver forms.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function handleListenArgs(array $args): void
     {

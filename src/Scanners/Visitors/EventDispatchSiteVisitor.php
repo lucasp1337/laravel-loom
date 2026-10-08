@@ -94,7 +94,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function resolveFirstArgClass(array $args): ?string
     {

@@ -310,7 +310,7 @@ final class RouteScanner implements Scanner
      * Collect literal action names from `->only(...)` / `->except(...)` args,
      * accepting both an array argument and variadic string arguments.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<string>
      */
     private function stringArgList(array $args): array
@@ -356,7 +356,7 @@ final class RouteScanner implements Scanner
      *
      * @return list<string>
      */
-    private function verbList(Node\Arg|Node\VariadicPlaceholder|null $arg): array
+    private function verbList(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): array
     {
         if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
             return [];
@@ -383,7 +383,7 @@ final class RouteScanner implements Scanner
      *
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
+    private function resolveAction(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
     {
         if (! $arg instanceof Node\Arg) {
             return ['fqcn' => null, 'method' => null];
@@ -417,7 +417,7 @@ final class RouteScanner implements Scanner
         return ['fqcn' => null, 'method' => null];
     }
 
-    private function closureEndLine(Node\Arg|Node\VariadicPlaceholder|null $arg): ?int
+    private function closureEndLine(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): ?int
     {
         if (! $arg instanceof Node\Arg) {
             return null;

@@ -98,7 +98,7 @@ final class AstHelpers
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private static function firstArgIsDispatcherClass(array $args): bool
     {
