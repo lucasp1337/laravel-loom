@@ -14,6 +14,8 @@ use SplFileInfo;
  * Which parts of the app a scan covers: the scan directories (relative to
  * the app root, `*` globs allowed) and the exclude globs. Primitive
  * directories (`Jobs`, `Listeners`, ...) resolve inside each scan directory.
+ *
+ * @internal
  */
 final class ScanScope
 {

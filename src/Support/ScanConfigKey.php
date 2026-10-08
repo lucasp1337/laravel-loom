@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
-/** Keys under `loom.scan`. */
+/**
+ * Keys under `loom.scan`.
+ *
+ * @internal
+ */
 enum ScanConfigKey: string
 {
     case PATHS = 'paths';

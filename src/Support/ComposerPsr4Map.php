@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Support;
  * PSR-4 prefix → directory map read from the scanned app's composer.json.
  * Mirrors Composer's lookup: longest matching prefix first, then the empty
  * prefix as a fallback, each prefix trying its directories in order.
+ *
+ * @internal
  */
 final class ComposerPsr4Map
 {
