@@ -15,6 +15,7 @@ use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
 
 /**
@@ -69,9 +70,10 @@ final class ScheduleScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->scope = $scope;
     }
 
     /**
@@ -112,17 +114,26 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverKernelForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Console'.DIRECTORY_SEPARATOR.'Kernel.php';
-        if (! is_file($file)) {
-            return [];
+        $entries = [];
+
+        foreach ($this->scope()->directories($appRoot) as $directory) {
+            $file = $directory.DIRECTORY_SEPARATOR.'Console'.DIRECTORY_SEPARATOR.'Kernel.php';
+            if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
+                continue;
+            }
+
+            // Fresh visitor per file: walk()===null bypasses beforeTraverse.
+            $visitor = new ScheduleChainVisitor(ScheduleMode::KERNEL);
+            if ($this->walker->walk($file, [$visitor]) === null) {
+                continue;
+            }
+
+            foreach ($this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file)) as $entry) {
+                $entries[] = $entry;
+            }
         }
 
-        $visitor = new ScheduleChainVisitor(ScheduleMode::KERNEL);
-        if ($this->walker->walk($file, [$visitor]) === null) {
-            return [];
-        }
-
-        return $this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file));
+        return $entries;
     }
 
     /**
@@ -131,7 +142,7 @@ final class ScheduleScanner implements Scanner
     private function discoverBootstrapForm(string $appRoot): array
     {
         $file = $appRoot.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
-        if (! is_file($file)) {
+        if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
 
@@ -149,7 +160,7 @@ final class ScheduleScanner implements Scanner
     private function discoverConsoleRoutesForm(string $appRoot): array
     {
         $file = $appRoot.DIRECTORY_SEPARATOR.'routes'.DIRECTORY_SEPARATOR.'console.php';
-        if (! is_file($file)) {
+        if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
 
@@ -166,14 +177,9 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverFacadeForm(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [];
-        }
-
         $entries = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
             $visitor = new ScheduleChainVisitor(ScheduleMode::FACADE);

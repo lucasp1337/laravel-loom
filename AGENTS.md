@@ -62,6 +62,8 @@ src/
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
     AstWalker.php                   # parser + NameResolver wrapper
+    ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
+    ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
     ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
 
 schema/

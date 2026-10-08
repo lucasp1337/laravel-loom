@@ -19,6 +19,7 @@ use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use Lucasp\Loom\Support\Sorting;
 
 /**
@@ -35,10 +36,11 @@ final class ObserverScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+        $this->scope = $scope;
     }
 
     /**
@@ -46,11 +48,6 @@ final class ObserverScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return ['observers' => [], 'model_events' => []];
-        }
-
         /** @var array<string, array{file: string, line: int}> $classMap */
         $classMap = [];
 
@@ -60,7 +57,7 @@ final class ObserverScanner implements Scanner
         /** @var array<int, array{model: string, hook: string, handler: string, method: string, file: string, line: int}> $listenEntries */
         $listenEntries = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $classVisitor = new ObserverClassVisitor;
             $attrVisitor = new ObservedByAttributeVisitor;
             $observeVisitor = new ObserveCallVisitor;
@@ -314,7 +311,7 @@ final class ObserverScanner implements Scanner
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
+        if ($absolute === null || ! $this->scope()->admits($appRoot, $absolute)) {
             return null;
         }
 

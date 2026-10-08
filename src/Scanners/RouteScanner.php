@@ -14,6 +14,7 @@ use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
 
 /**
@@ -30,9 +31,10 @@ final class RouteScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->scope = $scope;
     }
 
     /**
@@ -40,14 +42,9 @@ final class RouteScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $routesDir = $appRoot.DIRECTORY_SEPARATOR.'routes';
-        if (! is_dir($routesDir)) {
-            return ['routes' => []];
-        }
-
         $entries = [];
 
-        foreach ($this->iteratePhpFiles($routesDir) as $file) {
+        foreach ($this->routeFiles($appRoot) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
             $visitor = new RouteChainVisitor;

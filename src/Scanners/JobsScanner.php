@@ -14,8 +14,10 @@ use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
+use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use Lucasp\Loom\Support\TwoPathDiscovery;
 
 /**
@@ -33,10 +35,11 @@ final class JobsScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+        $this->scope = $scope;
     }
 
     protected function walker(): AstWalker
@@ -54,7 +57,7 @@ final class JobsScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
+        $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
 
         $merged = $this->discoverFromFilesystem($appRoot, $resolver);
         $dispatchTargets = $this->discoverFromDispatchSites($appRoot);
@@ -70,10 +73,10 @@ final class JobsScanner implements Scanner
             }
 
             // Dispatchable-form sites are ambiguous with events. Accept only
-            // when the file is under app/Jobs/ or the class implements
+            // when the file is under a Jobs/ scan directory or the class implements
             // ShouldQueue (mirrors EventScanner's symmetric guard).
             if ($kind === DispatchKinds::AMBIGUOUS
-                && ! $this->isUnderAppJobs($located->file)
+                && ! $this->isUnderPrimitiveDirectory($appRoot, $located->file, PrimitiveDirectory::JOBS)
                 && ! $located->queued
             ) {
                 continue;
@@ -85,11 +88,6 @@ final class JobsScanner implements Scanner
         return ['jobs' => $this->emit($merged)];
     }
 
-    private function isUnderAppJobs(string $relativeFile): bool
-    {
-        return str_starts_with($relativeFile, 'app/Jobs/');
-    }
-
     /**
      * @return array<string, JobLocation>
      */
@@ -97,7 +95,7 @@ final class JobsScanner implements Scanner
     {
         return $this->collectFromDirectory(
             $appRoot,
-            $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Jobs',
+            PrimitiveDirectory::JOBS,
             fn (): JobClassVisitor => new JobClassVisitor,
             fn (JobClassVisitor $visitor): array => $visitor->getClasses(),
             fn (JobClassRecord $record): string => $record->fqcn,
@@ -117,15 +115,10 @@ final class JobsScanner implements Scanner
      */
     private function discoverFromDispatchSites(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [];
-        }
-
         $visitor = new DispatchSiteVisitor;
         $candidates = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getSites() as $site) {

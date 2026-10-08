@@ -14,9 +14,10 @@ use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 
 /**
- * Collects dispatch sites under app/ and routes/ (route closures) and emits `unresolved_dispatches`
+ * Collects dispatch sites under the scan paths and routes/ (route closures) and emits `unresolved_dispatches`
  * plus the internal `_dispatch_sites` section.
  *
  * @internal
@@ -27,9 +28,10 @@ final class DispatchScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->scope = $scope;
     }
 
     /**
@@ -37,27 +39,18 @@ final class DispatchScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $dirs = array_filter(
-            [$appRoot.DIRECTORY_SEPARATOR.'app', $appRoot.DIRECTORY_SEPARATOR.'routes'],
-            is_dir(...),
-        );
-        if ($dirs === []) {
-            return ['unresolved_dispatches' => [], '_dispatch_sites' => []];
-        }
-
         /** @var list<DispatchSiteRecord> $sites */
         $sites = [];
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
-        $files = [];
-        foreach ($dirs as $dir) {
-            foreach ($this->iteratePhpFiles($dir) as $file) {
-                $files[] = $file;
+        $seen = [];
+        foreach ([...$this->scanFiles($appRoot), ...$this->routeFiles($appRoot)] as $file) {
+            if (isset($seen[$file->getPathname()])) {
+                continue;
             }
-        }
+            $seen[$file->getPathname()] = true;
 
-        foreach ($files as $file) {
             $visitor = new DispatchSiteVisitor;
             $mappingVisitor = new DispatchesEventsVisitor;
             $this->walker->walk($file->getPathname(), [$visitor, $mappingVisitor]);

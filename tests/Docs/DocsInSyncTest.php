@@ -89,7 +89,7 @@ it('documents every check rule key', function (): void {
 
 it('documents every config key', function (): void {
     $docs = [docContents('docs/reference/commands.md')];
-    foreach (['docs/guides/browse-the-ui.md', 'docs/reference/ui-config.md'] as $ui) {
+    foreach (['docs/guides/browse-the-ui.md', 'docs/reference/ui-config.md', 'docs/reference/scan-config.md'] as $ui) {
         $docs[] = docContents($ui);
     }
     $haystack = implode("\n", array_filter($docs));
