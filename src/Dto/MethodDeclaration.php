@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** A method declared in a class or trait body, as captured for ClassHierarchyResolver. */
+/**
+ * A method declared in a class or trait body, as captured for ClassHierarchyResolver.
+ *
+ * @internal
+ */
 final class MethodDeclaration
 {
     /**

@@ -19,6 +19,8 @@ use Lucasp\Loom\Index\Sections;
  * listeners have no such edge.
  *
  * Runs before the attribution phases, which read the cleared tag.
+ *
+ * @internal
  */
 final class ClosureOwnershipPhase implements CrossLinkPhase
 {

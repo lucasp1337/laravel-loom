@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Index;
  * Eloquent lifecycle event names. Every case can appear in an
  * `eloquent.{hook}: {Model}` event string; only the observable ones are
  * wired to an observer's methods.
+ *
+ * @internal
  */
 enum ModelHook: string
 {

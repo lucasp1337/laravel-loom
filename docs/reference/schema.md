@@ -6,7 +6,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
 
 ```
 {
-  "schema_version": string,       // "MAJOR.MINOR" of this document shape, e.g. "1.1"
+  "schema_version": string,       // "MAJOR.MINOR" of this document shape, e.g. "1.0"
   "loom_version": string,        // semver of Loom that produced this index (informational)
   "scanned_at": string,           // ISO 8601 UTC timestamp
   "laravel_version": string,      // detected Laravel version of the scanned app

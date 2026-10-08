@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Dto;
 /**
  * A method as a class effectively exposes it after trait composition and
  * inheritance. `name` is the effective name (a trait alias renames it).
+ *
+ * @internal
  */
 final class ResolvedMethod
 {

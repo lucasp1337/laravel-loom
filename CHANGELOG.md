@@ -18,7 +18,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
-- `routes[].end_line` for closure routes; `schema_version` is now `1.1`.
+- `routes[].end_line` for closure routes.
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
 - Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.

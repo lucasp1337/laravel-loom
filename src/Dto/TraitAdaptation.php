@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Dto;
  * One rule from a `use T { ... }` block. An alias (`T::m as protected n`) has
  * `alias` and/or `visibility`; a precedence rule (`T::m insteadof U`) lists the
  * excluded traits in `insteadof` and is the only kind that sets it.
+ *
+ * @internal
  */
 final class TraitAdaptation
 {

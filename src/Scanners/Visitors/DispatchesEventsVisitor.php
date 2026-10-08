@@ -12,6 +12,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects `protected $dispatchesEvents = ['created' => Foo::class]` mappings.
  * Entries need a literal string key and a `Foo::class` value; anything else is skipped.
+ *
+ * @internal
  */
 final class DispatchesEventsVisitor extends NodeVisitorAbstract
 {
