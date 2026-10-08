@@ -37,23 +37,15 @@ trait ScannerFilesystem
     }
 
     /**
-     * PHP files under `routes/`, minus excluded files. Independent of the
-     * scan paths: route closures can dispatch, so the dispatch scan reads them.
+     * PHP files in the route directories (`scan.route_paths`), minus excluded
+     * files. Independent of the scan paths: route closures can dispatch, so the
+     * dispatch scan reads them too.
      *
      * @return iterable<SplFileInfo>
      */
     protected function routeFiles(string $appRoot): iterable
     {
-        $routesDir = $appRoot.DIRECTORY_SEPARATOR.'routes';
-        if (! is_dir($routesDir)) {
-            return;
-        }
-
-        foreach ($this->iteratePhpFiles($routesDir) as $file) {
-            if (! $this->scope()->isExcluded($appRoot, $file->getPathname())) {
-                yield $file;
-            }
-        }
+        return $this->scope()->routeFiles($appRoot);
     }
 
     /**

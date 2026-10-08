@@ -13,5 +13,6 @@ enum ScanConfigKey: string
 {
     case PATHS = 'paths';
     case PSR4_PATHS = 'psr4_paths';
+    case ROUTE_PATHS = 'route_paths';
     case EXCLUDE = 'exclude';
 }

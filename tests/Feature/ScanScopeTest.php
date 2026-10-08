@@ -150,3 +150,26 @@ describe('ComposerPsr4Map', function () {
             ->and($map->locate($root, 'Nope\Domain\Checkout'))->toBe($root.'/src/Domain/Checkout.php');
     });
 });
+
+it('reads module routes only from configured route paths', function () {
+    $default = scanWithScope('modules-fixture-app', new ScanScope(['Modules/*']));
+    expect($default['routes'])->toBe([]);
+
+    $scope = new ScanScope(['Modules/*'], [], ['routes', 'Modules/*/routes']);
+    $payload = scanWithScope('modules-fixture-app', $scope);
+
+    expect(array_column($payload['routes'], 'uri'))->toBe(['/billing/paid']);
+    expect($payload['routes'][0]['file'])->toBe('Modules/Billing/routes/web.php');
+    expect(array_column($payload['routes'][0]['dispatches'], 'target'))->toBe(['Modules\Billing\Events\InvoicePaid']);
+});
+
+it('lets exclude globs remove route files', function () {
+    $scope = new ScanScope(['Modules/*'], ['Modules/*/routes'], ['Modules/*/routes']);
+
+    expect(scanWithScope('modules-fixture-app', $scope)['routes'])->toBe([]);
+});
+
+it('rejects an absolute or escaping route path', function () {
+    expect(fn () => new ScanScope(['app'], [], ['/etc']))->toThrow(InvalidArgumentException::class);
+    expect(fn () => new ScanScope(['app'], [], ['../x']))->toThrow(InvalidArgumentException::class);
+});

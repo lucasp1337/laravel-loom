@@ -13,6 +13,11 @@ return [
         // Listeners, Jobs, Mail, Notifications) resolve inside each one.
         'paths' => ['app'],
 
+        // Directories holding route files, relative to the project root. `*`
+        // globs are allowed (e.g. 'Modules/*/routes'). Route files are read
+        // for `routes[]` and for dispatches inside route closures.
+        'route_paths' => ['routes'],
+
         // Also scan every directory in composer.json's autoload.psr-4.
         'psr4_paths' => false,
 

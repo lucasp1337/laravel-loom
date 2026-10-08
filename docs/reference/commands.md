@@ -13,7 +13,7 @@ Loom adds five Artisan commands. All of them read or write a single snapshot, by
 ## loom:scan
 
 ```bash
-php artisan loom:scan [--output=PATH] [--path=DIR ...] [-v]
+php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [-v]
 ```
 
 Statically parses the app (no boot of your routes or queues), validates the result against the [schema](schema.md) and writes `storage/loom/index.json`. Which directories it walks comes from [`scan.*` config](scan-config.md).
@@ -22,6 +22,7 @@ Statically parses the app (no boot of your routes or queues), validates the resu
 | --- | --- |
 | `--output=PATH` | Write the index here instead of `index_path`. A relative path is resolved from the project root. The MCP server and UI keep reading `index_path`. |
 | `--path=DIR` | Scan this directory instead of `scan.paths`. Repeat it for several. Relative to the project root; `*` globs are allowed. |
+| `--route-path=DIR` | Read routes from this directory instead of `scan.route_paths`. Repeat it for several. Same rules as `--path`. |
 | `-v` | List every skipped file with its path, line and the parser's message. |
 
 When it finishes it prints the path written and one summary line: the entry count of each section, unresolved dispatches and skipped files.

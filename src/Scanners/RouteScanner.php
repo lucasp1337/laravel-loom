@@ -42,19 +42,11 @@ final class RouteScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $routesDir = $appRoot.DIRECTORY_SEPARATOR.'routes';
-        if (! is_dir($routesDir)) {
-            return ['routes' => []];
-        }
-
         $entries = [];
 
-        foreach ($this->iteratePhpFiles($routesDir) as $file) {
+        foreach ($this->routeFiles($appRoot) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
-            if ($this->scope()->isExcluded($appRoot, $file->getPathname())) {
-                continue;
-            }
             $visitor = new RouteChainVisitor;
             if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
                 continue;

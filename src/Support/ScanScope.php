@@ -13,7 +13,7 @@ use SplFileInfo;
 
 /**
  * Which parts of the app a scan covers: the scan directories (relative to
- * the app root, `*` globs allowed) and the exclude globs. Primitive
+ * the app root, `*` globs allowed), the route directories and the exclude globs. Primitive
  * directories (`Jobs`, `Listeners`, ...) resolve inside each scan directory.
  *
  * @internal
@@ -22,11 +22,19 @@ final class ScanScope
 {
     public const DEFAULT_PATH = 'app';
 
+    public const DEFAULT_ROUTE_PATH = 'routes';
+
     /** @var list<string> */
     private array $paths;
 
+    /** @var list<string> */
+    private array $routePaths;
+
     /** @var array<string, list<string>> */
     private array $resolved = [];
+
+    /** @var array<string, list<string>> */
+    private array $resolvedRoutes = [];
 
     /** @var list<string> compiled exclude regexes */
     private array $excludes = [];
@@ -34,16 +42,19 @@ final class ScanScope
     /**
      * @param  list<string>  $paths
      * @param  list<string>  $exclude
+     * @param  list<string>  $routePaths
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [])
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH])
     {
         $normalised = [];
         foreach ($paths as $path) {
             $normalised[] = self::normalisePath($path);
         }
         $this->paths = array_values(array_unique($normalised));
+
+        $this->routePaths = array_values(array_unique(array_map(self::normalisePath(...), $routePaths)));
 
         foreach ($exclude as $glob) {
             $this->excludes[] = self::compileGlob(self::normaliseGlob($glob));
@@ -58,8 +69,9 @@ final class ScanScope
     /**
      * @param  array<string, mixed>  $config  the `loom.scan` config array
      * @param  list<string>|null  $pathOverride  replaces `paths` (the `--path` option)
+     * @param  list<string>|null  $routePathOverride  replaces `route_paths` (the `--route-path` option)
      */
-    public static function fromConfig(array $config, string $appRoot, ?array $pathOverride = null): self
+    public static function fromConfig(array $config, string $appRoot, ?array $pathOverride = null, ?array $routePathOverride = null): self
     {
         $paths = $pathOverride ?? self::stringList($config[ScanConfigKey::PATHS->value] ?? null, [self::DEFAULT_PATH]);
 
@@ -67,7 +79,9 @@ final class ScanScope
             $paths = array_merge($paths, ComposerPsr4Map::fromAppRoot($appRoot)->directories());
         }
 
-        return new self($paths, self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []));
+        $routePaths = $routePathOverride ?? self::stringList($config[ScanConfigKey::ROUTE_PATHS->value] ?? null, [self::DEFAULT_ROUTE_PATH]);
+
+        return new self($paths, self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []), $routePaths);
     }
 
     /**
@@ -77,18 +91,29 @@ final class ScanScope
      */
     public function directories(string $appRoot): array
     {
-        return $this->resolved[$appRoot] ??= $this->resolveDirectories($appRoot);
+        return $this->resolved[$appRoot] ??= $this->resolveDirectories($appRoot, $this->paths);
     }
 
     /**
+     * Existing route directories, absolute, without duplicates.
+     *
      * @return list<string>
      */
-    private function resolveDirectories(string $appRoot): array
+    public function routeDirectories(string $appRoot): array
+    {
+        return $this->resolvedRoutes[$appRoot] ??= $this->resolveDirectories($appRoot, $this->routePaths);
+    }
+
+    /**
+     * @param  list<string>  $paths
+     * @return list<string>
+     */
+    private function resolveDirectories(string $appRoot, array $paths): array
     {
         $root = Str::rtrim($appRoot, '/\\');
         $found = [];
 
-        foreach ($this->paths as $path) {
+        foreach ($paths as $path) {
             $pattern = $root.'/'.$path;
             $matches = Str::isMatch('/[*?\[]/', $path)
                 ? (glob(preg_replace('/[*?\[\]]/', '[$0]', $root).'/'.$path, GLOB_ONLYDIR) ?: [])
@@ -113,9 +138,29 @@ final class ScanScope
      */
     public function files(string $appRoot, ?string $subdirectory = null): iterable
     {
+        return $this->filesIn($appRoot, $this->directories($appRoot), $subdirectory);
+    }
+
+    /**
+     * PHP files under the route directories, minus excluded files, each
+     * yielded once.
+     *
+     * @return iterable<SplFileInfo>
+     */
+    public function routeFiles(string $appRoot): iterable
+    {
+        return $this->filesIn($appRoot, $this->routeDirectories($appRoot), null);
+    }
+
+    /**
+     * @param  list<string>  $directories
+     * @return iterable<SplFileInfo>
+     */
+    private function filesIn(string $appRoot, array $directories, ?string $subdirectory): iterable
+    {
         $seen = [];
 
-        foreach ($this->directories($appRoot) as $directory) {
+        foreach ($directories as $directory) {
             $target = $subdirectory === null ? $directory : $directory.DIRECTORY_SEPARATOR.$subdirectory;
             if (! is_dir($target)) {
                 continue;

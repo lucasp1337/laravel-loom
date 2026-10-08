@@ -23,7 +23,8 @@ class ScanCommand extends Command
 {
     protected $signature = 'loom:scan
         {--output= : Write the index here instead of the configured index_path}
-        {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}';
+        {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}
+        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}';
 
     protected $description = 'Scan the application and write the index (default storage/loom/index.json)';
 
@@ -99,11 +100,13 @@ class ScanCommand extends Command
     {
         $config = config('loom.scan');
         $paths = array_values(array_filter((array) $this->option('path'), 'is_string'));
+        $routePaths = array_values(array_filter((array) $this->option('route-path'), 'is_string'));
 
         return ScanScope::fromConfig(
             is_array($config) ? $config : [],
             $appRoot,
             $paths === [] ? null : $paths,
+            $routePaths === [] ? null : $routePaths,
         );
     }
 
