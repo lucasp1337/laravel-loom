@@ -13,7 +13,7 @@ namespace Lucasp\Loom\Index;
  */
 final class IndexSchema
 {
-    public const VERSION = '1.0';
+    public const VERSION = '1.1';
 
     public static function major(string $version): ?int
     {

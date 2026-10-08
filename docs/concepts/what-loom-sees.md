@@ -35,9 +35,9 @@ Loom reads the source, follows each of those links, and writes them into one ind
 
 Each primitive gets its own section in the index, and every entry carries at least a file and a line. The [schema](../reference/schema.md) has the exact fields; this page covers what each section means and where the edges are.
 
-**Events.** A class Loom finds under `app/Events/`, or any class you dispatch with `event()`, `Event::dispatch()` or `OrderPlaced::dispatch()`. Each event lists the listeners that handle it and the sites that dispatch it.
+**Events.** A class Loom finds under `app/Events/`, any class you dispatch with `event()`, `Event::dispatch()` or `OrderPlaced::dispatch()`, or any class a model names in `$dispatchesEvents`. Each event lists the listeners that handle it and the sites that dispatch it.
 
-**Listeners.** A class that reacts to an event. Loom finds them four ways: typed `handle()` auto-discovery, the `$listen` array on a provider, `Event::listen()` calls (including a dispatcher resolved from the container), and subscribers. In `$listen` and `Event::listen()` a listener can be written as `SendReceipt::class`, `[SendReceipt::class, 'handle']`, `Closure::fromCallable([...])` or the first-class callable `SendReceipt::handle(...)`. They all link the same way.
+**Listeners.** A class that reacts to an event. Loom finds them four ways: auto-discovery of public `handle*` and `__invoke` methods (declared, inherited or from a trait), the `$listen` array on a provider, `Event::listen()` calls (including a dispatcher resolved from the container), and subscribers. In `$listen` and `Event::listen()` a listener can be written as `SendReceipt::class`, `[SendReceipt::class, 'handle']`, `Closure::fromCallable([...])` or the first-class callable `SendReceipt::handle(...)`. They all link the same way.
 
 **Closure listeners.** A closure or arrow function passed to `Event::listen()` has no class name, so it lives in its own `closure_listeners` section, with the event it handles and where the closure starts and ends.
 
@@ -89,12 +89,12 @@ Loom doesn't drop these. Each goes into `unresolved_dispatches` with the express
 Read that as "an event fires here and I can't tell which". A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
 
 !!! warning "An empty `handled_by` isn't always a dead event"
-    A closure listener has no class to point at, so the event lists no handler for it. Check `closure_listeners` for the same event before you call it unhandled. The reverse holds too: dispatches inside a closure have no back-edge from the target.
+    A closure listener has no class to point at, so the event lists no handler for it. Check `closure_listeners` for the same event before you call it unhandled. The reverse holds too: dispatches inside a closure listener have no back-edge from the target. A route closure is the exception: the event lists the route as a dispatch site.
 
 !!! warning "Vendor parents are opaque"
     Loom doesn't read `vendor/`. A job that gets `ShouldQueue` from a parent class in a package reports `queued: false`, and a notification that inherits `via()` from one reports no channels.
 
 !!! note "Dispatch attribution is per class"
-    For listeners, jobs and closures, a dispatch is attributed to the whole class, not to the method it sits in. Routes are the exception: they record dispatches per controller method.
+    For listeners, jobs and observers, a dispatch is attributed to the whole class, not to the method it sits in. Routes are the exception: they record dispatches per controller method, or per closure.
 
 If something you expected is missing or wrong, [Why was my code missed?](../guides/why-was-my-code-missed.md) goes symptom by symptom.
