@@ -21,6 +21,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `routes[].end_line` for closure routes.
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
+- `scan.paths`, `scan.psr4_paths` and `scan.exclude` config: scan modules and custom layouts, locate classes through `composer.json` PSR-4. See [docs/reference/scan-config.md](docs/reference/scan-config.md).
+- `loom:scan --output`, repeatable `--path`, a summary line, and `-v` to list skipped files with the parse error.
 - Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
 - Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
 
