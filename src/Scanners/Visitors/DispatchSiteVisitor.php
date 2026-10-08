@@ -358,7 +358,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function recordMailableSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
     {
@@ -366,7 +366,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
     {
@@ -384,7 +384,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      * when the argument is missing, not a plain Arg, non-literal, or an empty
      * array literal (treated as "no filter").
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<string>|null
      */
     private function channelFilterFrom(array $args, int $index): ?array
@@ -406,7 +406,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @param  list<string>|null  $channels
      */
     private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?array $channels = null, ?DispatchMode $mode = null): void
@@ -469,7 +469,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function recordHelperOrFacade(Node\Expr $callNode, array $args, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?DispatchMode $mode = null): void
     {
@@ -528,7 +528,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      * Bus::chain([...]) / Bus::batch([...]): one job site per literal item; a
      * non-literal list or item is recorded as unresolved.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function recordJobList(Node\Expr $callNode, array $args, string $callLabel, ?DispatchMode $mode = null): void
     {

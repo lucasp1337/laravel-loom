@@ -10,3 +10,10 @@ parameters:
     # `just check` / `vendor/bin/phpstan analyse` safe without needing --debug.
     parallel:
         maximumNumberOfProcesses: 1
+    ignoreErrors:
+        # Larastan's view-string type only admits views it can find on disk; it
+        # cannot resolve views in this package's own `loom::` namespace.
+        -
+            message: '#expects view-string, string given#'
+            identifier: argument.type
+            path: src/Ui/Livewire/*

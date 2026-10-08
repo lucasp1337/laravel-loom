@@ -16,7 +16,7 @@
         "illuminate/console": "^12.41.1|^13.0",
         "illuminate/support": "^12.41.1|^13.0",
         "justinrainbow/json-schema": "^6.0",
-        "nikic/php-parser": "^5.0"
+        "nikic/php-parser": "^5.9"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",

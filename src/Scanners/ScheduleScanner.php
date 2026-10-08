@@ -328,7 +328,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      */
     private function resolveTarget(ScheduleKind $kind, array $rootArgs): ?string
     {
@@ -375,7 +375,7 @@ final class ScheduleScanner implements Scanner
      * list. Plain items emit their literal value; keyed items emit "key=value".
      * Unresolvable items are skipped rather than fabricated.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      * @return list<string>
      */
     private function resolveCommandArguments(array $rootArgs): array
@@ -492,7 +492,7 @@ final class ScheduleScanner implements Scanner
      * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
      * null when an arg can't be resolved statically.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function cronFromHelper(string $method, array $args): ?string
     {
@@ -671,7 +671,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function constraintFor(string $method, array $args): ?string
     {
@@ -731,7 +731,7 @@ final class ScheduleScanner implements Scanner
      * Collects statically-resolvable day integers from a variadic int list
      * (days(0, 3)) or a single array argument (days([0, 3])).
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<int>
      */
     private function collectDayArgs(array $args): array

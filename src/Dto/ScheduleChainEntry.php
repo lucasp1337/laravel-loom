@@ -15,7 +15,7 @@ use PhpParser\Node;
 final class ScheduleChainEntry
 {
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      * @param  list<ScheduleChainLink>  $chain
      */
     public function __construct(
