@@ -9,6 +9,8 @@ namespace Lucasp\Loom\Index;
  * `$defs/dispatchSite`. Absent for the plain form (`dispatch()`, `Mail::send()`,
  * `Notification::send()`), whose queued-vs-inline outcome is decided by the
  * target's `ShouldQueue` marker.
+ *
+ * @api
  */
 enum DispatchMode: string
 {
