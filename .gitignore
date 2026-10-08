@@ -33,6 +33,3 @@ testbench.yaml
 
 # MkDocs build output
 /site
-
-# Docs site
-/site

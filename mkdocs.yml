@@ -7,10 +7,6 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
-exclude_docs: |
-  ui-design-spec.md
-  ui-query-layer-plan.md
-
 theme:
   name: material
   palette:
