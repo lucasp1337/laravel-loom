@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Support;
 /**
  * Answers whether an optional package is installed. Bound in the container so
  * tests can simulate a missing one.
+ *
+ * @internal
  */
 final class OptionalPackages
 {

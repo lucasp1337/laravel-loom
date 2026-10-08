@@ -9,6 +9,8 @@ use Livewire\Livewire;
 
 /**
  * Composer packages Loom works without. Each unlocks one surface.
+ *
+ * @internal
  */
 enum OptionalPackage: string
 {
