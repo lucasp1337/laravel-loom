@@ -10,6 +10,8 @@ use Lucasp\Loom\Check\Result\CheckResult;
  * Human-readable terminal report with ANSI colors: a bold heading per failing
  * rule, red crosses for each violation, and a closing summary line. Passing and
  * skipped rules are omitted to keep the output focused on what to fix.
+ *
+ * @internal
  */
 final class TextCheckFormatter implements CheckFormatter
 {

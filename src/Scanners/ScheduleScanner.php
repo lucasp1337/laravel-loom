@@ -20,6 +20,8 @@ use PhpParser\Node;
 /**
  * Discovers entries declared in Laravel's task scheduler (Kernel, bootstrap/app.php,
  * routes/console.php and Schedule facade calls under app/).
+ *
+ * @internal
  */
 final class ScheduleScanner implements Scanner
 {

@@ -18,6 +18,8 @@ use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 /**
  * Collects statically resolvable dispatch sites in a parsed file.
+ *
+ * @internal
  */
 final class DispatchSiteVisitor extends NodeVisitorAbstract
 {

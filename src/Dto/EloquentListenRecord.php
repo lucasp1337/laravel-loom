@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** A `Event::listen('eloquent.{hook}: {Model}', $handler)` entry. */
+/**
+ * A `Event::listen('eloquent.{hook}: {Model}', $handler)` entry.
+ *
+ * @internal
+ */
 final class EloquentListenRecord
 {
     public function __construct(

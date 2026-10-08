@@ -8,6 +8,8 @@ use PhpParser\Node;
 
 /**
  * Stateless AST helpers shared by visitors.
+ *
+ * @internal
  */
 final class AstHelpers
 {

@@ -17,6 +17,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Captures `Route` facade route chains (e.g. `Route::get(...)->name(...)`).
  * Only chains whose root static call is an HTTP-verb router method are kept.
+ *
+ * @internal
  */
 final class RouteChainVisitor extends NodeVisitorAbstract
 {

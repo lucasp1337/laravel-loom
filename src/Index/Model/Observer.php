@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\ObserverRegistration;
 /**
  * A model observer: the model it observes, which lifecycle hooks it defines,
  * and what it dispatches. Read model for the `observers` section.
+ *
+ * @api
  */
 final readonly class Observer
 {

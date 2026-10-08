@@ -14,6 +14,8 @@ use Lucasp\Loom\Index\Sections;
 /**
  * Flags events that are neither dispatched nor handled: dead definitions with
  * no producer and no consumer.
+ *
+ * @internal
  */
 final class OrphanEventsRule implements CheckRule
 {

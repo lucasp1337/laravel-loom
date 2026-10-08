@@ -21,6 +21,8 @@ use Lucasp\Loom\Support\TwoPathDiscovery;
 /**
  * Discovers notification classes under app/Notifications/ plus
  * dispatch-site targets that resolve via PSR-4.
+ *
+ * @internal
  */
 final class NotificationScanner implements Scanner
 {

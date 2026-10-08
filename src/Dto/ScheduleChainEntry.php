@@ -7,7 +7,11 @@ namespace Lucasp\Loom\Dto;
 use Lucasp\Loom\Index\ScheduleKind;
 use PhpParser\Node;
 
-/** A raw scheduler chain captured by ScheduleChainVisitor (pre-translation). */
+/**
+ * A raw scheduler chain captured by ScheduleChainVisitor (pre-translation).
+ *
+ * @internal
+ */
 final class ScheduleChainEntry
 {
     /**

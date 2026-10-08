@@ -21,6 +21,7 @@ use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
 use Lucasp\Loom\Ui\LoomUiServiceProvider;
 
+/** @internal */
 class LoomServiceProvider extends ServiceProvider
 {
     public function register(): void

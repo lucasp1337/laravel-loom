@@ -11,6 +11,8 @@ use Lucasp\Loom\Index\DispatchKinds;
  * A statically resolved dispatch site. Internal to the cross-link pass —
  * not part of the public schema (`_dispatch_sites` is stripped before the
  * Index is built).
+ *
+ * @internal
  */
 final class DispatchSiteRecord
 {

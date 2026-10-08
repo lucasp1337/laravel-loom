@@ -19,6 +19,8 @@ use PhpParser\Node;
  * "Last literal wins per key": when the same key appears twice (rare), the
  * later link in source order overwrites the earlier one. Keeping the rule this
  * simple avoids precedence machinery; chains in practice set each key once.
+ *
+ * @internal
  */
 final class ChainModifierExtractor
 {

@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Diff\Result;
 /**
  * The full semantic diff between two indexes, keyed by section name in
  * registry order.
+ *
+ * @internal
  */
 final class DiffResult
 {

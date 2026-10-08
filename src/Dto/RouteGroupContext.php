@@ -9,6 +9,8 @@ use PhpParser\Node;
 /**
  * Cumulative enclosing `Route::group(...)` context applied to nested routes:
  * the merged prefix segments, name prefix, and default controller.
+ *
+ * @internal
  */
 final class RouteGroupContext
 {

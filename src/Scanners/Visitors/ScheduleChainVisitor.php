@@ -14,6 +14,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
+ *
+ * @internal
  */
 final class ScheduleChainVisitor extends NodeVisitorAbstract
 {

@@ -12,6 +12,7 @@ use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
 
+/** @internal */
 class ScanCommand extends Command
 {
     protected $signature = 'loom:scan';

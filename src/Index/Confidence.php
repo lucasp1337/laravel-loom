@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Index;
  * Resolution confidence emitted on `dispatches[*].confidence` and carried on
  * dispatch sites: how sure the scanner is that a dispatch target was resolved
  * correctly.
+ *
+ * @api
  */
 enum Confidence: string
 {

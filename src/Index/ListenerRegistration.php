@@ -10,6 +10,8 @@ namespace Lucasp\Loom\Index;
  *
  * `AUTO_DISCOVERED` applies only to class listeners (Laravel's convention-based
  * discovery); closure listeners never carry it.
+ *
+ * @api
  */
 enum ListenerRegistration: string
 {

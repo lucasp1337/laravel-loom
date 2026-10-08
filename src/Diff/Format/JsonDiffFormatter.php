@@ -13,6 +13,8 @@ use Lucasp\Loom\Diff\Result\SubListDelta;
 /**
  * Machine-readable diff: a plain-array projection encoded as pretty JSON.
  * Empty sections are omitted; an all-empty diff renders as `{}`.
+ *
+ * @internal
  */
 final class JsonDiffFormatter implements DiffFormatter
 {

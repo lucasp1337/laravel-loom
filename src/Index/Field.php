@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Index;
 
 /**
  * Source of truth for per-entry property names emitted by the index.
+ *
+ * @internal
  */
 enum Field: string
 {

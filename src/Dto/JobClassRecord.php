@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+/** @internal */
 final class JobClassRecord
 {
     public function __construct(

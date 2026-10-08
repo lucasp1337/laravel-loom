@@ -27,6 +27,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 /**
  * Discovers event listeners from auto-discovery (app/Listeners/),
  * $listen arrays, Event::listen() calls, and $subscribe / Event::subscribe.
+ *
+ * @internal
  */
 final class ListenerScanner implements Scanner
 {

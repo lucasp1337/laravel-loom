@@ -21,6 +21,8 @@ use Lucasp\Loom\Index\CrossLink\SortPhase;
  *
  * The default phase order matters — disambiguation must finalize a site's
  * kind before attribution and dispatched_from read it, and sorting runs last.
+ *
+ * @internal
  */
 final class CrossLinker
 {

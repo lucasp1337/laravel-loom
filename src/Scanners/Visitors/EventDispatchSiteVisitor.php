@@ -14,6 +14,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects statically resolvable event-class targets from dispatch sites.
  * Dynamic forms are handled by DispatchScanner.
+ *
+ * @internal
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {

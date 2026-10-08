@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * An HTTP route: its verb, URI, name, controller target, middleware, and what
  * the action dispatches. Read model for the `routes` section.
+ *
+ * @api
  */
 final readonly class Route
 {

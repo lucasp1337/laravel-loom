@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\Field;
  * A queueable/dispatchable job: its queue configuration, the sites that
  * dispatch it, and what it dispatches in turn. Read model for the `jobs`
  * section.
+ *
+ * @api
  */
 final readonly class Job
 {

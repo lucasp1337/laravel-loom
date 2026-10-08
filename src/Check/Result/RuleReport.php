@@ -9,6 +9,8 @@ use Lucasp\Loom\Check\RuleKey;
 /**
  * The outcome of one rule against one index: the rule that ran, whether it was
  * skipped, and any violations it produced.
+ *
+ * @internal
  */
 final class RuleReport
 {

@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * A handler (observer hook or `Event::listen` target) attached to a model
  * event, emitted on `model_events[*].handled_by`.
+ *
+ * @api
  */
 final readonly class ModelEventHandler
 {

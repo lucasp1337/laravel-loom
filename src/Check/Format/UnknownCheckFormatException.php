@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Check\Format;
 
 use InvalidArgumentException;
 
+/** @internal */
 final class UnknownCheckFormatException extends InvalidArgumentException
 {
     public static function for(string $format): self

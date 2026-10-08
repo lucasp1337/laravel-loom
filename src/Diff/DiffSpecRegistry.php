@@ -15,6 +15,8 @@ use Lucasp\Loom\Index\Sections;
  * Single source of truth for how each index section is diffed: identity,
  * semantic fields, and sublists. The list order is the report order and
  * mirrors the {@see Sections} enum.
+ *
+ * @internal
  */
 final class DiffSpecRegistry
 {

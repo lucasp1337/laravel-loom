@@ -12,6 +12,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Emits model-event entries from `Event::listen('eloquent.{hook}: {Model}', $handler)`.
+ *
+ * @internal
  */
 final class EloquentListenStringVisitor extends NodeVisitorAbstract
 {

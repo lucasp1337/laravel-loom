@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\SchemaValidator;
 /**
  * Asserts the index conforms to the published JSON schema. Each schema error
  * surfaces as its own violation.
+ *
+ * @internal
  */
 final class SchemaValidationRule implements CheckRule
 {

@@ -9,6 +9,8 @@ namespace Lucasp\Loom\Index;
  * cross-linked `kind` field. `AMBIGUOUS` is the pre-disambiguation
  * marker for `X::dispatch()` (Dispatchable trait); the cross-link
  * pass resolves it to `EVENT` or `JOB` before phase 5 runs.
+ *
+ * @api
  */
 enum DispatchKinds: string
 {

@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Support;
  * Laravel facade FQCNs Loom matches against. `matches()` accepts both
  * the FQCN and the bare-alias form (the basename of the FQCN, which
  * Laravel auto-aliases by default).
+ *
+ * @internal
  */
 enum Facades: string
 {

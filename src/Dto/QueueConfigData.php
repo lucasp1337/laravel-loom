@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** The six queue-config properties Loom tracks per queueable class. */
+/**
+ * The six queue-config properties Loom tracks per queueable class.
+ *
+ * @internal
+ */
 final class QueueConfigData
 {
     public function __construct(

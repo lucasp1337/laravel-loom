@@ -10,6 +10,8 @@ use PhpParser\Node;
  * Track whether the visitor is currently inside an EventServiceProvider
  * class — either named `EventServiceProvider` or extending the Illuminate
  * base. Used by `$listen` / `$subscribe` array visitors.
+ *
+ * @internal
  */
 trait IdentifiesEventServiceProvider
 {

@@ -21,6 +21,8 @@ use Lucasp\Loom\Support\TwoPathDiscovery;
 /**
  * Discovers job classes under app/Jobs/ plus dispatch-site targets that
  * resolve via PSR-4 to a class under app/.
+ *
+ * @internal
  */
 final class JobsScanner implements Scanner
 {

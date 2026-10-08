@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Sections;
 /**
  * Read-only view of a decoded index (and optional baseline) handed to each
  * rule. Section access is normalized so rules never touch raw array keys.
+ *
+ * @internal
  */
 final class CheckContext
 {

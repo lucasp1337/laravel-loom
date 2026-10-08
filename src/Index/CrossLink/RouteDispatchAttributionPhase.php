@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\Sections;
  * {@see DispatchAttributionPhase}'s site handling (closure-internal sites are
  * excluded, the shared {@see DispatchEntry::fromSite} payload is reused) so a
  * controller-method dispatch surfaces identically on routes and on listeners.
+ *
+ * @internal
  */
 final class RouteDispatchAttributionPhase implements CrossLinkPhase
 {

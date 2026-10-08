@@ -15,6 +15,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects (event, listener) pairs from `$listen` on EventServiceProvider classes.
  * String-keyed entries (e.g. 'eloquent.*') belong to ObserverScanner.
+ *
+ * @internal
  */
 final class ListenArrayVisitor extends NodeVisitorAbstract
 {

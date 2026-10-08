@@ -9,6 +9,8 @@ use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 /**
  * Cross-file extends/implements/use-trait resolver. Lazy index under
  * `$appRoot/app/`; vendor classes are opaque leaves.
+ *
+ * @internal
  */
 final class ClassHierarchyResolver
 {

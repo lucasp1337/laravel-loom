@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** Internal scanner state: a discovered mailable enriched with file path + queued. */
+/**
+ * Internal scanner state: a discovered mailable enriched with file path + queued.
+ *
+ * @internal
+ */
 final class MailableLocation
 {
     public function __construct(

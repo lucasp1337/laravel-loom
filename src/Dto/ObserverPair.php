@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** A (model, observers, line) record from `observe()` or `#[ObservedBy]`. */
+/**
+ * A (model, observers, line) record from `observe()` or `#[ObservedBy]`.
+ *
+ * @internal
+ */
 final class ObserverPair
 {
     /**

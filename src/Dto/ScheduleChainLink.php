@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use PhpParser\Node;
 
-/** One link in a `Schedule::command(...)->daily()` chain. */
+/**
+ * One link in a `Schedule::command(...)->daily()` chain.
+ *
+ * @internal
+ */
 final class ScheduleChainLink
 {
     /**

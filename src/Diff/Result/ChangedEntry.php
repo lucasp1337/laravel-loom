@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Diff\Result;
 
 /**
  * An entry present on both sides whose semantic fields and/or sublists differ.
+ *
+ * @internal
  */
 final class ChangedEntry
 {

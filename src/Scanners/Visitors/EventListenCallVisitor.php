@@ -16,6 +16,8 @@ use PhpParser\NodeVisitorAbstract;
  * Collects (event, listener) pairs from Event::listen(...) calls and the
  * equivalent container forms (`$this->app['events']->listen(...)`,
  * `app(Dispatcher::class)->listen(...)`, `$dispatcher->listen(...)`).
+ *
+ * @internal
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {

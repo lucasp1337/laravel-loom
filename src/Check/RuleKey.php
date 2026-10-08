@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Check;
 /**
  * Source of truth for the stable identifiers of each check rule. The values
  * are what `loom:check --skip=` accepts and what the JSON report emits.
+ *
+ * @internal
  */
 enum RuleKey: string
 {

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Support;
 
 /**
  * Comparator factories for stable, key-tuple-based sorts.
+ *
+ * @internal
  */
 final class Sorting
 {

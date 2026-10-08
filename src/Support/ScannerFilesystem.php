@@ -13,6 +13,8 @@ use SplFileInfo;
  * Filesystem helpers for scanners: recursively yield PHP files and
  * normalise absolute paths to forward-slashed paths relative to the
  * scanned app root.
+ *
+ * @internal
  */
 trait ScannerFilesystem
 {

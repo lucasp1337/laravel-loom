@@ -21,6 +21,8 @@ use Lucasp\Loom\Support\TwoPathDiscovery;
 /**
  * Discovers mailable classes under app/Mail/ plus dispatch-site targets
  * that resolve via PSR-4.
+ *
+ * @internal
  */
 final class MailableScanner implements Scanner
 {

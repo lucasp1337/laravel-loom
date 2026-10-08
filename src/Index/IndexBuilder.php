@@ -10,6 +10,8 @@ use RuntimeException;
 /**
  * Runs registered scanners, merges their sections, cross-links relations,
  * and produces an Index.
+ *
+ * @internal
  */
 class IndexBuilder
 {

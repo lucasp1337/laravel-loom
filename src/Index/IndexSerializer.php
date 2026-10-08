@@ -27,6 +27,8 @@ use RuntimeException;
  *
  * The cross-link pass mutates `dispatched_from[]`, `dispatches[]`, etc., so
  * those keys are initialized to `[]` here; downstream code appends.
+ *
+ * @internal
  */
 final class IndexSerializer
 {

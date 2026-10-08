@@ -181,8 +181,15 @@ internal pre-disambiguation marker that never survives into a written index.
 `confidence` is currently always `HIGH`; `MEDIUM`/`LOW` are reserved for future
 runtime-overlay work.
 
-## What is supported
+## What is public
 
-The supported surface is the `Index` getters and lookups, `IndexLoader`, `IndexLoadException`, and the `Index\Model\` value objects with their enums. It is built from the same shape as the [schema](schema.md), so it changes when the schema does.
+Public classes carry `@api` and are listed here:
 
-Everything else is internal and may change without notice: the scanners, `IndexBuilder`, the `Dto\*Entry` classes and the `_dispatch_sites` section. If you only read a written `index.json`, `IndexLoader` and the model classes are all you need.
+- `Lucasp\Loom\Index\`: `Index`, `IndexLoader`, `IndexLoadException`, and the enums `Confidence`, `DispatchKinds`, `FrequencyUnit`, `ListenerRegistration`, `ObserverRegistration`, `ScheduleKind`.
+- `Lucasp\Loom\Index\Model\`: the value objects above (`ClosureListener`, `Dispatch`, `DispatchOverrides`, `DispatchSite`, `Event`, `Frequency`, `Handle`, `Handler`, `Job`, `Listener`, `Mailable`, `ModelEvent`, `ModelEventHandler`, `Notification`, `Observer`, `QueueConfig`, `Route`, `Scheduled`, `UnresolvedDispatch`).
+
+The surface mirrors the [schema](schema.md), so it changes when the schema does.
+
+Every other class carries `@internal` and may change in any release. That includes the scanners and visitors, `Contracts\Scanner`, `IndexBuilder`, the `Dto\*` classes, `Query\IndexQuery`, the check rules and the diff engine. Third-party scanners are not supported: to detect something new, contribute a scanner to Loom itself. The CLI commands, MCP tools and `config/loom.php` are documented in their own references.
+
+A test fails if a class is neither `@internal` nor `@api` and listed on this page.

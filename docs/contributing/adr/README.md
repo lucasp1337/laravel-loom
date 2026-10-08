@@ -45,3 +45,5 @@ refactor, it's a reference doc, not an ADR.
   from scanner DTOs, hydrated from the schema shape.
 - [0006 — Benchmark suite](0006-benchmark-suite.md) — gate on deterministic
   counts, not wall time; deterministic generator over committed fixtures.
+- [0007 — Scanners are internal](0007-scanners-not-an-extension-point.md) —
+  no third-party scanner support in 1.0; public PHP API is the read side only.

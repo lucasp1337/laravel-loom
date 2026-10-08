@@ -19,6 +19,8 @@ use Lucasp\Loom\Support\TwoPathDiscovery;
 /**
  * Discovers event classes under app/Events/ plus targets reached from
  * statically resolvable dispatch sites elsewhere in app/.
+ *
+ * @internal
  */
 final class EventScanner implements Scanner
 {

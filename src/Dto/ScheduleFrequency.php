@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\FrequencyUnit;
 /**
  * A structured sub-minute schedule frequency
  * (e.g. everyFifteenSeconds → unit=seconds, every=15).
+ *
+ * @internal
  */
 final readonly class ScheduleFrequency
 {

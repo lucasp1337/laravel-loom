@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Contracts;
 
+/**
+ * Internal seam between `IndexBuilder` and the built-in scanners. Not an
+ * extension point: sections are a closed set and nothing registers
+ * third-party scanners.
+ *
+ * @internal
+ */
 interface Scanner
 {
     /**

@@ -13,6 +13,8 @@ use Lucasp\Loom\Check\RuleKey;
 /**
  * Flags cyclic dispatch chains across events and jobs, where dispatching one
  * primitive can transitively re-trigger itself.
+ *
+ * @internal
  */
 final class CyclicDispatchRule implements CheckRule
 {

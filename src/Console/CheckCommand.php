@@ -14,6 +14,7 @@ use Lucasp\Loom\Check\Format\UnknownCheckFormatException;
 use Lucasp\Loom\Check\RuleKey;
 use Lucasp\Loom\Support\IndexPath;
 
+/** @internal */
 class CheckCommand extends Command
 {
     protected $signature = 'loom:check

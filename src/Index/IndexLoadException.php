@@ -9,6 +9,8 @@ use RuntimeException;
 /**
  * Thrown by {@see IndexLoader} when a Loom index cannot be read, decoded, or
  * structurally recognised as an index payload.
+ *
+ * @api
  */
 final class IndexLoadException extends RuntimeException
 {

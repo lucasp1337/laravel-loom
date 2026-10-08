@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\Field;
  * Static queue configuration read off a queueable class (job, mailable,
  * notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`,
  * `$backoff`. Each value is the literal property value, or null when absent.
+ *
+ * @api
  */
 final readonly class QueueConfig
 {
