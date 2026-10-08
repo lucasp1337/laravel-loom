@@ -9,6 +9,8 @@ use Illuminate\Foundation\Application;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DefaultScanners;
 use Lucasp\Loom\Support\IndexPath;
+use Lucasp\Loom\Support\OptionalPackage;
+use Lucasp\Loom\Support\OptionalPackages;
 
 class ScanCommand extends Command
 {
@@ -40,8 +42,19 @@ class ScanCommand extends Command
         $this->writeAtomically($outputPath, (string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $this->info("Loom index written to {$outputPath}");
+        $this->hintAtUi();
 
         return self::SUCCESS;
+    }
+
+    private function hintAtUi(): void
+    {
+        if (! (bool) config('loom.ui.enabled', true)
+            || $this->laravel->make(OptionalPackages::class)->has(OptionalPackage::LIVEWIRE)) {
+            return;
+        }
+
+        $this->line(OptionalPackage::LIVEWIRE->installHint());
     }
 
     /** Readers never see a partial file: write a sibling temp file, then rename over the target. */

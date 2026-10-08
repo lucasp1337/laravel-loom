@@ -8,12 +8,17 @@ use Illuminate\Foundation\Application;
 use Laravel\Mcp\Server\McpServiceProvider;
 use Livewire\LivewireServiceProvider;
 use Lucasp\Loom\LoomServiceProvider;
+use Lucasp\Loom\Support\OptionalPackage;
+use Lucasp\Loom\Support\OptionalPackages;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
 {
     /** App environment the provider boots under; the UI mounts in `local` only by default. */
     protected string $loomEnvironment = 'local';
+
+    /** @var list<OptionalPackage> Optional packages simulated as not installed. */
+    protected array $loomMissing = [];
 
     /** @var array<string, mixed> */
     protected array $loomConfig = [];
@@ -32,6 +37,28 @@ class TestCase extends Orchestra
             LivewireServiceProvider::class,
             LoomServiceProvider::class,
         ];
+    }
+
+    /**
+     * Reboots the app with optional packages treated as not installed.
+     *
+     * @param  list<OptionalPackage>  $missing
+     * @param  array<string, mixed>  $config
+     */
+    public function bootWithout(array $missing, array $config = []): void
+    {
+        $this->loomMissing = $missing;
+        $this->loomConfig = $config;
+        $this->refreshApplication();
+    }
+
+    /**
+     * @param  Application  $app
+     * @return array<class-string, callable>
+     */
+    protected function overrideApplicationBindings($app): array
+    {
+        return [OptionalPackages::class => fn (): OptionalPackages => new OptionalPackages($this->loomMissing)];
     }
 
     /** @param  Application  $app */

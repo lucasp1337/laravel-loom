@@ -4,7 +4,7 @@ By the end of this page you'll have an index of your app on disk, you'll know wh
 
 The examples use a checkout app with an `OrderPlaced` event. Swap in any event of yours.
 
-You need PHP 8.3 or newer and a Laravel 11, 12 or 13 app.
+You need PHP 8.3 or newer and a Laravel 12 or 13 app. The browser UI also needs `livewire/livewire`, and the MCP server needs `laravel/mcp`; both are optional.
 
 ## Scan your app
 

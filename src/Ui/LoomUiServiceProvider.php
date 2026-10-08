@@ -29,8 +29,8 @@ use Lucasp\Loom\Ui\Support\AppChangeClock;
 use Lucasp\Loom\Ui\Support\GitAppChangeClock;
 
 /**
- * Wires the browser UI. Registered by the main provider; the UI is removable
- * by dropping that one call.
+ * Wires the browser UI. Registered by the main provider only when
+ * livewire/livewire is installed.
  *
  * @internal
  */
@@ -53,10 +53,6 @@ final class LoomUiServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $config = $this->app->make(LoomConfig::class);
-
-        $this->publishes([
-            dirname(__DIR__, 2).'/config/loom.php' => $this->app->configPath('loom.php'),
-        ], 'loom-config');
 
         $environment = $this->app->environment();
 

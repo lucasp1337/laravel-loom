@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Console;
 use Illuminate\Console\Command;
 use Laravel\Mcp\Server\Registrar;
 use Lucasp\Loom\Mcp\IndexRepository;
+use Lucasp\Loom\Support\OptionalPackage;
+use Lucasp\Loom\Support\OptionalPackages;
 
 /**
  * Starts the embedded Loom MCP server over stdio. Resolves the index first
@@ -22,8 +24,24 @@ final class McpCommand extends Command
 
     protected $description = 'Start the embedded Loom MCP server over stdio';
 
-    public function handle(Registrar $registrar, IndexRepository $repository): int
+    public function handle(OptionalPackages $packages): int
     {
+        if (! $packages->has(OptionalPackage::MCP)) {
+            $this->components->error(OptionalPackage::MCP->installHint());
+
+            return self::FAILURE;
+        }
+
+        if (! (bool) config('loom.mcp.enabled', true)) {
+            $this->components->error('The Loom MCP server is disabled (loom.mcp.enabled is false).');
+
+            return self::FAILURE;
+        }
+
+        // Resolved after the guard: these types need laravel/mcp.
+        $repository = $this->laravel->make(IndexRepository::class);
+        $registrar = $this->laravel->make(Registrar::class);
+
         $snapshot = $this->option('snapshot');
         $hasSnapshot = is_string($snapshot) && $snapshot !== '';
 

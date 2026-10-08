@@ -17,6 +17,8 @@ use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Query\IndexQuery;
 use Lucasp\Loom\Support\IndexPath;
+use Lucasp\Loom\Support\OptionalPackage;
+use Lucasp\Loom\Support\OptionalPackages;
 use Lucasp\Loom\Ui\LoomUiServiceProvider;
 
 class LoomServiceProvider extends ServiceProvider
@@ -24,7 +26,11 @@ class LoomServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(dirname(__DIR__).'/config/loom.php', 'loom');
-        $this->app->register(LoomUiServiceProvider::class);
+        $this->app->singletonIf(OptionalPackages::class, fn (): OptionalPackages => new OptionalPackages);
+
+        if ($this->app->make(OptionalPackages::class)->has(OptionalPackage::LIVEWIRE)) {
+            $this->app->register(LoomUiServiceProvider::class);
+        }
 
         $this->app->singleton(IndexPath::class, fn ($app): IndexPath => new IndexPath(
             $app->make('config'),
@@ -46,7 +52,13 @@ class LoomServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Mcp::local('loom', LoomMcpServer::class);
+        $this->publishes([
+            dirname(__DIR__).'/config/loom.php' => $this->app->configPath('loom.php'),
+        ], 'loom-config');
+
+        if ($this->mcpAvailable()) {
+            Mcp::local('loom', LoomMcpServer::class);
+        }
 
         if ($this->app->runningInConsole()) {
             $this->commands([
@@ -57,5 +69,11 @@ class LoomServiceProvider extends ServiceProvider
                 McpCommand::class,
             ]);
         }
+    }
+
+    private function mcpAvailable(): bool
+    {
+        return $this->app->make(OptionalPackages::class)->has(OptionalPackage::MCP)
+            && (bool) $this->app->make('config')->get('loom.mcp.enabled', true);
     }
 }

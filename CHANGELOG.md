@@ -4,6 +4,16 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Changed
+
+- Laravel 11 is no longer supported; Loom requires Laravel 12.41.1+ or 13.
+- `livewire/livewire` and `laravel/mcp` are optional (`suggest`). The UI needs Livewire ^3.8 or ^4.0; `loom:mcp` needs `laravel/mcp` and exits 1 with an install hint without it.
+
+### Added
+
+- `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
+- `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
+
 ## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
 
 ### Fixed
@@ -19,7 +29,6 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `file` paths must be relative; the absolute-path fallback is removed and the schema rejects absolute paths.
 - MCP `get-entity` returns the raw snake_case index entry.
 - MCP chain tools always emit `truncated` and `cycles`.
-- `livewire/livewire` and `laravel/mcp` (^1.0) are now installed with the package.
 
 ### Added
 

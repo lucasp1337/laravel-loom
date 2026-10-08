@@ -151,7 +151,7 @@ Slash commands wire chains together:
 
 ## Tech invariants
 
-- PHP 8.3+, Laravel 11+
+- PHP 8.3+, Laravel 12+
 - `nikic/php-parser` for all AST work — no regex parsing of PHP source
 - `justinrainbow/json-schema` for validation
 - PHPStan level 8, zero errors

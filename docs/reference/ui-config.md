@@ -13,7 +13,7 @@ php artisan vendor:publish --tag=loom-config
 | Key | Env variable | Default | Meaning |
 | --- | --- | --- | --- |
 | `index_path` | `LOOM_INDEX_PATH` | `null` | Where `loom:scan` writes the index and where the CLI, MCP server and UI read it. `null` means `storage/loom/index.json`. |
-| `ui.enabled` | `LOOM_UI_ENABLED` | `true` | Kill switch. When `false`, no routes, pages or gate exist in any environment. |
+| `ui.enabled` | `LOOM_UI_ENABLED` | `true` | Kill switch. When `false`, no routes, pages or gate exist in any environment. The UI is also absent when `livewire/livewire` isn't installed. |
 | `ui.environments` | none | `['local']` | App environments that mount the UI. Elsewhere nothing is registered and `/loom` returns 404. |
 | `ui.allow_in_production` | none | `false` | Listing `production` in `ui.environments` is ignored unless this is `true`. A warning is logged when it is listed but not allowed. |
 | `ui.path` | `LOOM_PATH` | `loom` | URI prefix. Slashes at either end are trimmed; an empty value falls back to `loom`. |

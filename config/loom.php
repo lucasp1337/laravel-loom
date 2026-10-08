@@ -8,7 +8,8 @@ return [
     'index_path' => env('LOOM_INDEX_PATH'),
 
     'ui' => [
-        // Kill switch. The UI is also mounted only in the environments below.
+        // Kill switch. The UI needs livewire/livewire and is also mounted only
+        // in the environments below.
         'enabled' => env('LOOM_UI_ENABLED', true),
 
         // App environments that mount the UI. In any other environment no
@@ -30,5 +31,10 @@ return [
 
         // Default chain depth on the chain page (clamped to 1-6).
         'chain_depth' => 3,
+    ],
+
+    'mcp' => [
+        // Turns off `loom:mcp` even when laravel/mcp is installed.
+        'enabled' => env('LOOM_MCP_ENABLED', true),
     ],
 ];

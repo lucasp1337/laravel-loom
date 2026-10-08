@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Lucasp\Loom\LoomServiceProvider;
 use Lucasp\Loom\Tests\Feature\Ui\UiSnapshot;
 use Lucasp\Loom\Ui\LoomAbility;
-use Lucasp\Loom\Ui\LoomUiServiceProvider;
 
 uses(UiSnapshot::class);
 
@@ -119,7 +119,7 @@ it('defines the default gate only where the UI mounts', function () {
 it('still publishes the config in production', function () {
     bootLoomAs($this, 'production');
 
-    $paths = ServiceProvider::pathsToPublish(LoomUiServiceProvider::class, 'loom-config');
+    $paths = ServiceProvider::pathsToPublish(LoomServiceProvider::class, 'loom-config');
 
     expect($paths)->not->toBeEmpty();
 });

@@ -25,8 +25,9 @@ it('documents every ui config key with its env variable', function (): void {
 
     $source = (string) file_get_contents(dirname(__DIR__, 2).'/config/loom.php');
     preg_match_all("/env\('([A-Z_]+)'/", $source, $envs);
+    $allDocs = $doc.uiDoc('docs/reference/commands.md');
     foreach ($envs[1] as $env) {
-        if (! str_contains($doc, "`{$env}`")) {
+        if (! str_contains($allDocs, "`{$env}`")) {
             $missing[] = $env;
         }
     }

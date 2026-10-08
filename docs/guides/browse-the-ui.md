@@ -4,6 +4,8 @@ By the end of this page you'll have `/loom` open in your browser, you'll have fo
 
 You've run `php artisan loom:scan` and have an index on disk. The examples use a checkout app where `OrderPlaced` fires from `OrderController` and is handled by `SendOrderConfirmation` and `ReserveStock`.
 
+The UI needs `livewire/livewire` (^3.8 or ^4.0), which Loom doesn't install for you: `composer require livewire/livewire --dev`. Without it nothing is mounted, and `loom:scan` prints that hint.
+
 ## See what happens when OrderPlaced fires
 
 Start your app locally and open the UI.

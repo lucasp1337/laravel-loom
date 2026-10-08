@@ -2,7 +2,7 @@
 
 By the end of this page, an AI agent in your editor can answer "what happens when an order is placed?" by calling Loom instead of grepping your source.
 
-You need a Laravel app with Loom installed as a dev dependency (`composer require lucasp1337/laravel-loom --dev`) and an MCP client that can launch a local command: Claude Code, Cursor, or anything else that speaks [MCP](https://modelcontextprotocol.io) over stdio. The examples use an order and checkout app.
+You need a Laravel app with Loom installed as a dev dependency (`composer require lucasp1337/laravel-loom --dev`), `laravel/mcp` (`composer require laravel/mcp --dev`; without it `loom:mcp` exits 1 with an install hint), and an MCP client that can launch a local command: Claude Code, Cursor, or anything else that speaks [MCP](https://modelcontextprotocol.io) over stdio. The examples use an order and checkout app.
 
 ## Register the server
 
