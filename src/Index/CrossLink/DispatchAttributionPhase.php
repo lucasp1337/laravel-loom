@@ -12,6 +12,8 @@ use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
  * Phase 3 — attributes each dispatch site to its enclosing handler's
  * `dispatches[]`: a listener method that handles an event, a job's `handle()`,
  * or an observer's Eloquent hook.
+ *
+ * @internal
  */
 final class DispatchAttributionPhase implements CrossLinkPhase
 {

@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use PhpParser\Node;
 
-/** A raw route chain captured by RouteChainVisitor (pre-translation). */
+/**
+ * A raw route chain captured by RouteChainVisitor (pre-translation).
+ *
+ * @internal
+ */
 final class RouteChainEntry
 {
     /**

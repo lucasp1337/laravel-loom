@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\Sections;
  *
  * `listenerMethods` is a scratchpad: {@see HandledByPhase} populates it and
  * {@see DispatchAttributionPhase} consumes it.
+ *
+ * @internal
  */
 final class CrossLinkContext
 {

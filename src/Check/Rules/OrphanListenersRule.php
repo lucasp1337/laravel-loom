@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\Sections;
 
 /**
  * Flags listeners that handle no events: dead registrations that can never fire.
+ *
+ * @internal
  */
 final class OrphanListenersRule implements CheckRule
 {

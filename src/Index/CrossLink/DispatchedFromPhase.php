@@ -12,6 +12,8 @@ use Lucasp\Loom\Index\Sections;
  * Phase 4 — populates the reverse `dispatched_from` / `sent_from` /
  * `notified_from` arrays on the target entry (event, job, mailable, or
  * notification) from each finalized dispatch site.
+ *
+ * @internal
  */
 final class DispatchedFromPhase implements CrossLinkPhase
 {

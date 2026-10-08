@@ -16,6 +16,8 @@ use Lucasp\Loom\Diff\Spec\SubListSpec;
  * any particular section — all section knowledge lives in the
  * {@see SectionDiffSpec} it is handed. Output is deterministic regardless of
  * input order.
+ *
+ * @internal
  */
 final class SectionComparator
 {

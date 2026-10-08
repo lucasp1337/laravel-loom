@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\Field;
  * An Eloquent model lifecycle event (e.g. `created`, `saving`) and the
  * observers/listeners that handle it. Read model for the `model_events`
  * section.
+ *
+ * @api
  */
 final readonly class ModelEvent
 {

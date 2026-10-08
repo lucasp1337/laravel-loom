@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Diff\Result;
 
 /**
  * The diff of one section: entries added, removed, and changed.
+ *
+ * @internal
  */
 final class SectionDiff
 {

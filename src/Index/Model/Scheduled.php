@@ -11,6 +11,8 @@ use Lucasp\Loom\Index\ScheduleKind;
  * A scheduled task (command, job, closure, or shell exec) with its cron
  * expression — or structured sub-minute `frequency` — and lifecycle modifiers.
  * Read model for the `scheduled` section.
+ *
+ * @api
  */
 final readonly class Scheduled
 {

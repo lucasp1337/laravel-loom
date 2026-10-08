@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Diff\Format;
 
+/** @internal */
 final class FormatterFactory
 {
     /**

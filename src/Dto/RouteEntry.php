@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** A single HTTP route discovered under routes/. */
+/**
+ * A single HTTP route discovered under routes/.
+ *
+ * @internal
+ */
 final class RouteEntry
 {
     /**

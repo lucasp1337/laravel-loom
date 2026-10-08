@@ -11,6 +11,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * A resolved dispatch edge: a source (listener, observer, job, route, …)
  * dispatches `target` of a given `kind` from a source location.
+ *
+ * @api
  */
 final readonly class Dispatch
 {

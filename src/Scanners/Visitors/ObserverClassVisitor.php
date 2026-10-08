@@ -10,6 +10,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Records observer classes and their matching Eloquent hook methods.
+ *
+ * @internal
  */
 final class ObserverClassVisitor extends NodeVisitorAbstract
 {

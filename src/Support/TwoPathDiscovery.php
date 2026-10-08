@@ -28,6 +28,8 @@ use SplFileInfo;
  *
  * Consuming scanners must also `use ScannerFilesystem`, which supplies the
  * iteratePhpFiles()/relativePath() helpers declared abstract below.
+ *
+ * @internal
  */
 trait TwoPathDiscovery
 {

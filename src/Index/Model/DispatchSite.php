@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\Field;
  * A source location that dispatches an event, sends a mailable, or notifies a
  * notification. Populated on `events[*].dispatched_from`, `jobs[*].dispatched_from`,
  * `mailables[*].sent_from`, and `notifications[*].notified_from`.
+ *
+ * @api
  */
 final readonly class DispatchSite
 {

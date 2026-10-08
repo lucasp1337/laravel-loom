@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\DispatchForm;
 
-/** An (event-class fqcn, line, form) dispatch target seen by EventScanner. */
+/**
+ * An (event-class fqcn, line, form) dispatch target seen by EventScanner.
+ *
+ * @internal
+ */
 final class EventDispatchTarget
 {
     public function __construct(

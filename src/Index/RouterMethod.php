@@ -11,6 +11,8 @@ namespace Lucasp\Loom\Index;
  * `match` and `any` are handled explicitly by the scanner (variable verb set
  * and a fixed `ANY`, respectively) and are listed here only so the visitor
  * recognises them as route-declaring roots.
+ *
+ * @internal
  */
 final class RouterMethod
 {

@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\ListenerRegistration;
 
-/** Visitor-level closure handler: an (event, line, endLine, registration) tuple. */
+/**
+ * Visitor-level closure handler: an (event, line, endLine, registration) tuple.
+ *
+ * @internal
+ */
 final class ClosurePairRecord
 {
     public function __construct(

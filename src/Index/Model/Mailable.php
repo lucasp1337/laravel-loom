@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * A mailable class: its queue configuration and the sites that send it. Read
  * model for the `mailables` section.
+ *
+ * @api
  */
 final readonly class Mailable
 {

@@ -14,6 +14,8 @@ use Lucasp\Loom\Support\ScannerFilesystem;
 /**
  * Collects dispatch sites under app/ and emits `unresolved_dispatches`
  * plus the internal `_dispatch_sites` section.
+ *
+ * @internal
  */
 final class DispatchScanner implements Scanner
 {

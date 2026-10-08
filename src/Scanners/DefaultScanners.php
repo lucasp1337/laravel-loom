@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\IndexBuilder;
 /**
  * The canonical scanner set `loom:scan` runs. Single source of truth so the
  * CLI, the benchmark suite, and any consumer build the same index.
+ *
+ * @internal
  */
 final class DefaultScanners
 {

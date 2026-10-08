@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\Field;
  * A dispatch site the scanner could not statically resolve to a target, with
  * the raw expression and the reason. Read model for the
  * `unresolved_dispatches` section.
+ *
+ * @api
  */
 final readonly class UnresolvedDispatch
 {

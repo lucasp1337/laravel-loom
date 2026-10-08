@@ -11,6 +11,8 @@ use Lucasp\Loom\Diff\Result\DiffResult;
  * Pure and framework-free: takes two associative arrays, returns a
  * {@see DiffResult}. Metadata blocks (loom_version, scanned_at, stats, …) are
  * ignored — only the sections in {@see DiffSpecRegistry} are compared.
+ *
+ * @internal
  */
 final class IndexDiffer
 {

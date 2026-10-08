@@ -9,6 +9,8 @@ use Lucasp\Loom\Check\Result\CheckResult;
 /**
  * Markdown report suitable for PR comments: a section per failing rule with a
  * bullet per violation. A passing run renders a single line.
+ *
+ * @internal
  */
 final class MarkdownCheckFormatter implements CheckFormatter
 {

@@ -12,6 +12,8 @@ use Lucasp\Loom\Index\Field;
  * handler's `dispatches[]` — `{target, kind, confidence, file, line}`. The
  * attribution phases (class listeners/jobs/observers, routes, closure
  * listeners) all emit this shape via {@see self::forHandler()}.
+ *
+ * @internal
  */
 final class DispatchEntry
 {

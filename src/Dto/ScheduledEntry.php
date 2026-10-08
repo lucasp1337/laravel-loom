@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\ScheduleKind;
 
+/** @internal */
 final class ScheduledEntry
 {
     /**

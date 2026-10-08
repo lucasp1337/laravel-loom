@@ -11,6 +11,8 @@ use Lucasp\Loom\Check\RuleKey;
 /**
  * A single policy rule applied to a decoded Loom index. Rules are pure: they
  * read the {@see CheckContext} and return violations without side effects.
+ *
+ * @internal
  */
 interface CheckRule
 {

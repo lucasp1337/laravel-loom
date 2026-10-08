@@ -11,6 +11,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects class/interface/trait declarations for ClassHierarchyResolver.
  * Skips anonymous classes (no namespacedName).
+ *
+ * @internal
  */
 final class ClassDeclarationVisitor extends NodeVisitorAbstract
 {

@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use PhpParser\Node;
 
-/** One `Route::group(...)`'s own attributes, before merging with parents. */
+/**
+ * One `Route::group(...)`'s own attributes, before merging with parents.
+ *
+ * @internal
+ */
 final class RouteGroupAttributes
 {
     /**

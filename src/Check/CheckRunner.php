@@ -10,6 +10,8 @@ use Lucasp\Loom\Check\Result\RuleReport;
 /**
  * Runs every registered rule against a context, honoring a skip list, and
  * collects the per-rule reports into a {@see CheckResult}.
+ *
+ * @internal
  */
 final class CheckRunner
 {

@@ -13,6 +13,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects concrete notification classes and statically resolvable
  * `via()` channels. Non-literal `via()` bodies set channels_dynamic: true.
+ *
+ * @internal
  */
 final class NotificationClassVisitor extends NodeVisitorAbstract
 {

@@ -11,7 +11,11 @@ use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/** Collects concrete job classes (skips abstract + anonymous). */
+/**
+ * Collects concrete job classes (skips abstract + anonymous).
+ *
+ * @internal
+ */
 final class JobClassVisitor extends NodeVisitorAbstract
 {
     /** @var list<JobClassRecord> */

@@ -11,6 +11,8 @@ use Lucasp\Loom\Support\Sorting;
 /**
  * Phase 5 — sorts every cross-linked array into a deterministic order so the
  * emitted index is stable across runs.
+ *
+ * @internal
  */
 final class SortPhase implements CrossLinkPhase
 {

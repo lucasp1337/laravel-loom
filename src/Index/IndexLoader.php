@@ -11,6 +11,8 @@ use JsonException;
  * {@see Index::toArray()}. This is the supported entry point for library
  * consumers (UI, MCP server, custom tooling) that read a previously written
  * `index.json` rather than running a scan in-process.
+ *
+ * @api
  */
 final class IndexLoader
 {

@@ -10,6 +10,8 @@ namespace Lucasp\Loom\Index;
  * in the public schema. The cross-link pass and the per-target scanners read
  * `form` to disambiguate `kind` (e.g. `DISPATCHABLE` is ambiguous until
  * resolved to event or job).
+ *
+ * @internal
  */
 enum DispatchForm: string
 {

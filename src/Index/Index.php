@@ -26,6 +26,8 @@ use Lucasp\Loom\Index\Model\UnresolvedDispatch;
  * lookups below return read-model value objects from {@see Model}, so consumers
  * (UI, MCP server, custom tooling) never reach into raw arrays. {@see toArray()}
  * remains the inverse used for JSON serialization.
+ *
+ * @api
  */
 final class Index
 {

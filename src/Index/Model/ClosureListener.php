@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\ListenerRegistration;
 /**
  * An anonymous (closure) listener bound to an event, with its source span and
  * what it dispatches. Read model for the `closure_listeners` section.
+ *
+ * @api
  */
 final readonly class ClosureListener
 {

@@ -15,6 +15,8 @@ use Lucasp\Loom\Index\SchemaValidator;
 /**
  * Single source of truth for the check rules and the order in which they run.
  * The list order is the report order.
+ *
+ * @internal
  */
 final class CheckRuleRegistry
 {

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Diff\Result;
 
 /**
  * A single semantic field that differs between the old and new entry.
+ *
+ * @internal
  */
 final class FieldChange
 {

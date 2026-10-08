@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\Sections;
  * an entry ({@see $identity}), which scalar/list fields are compared for change
  * ({@see $semanticFields}), and which repeated sublists are diffed by
  * membership ({@see $subLists}).
+ *
+ * @internal
  */
 final class SectionDiffSpec
 {

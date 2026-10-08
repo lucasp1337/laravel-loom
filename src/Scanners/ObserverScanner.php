@@ -22,6 +22,8 @@ use Lucasp\Loom\Support\Sorting;
 /**
  * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
  * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
+ *
+ * @internal
  */
 final class ObserverScanner implements Scanner
 {

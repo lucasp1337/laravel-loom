@@ -14,6 +14,8 @@ use Lucasp\Loom\Index\Sections;
  * Cycle detection reports one representative cycle per back-edge found during a
  * deterministic DFS. This is a documented simplification: it surfaces every
  * strongly-connected region but does not enumerate every elementary cycle.
+ *
+ * @internal
  */
 final class DispatchGraph
 {

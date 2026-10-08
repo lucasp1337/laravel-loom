@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * Fluent modifiers applied at a dispatch site (e.g. `->onQueue('high')`,
  * `->delay(60)`, `->afterCommit()`). Every field is null when not set.
+ *
+ * @api
  */
 final readonly class DispatchOverrides
 {

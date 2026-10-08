@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * A notification class: its queue configuration, the channels it sends on,
  * and the sites that notify it. Read model for the `notifications` section.
+ *
+ * @api
  */
 final readonly class Notification
 {

@@ -21,6 +21,8 @@ use PhpParser\Node;
  *
  * Slice 1: leaf verb routes only (get/post/.../any/match). Group prefixes,
  * middleware chains, and dispatch cross-links are out of scope.
+ *
+ * @internal
  */
 final class RouteScanner implements Scanner
 {

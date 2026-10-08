@@ -12,6 +12,8 @@ namespace Lucasp\Loom\Index;
  * The `{param}` placeholder in a suffix is substituted with the singularised
  * resource name by the scanner. `update` emits PUT only (Laravel also routes
  * PATCH to the same action).
+ *
+ * @internal
  */
 enum ResourceAction: string
 {

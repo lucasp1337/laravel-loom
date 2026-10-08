@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Support;
  * Map an FQCN to its likely on-disk path using Laravel's default PSR-4
  * convention (`App\` → `app/`). Pure path heuristic — caller is
  * responsible for parsing the file.
+ *
+ * @internal
  */
 final class Psr4ClassLocator
 {

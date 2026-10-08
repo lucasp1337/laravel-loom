@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Index;
 
 /**
  * Top-level section names emitted by the index.
+ *
+ * @internal
  */
 enum Sections: string
 {

@@ -14,6 +14,8 @@ use PhpParser\ParserFactory;
 /**
  * Wrapper around nikic/php-parser. Always runs NameResolver before
  * caller visitors so visitors see fully qualified names.
+ *
+ * @internal
  */
 class AstWalker
 {

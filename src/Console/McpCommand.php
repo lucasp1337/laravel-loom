@@ -14,6 +14,8 @@ use Lucasp\Loom\Support\OptionalPackages;
  * Starts the embedded Loom MCP server over stdio. Resolves the index first
  * (auto-scanning a missing snapshot unless `--no-scan`), then hands control to
  * the registered local server's stdio loop.
+ *
+ * @internal
  */
 final class McpCommand extends Command
 {

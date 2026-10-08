@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** A class/interface/trait declaration captured for ClassHierarchyResolver. */
+/**
+ * A class/interface/trait declaration captured for ClassHierarchyResolver.
+ *
+ * @internal
+ */
 final class ClassDeclaration
 {
     /**

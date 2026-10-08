@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * A discovered event class, with the sites that dispatch it and the listeners
  * that handle it. Read model for the `events` section.
+ *
+ * @api
  */
 final readonly class Event
 {

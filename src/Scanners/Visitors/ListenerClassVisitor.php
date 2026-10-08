@@ -13,6 +13,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects listener classes and their handle() event-type signature.
+ *
+ * @internal
  */
 final class ListenerClassVisitor extends NodeVisitorAbstract
 {

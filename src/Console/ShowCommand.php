@@ -7,6 +7,7 @@ namespace Lucasp\Loom\Console;
 use Illuminate\Console\Command;
 use Lucasp\Loom\Support\IndexPath;
 
+/** @internal */
 class ShowCommand extends Command
 {
     protected $signature = 'loom:show {filter? : Optional FQCN substring filter}';
