@@ -315,6 +315,19 @@ it('surfaces a dispatched_from overrides change as a member remove plus add', fu
     expect($delta->removed[0]['overrides'])->toBe([]);
 });
 
+it('surfaces a dispatched_from mode change as a member remove plus add', function () {
+    $old = differBaseIndex();
+    $new = differBaseIndex();
+    $new['events'][0]['dispatched_from'][0]['mode'] = 'sync';
+
+    $delta = differ()->diff($old, $new)->sections()['events']->changed[0]->subListDeltas[0];
+
+    expect($delta->field)->toBe('dispatched_from');
+    expect($delta->added[0]['mode'])->toBe('sync');
+    expect($delta->removed)->toHaveCount(1);
+    expect($delta->removed[0])->not->toHaveKey('mode');
+});
+
 // -----------------------------------------------------------------------------
 // listeners
 // -----------------------------------------------------------------------------

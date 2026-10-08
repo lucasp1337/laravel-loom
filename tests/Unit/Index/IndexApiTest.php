@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\IndexLoader;
 use Lucasp\Loom\Index\ListenerRegistration;
@@ -245,6 +246,7 @@ function representativeIndexArray(): array
                         'file' => 'app/Services/Billing.php',
                         'line' => 50,
                         'method' => 'send',
+                        'mode' => 'push',
                         'overrides' => [
                             'locale' => 'en',
                             'mailer' => 'ses',
@@ -452,6 +454,7 @@ it('hydrates a dispatch site with overrides and channels', function () {
     expect($site)->toBeInstanceOf(DispatchSite::class);
     expect($site->method)->toBe('send');
     expect($site->overrides)->toBeInstanceOf(DispatchOverrides::class);
+    expect($site->mode)->toBe(DispatchMode::PUSH);
     expect($site->overrides->locale)->toBe('en');
     expect($site->overrides->mailer)->toBe('ses');
     expect($site->overrides->afterCommit)->toBeTrue();

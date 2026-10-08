@@ -37,6 +37,7 @@ enum Field: string
     case TIMEOUT = 'timeout';
     case BACKOFF = 'backoff';
     case OVERRIDES = 'overrides';
+    case MODE = 'mode';
     case CHANNELS = 'channels';
     case LOCALE = 'locale';
     case MAILER = 'mailer';

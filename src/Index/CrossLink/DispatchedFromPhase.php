@@ -65,6 +65,13 @@ final class DispatchedFromPhase implements CrossLinkPhase
                 Field::METHOD->value => $classFqcn.'::'.$method,
             ];
 
+            // Only surface `mode` for non-plain dispatch forms; omitting it
+            // otherwise keeps existing entries' JSON byte-identical.
+            $mode = $site[Field::MODE->value] ?? null;
+            if (is_string($mode)) {
+                $payload[Field::MODE->value] = $mode;
+            }
+
             // Only surface `overrides` when the site carried static modifiers;
             // omitting it otherwise keeps existing entries' JSON byte-identical.
             $overrides = $site[Field::OVERRIDES->value] ?? null;

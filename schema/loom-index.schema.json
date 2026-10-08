@@ -253,6 +253,7 @@
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
                 "method": { "type": "string" },
+                "mode": { "enum": ["sync", "after_response", "push"] },
                 "overrides": { "$ref": "#/$defs/dispatchOverrides" },
                 "channels": {
                     "type": "array",

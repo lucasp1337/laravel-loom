@@ -13,6 +13,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
+- Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
+- Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
 
 ## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
 
@@ -32,7 +34,6 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
-- Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
 - Browser UI at `/loom`: dashboard, tables, entity pages, chain graph and search. Local-only: other environments must be listed in `ui.environments`, and `production` also needs `ui.allow_in_production`. See [docs/guides/browse-the-ui.md](docs/guides/browse-the-ui.md).
 - `loom:mcp`: read-only MCP server over stdio with 11 tools for AI agents. See [docs/guides/ask-an-agent.md](docs/guides/ask-an-agent.md). ([#66](https://github.com/lucasp1337/laravel-loom/pull/66))
 - GitHub Action that runs `loom:scan`, `loom:check` and a base-branch diff, then comments on the PR. See [docs/reference/action.md](docs/reference/action.md). ([#65](https://github.com/lucasp1337/laravel-loom/pull/65))

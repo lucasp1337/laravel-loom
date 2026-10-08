@@ -173,3 +173,14 @@ it('reports file paths relative to the fixture root with forward slashes', funct
         expect($file)->toStartWith('app/');
     }
 });
+
+it('detects indirect ShouldQueue via a parent, an interface, and not via a trait', function () {
+    $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
+
+    $indirect = notificationByFqcn($entries, 'App\\Notifications\\IndirectlyQueuedNotification');
+    expect($indirect?->queued)->toBeTrue();
+    expect($indirect?->queueConfig?->queue)->toBe('notify-indirect');
+    expect(notificationByFqcn($entries, 'App\\Notifications\\ViaInterfaceNotification')?->queued)->toBeTrue();
+    expect(notificationByFqcn($entries, 'App\\Notifications\\UsesTraitNotification')?->queued)->toBeFalse();
+    expect(notificationByFqcn($entries, 'App\\Notifications\\AbstractQueuedNotification'))->toBeNull();
+});
