@@ -119,3 +119,12 @@ it('exposes every Sections case as a top-level schema property', function () {
         expect($topLevel)->toContain($case->value);
     }
 });
+
+it('keeps ModelHook in step with the schema model event enum', function () {
+    $schema = json_decode((string) file_get_contents(loomSchemaPath()), true);
+    $enum = $schema['$defs']['modelEvent']['properties']['event']['enum'];
+
+    $cases = array_map(fn (Lucasp\Loom\Index\ModelHook $hook): string => $hook->value, Lucasp\Loom\Index\ModelHook::cases());
+
+    expect($cases)->toEqualCanonicalizing($enum);
+});

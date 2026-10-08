@@ -51,7 +51,7 @@ final class ListenerScanner implements Scanner
     {
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
 
-        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot);
+        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot, $resolver);
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
@@ -72,7 +72,7 @@ final class ListenerScanner implements Scanner
     /**
      * @return array<string, ListenerLocation>
      */
-    private function discoverFromAutoDiscovery(string $appRoot): array
+    private function discoverFromAutoDiscovery(string $appRoot, ClassHierarchyResolver $resolver): array
     {
         $listenersDir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Listeners';
         if (! is_dir($listenersDir)) {
@@ -86,8 +86,8 @@ final class ListenerScanner implements Scanner
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                // Auto-discovery requires a literal handle() method.
-                if (! $class->hasHandle) {
+                $handles = $this->discoverHandles($resolver, $class->fqcn);
+                if ($handles === null) {
                     continue;
                 }
 
@@ -97,7 +97,7 @@ final class ListenerScanner implements Scanner
                     queued: $class->queued,
                     registration: ListenerRegistration::AUTO_DISCOVERED,
                 );
-                foreach ($class->handles as $handle) {
+                foreach ($handles as $handle) {
                     $location->handles[$handle->event.'::'.$handle->method] = $handle;
                 }
                 $results[$class->fqcn] = $location;
@@ -105,6 +105,37 @@ final class ListenerScanner implements Scanner
         }
 
         return $results;
+    }
+
+    /**
+     * Mirrors Laravel's listener discovery: an instantiable class, and every
+     * public `handle*` or `__invoke` method with a first parameter, whether
+     * declared, inherited or provided by a trait. Events come from that
+     * parameter's class types. Null when the class has no such method.
+     *
+     * @return list<ListenerHandle>|null
+     */
+    private function discoverHandles(ClassHierarchyResolver $resolver, string $fqcn): ?array
+    {
+        if (! $resolver->isInstantiable($fqcn)) {
+            return null;
+        }
+
+        $handles = [];
+        $matched = false;
+        foreach ($resolver->effectiveMethods($fqcn) as $method) {
+            $isHandler = str_starts_with($method->name, 'handle') || $method->name === '__invoke';
+            if (! $isHandler || ! $method->isPublic() || $method->isAbstract || ! $method->hasParameters) {
+                continue;
+            }
+
+            $matched = true;
+            foreach ($resolver->firstParameterClasses($method) as $event) {
+                $handles[] = new ListenerHandle(event: $event, method: $method->name);
+            }
+        }
+
+        return $matched ? $handles : null;
     }
 
     /**

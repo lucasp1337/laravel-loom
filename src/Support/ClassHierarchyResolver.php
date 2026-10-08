@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Lucasp\Loom\Dto\MethodDeclaration;
+use Lucasp\Loom\Dto\MethodVisibility;
+use Lucasp\Loom\Dto\ResolvedMethod;
+use Lucasp\Loom\Dto\TraitAdaptation;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 
 /**
@@ -32,9 +36,18 @@ final class ClassHierarchyResolver
      *     traits: list<string>,
      *     file: string,
      *     line: int,
+     *     isAbstract: bool,
+     *     methods: list<MethodDeclaration>,
+     *     adaptations: list<TraitAdaptation>,
      * }>
      */
     private array $index = [];
+
+    /** @var array<string, array<string, ResolvedMethod>> */
+    private array $methodsCache = [];
+
+    /** @var array<string, true> classes whose methods are being resolved (cycle guard) */
+    private array $resolving = [];
 
     /** @var array<string, list<string>> */
     private array $extendsChainCache = [];
@@ -226,12 +239,198 @@ final class ClassHierarchyResolver
         return $this->isSubclassOfCache[$fqcn][$ancestor] = $found;
     }
 
+    /**
+     * Methods a class exposes once traits and parents are folded in, keyed by
+     * lower-cased name (PHP method names are case-insensitive). Precedence is
+     * PHP's: own methods, then trait methods (honouring `as` / `insteadof`),
+     * then inherited ones. A vendor parent is opaque, so its methods are absent.
+     * Private methods of a parent are not inherited. Unknown FQCN gives `[]`.
+     *
+     * @return array<string, ResolvedMethod>
+     */
+    public function effectiveMethods(string $fqcn): array
+    {
+        $fqcn = $this->normalize($fqcn);
+        if (isset($this->methodsCache[$fqcn])) {
+            return $this->methodsCache[$fqcn];
+        }
+
+        $this->ensureIndexed();
+
+        $decl = $this->index[$fqcn] ?? null;
+        if ($decl === null || $decl['kind'] === 'interface' || isset($this->resolving[$fqcn])) {
+            return [];
+        }
+
+        $this->resolving[$fqcn] = true;
+
+        $inherited = [];
+        if ($decl['kind'] === 'class' && $decl['parent'] !== null) {
+            foreach ($this->effectiveMethods($decl['parent']) as $key => $method) {
+                if ($method->visibility !== MethodVisibility::PRIVATE) {
+                    $inherited[$key] = $method;
+                }
+            }
+        }
+
+        $methods = $inherited;
+        foreach ($this->composedMethods($fqcn, $decl) as $key => $method) {
+            // An abstract trait method never replaces a concrete inherited one.
+            if ($method->isAbstract && isset($methods[$key]) && ! $methods[$key]->isAbstract) {
+                continue;
+            }
+            $methods[$key] = $method;
+        }
+
+        unset($this->resolving[$fqcn]);
+
+        return $this->methodsCache[$fqcn] = $methods;
+    }
+
+    /**
+     * Whether `new $fqcn` could succeed as far as the source shows: a known
+     * class that is not abstract. Interfaces, traits and unknown classes are not.
+     */
+    public function isInstantiable(string $fqcn): bool
+    {
+        $fqcn = $this->normalize($fqcn);
+        $this->ensureIndexed();
+
+        $decl = $this->index[$fqcn] ?? null;
+
+        return $decl !== null && $decl['kind'] === 'class' && ! $decl['isAbstract'];
+    }
+
+    /**
+     * Class names the method's first parameter accepts, with `self` and
+     * `parent` resolved against the declaring class (as reflection does).
+     *
+     * @return list<string>
+     */
+    public function firstParameterClasses(ResolvedMethod $method): array
+    {
+        $classes = [];
+        foreach ($method->firstParameterClasses as $name) {
+            $name = $this->normalize($name);
+            $resolved = match (strtolower($name)) {
+                'self' => $method->declaredIn,
+                'parent' => $this->index[$method->declaredIn]['parent'] ?? null,
+                default => $name,
+            };
+
+            if ($resolved !== null && ! in_array($resolved, $classes, true)) {
+                $classes[] = $resolved;
+            }
+        }
+
+        return $classes;
+    }
+
     public function knows(string $fqcn): bool
     {
         $fqcn = $this->normalize($fqcn);
         $this->ensureIndexed();
 
         return isset($this->index[$fqcn]);
+    }
+
+    /**
+     * Trait methods folded in under the declaration's own methods.
+     *
+     * @param  array{kind: string, traits: list<string>, methods: list<MethodDeclaration>, adaptations: list<TraitAdaptation>}  $decl
+     * @return array<string, ResolvedMethod>
+     */
+    private function composedMethods(string $fqcn, array $decl): array
+    {
+        /** @var array<string, array<string, ResolvedMethod>> $tables */
+        $tables = [];
+        foreach ($decl['traits'] as $trait) {
+            $trait = $this->normalize($trait);
+            $tables[$trait] = [];
+            foreach ($this->effectiveMethods($trait) as $key => $method) {
+                $tables[$trait][$key] = $method->declaredInto($fqcn);
+            }
+        }
+
+        /** @var array<string, array<string, true>> $excluded */
+        $excluded = [];
+        foreach ($decl['adaptations'] as $adaptation) {
+            foreach ($adaptation->insteadof as $loser) {
+                $excluded[$loser][strtolower($adaptation->method)] = true;
+            }
+        }
+
+        $methods = [];
+        foreach ($tables as $trait => $table) {
+            foreach ($table as $key => $method) {
+                if (! isset($excluded[$trait][$key])) {
+                    $methods[$key] = $method;
+                }
+            }
+        }
+
+        foreach ($decl['adaptations'] as $adaptation) {
+            if ($adaptation->insteadof !== []) {
+                continue;
+            }
+
+            $source = $this->adaptationSource($tables, $adaptation);
+            if ($source === null) {
+                continue;
+            }
+
+            $visibility = $adaptation->visibility ?? $source->visibility;
+            if ($adaptation->alias !== null) {
+                $methods[strtolower($adaptation->alias)] = $source->with($adaptation->alias, $visibility);
+            } else {
+                $methods[strtolower($source->name)] = $source->with($source->name, $visibility);
+            }
+        }
+
+        foreach ($decl['methods'] as $own) {
+            $methods[strtolower($own->name)] = new ResolvedMethod(
+                $own->name,
+                $own->visibility,
+                $own->isAbstract,
+                $own->hasParameters,
+                $own->firstParameterClasses,
+                $fqcn,
+                $fqcn,
+            );
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @param  array<string, array<string, ResolvedMethod>>  $tables
+     */
+    private function adaptationSource(array $tables, TraitAdaptation $adaptation): ?ResolvedMethod
+    {
+        $key = strtolower($adaptation->method);
+
+        if ($adaptation->trait !== null) {
+            return $tables[$this->normalize($adaptation->trait)][$key] ?? null;
+        }
+
+        foreach ($tables as $table) {
+            if (isset($table[$key])) {
+                return $table[$key];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeAdaptation(TraitAdaptation $adaptation): TraitAdaptation
+    {
+        return new TraitAdaptation(
+            $adaptation->trait !== null ? $this->normalize($adaptation->trait) : null,
+            $adaptation->method,
+            $adaptation->alias,
+            $adaptation->visibility,
+            array_map($this->normalize(...), $adaptation->insteadof),
+        );
     }
 
     /**
@@ -294,6 +493,9 @@ final class ClassHierarchyResolver
                     'traits' => array_map([$this, 'normalize'], $decl->traits),
                     'file' => $relative,
                     'line' => $decl->line,
+                    'isAbstract' => $decl->isAbstract,
+                    'methods' => $decl->methods,
+                    'adaptations' => array_map($this->normalizeAdaptation(...), $decl->adaptations),
                 ];
             }
         }

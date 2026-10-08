@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -11,7 +10,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run ListenerClassVisitor (after NameResolver) over it.
  *
- * @return array<int, array{fqcn: string, line: int, queued: bool, has_handle: bool, handles: array<int, array{event: string, method: string}>}>
+ * @return list<Lucasp\Loom\Dto\ListenerClassRecord>
  */
 function runListenerClassVisitor(string $source): array
 {
@@ -29,186 +28,49 @@ function runListenerClassVisitor(string $source): array
     return $visitor->getClasses();
 }
 
-it('extracts a listener with a typed handle() parameter', function () {
-    $source = <<<'PHP'
+it('records each named class with its line', function () {
+    $classes = runListenerClassVisitor(<<<'PHP'
     <?php
 
     namespace App\Listeners;
 
-    use App\Events\OrderPlaced;
-
-    class SendOrderConfirmation
+    class First
     {
-        public function handle(OrderPlaced $event): void
-        {
-        }
     }
-    PHP;
 
-    $classes = runListenerClassVisitor($source);
+    class Second
+    {
+    }
+    PHP);
 
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->fqcn)->toBe('App\\Listeners\\SendOrderConfirmation');
-    expect($classes[0]->line)->toBe(7);
-    expect($classes[0]->handles)->toEqual([
-        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
-    ]);
-    expect($classes[0]->queued)->toBeFalse();
-    expect($classes[0]->hasHandle)->toBeTrue();
+    expect(array_map(fn ($c): string => $c->fqcn.'@'.$c->line, $classes))
+        ->toBe(['App\\Listeners\\First@5', 'App\\Listeners\\Second@9']);
 });
 
-it('marks the listener as queued when implementing ShouldQueue via a use import', function () {
-    $source = <<<'PHP'
+it('marks a class that declares ShouldQueue as queued', function (string $implements) {
+    $classes = runListenerClassVisitor(<<<PHP
     <?php
 
     namespace App\Listeners;
 
-    use App\Events\OrderPlaced;
     use Illuminate\Contracts\Queue\ShouldQueue;
 
-    class SendOrderConfirmation implements ShouldQueue
+    class Queued implements {$implements}
     {
-        public function handle(OrderPlaced $event): void
-        {
-        }
     }
-    PHP;
+    PHP);
 
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
     expect($classes[0]->queued)->toBeTrue();
-    expect($classes[0]->handles)->toEqual([
-        new ListenerHandle(event: 'App\\Events\\OrderPlaced', method: 'handle'),
-    ]);
-});
+})->with(['imported name' => ['ShouldQueue'], 'fqcn' => ['\\Illuminate\\Contracts\\Queue\\ShouldQueue']]);
 
-it('marks the listener as queued when implementing the ShouldQueue FQCN directly', function () {
-    $source = <<<'PHP'
+it('skips anonymous classes', function () {
+    $classes = runListenerClassVisitor(<<<'PHP'
     <?php
 
-    namespace App\Listeners;
+    $listener = new class {
+        public function handle($event): void {}
+    };
+    PHP);
 
-    class DirectFqcnListener implements \Illuminate\Contracts\Queue\ShouldQueue
-    {
-        public function handle(\App\Events\OrderPlaced $event): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->queued)->toBeTrue();
-});
-
-it('emits a hit for a listener class with no handle() method', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Listeners;
-
-    class NoHandleListener
-    {
-        public function somethingElse(): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeFalse();
-    expect($classes[0]->handles)->toBe([]);
-});
-
-it('records empty handles for an untyped handle() first parameter', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Listeners;
-
-    class UntypedListener
-    {
-        public function handle($event): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeTrue();
-    expect($classes[0]->handles)->toBe([]);
-});
-
-it('records empty handles for a nullable handle() type-hint', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Listeners;
-
-    use App\Events\OrderPlaced;
-
-    class NullableListener
-    {
-        public function handle(?OrderPlaced $event): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeTrue();
-    expect($classes[0]->handles)->toBe([]);
-});
-
-it('records empty handles for a union-typed handle()', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Listeners;
-
-    use App\Events\OrderPlaced;
-    use App\Events\StockLow;
-
-    class UnionListener
-    {
-        public function handle(OrderPlaced|StockLow $event): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeTrue();
-    expect($classes[0]->handles)->toBe([]);
-});
-
-it('records empty handles for a builtin-typed handle()', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Listeners;
-
-    class BuiltinListener
-    {
-        public function handle(string $event): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runListenerClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeTrue();
-    expect($classes[0]->handles)->toBe([]);
+    expect($classes)->toBe([]);
 });
