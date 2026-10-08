@@ -48,12 +48,23 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
   "file": string,
   "line": integer,
   "method": string,               // "ClassName::methodName" of the dispatching context
+  "mode": enum,                   // optional; "sync" | "after_response" | "push"; omitted for plain dispatches
   "overrides": object,            // optional; $defs/dispatchOverrides; omitted when empty
   "channels": array<string>       // optional; notification-only; omitted when no static channel filter
 }
 ```
 
 The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`, `mailables[*].sent_from`, and `notifications[*].notified_from` — it's the single source of truth for a dispatch site. It used to be inline under `events[*].dispatched_from`; the `{file, line, method}` body is unchanged, only the schema reference was promoted.
+
+`mode` records how the call site executes, when the call form says so. It is **optional** and omitted for plain forms (`dispatch()`, `X::dispatch()`, `Mail::send()`, `Notification::send()`, `$user->notify()`), whose queued-or-inline outcome is decided by the target's `queued` flag.
+
+| `mode` | Call forms |
+|---|---|
+| `sync` | `X::dispatchSync()`, `dispatch_sync()`, `Bus::dispatchSync()`, `Bus::dispatchNow()`, `Mail::sendNow()`, `Notification::sendNow()`, `->notifyNow()` |
+| `after_response` | `X::dispatchAfterResponse()`, `Bus::dispatchAfterResponse()`, `->afterResponse()` on a dispatch chain (`afterResponse(false)` is not) |
+| `push` | `Queue::push/pushOn/later/laterOn/bulk`, `Mail::queue/onQueue/queueOn/later/laterOn` |
+
+`mode` describes the call form only. `ShouldQueue` and the `sync` queue driver are not evaluated, so a `push` or plain site can still run inline when the queue connection is `sync`.
 
 `overrides` (`$defs/dispatchOverrides`) records statically-resolvable fluent modifiers applied at the dispatch site. It is **optional**: the key is present only when at least one modifier was found, and is omitted entirely otherwise — so a site with no modifiers has no `overrides` key. Adding it was a non-breaking additive change.
 
@@ -127,7 +138,7 @@ forceDeleting, forceDeleted, booting, booted
   "line": integer,
   "handles": array,               // {event, method} pairs this listener handles
   "registration": enum,           // see below
-  "queued": boolean,              // true iff class directly implements ShouldQueue
+  "queued": boolean,              // true iff the class implements ShouldQueue, directly or via a parent class or interface (a trait cannot confer it)
   "dispatches": array             // populated by cross-link from DispatchScanner
 }
 ```
@@ -217,7 +228,7 @@ The cross-link pass intentionally does NOT add closure entries to `events[*].han
   "fqcn": string,
   "file": string,
   "line": integer,
-  "queued": boolean,              // true iff class directly implements ShouldQueue
+  "queued": boolean,              // true iff the class implements ShouldQueue, directly or via a parent class or interface (a trait cannot confer it)
   "queue_config": object | null,  // null when queued is false; $defs/queueConfig otherwise
   "dispatched_from": array,       // populated by cross-link; $defs/dispatchSite entries
   "dispatches": array             // populated by cross-link; $defs/dispatch entries

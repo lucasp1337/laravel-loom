@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\Model;
 
+use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Index\Field;
 
 /**
@@ -20,6 +21,7 @@ final readonly class DispatchSite
         public string $file,
         public int $line,
         public string $method,
+        public ?DispatchMode $mode,
         public ?DispatchOverrides $overrides,
         public ?array $channels,
     ) {
@@ -30,11 +32,13 @@ final readonly class DispatchSite
     {
         $overrides = Hydrate::nullableArray($data, Field::OVERRIDES);
         $channels = Hydrate::stringList($data, Field::CHANNELS);
+        $mode = Hydrate::nullableString($data, Field::MODE);
 
         return new self(
             file: Hydrate::string($data, Field::FILE),
             line: Hydrate::int($data, Field::LINE),
             method: Hydrate::string($data, Field::METHOD),
+            mode: $mode === null ? null : DispatchMode::from($mode),
             overrides: $overrides === null ? null : DispatchOverrides::fromArray($overrides),
             channels: $channels === [] ? null : $channels,
         );

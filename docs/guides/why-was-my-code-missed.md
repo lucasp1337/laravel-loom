@@ -90,7 +90,7 @@ Loom skips these on purpose:
 
 - Anything inside a closure or arrow function, such as `collect($orders)->each(fn ($o) => event(new OrderPlaced($o)))`. The closure may never run, so Loom won't claim it does. Move the dispatch into a named method.
 - Code outside any class, such as script-level statements.
-- `dispatchSync`, `dispatchNow`, `dispatchAfterResponse`, `Queue::push` and `Queue::later`.
+- `Queue::pushRaw`, and `dispatchSync` on a chain.
 - `Bus::chain([...])` and `Bus::batch([...])`. The jobs inside never show a `dispatched_from`.
 - A dispatcher fetched from the container: `app(Dispatcher::class)->dispatch(...)`.
 
@@ -127,7 +127,7 @@ Loom reads class-level properties with literal values, such as `public $tries = 
 
 ### A job is missing from the jobs list
 
-Loom finds jobs in `app/Jobs/` and any class passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` whose file it can locate. It skips abstract classes, interfaces and traits. A job outside `app/Jobs/` that's only dispatched through `dispatchSync` or `Bus::chain` isn't found. Move it under `app/Jobs/`.
+Loom finds jobs in `app/Jobs/` and any class passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` whose file it can locate. It skips abstract classes, interfaces and traits. A job outside `app/Jobs/` that's only dispatched through a variable or an unrecognised form isn't found. Move it under `app/Jobs/`.
 
 A class whose file can't be located is dropped, since every entry needs a file and line. Loom maps a leading `App\` to `app/`, so a project with a different root namespace won't match.
 

@@ -41,7 +41,7 @@ it('discovers the expected set of jobs from the fixture app', function () {
     expect($fqcns)->toContain('App\\Jobs\\RunReport');
     expect($fqcns)->toContain('App\\Jobs\\IndirectlyQueued');
     expect($fqcns)->toContain('App\\Domain\\Billing\\Jobs\\ChargeCustomer');
-    expect($entries)->toHaveCount(5);
+    expect($entries)->toHaveCount(7);
 });
 
 it('detects indirect ShouldQueue via a parent abstract class', function () {
@@ -179,4 +179,11 @@ it('does not seed event classes dispatched via the Dispatchable form into jobs[]
     // The guard requires either app/Jobs/ location or ShouldQueue implements
     // for ambiguous-kind sites; CartCleared satisfies neither.
     expect(jobByFqcn($entries, 'App\\Events\\CartCleared'))->toBeNull();
+});
+
+it('detects ShouldQueue through an interface extending it, but not through a trait', function () {
+    $entries = (new JobsScanner)->scan(jobsFixturePath())['jobs'];
+
+    expect(jobByFqcn($entries, 'App\\Jobs\\ViaInterface')?->queued)->toBeTrue();
+    expect(jobByFqcn($entries, 'App\\Jobs\\UsesTrait')?->queued)->toBeFalse();
 });

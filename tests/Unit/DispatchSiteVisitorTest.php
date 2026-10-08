@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -708,7 +709,7 @@ it('skips event() with zero arguments entirely', function () {
 // Conditional skips: dispatch_sync / dispatch_now / Bus::dispatchSync / Bus::dispatchNow
 // -----------------------------------------------------------------------------
 
-it('skips dispatch_sync(...) entirely', function () {
+it('records dispatch_sync(...) as a sync job site', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -722,7 +723,9 @@ it('skips dispatch_sync(...) entirely', function () {
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    expect($sites)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->mode)->toBe(DispatchMode::SYNC);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
     expect($unresolved)->toBe([]);
 });
 
@@ -744,7 +747,7 @@ it('skips dispatch_now(...) entirely', function () {
     expect($unresolved)->toBe([]);
 });
 
-it('skips Bus::dispatchSync(...) entirely', function () {
+it('records Bus::dispatchSync(...) as a sync job site', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -759,11 +762,13 @@ it('skips Bus::dispatchSync(...) entirely', function () {
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    expect($sites)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->mode)->toBe(DispatchMode::SYNC);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
     expect($unresolved)->toBe([]);
 });
 
-it('skips Bus::dispatchNow(...) entirely', function () {
+it('records Bus::dispatchNow(...) as a sync job site', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -778,7 +783,9 @@ it('skips Bus::dispatchNow(...) entirely', function () {
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    expect($sites)->toBe([]);
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->mode)->toBe(DispatchMode::SYNC);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
     expect($unresolved)->toBe([]);
 });
 
@@ -1248,4 +1255,91 @@ it('sends non-literal Bus::chain and dynamic items to unresolved', function () {
     expect($sites)->toHaveCount(1);
     expect($unresolved)->toHaveCount(2);
     expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
+
+// -----------------------------------------------------------------------------
+// Execution modes
+// -----------------------------------------------------------------------------
+
+it('records mode and job kind for X::dispatchSync and dispatchAfterResponse', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\Foo;
+    class Svc {
+        public function go(): void {
+            Foo::dispatchSync();
+            Foo::dispatchAfterResponse();
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(2);
+    expect($sites[0]->mode)->toBe(DispatchMode::SYNC);
+    expect($sites[1]->mode)->toBe(DispatchMode::AFTER_RESPONSE);
+    expect($sites[0]->provisionalKind)->toBe(DispatchKinds::JOB);
+});
+
+it('reads afterResponse() literals from the outer chain', function (string $call, ?DispatchMode $expected) {
+    $source = <<<PHP
+    <?php
+    namespace App\Services;
+    use App\Jobs\Foo;
+    class Svc {
+        public function go(\$flag): void {
+            {$call};
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(1);
+    expect($sites[0]->mode)->toBe($expected);
+})->with([
+    'bare' => ['Foo::dispatch()->afterResponse()', DispatchMode::AFTER_RESPONSE],
+    'true' => ['Foo::dispatch()->afterResponse(true)', DispatchMode::AFTER_RESPONSE],
+    'false' => ['Foo::dispatch()->afterResponse(false)', null],
+    'variable' => ['Foo::dispatch()->afterResponse($flag)', null],
+    'true then false' => ['Foo::dispatch()->afterResponse()->afterResponse(false)', null],
+    'helper' => ['dispatch(new Foo)->afterResponse()', DispatchMode::AFTER_RESPONSE],
+]);
+
+it('never gives event() a mode from a trailing afterResponse', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Events\Foo;
+    class Svc {
+        public function go(): void {
+            event(new Foo)->afterResponse();
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites[0]->mode)->toBeNull();
+});
+
+it('records unresolved sync and Queue targets without a site', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use Illuminate\Support\Facades\Queue;
+    class Svc {
+        public function go($job): void {
+            dispatch_sync($job);
+            Queue::push($job);
+            Queue::pushRaw('{}');
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(2);
 });

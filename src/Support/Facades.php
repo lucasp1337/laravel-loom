@@ -15,6 +15,7 @@ enum Facades: string
 {
     case EVENT = 'Illuminate\\Support\\Facades\\Event';
     case BUS = 'Illuminate\\Support\\Facades\\Bus';
+    case QUEUE = 'Illuminate\\Support\\Facades\\Queue';
     case MAIL = 'Illuminate\\Support\\Facades\\Mail';
     case NOTIFICATION = 'Illuminate\\Support\\Facades\\Notification';
     case SCHEDULE = 'Illuminate\\Support\\Facades\\Schedule';

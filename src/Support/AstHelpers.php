@@ -185,6 +185,20 @@ final class AstHelpers
         return null;
     }
 
+    /** Resolve a `true` / `false` constant literal, or null for anything else. */
+    public static function boolLiteral(?Node $node): ?bool
+    {
+        if (! $node instanceof Node\Expr\ConstFetch) {
+            return null;
+        }
+
+        return match (strtolower($node->name->getLast())) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
     public static function scalarString(?Node $node): ?string
     {
         if ($node instanceof Node\Arg) {

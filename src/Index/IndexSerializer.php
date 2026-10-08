@@ -86,6 +86,11 @@ final class IndexSerializer
             Field::CONFIDENCE->value => $e->confidence,
         ];
 
+        // Omitted for plain dispatches so existing site arrays stay byte-identical.
+        if ($e->mode !== null) {
+            $out[Field::MODE->value] = $e->mode->value;
+        }
+
         // Internal-only: carried on `_dispatch_sites` (stripped before schema
         // validation) so DispatchedFromPhase can surface it. Omitted entirely
         // when empty to keep existing site arrays byte-identical.

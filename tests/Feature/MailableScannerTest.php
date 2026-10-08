@@ -144,3 +144,10 @@ it('reports file paths relative to the fixture root with forward slashes', funct
         expect($file)->toStartWith('app/');
     }
 });
+
+it('detects ShouldQueue through an interface extending it, but not through a trait', function () {
+    $entries = (new MailableScanner)->scan(mailableFixturePath())['mailables'];
+
+    expect(mailableByFqcn($entries, 'App\\Mail\\ViaInterfaceMail')?->queued)->toBeTrue();
+    expect(mailableByFqcn($entries, 'App\\Mail\\UsesTraitMail')?->queued)->toBeFalse();
+});

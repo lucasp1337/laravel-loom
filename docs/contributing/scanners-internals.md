@@ -567,6 +567,8 @@ Two chain positions are read:
 
 ### Channel filter (`channels`, notifications only)
 
+`$defs/dispatchSite` also carries an optional `mode` (`DispatchMode`: `sync`, `after_response`, `push`), a sibling of `overrides`, set from the call form: `dispatchSync` / `dispatch_sync` / `Bus::dispatchSync` / `Bus::dispatchNow` / `Mail::sendNow` / `Notification::sendNow` / `notifyNow` map to `sync`; `dispatchAfterResponse` and a literal-true `->afterResponse()` on the dispatch chain map to `after_response`; `Queue::push/pushOn/later/laterOn/bulk` and `Mail::queue/onQueue/queueOn/later/laterOn` map to `push`. Plain forms emit no `mode`. The visitor sets it (`ChainModifierExtractor::mode()` reads the chain); the cross-link pass copies it onto the reverse arrays. `X::dispatchSync()` / `X::dispatchAfterResponse()` exist only on the Bus `Dispatchable` trait, so those sites are `kind: job` straight away rather than ambiguous. `Queue::pushRaw` (string payload) is not recorded. `ShouldQueue` and the `sync` queue driver are never evaluated.
+
 `$defs/dispatchSite` carries one further optional field — `channels` — emitted only on `notifications[*].notified_from` entries. It records the literal channel filter passed as the third argument to `Notification::send($users, $notification, $channels)` / `Notification::sendNow(...)`, which restricts that dispatch to a specific channel set and overrides the notification's own `via()`. Values use the same representation as `notifications[*].channels`: literal string channel names stored lowercased, `Class::class` channel constants stored as FQCN, in source order.
 
 ```json

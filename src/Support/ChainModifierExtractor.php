@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\DispatchOverrides;
+use Lucasp\Loom\Index\DispatchMode;
 use PhpParser\Node;
 
 /**
@@ -93,5 +94,38 @@ final class ChainModifierExtractor
             delay: $delay,
             afterCommit: $afterCommit,
         );
+    }
+
+    /**
+     * The execution mode a PendingDispatch chain selects. `->afterResponse()`
+     * and `->afterResponse(true)` yield AFTER_RESPONSE; `->afterResponse(false)`
+     * cancels an earlier call; a non-literal argument is ignored. Last literal
+     * wins.
+     *
+     * @param  list<Node\Expr\MethodCall>  $links
+     */
+    public static function mode(array $links): ?DispatchMode
+    {
+        $mode = null;
+
+        foreach ($links as $link) {
+            if (! $link->name instanceof Node\Identifier || $link->name->toString() !== 'afterResponse') {
+                continue;
+            }
+
+            $first = $link->args[0] ?? null;
+            if (! $first instanceof Node\Arg) {
+                $mode = DispatchMode::AFTER_RESPONSE;
+
+                continue;
+            }
+
+            $value = AstHelpers::boolLiteral($first->value);
+            if ($value !== null) {
+                $mode = $value ? DispatchMode::AFTER_RESPONSE : null;
+            }
+        }
+
+        return $mode;
     }
 }
