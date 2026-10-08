@@ -73,3 +73,20 @@ it('leaves untagged sites alone', function () {
 
     expect($context->dispatchSites[0]['inClosure'])->toBeFalse();
 });
+
+it('keeps the tag and records the route as origin for a site inside a closure route span', function () {
+    $context = ownershipContext([ownershipSite('routes/web.php', 6)]);
+    $context->sections[Sections::ROUTES->value] = [[
+        'method' => 'GET',
+        'uri' => '/closure',
+        'file' => 'routes/web.php',
+        'line' => 5,
+        'end_line' => 8,
+        'dispatches' => [],
+    ]];
+
+    (new ClosureOwnershipPhase)->apply($context);
+
+    expect($context->dispatchSites[0]['inClosure'])->toBeTrue();
+    expect($context->dispatchSites[0]['closureOrigin'])->toBe('GET /closure');
+});

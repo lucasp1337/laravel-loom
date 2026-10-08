@@ -162,6 +162,7 @@ final class RouteScanner implements Scanner
             file: $relativeFile,
             line: $raw->line,
             dispatches: [],
+            endLine: $this->closureEndLine($args[1] ?? null),
         )];
     }
 
@@ -196,6 +197,7 @@ final class RouteScanner implements Scanner
                 file: $relativeFile,
                 line: $raw->line,
                 dispatches: [],
+                endLine: $this->closureEndLine($args[2] ?? null),
             );
         }
 
@@ -413,6 +415,19 @@ final class RouteScanner implements Scanner
 
         // Variable, dynamic expression, etc. — never guess.
         return ['fqcn' => null, 'method' => null];
+    }
+
+    private function closureEndLine(Node\Arg|Node\VariadicPlaceholder|null $arg): ?int
+    {
+        if (! $arg instanceof Node\Arg) {
+            return null;
+        }
+
+        $value = $arg->value;
+
+        return $value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction
+            ? $value->getEndLine()
+            : null;
     }
 
     /**

@@ -389,6 +389,7 @@
                 "middleware": { "type": "array", "items": { "type": "string" } },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
+                "end_line": { "type": "integer", "minimum": 1 },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" }

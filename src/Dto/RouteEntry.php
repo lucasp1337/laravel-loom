@@ -25,6 +25,8 @@ final class RouteEntry
         public readonly string $file,
         public readonly int $line,
         public readonly array $dispatches = [],
+        /** Last line of a closure action; null for every other action. */
+        public readonly ?int $endLine = null,
     ) {
     }
 }

@@ -12,7 +12,7 @@ use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Collects dispatch sites under app/ and emits `unresolved_dispatches`
+ * Collects dispatch sites under app/ and routes/ (route closures) and emits `unresolved_dispatches`
  * plus the internal `_dispatch_sites` section.
  *
  * @internal
@@ -33,8 +33,11 @@ final class DispatchScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
+        $dirs = array_filter(
+            [$appRoot.DIRECTORY_SEPARATOR.'app', $appRoot.DIRECTORY_SEPARATOR.'routes'],
+            is_dir(...),
+        );
+        if ($dirs === []) {
             return ['unresolved_dispatches' => [], '_dispatch_sites' => []];
         }
 
@@ -43,7 +46,14 @@ final class DispatchScanner implements Scanner
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        $files = [];
+        foreach ($dirs as $dir) {
+            foreach ($this->iteratePhpFiles($dir) as $file) {
+                $files[] = $file;
+            }
+        }
+
+        foreach ($files as $file) {
             $visitor = new DispatchSiteVisitor;
             $this->walker->walk($file->getPathname(), [$visitor]);
 

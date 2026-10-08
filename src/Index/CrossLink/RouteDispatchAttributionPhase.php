@@ -23,14 +23,17 @@ final class RouteDispatchAttributionPhase implements CrossLinkPhase
         $routeIndex = $this->indexRoutes($context);
 
         foreach ($context->dispatchSites as $site) {
-            // Closure-internal sites belong to a closure listener, not to the
-            // enclosing class method; ClosureDispatchAttributionPhase owns them.
-            if (($site['inClosure'] ?? false) === true) {
+            $payload = DispatchEntry::forHandler($site);
+            if ($payload === null) {
                 continue;
             }
 
-            $payload = DispatchEntry::forHandler($site);
-            if ($payload === null) {
+            // Closure-owned sites belong to the route whose closure span holds
+            // them (listener closures match no route); every other site matches
+            // by controller method.
+            if (($site['inClosure'] ?? false) === true) {
+                $this->attributeToClosureRoutes($context, $site, $payload);
+
                 continue;
             }
 
@@ -49,9 +52,33 @@ final class RouteDispatchAttributionPhase implements CrossLinkPhase
     }
 
     /**
+     * @param  array<string, mixed>  $site
+     * @param  array<string, mixed>  $payload
+     */
+    private function attributeToClosureRoutes(CrossLinkContext $context, array $site, array $payload): void
+    {
+        $file = $site[Field::FILE->value] ?? null;
+        $line = $site[Field::LINE->value] ?? null;
+        if (! is_string($file) || ! is_int($line)) {
+            return;
+        }
+
+        foreach ($context->sections[Sections::ROUTES->value] as $idx => $route) {
+            $start = $route[Field::LINE->value] ?? null;
+            $end = $route[Field::END_LINE->value] ?? null;
+            if (! is_int($start) || ! is_int($end)) {
+                continue;
+            }
+
+            if (($route[Field::FILE->value] ?? null) === $file && $line >= $start && $line <= $end) {
+                $context->appendToEntry(Sections::ROUTES, $idx, Field::DISPATCHES->value, $payload);
+            }
+        }
+    }
+
+    /**
      * Build "{controller_fqcn}::{controller_method}" → route entry indexes.
-     * Routes without a resolved controller (closures) are skipped, so they
-     * never receive dispatches.
+     * Routes without a resolved controller are skipped here.
      *
      * @return array<string, list<int>>
      */
