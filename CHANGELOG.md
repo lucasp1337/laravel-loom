@@ -14,6 +14,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
 
+## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
+
 ### Fixed
 
 - `Event::listen(function (Event $e) {...})` now infers the event from the closure's type hint ([#79](https://github.com/lucasp1337/laravel-loom/issues/79)).
