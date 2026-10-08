@@ -1,6 +1,6 @@
 # ADR 0007 — Scanners are internal in 1.0: no third-party scanner support
 
-**Status**: Proposed (2026-10-08)
+**Status**: Accepted (2026-10-08)
 
 **Reference**: [`docs/reference/php-api.md`](../../reference/php-api.md) for the
 public PHP API this decision shapes.
@@ -42,8 +42,8 @@ Third-party scanners are **not supported in 1.0**.
 - A Pest arch test requires every class under `src/` to be either `@api` and
   listed in `php-api.md`, or `@internal`.
 
-Extending detection means contributing a scanner to this repository. Revisit
-after 1.0 if there is demand; a plugin API would be a new ADR and a minor release.
+Extending detection means contributing a scanner to this repository. Third-party scanners are planned
+after 1.0; that plugin API will be a new ADR and a minor release.
 
 ## Consequences
 
