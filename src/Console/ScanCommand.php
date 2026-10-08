@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Lucasp\Loom\Dto\SkippedFile;
 use Lucasp\Loom\Index\IndexBuilder;
@@ -113,7 +114,7 @@ class ScanCommand extends Command
             return $this->laravel->make(IndexPath::class)->resolve();
         }
 
-        $isAbsolute = str_starts_with($option, '/') || str_starts_with($option, '\\') || preg_match('#^[A-Za-z]:[\\/]#', $option) === 1;
+        $isAbsolute = Str::startsWith($option, '/') || Str::startsWith($option, '\\') || Str::isMatch('#^[A-Za-z]:[\\/]#', $option);
 
         return $isAbsolute ? $option : $this->laravel->basePath($option);
     }
@@ -126,7 +127,7 @@ class ScanCommand extends Command
         $parts = [];
         foreach (Sections::cases() as $section) {
             $entries = $payload[$section->value] ?? [];
-            $parts[] = str_replace('_', ' ', $section->value).': '.(is_array($entries) ? count($entries) : 0);
+            $parts[] = Str::replace('_', ' ', $section->value).': '.(is_array($entries) ? count($entries) : 0);
         }
         $parts[] = 'skipped files: '.$skipped.($skipped > 0 && ! $this->output->isVerbose() ? ' (-v lists them)' : '');
 
@@ -138,12 +139,12 @@ class ScanCommand extends Command
      */
     private function listSkipped(array $skipped, string $appRoot): void
     {
-        $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
 
         $this->line('Skipped files:');
         foreach ($skipped as $file) {
-            $path = str_starts_with($file->file, $prefix) ? substr($file->file, strlen($prefix)) : $file->file;
-            $location = str_replace(DIRECTORY_SEPARATOR, '/', $path).($file->line !== null ? ':'.$file->line : '');
+            $path = Str::startsWith($file->file, $prefix) ? Str::chopStart($file->file, $prefix) : $file->file;
+            $location = Str::replace(DIRECTORY_SEPARATOR, '/', $path).($file->line !== null ? ':'.$file->line : '');
             $this->line("  {$location}  {$file->message}");
         }
     }

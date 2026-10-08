@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use FilesystemIterator;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -84,17 +85,17 @@ final class ScanScope
      */
     private function resolveDirectories(string $appRoot): array
     {
-        $root = rtrim($appRoot, '/\\');
+        $root = Str::rtrim($appRoot, '/\\');
         $found = [];
 
         foreach ($this->paths as $path) {
             $pattern = $root.'/'.$path;
-            $matches = preg_match('/[*?\[]/', $path) === 1
+            $matches = Str::isMatch('/[*?\[]/', $path)
                 ? (glob(preg_replace('/[*?\[\]]/', '[$0]', $root).'/'.$path, GLOB_ONLYDIR) ?: [])
                 : (is_dir($pattern) ? [$pattern] : []);
 
             foreach ($matches as $match) {
-                $found[str_replace('/', DIRECTORY_SEPARATOR, $match)] = true;
+                $found[Str::replace('/', DIRECTORY_SEPARATOR, $match)] = true;
             }
         }
 
@@ -148,7 +149,7 @@ final class ScanScope
         }
 
         foreach ($this->directories($appRoot) as $directory) {
-            if (str_starts_with($absolute, $directory.DIRECTORY_SEPARATOR)) {
+            if (Str::startsWith($absolute, $directory.DIRECTORY_SEPARATOR)) {
                 return true;
             }
         }
@@ -160,7 +161,7 @@ final class ScanScope
     public function isUnder(string $appRoot, string $absolute, string $subdirectory): bool
     {
         foreach ($this->directories($appRoot) as $directory) {
-            if (str_starts_with($absolute, $directory.DIRECTORY_SEPARATOR.$subdirectory.DIRECTORY_SEPARATOR)) {
+            if (Str::startsWith($absolute, $directory.DIRECTORY_SEPARATOR.$subdirectory.DIRECTORY_SEPARATOR)) {
                 return true;
             }
         }
@@ -178,17 +179,17 @@ final class ScanScope
             return false;
         }
 
-        $prefix = rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR;
-        if (! str_starts_with($absolute, $prefix)) {
+        $prefix = Str::rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR;
+        if (! Str::startsWith($absolute, $prefix)) {
             return false;
         }
 
-        $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($absolute, strlen($prefix)));
+        $relative = Str::replace(DIRECTORY_SEPARATOR, '/', Str::chopStart($absolute, $prefix));
         $candidate = '';
         foreach (explode('/', $relative) as $segment) {
             $candidate = $candidate === '' ? $segment : $candidate.'/'.$segment;
             foreach ($this->excludes as $regex) {
-                if (preg_match($regex, $candidate) === 1) {
+                if (Str::isMatch($regex, $candidate)) {
                     return true;
                 }
             }
@@ -220,13 +221,13 @@ final class ScanScope
 
     private static function normalisePath(string $path): string
     {
-        $path = trim(str_replace('\\', '/', $path));
-        if (str_starts_with($path, '/') || preg_match('#^[A-Za-z]:#', $path) === 1) {
+        $path = Str::trim(Str::replace('\\', '/', $path));
+        if (Str::startsWith($path, '/') || Str::isMatch('#^[A-Za-z]:#', $path)) {
             throw new InvalidArgumentException("Scan path must be relative to the project root: {$path}");
         }
 
         $path = preg_replace('#^(\./)+#', '', $path) ?? $path;
-        $path = rtrim($path, '/');
+        $path = Str::rtrim($path, '/');
 
         if ($path === '' || $path === '.') {
             throw new InvalidArgumentException('Scan path must not be empty.');
@@ -240,10 +241,10 @@ final class ScanScope
 
     private static function normaliseGlob(string $glob): string
     {
-        $glob = trim(str_replace('\\', '/', $glob));
+        $glob = Str::trim(Str::replace('\\', '/', $glob));
         $glob = preg_replace('#^(\./)+#', '', $glob) ?? $glob;
 
-        return trim($glob, '/');
+        return Str::trim($glob, '/');
     }
 
     /** `*` stays within a segment, `**` crosses segments, `?` is one non-slash character. */

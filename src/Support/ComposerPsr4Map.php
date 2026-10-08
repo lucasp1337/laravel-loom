@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Illuminate\Support\Str;
+
 /**
  * PSR-4 prefix → directory map read from the scanned app's composer.json.
  * Mirrors Composer's lookup: longest matching prefix first, then the empty
@@ -38,7 +40,7 @@ final class ComposerPsr4Map
     /** Only `autoload.psr-4`; `autoload-dev` (tests, factories) is not application code. */
     public static function fromAppRoot(string $appRoot): self
     {
-        $file = rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR.'composer.json';
+        $file = Str::rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR.'composer.json';
         $raw = is_file($file) ? @file_get_contents($file) : false;
         $decoded = $raw === false ? null : json_decode($raw, true);
 
@@ -53,7 +55,7 @@ final class ComposerPsr4Map
         $map = [];
         foreach ($psr4 as $prefix => $dirs) {
             $prefix = (string) $prefix;
-            if ($prefix !== '' && ! str_ends_with($prefix, '\\')) {
+            if ($prefix !== '' && ! Str::endsWith($prefix, '\\')) {
                 continue;
             }
 
@@ -61,7 +63,7 @@ final class ComposerPsr4Map
                 if (! is_string($dir)) {
                     continue;
                 }
-                $map[$prefix][] = trim(str_replace('\\', '/', $dir), '/');
+                $map[$prefix][] = Str::trim(Str::replace('\\', '/', $dir), '/');
             }
         }
 
@@ -73,23 +75,23 @@ final class ComposerPsr4Map
      */
     public function locate(string $appRoot, string $fqcn): ?string
     {
-        $fqcn = ltrim($fqcn, '\\');
+        $fqcn = Str::ltrim($fqcn, '\\');
         if ($fqcn === '') {
             return null;
         }
 
-        $root = rtrim($appRoot, '/\\');
+        $root = Str::rtrim($appRoot, '/\\');
 
         foreach ($this->map as $prefix => $dirs) {
-            if ($prefix !== '' && ! str_starts_with($fqcn, $prefix)) {
+            if ($prefix !== '' && ! Str::startsWith($fqcn, $prefix)) {
                 continue;
             }
 
-            $tail = str_replace('\\', '/', substr($fqcn, strlen($prefix))).'.php';
+            $tail = Str::replace('\\', '/', Str::chopStart($fqcn, $prefix)).'.php';
             foreach ($dirs as $dir) {
                 $candidate = $root.'/'.($dir === '' ? '' : $dir.'/').$tail;
                 if (is_file($candidate)) {
-                    return str_replace('/', DIRECTORY_SEPARATOR, $candidate);
+                    return Str::replace('/', DIRECTORY_SEPARATOR, $candidate);
                 }
             }
         }
