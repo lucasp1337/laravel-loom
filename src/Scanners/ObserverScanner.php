@@ -9,12 +9,14 @@ use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\SourceLocation;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\Sorting;
@@ -49,7 +51,7 @@ final class ObserverScanner implements Scanner
             return ['observers' => [], 'model_events' => []];
         }
 
-        /** @var array<string, array{file: string, line: int, hooks: list<string>}> $classMap */
+        /** @var array<string, array{file: string, line: int}> $classMap */
         $classMap = [];
 
         /** @var array<int, array{model: string, observer: string, registration: ObserverRegistration}> $observerRegs */
@@ -77,7 +79,6 @@ final class ObserverScanner implements Scanner
                 $classMap[$class->fqcn] = [
                     'file' => $relative,
                     'line' => $class->line,
-                    'hooks' => $classVisitor->getHooks($class->fqcn),
                 ];
             }
 
@@ -113,7 +114,7 @@ final class ObserverScanner implements Scanner
             }
         }
 
-        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap);
+        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, new ClassHierarchyResolver($appRoot, $this->walker));
         $modelEvents = $this->buildModelEvents($observers, $listenEntries);
 
         return [
@@ -126,10 +127,10 @@ final class ObserverScanner implements Scanner
      * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: ObserverRegistration}>  $regs
-     * @param  array<string, array{file: string, line: int, hooks: list<string>}>  $classMap
+     * @param  array<string, array{file: string, line: int}>  $classMap
      * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>
      */
-    private function mergeObservers(string $appRoot, array $regs, array $classMap): array
+    private function mergeObservers(string $appRoot, array $regs, array $classMap, ClassHierarchyResolver $resolver): array
     {
         /** @var array<string, ObserverRegistration> $registrationByPair */
         $registrationByPair = [];
@@ -161,12 +162,34 @@ final class ObserverScanner implements Scanner
                 'observes' => $model,
                 'file' => is_array($location) ? $location['file'] : $location->file,
                 'line' => is_array($location) ? $location['line'] : $location->line,
-                'hooks' => is_array($location) ? $location['hooks'] : [],
+                'hooks' => $this->hooksOf($resolver, $observer),
                 'registration' => $registration,
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * Observable Eloquent events the observer has a method for. Laravel
+     * registers an observer method with `method_exists`, so declared,
+     * inherited and trait methods all count, whatever their visibility.
+     *
+     * @return list<string>
+     */
+    private function hooksOf(ClassHierarchyResolver $resolver, string $observerFqcn): array
+    {
+        $methods = $resolver->effectiveMethods($observerFqcn);
+
+        $hooks = [];
+        foreach (ModelHook::observableValues() as $hook) {
+            if (isset($methods[strtolower($hook)])) {
+                $hooks[] = $hook;
+            }
+        }
+        sort($hooks);
+
+        return $hooks;
     }
 
     private function precedence(ObserverRegistration $registration): int

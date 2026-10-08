@@ -9,8 +9,16 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - Laravel 11 is no longer supported; Loom requires Laravel 12.41.1+ or 13.
 - `livewire/livewire` and `laravel/mcp` are optional (`suggest`). The UI needs Livewire ^3.8 or ^4.0; `loom:mcp` needs `laravel/mcp` and exits 1 with an install hint without it.
 
+### Fixed
+
+- Dispatches inside pass-through closures (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`) now count for the enclosing method, and unresolved ones reach `unresolved_dispatches` ([#97](https://github.com/lucasp1337/laravel-loom/issues/97)).
+- Dispatches inside closure routes are attributed to the route, and the event lists the route as a dispatch site ([#81](https://github.com/lucasp1337/laravel-loom/issues/81)).
+- A model's `$dispatchesEvents` entries are recorded as event dispatch sites ([#80](https://github.com/lucasp1337/laravel-loom/issues/80)).
+- Listener auto-discovery follows Laravel: inherited, trait-provided, `__invoke` and `handle*` methods are found, abstract classes are skipped. Observer hooks include inherited and trait methods, and `booting`/`booted` no longer count ([#98](https://github.com/lucasp1337/laravel-loom/issues/98)).
+
 ### Added
 
+- `routes[].end_line` for closure routes.
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
 - Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.

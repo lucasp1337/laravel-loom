@@ -72,7 +72,8 @@ it('populates listeners[*].dispatches from the listener handle() body', function
 
     $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\SendOrderConfirmation');
     expect($listener)->not->toBeNull();
-    expect($listener['dispatches'])->toHaveCount(3);
+    // Three direct dispatches plus the one inside the variable-assigned closure.
+    expect($listener['dispatches'])->toHaveCount(4);
 
     $byTarget = [];
     foreach ($listener['dispatches'] as $d) {
@@ -186,27 +187,24 @@ it('attributes dispatches in non-handle() methods listed in handles[*].method', 
     expect($byTarget['App\\Events\\OrderConfirmationSent']['kind'])->toBe('event');
 });
 
-it('does not leak a closure-internal dispatch into the enclosing listener or the target event', function () {
-    // SendOrderConfirmation::handle wraps an event(new OrderConfirmationSent())
-    // at line 23 inside a closure. That site is tagged inClosure, so the
-    // class-handler attribution (DispatchAttributionPhase / DispatchedFromPhase)
-    // must skip it: it stays out of listeners[].dispatches and the target
-    // event's dispatched_from.
+it('attributes a pass-through closure dispatch to the enclosing handler and the target event', function () {
+    // SendOrderConfirmation::handle assigns a closure that dispatches
+    // OrderConfirmationSent at line 23. No registration closure owns it, so it
+    // belongs to handle().
     $payload = buildDispatchEndToEndPayload();
 
     $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\SendOrderConfirmation');
     expect($listener)->not->toBeNull();
-    foreach ($listener['dispatches'] as $d) {
-        expect($d['line'])->not->toBe(23);
-    }
+    expect(array_column($listener['dispatches'], 'line'))->toContain(23);
 
     $event = dispatchEntryByFqcn($payload['events'], 'App\\Events\\OrderConfirmationSent');
     expect($event)->not->toBeNull();
-    foreach ($event['dispatched_from'] as $entry) {
-        $isClosureSite = $entry['file'] === 'app/Listeners/SendOrderConfirmation.php'
-            && $entry['line'] === 23;
-        expect($isClosureSite)->toBeFalse();
-    }
+    $closureSites = array_filter(
+        $event['dispatched_from'],
+        fn (array $entry): bool => $entry['file'] === 'app/Listeners/SendOrderConfirmation.php' && $entry['line'] === 23,
+    );
+    expect($closureSites)->toHaveCount(1);
+    expect(array_values($closureSites)[0]['method'])->toBe('App\\Listeners\\SendOrderConfirmation::handle');
 });
 
 it('matches the expected stats counts', function () {

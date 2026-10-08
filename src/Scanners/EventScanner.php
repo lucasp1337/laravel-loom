@@ -6,9 +6,11 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ClassRecord;
+use Lucasp\Loom\Dto\EventDispatchTarget;
 use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
@@ -105,9 +107,16 @@ final class EventScanner implements Scanner
         $candidates = [];
 
         foreach ($this->iteratePhpFiles($appDir) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
+            // Fresh per file: a failed parse skips beforeTraverse and would leak state.
+            $mappingVisitor = new DispatchesEventsVisitor;
+            $this->walker->walk($file->getPathname(), [$visitor, $mappingVisitor]);
 
-            foreach ($visitor->getTargets() as $target) {
+            $targets = $visitor->getTargets();
+            foreach ($mappingVisitor->getMappings() as $mapping) {
+                $targets[] = new EventDispatchTarget($mapping->eventFqcn, $mapping->line, DispatchForm::DISPATCHES_EVENTS);
+            }
+
+            foreach ($targets as $target) {
                 $isUnambiguous = $target->form !== DispatchForm::DISPATCHABLE;
                 if (! isset($candidates[$target->fqcn])) {
                     $candidates[$target->fqcn] = $isUnambiguous;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\EloquentListenRecord;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -71,7 +72,7 @@ final class EloquentListenStringVisitor extends NodeVisitorAbstract
         if ($model === '') {
             return null;
         }
-        if (! in_array($hook, ObserverClassVisitor::HOOKS, true)) {
+        if (ModelHook::tryFrom($hook) === null) {
             return null;
         }
 

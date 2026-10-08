@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\MetaField;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -118,4 +119,13 @@ it('exposes every Sections case as a top-level schema property', function () {
     foreach (Sections::cases() as $case) {
         expect($topLevel)->toContain($case->value);
     }
+});
+
+it('keeps ModelHook in step with the schema model event enum', function () {
+    $schema = json_decode((string) file_get_contents(loomSchemaPath()), true);
+    $enum = $schema['$defs']['modelEvent']['properties']['event']['enum'];
+
+    $cases = array_map(fn (ModelHook $hook): string => $hook->value, ModelHook::cases());
+
+    expect($cases)->toEqualCanonicalizing($enum);
 });

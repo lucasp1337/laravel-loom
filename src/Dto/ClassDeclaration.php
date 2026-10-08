@@ -16,6 +16,8 @@ final class ClassDeclaration
      * @param  list<string>  $parents
      * @param  list<string>  $interfaces
      * @param  list<string>  $traits
+     * @param  list<MethodDeclaration>  $methods
+     * @param  list<TraitAdaptation>  $adaptations
      */
     public function __construct(
         public readonly string $fqcn,
@@ -25,6 +27,9 @@ final class ClassDeclaration
         public readonly array $interfaces,
         public readonly array $traits,
         public readonly int $line,
+        public readonly bool $isAbstract = false,
+        public readonly array $methods = [],
+        public readonly array $adaptations = [],
     ) {
     }
 }

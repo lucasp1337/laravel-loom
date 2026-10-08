@@ -264,7 +264,7 @@ final class IndexSerializer
     /** @return array<string, mixed> */
     public function route(RouteEntry $e): array
     {
-        return [
+        $out = [
             Field::METHOD->value => $e->method,
             Field::URI->value => $e->uri,
             Field::NAME->value => $e->name,
@@ -275,6 +275,13 @@ final class IndexSerializer
             Field::LINE->value => $e->line,
             Field::DISPATCHES->value => $e->dispatches,
         ];
+
+        // Only closure actions carry a span; omitting it keeps other routes unchanged.
+        if ($e->endLine !== null) {
+            $out[Field::END_LINE->value] = $e->endLine;
+        }
+
+        return $out;
     }
 
     /** @return array<string, mixed> */

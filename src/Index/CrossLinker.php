@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Index;
 
 use Lucasp\Loom\Index\CrossLink\AmbiguousDisambiguationPhase;
 use Lucasp\Loom\Index\CrossLink\ClosureDispatchAttributionPhase;
+use Lucasp\Loom\Index\CrossLink\ClosureOwnershipPhase;
 use Lucasp\Loom\Index\CrossLink\CrossLinkContext;
 use Lucasp\Loom\Index\CrossLink\CrossLinkPhase;
 use Lucasp\Loom\Index\CrossLink\DispatchAttributionPhase;
@@ -37,6 +38,7 @@ final class CrossLinker
         $this->phases = $phases ?? [
             new HandledByPhase,
             new AmbiguousDisambiguationPhase,
+            new ClosureOwnershipPhase,
             new DispatchAttributionPhase,
             new ClosureDispatchAttributionPhase,
             new DispatchedFromPhase,

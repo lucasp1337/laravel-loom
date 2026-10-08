@@ -19,7 +19,7 @@ For a compact list of what each primitive supports, see [What Loom detects](../r
 
 `OrderPlaced` shows an empty `handled_by`, or the listener shows `handles: []`. Pick the shape that matches your code.
 
-**The `handle()` parameter has no usable type.** Loom reads the event from the first parameter's type. An untyped parameter, a union (`OrderPlaced|OrderUpdated`), a nullable (`?OrderPlaced`), an intersection or a builtin type gives it nothing to read. Type the parameter with one event class:
+**The handler method has no usable type.** For classes in `app/Listeners/`, Loom follows Laravel's discovery: every public method named `handle*` or `__invoke` with a first parameter counts, whether it is declared on the class, inherited from a parent or provided by a trait. It reads the event from that parameter's type, including a nullable (`?OrderPlaced`) or a union (`OrderPlaced|OrderUpdated`, one event per class). An untyped parameter, an intersection or a builtin type gives it nothing to read. Type the parameter with an event class:
 
 ```php
 public function handle(OrderPlaced $event): void
@@ -37,6 +37,8 @@ protected $listen = [
 
 **The listener registers itself inside a nested closure.** In a subscriber's `subscribe()` method, Loom follows `if`, `foreach` and `try` blocks but not closures inside them, so `collect([...])->each(fn () => $events->listen(...))` is invisible. Register with plain `$events->listen(...)` calls or return an array.
 
+**The handler is not discoverable.** Laravel skips abstract classes, traits and interfaces, methods made non-public (`use HandlesOrders { handle as protected; }`) and methods with no parameter, so Loom does too. A handler inherited from a vendor class can't be seen, because Loom only reads your own source.
+
 **Confirm:** `php artisan loom:show OrderPlaced` lists the listener under `handled_by`.
 
 ### A closure listener has no back-link
@@ -49,7 +51,7 @@ You registered `Event::listen(OrderPlaced::class, fn ($e) => ...)` and `OrderPla
 jq '.closure_listeners[] | select(.event == "App\\Events\\OrderPlaced")' storage/loom/index.json
 ```
 
-If you want the link in `handled_by`, move the closure body into a listener class and register it by name. The same applies in reverse: an event or job dispatched from inside a closure listener appears in that closure's `dispatches`, but the target's `dispatched_from` doesn't list the closure.
+If you want the link in `handled_by`, move the closure body into a listener class and register it by name. The same applies in reverse: an event or job dispatched from inside a closure listener appears in that closure's `dispatches`, but the target's `dispatched_from` doesn't list the closure. A closure that isn't a registration (`DB::transaction(fn () => ...)`, `each`, `tap`) is different: its dispatches count for the enclosing method.
 
 Closure listeners always show `queued: false`, even if you wrap the work in a queued call.
 
@@ -65,7 +67,11 @@ Loom finds events in `app/Events/`, plus any class passed to `event(...)`, `broa
 
 `Event::listen('eloquent.created: App\Models\Order', ...)` with a closure doesn't add anything to `model_events[].handled_by`, which only holds `Observer::method` names. The closure is in `closure_listeners` with the raw event string. An observer that only registers through this string form also never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
 
-Hook methods inherited from a parent observer or provided by a trait aren't seen either. Declare the hook method on the observer class itself.
+Hook methods declared on the observer, inherited from a parent observer or provided by a trait are all read. Only the events Eloquent lets an observer subscribe to count, so a `booting()` or `booted()` method is ignored; use `Event::listen('eloquent.booted: ...')` or a model `booted()` method for those.
+
+### A model's `$dispatchesEvents` event shows no dispatcher
+
+Each `'created' => InvoiceCreated::class` entry in a model's `$dispatchesEvents` becomes a `dispatched_from` site on the event, with a method like `App\Models\Invoice::$dispatchesEvents[created]`. The key must be a string literal and the value a `Foo::class` reference. A value built at runtime, or a property set in a constructor, isn't read.
 
 ## Dispatches
 
@@ -88,13 +94,16 @@ A ternary where both branches are `new X()` is fine. Loom records both.
 
 Loom skips these on purpose:
 
-- Anything inside a closure or arrow function, such as `collect($orders)->each(fn ($o) => event(new OrderPlaced($o)))`. The closure may never run, so Loom won't claim it does. Move the dispatch into a named method.
-- Code outside any class, such as script-level statements.
-- `Queue::pushRaw`, and `dispatchSync` on a chain.
+- Code outside any class and outside a route closure, such as script-level statements.
+- A closure passed to a registration API other than `Event::listen`, model events and routes, such as `Queue::before(...)`. Those closures aren't tracked as handlers, so their dispatches count for the enclosing method.
+- A first-class callable passed as the callback (`->each($this->notify(...))`). Only the closure body is read, not the method it points to.
+- `Queue::pushRaw`.
 - `Bus::chain([...])` and `Bus::batch([...])`. The jobs inside never show a `dispatched_from`.
 - A dispatcher fetched from the container: `app(Dispatcher::class)->dispatch(...)`.
 
-Closure-internal dispatches with dynamic targets also don't reach `unresolved_dispatches`, so there's no warning for them either.
+Dispatches inside `DB::transaction(fn () => ...)`, `->each(function () {...})`, `tap`, `DB::afterCommit` and closures assigned to a variable are recorded against the enclosing method, as if the closure ran there. A dynamic target inside such a closure shows up in `unresolved_dispatches`.
+
+A dispatch inside a handler that a class inherits, or that comes from a trait, is attributed to the class that declares it, not to each listener that reuses it. The event's `dispatched_from` still lists the site.
 
 !!! warning "A listener that dispatches from a helper method"
     A listener's `dispatches` only includes dispatches made inside the method registered as its handler. If `handle()` calls `$this->issueReceipt()` and that private method fires `ReceiptIssued`, the dispatch still counts toward `ReceiptIssued`'s `dispatched_from`, but it won't appear in `SendReceipt`'s `dispatches`. Fire the event from `handle()` itself for the link to show. The same rule applies to jobs (`handle()`) and observers (the hook methods).
@@ -191,7 +200,7 @@ A `->job(...)` for a class in `vendor/` gives a valid target with no matching ro
 
 ### A route has no controller
 
-`controller_fqcn` and `controller_method` are `null` when the action is a closure (`fn () => ...`) or a variable. Loom won't guess. Use `[OrderController::class, 'show']`, an invokable `OrderController::class`, or the `'OrderController@show'` string.
+`controller_fqcn` and `controller_method` are `null` when the action is a closure (`fn () => ...`) or a variable. Loom won't guess. For a closure, the route still gets the events and jobs dispatched inside it, and `end_line` marks where the closure ends. Use `[OrderController::class, 'show']`, an invokable `OrderController::class`, or the `'OrderController@show'` string if you want a controller target.
 
 ### Middleware shows `web` or `auth`, not the classes
 

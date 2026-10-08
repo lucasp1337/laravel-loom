@@ -604,32 +604,19 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * Resolved sites emit even inside closures (closure listeners always live
-     * in a provider/class), so the only block is a missing class context.
-     * Closure-internal resolved sites are tagged via {@see inClosure()} so only
-     * ClosureDispatchAttributionPhase consumes them.
+     * Resolved sites emit inside closures too, tagged via {@see inClosure()}.
+     * Cross-link decides ownership: a registration closure (listener, route)
+     * keeps them, a pass-through closure hands them to the enclosing method.
+     * A class-less site is only useful inside a closure (route files).
      */
     private function shouldSkipResolved(): bool
     {
-        return $this->currentClassFqcn() === null;
+        return $this->currentClassFqcn() === null && ! $this->inClosure();
     }
 
-    /**
-     * Unresolved sites stay suppressed inside closures so `unresolved_dispatches`
-     * and its stats remain byte-identical.
-     */
     private function shouldSkipUnresolved(): bool
     {
-        if ($this->closureDepth > 0) {
-            return true;
-        }
-
-        $classFqcn = $this->currentClassFqcn();
-        if ($classFqcn === null) {
-            return true;
-        }
-
-        return false;
+        return $this->currentClassFqcn() === null && ! $this->inClosure();
     }
 
     private function currentClassFqcn(): ?string

@@ -39,6 +39,15 @@ final class ClassHierarchyResolver
     /** Convenience predicate: extends-chain membership. */
     public function isSubclassOf(string $fqcn, string $ancestor): bool;
 
+    /** Methods a class exposes after trait composition and inheritance, keyed by lower-cased name. */
+    public function effectiveMethods(string $fqcn): array;      // array<string, ResolvedMethod>
+
+    /** A known class that is not abstract. False for interfaces, traits and unknown classes. */
+    public function isInstantiable(string $fqcn): bool;
+
+    /** Class names in a method's first parameter type; `self` and `parent` resolved. */
+    public function firstParameterClasses(ResolvedMethod $method): array;  // list<string>
+
     /** True when the resolver has indexed a declaration for $fqcn. */
     public function knows(string $fqcn): bool;
 }
@@ -91,23 +100,32 @@ implements \Illuminate\Contracts\Queue\ShouldQueue`:
 - `knows('App\Jobs\AbstractInvoiceJob')` → `true`
 - `knows('Illuminate\Contracts\Queue\ShouldQueue')` → `false`
 
+## Method resolution
+
+`effectiveMethods()` follows PHP's precedence. For a class it starts from the
+parent's effective methods (private ones are not inherited), overlays the
+methods its traits provide, then overlays its own. Trait composition honours
+`insteadof` (the excluded trait's method is dropped) and `as` (a new name, a
+new visibility, or both; a visibility-only `as` changes the method in place and
+`handle as protected` hides it). An abstract trait method never replaces a
+concrete inherited one. Names are keyed lower-cased because PHP method names are
+case-insensitive; `ResolvedMethod::$name` keeps the declared spelling.
+
+Each `ResolvedMethod` records `definedIn` (the class or trait holding the code)
+and `declaredIn` (the class `self` means: the using class for a trait method).
+A vendor parent is an opaque leaf, so its methods are absent. Inheritance cycles
+terminate with `[]`.
+
 ## Consumers
 
-No scanner consumes the resolver as of this writing. Planned migrations:
-
-- **#14 — `JobClassVisitor`** swaps its direct-implements loop for
-  `$resolver->implementsInterface($fqcn, self::SHOULD_QUEUE)`. Preferred shape:
-  `JobsScanner` enriches the visitor's per-class result post-walk so the
-  visitor stays pure.
-- **Listener auto-discovery via trait `handle()`** — needs method-level
-  resolution; blocked on a follow-up that extends the index shape.
-- **Observer hooks via parent class** — same blocker.
+- `ListenerScanner` — listener auto-discovery (public `handle*` / `__invoke`
+  with a first parameter) and `queued` through `implementsInterface()`.
+- `ObserverScanner` — observer hooks from `effectiveMethods()`.
 
 ## Known limitations
 
-- **No method-level resolution.** Currently only the class graph is indexed,
-  so trait-provided `handle()` and parent-class observer hooks are still
-  invisible. Tracked alongside their follow-ups.
+- **Methods only, no properties or constants.** Nothing reads inherited
+  property values (a parent's `$queue`, for example) through the resolver.
 - **`app/` only.** Class declarations under `routes/`, `database/`, or other
   Laravel directories are not indexed. No current consumer needs them.
 - **No persistent cache.** The index is rebuilt each `IndexBuilder::build()`.

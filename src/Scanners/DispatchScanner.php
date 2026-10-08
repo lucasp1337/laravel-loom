@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\DispatchesEventsMapping;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
 
 /**
- * Collects dispatch sites under app/ and emits `unresolved_dispatches`
+ * Collects dispatch sites under app/ and routes/ (route closures) and emits `unresolved_dispatches`
  * plus the internal `_dispatch_sites` section.
  *
  * @internal
@@ -33,8 +37,11 @@ final class DispatchScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
+        $dirs = array_filter(
+            [$appRoot.DIRECTORY_SEPARATOR.'app', $appRoot.DIRECTORY_SEPARATOR.'routes'],
+            is_dir(...),
+        );
+        if ($dirs === []) {
             return ['unresolved_dispatches' => [], '_dispatch_sites' => []];
         }
 
@@ -43,15 +50,27 @@ final class DispatchScanner implements Scanner
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        $files = [];
+        foreach ($dirs as $dir) {
+            foreach ($this->iteratePhpFiles($dir) as $file) {
+                $files[] = $file;
+            }
+        }
+
+        foreach ($files as $file) {
             $visitor = new DispatchSiteVisitor;
-            $this->walker->walk($file->getPathname(), [$visitor]);
+            $mappingVisitor = new DispatchesEventsVisitor;
+            $this->walker->walk($file->getPathname(), [$visitor, $mappingVisitor]);
 
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($visitor->getSites() as $site) {
                 $site->file = $relative;
                 $sites[] = $site;
+            }
+
+            foreach ($mappingVisitor->getMappings() as $mapping) {
+                $sites[] = $this->siteFromMapping($mapping, $relative);
             }
 
             foreach ($visitor->getUnresolved() as $entry) {
@@ -71,5 +90,19 @@ final class DispatchScanner implements Scanner
             'unresolved_dispatches' => $unresolved,
             '_dispatch_sites' => $sites,
         ];
+    }
+
+    /** A `$dispatchesEvents` entry is an event dispatched by the model on that hook. */
+    private function siteFromMapping(DispatchesEventsMapping $mapping, string $file): DispatchSiteRecord
+    {
+        return new DispatchSiteRecord(
+            classFqcn: $mapping->modelFqcn,
+            method: '$dispatchesEvents['.$mapping->hook.']',
+            target: $mapping->eventFqcn,
+            form: DispatchForm::DISPATCHES_EVENTS,
+            provisionalKind: DispatchKinds::EVENT,
+            file: $file,
+            line: $mapping->line,
+        );
     }
 }

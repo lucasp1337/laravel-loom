@@ -492,9 +492,7 @@ it('emits a resolved dispatch site inside a closure, tagged inClosure', function
 
     [$sites, $unresolved] = runDispatchSiteVisitor($source);
 
-    // Resolved closure-internal sites now emit (tagged inClosure) so
-    // ClosureDispatchAttributionPhase can attribute them; unresolved stays
-    // suppressed.
+    // Closure-internal sites emit tagged inClosure; cross-link decides the owner.
     expect($sites)->toHaveCount(1);
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
     expect($sites[0]->inClosure)->toBeTrue();
@@ -519,6 +517,26 @@ it('emits a resolved dispatch site inside an arrow function, tagged inClosure', 
     expect($sites[0]->target)->toBe('App\\Events\\Foo');
     expect($sites[0]->inClosure)->toBeTrue();
     expect($unresolved)->toBe([]);
+});
+
+it('reports an unresolved dispatch inside a closure', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    class Svc {
+        public function go(string $k): void {
+            $c = function () use ($k) {
+                event(new $k);
+            };
+        }
+    }
+    PHP;
+
+    [$sites, $unresolved] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toBe([]);
+    expect($unresolved)->toHaveCount(1);
+    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
 });
 
 it('skips top-level dispatches outside any class', function () {

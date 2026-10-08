@@ -47,12 +47,14 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
 {
   "file": string,
   "line": integer,
-  "method": string,               // "ClassName::methodName" of the dispatching context
+  "method": string,               // where the dispatch happens, see below
   "mode": enum,                   // optional; "sync" | "after_response" | "push"; omitted for plain dispatches
   "overrides": object,            // optional; $defs/dispatchOverrides; omitted when empty
   "channels": array<string>       // optional; notification-only; omitted when no static channel filter
 }
 ```
+
+`method` names the origin of the dispatch: `ClassName::methodName` for code in a class method (a dispatch inside a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB uri` (for example `GET /orders`) for a route closure, and `ClassName::$dispatchesEvents[hook]` for a model's `$dispatchesEvents` entry.
 
 The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`, `mailables[*].sent_from`, and `notifications[*].notified_from` — it's the single source of truth for a dispatch site. It used to be inline under `events[*].dispatched_from`; the `{file, line, method}` body is unchanged, only the schema reference was promoted.
 
@@ -128,6 +130,8 @@ retrieved, creating, created, updating, updated, saving, saved,
 deleting, deleted, restoring, restored, replicating, trashed,
 forceDeleting, forceDeleted, booting, booted
 ```
+
+`booting` and `booted` appear only from `Event::listen('eloquent.booted: ...')` strings. Observer methods are matched against the observable events (everything above except `booting` and `booted`).
 
 ## `listeners[]`
 
@@ -215,7 +219,7 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 }
 ```
 
-It is populated by the cross-link pass from dispatch sites that fall within the closure's `[line, end_line]` span in the same `file`. This makes closure listeners feature-equivalent to class listeners for dispatch attribution. Earlier releases declared `dispatches` as `array<string>` and always emitted it empty, so no real data ever matched the old item type; the change to `$defs/dispatch` objects is the corrected, populated shape. `confidence` is currently always `"high"`; `"medium"` / `"low"` are reserved for future runtime overlay work.
+It is populated by the cross-link pass from dispatch sites that fall within the closure's `[line, end_line]` span in the same `file`, including sites in closures nested inside it. This makes closure listeners feature-equivalent to class listeners for dispatch attribution. Earlier releases declared `dispatches` as `array<string>` and always emitted it empty, so no real data ever matched the old item type; the change to `$defs/dispatch` objects is the corrected, populated shape. `confidence` is currently always `"high"`; `"medium"` / `"low"` are reserved for future runtime overlay work.
 
 Entries are sorted by `(event, file, line)` ascending. No dedupe — each registration site is its own entry.
 
@@ -346,13 +350,14 @@ Registered HTTP routes discovered from the application's route definitions. One 
   "middleware": array<string>,    // middleware identifiers applied to the route, including those inherited from enclosing groups; verbatim names (alias->class and group expansion are not resolved)
   "file": string,                 // path to the route definition, relative to app root
   "line": integer,                // 1-indexed line of the route definition
-  "dispatches": array             // events/jobs dispatched inside the route's controller method; same shape as listeners[*].dispatches
+  "end_line": integer,            // optional; 1-indexed last line of a closure action; omitted for every other action
+  "dispatches": array             // events/jobs dispatched inside the route's controller method or closure; same shape as listeners[*].dispatches
 }
 ```
 
-`$defs/route`. All fields are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
+`$defs/route`. All fields except `end_line` are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
 
-`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. It is populated by the cross-link pass and stays empty until cross-linked, as well as for closure routes and routes whose controller cannot be resolved.
+`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. For a closure route (`end_line` present) it lists the dispatches that fall within `[line, end_line]` of the route's file, and each such event also lists the route in `dispatched_from`. It is populated by the cross-link pass and stays empty until cross-linked, as well as for routes whose controller cannot be resolved.
 
 `method` enum:
 

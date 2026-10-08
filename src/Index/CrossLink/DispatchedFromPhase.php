@@ -20,9 +20,10 @@ final class DispatchedFromPhase implements CrossLinkPhase
     public function apply(CrossLinkContext $context): void
     {
         foreach ($context->dispatchSites as $site) {
-            // Closure-internal sites are attributed to their closure listener
-            // only; excluding them keeps reverse `*_from` arrays byte-identical.
-            if (($site['inClosure'] ?? false) === true) {
+            // Sites owned by a closure listener stay off the reverse arrays; a
+            // route closure supplies its own origin label.
+            $origin = is_string($site['closureOrigin'] ?? null) ? $site['closureOrigin'] : null;
+            if (($site['inClosure'] ?? false) === true && $origin === null) {
                 continue;
             }
 
@@ -47,7 +48,10 @@ final class DispatchedFromPhase implements CrossLinkPhase
             $file = $site[Field::FILE->value] ?? null;
             $line = $site[Field::LINE->value] ?? null;
 
-            if (! is_string($target) || ! is_string($classFqcn) || ! is_string($method)) {
+            if ($origin === null && is_string($classFqcn) && is_string($method)) {
+                $origin = $classFqcn.'::'.$method;
+            }
+            if (! is_string($target) || $origin === null) {
                 continue;
             }
             if (! is_string($file) || ! is_int($line)) {
@@ -62,7 +66,7 @@ final class DispatchedFromPhase implements CrossLinkPhase
             $payload = [
                 Field::FILE->value => $file,
                 Field::LINE->value => $line,
-                Field::METHOD->value => $classFqcn.'::'.$method,
+                Field::METHOD->value => $origin,
             ];
 
             // Only surface `mode` for non-plain dispatch forms; omitting it
