@@ -105,8 +105,8 @@ Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio. It 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Server stopped normally |
-| `1` | The MCP server is not registered |
+| `1` | `laravel/mcp` isn't installed, `mcp.enabled` is `false`, or the MCP server is not registered |
 
 ## Configuration
 
-Loom has few settings, and the scan, show, diff and check commands need none. `index_path` (env `LOOM_INDEX_PATH`) sets where the snapshot lives for the CLI, the MCP server and the UI; `null` means `storage/loom/index.json`. Set `ui.index_path` only to point the UI at a different file. Every UI key, with defaults, is in [UI configuration](ui-config.md). Publish the file with `php artisan vendor:publish --tag=loom-config`.
+Loom has few settings, and the scan, show, diff and check commands need none. `index_path` (env `LOOM_INDEX_PATH`) sets where the snapshot lives for the CLI, the MCP server and the UI; `null` means `storage/loom/index.json`. Set `ui.index_path` only to point the UI at a different file. Every UI key, with defaults, is in [UI configuration](ui-config.md). `mcp.enabled` (env `LOOM_MCP_ENABLED`, default `true`) turns `loom:mcp` off even when `laravel/mcp` is installed. Publish the file with `php artisan vendor:publish --tag=loom-config`.

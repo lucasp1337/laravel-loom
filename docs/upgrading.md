@@ -13,10 +13,6 @@ The index now carries a required `schema_version` (`"1.0"`). Readers (`IndexLoad
 
 ## From 0.2 to 0.3 and later
 
-### New hard requirements
-
-`livewire/livewire` (^3.8) and `laravel/mcp` (^1.0) are now installed with Loom. Composer pulls them in; if your app pins conflicting versions, resolve that first. Apps pinning `laravel/mcp` 0.x must upgrade to ^1.0.
-
 ### Index shape changes
 
 Old index files are no longer valid. Tools that read `index.json` need to handle:
