@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Dto\ListenerClassRecord;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
@@ -10,7 +11,7 @@ use PhpParser\ParserFactory;
 /**
  * Parse a PHP source string and run ListenerClassVisitor (after NameResolver) over it.
  *
- * @return list<Lucasp\Loom\Dto\ListenerClassRecord>
+ * @return list<ListenerClassRecord>
  */
 function runListenerClassVisitor(string $source): array
 {

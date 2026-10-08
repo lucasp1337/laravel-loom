@@ -216,13 +216,17 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             foreach ($stmt->adaptations as $adaptation) {
                 if ($adaptation instanceof Node\Stmt\TraitUseAdaptation\Precedence) {
                     $adaptations[] = new TraitAdaptation(
-                        trait: $adaptation->trait->toString(),
+                        trait: $adaptation->trait?->toString(),
                         method: $adaptation->method->toString(),
                         alias: null,
                         visibility: null,
-                        insteadof: array_map(static fn (Node\Name $name): string => $name->toString(), $adaptation->insteadof),
+                        insteadof: array_values(array_map(static fn (Node\Name $name): string => $name->toString(), $adaptation->insteadof)),
                     );
 
+                    continue;
+                }
+
+                if (! $adaptation instanceof Node\Stmt\TraitUseAdaptation\Alias) {
                     continue;
                 }
 

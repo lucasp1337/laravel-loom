@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
-use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
+use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
