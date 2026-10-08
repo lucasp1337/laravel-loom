@@ -4,6 +4,8 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
+
 ### Fixed
 
 - `Event::listen(function (Event $e) {...})` now infers the event from the closure's type hint ([#79](https://github.com/lucasp1337/laravel-loom/issues/79)).
