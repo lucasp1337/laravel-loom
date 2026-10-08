@@ -24,4 +24,5 @@ enum DispatchForm: string
     case NOTIFY_METHOD = 'notify_method';
     case NOTIFICATION_FACADE = 'notification_facade';
     case NOTIFICATION_CHAIN = 'notification_chain';
+    case DISPATCHES_EVENTS = 'dispatches_events';
 }
