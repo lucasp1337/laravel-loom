@@ -138,7 +138,7 @@ Loom reads class-level properties with literal values, such as `public $tries = 
 
 Loom finds jobs in `app/Jobs/` and any class passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` whose file it can locate. It skips abstract classes, interfaces and traits. A job outside `app/Jobs/` that's only dispatched through a variable or an unrecognised form isn't found. Move it under `app/Jobs/`.
 
-A class whose file can't be located is dropped, since every entry needs a file and line. Loom maps a leading `App\` to `app/`, so a project with a different root namespace won't match.
+A class whose file can't be located is dropped, since every entry needs a file and line. Loom locates classes through the PSR-4 map in `composer.json`, and only inside the [scan paths](../reference/scan-config.md).
 
 ## Mail and notifications
 
@@ -218,6 +218,6 @@ Loom reads `*.php` files under `routes/` and looks for `Route::` facade calls. R
 
 Two checks apply to every primitive.
 
-**The file doesn't parse.** Loom skips files with syntax errors silently. Run `php -l app/Listeners/SendReceipt.php`, fix it and scan again.
+**The file doesn't parse.** Loom skips files with syntax errors. `php artisan loom:scan -v` lists them with the line and parser message. Fix the file and scan again.
 
-**The code isn't under `app/`.** Loom scans `app/` (and `routes/` for routes, `bootstrap/app.php` for the scheduler). Vendor packages and modules kept elsewhere are ignored.
+**The code isn't in a scan path.** Loom scans `scan.paths` (default `app/`), plus `routes/` for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to [`scan.paths`](../reference/scan-config.md); vendor packages are ignored. Check `scan.exclude` too.

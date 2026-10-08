@@ -18,6 +18,44 @@ use SplFileInfo;
  */
 trait ScannerFilesystem
 {
+    private ?ScanScope $scope = null;
+
+    protected function scope(): ScanScope
+    {
+        return $this->scope ??= ScanScope::default();
+    }
+
+    /**
+     * PHP files in the scan directories (or their `$subdirectory`), with
+     * excluded files removed.
+     *
+     * @return iterable<SplFileInfo>
+     */
+    protected function scanFiles(string $appRoot, ?PrimitiveDirectory $subdirectory = null): iterable
+    {
+        return $this->scope()->files($appRoot, $subdirectory?->value);
+    }
+
+    /**
+     * PHP files under `routes/`, minus excluded files. Independent of the
+     * scan paths: route closures can dispatch, so the dispatch scan reads them.
+     *
+     * @return iterable<SplFileInfo>
+     */
+    protected function routeFiles(string $appRoot): iterable
+    {
+        $routesDir = $appRoot.DIRECTORY_SEPARATOR.'routes';
+        if (! is_dir($routesDir)) {
+            return;
+        }
+
+        foreach ($this->iteratePhpFiles($routesDir) as $file) {
+            if (! $this->scope()->isExcluded($appRoot, $file->getPathname())) {
+                yield $file;
+            }
+        }
+    }
+
     /**
      * @return iterable<SplFileInfo>
      */
@@ -40,6 +78,16 @@ trait ScannerFilesystem
 
             yield $entry;
         }
+    }
+
+    /** True when the app-relative file lies under `<scan directory>/<directory>/`. */
+    protected function isUnderPrimitiveDirectory(string $appRoot, string $relativeFile, PrimitiveDirectory $directory): bool
+    {
+        return $this->scope()->isUnder(
+            $appRoot,
+            rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativeFile),
+            $directory->value,
+        );
     }
 
     /**

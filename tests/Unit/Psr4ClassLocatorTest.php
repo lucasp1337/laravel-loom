@@ -67,11 +67,16 @@ it('trims a leading backslash before resolving', function () {
     expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/app/Jobs/ProcessOrder.php');
 });
 
-it('lowercases non-App root namespace segments for the path guess', function () {
-    $root = psr4FixtureRoot();
-    $locator = new Psr4ClassLocator;
+it('follows the composer.json psr-4 map', function () {
+    $root = dirname(__DIR__).'/Fixtures/modules-fixture-app';
 
-    $result = $locator->locate($root, 'Custom\\Thing\\Item');
+    $result = (new Psr4ClassLocator)->locate($root, 'Modules\\Billing\\Jobs\\ChargeCard');
 
-    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/custom/Thing/Item.php');
+    expect(psr4Normalize($result))->toBe(psr4Normalize($root).'/Modules/Billing/Jobs/ChargeCard.php');
+});
+
+it('does not guess a lowercase path for namespaces composer.json does not map', function () {
+    $root = dirname(__DIR__).'/Fixtures/modules-fixture-app';
+
+    expect((new Psr4ClassLocator)->locate($root, 'Custom\\Thing\\Item'))->toBeNull();
 });

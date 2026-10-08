@@ -20,9 +20,9 @@ EventScanner uses two discovery paths and merges them by FQCN:
    - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` (`form: facade`)
    - `SomeEvent::dispatch(...)`, `SomeEvent::dispatchIf($cond, ...)`, and `SomeEvent::dispatchUnless($cond, ...)` (`form: dispatchable`). The conditional forms resolve to the same target as `dispatch(...)`; the leading condition argument is ignored for resolution.
 
-   When a seeded target's FQCN isn't already known from the filesystem walk, EventScanner locates the class file via a PSR-4 guess (mapping leading `App\` to `app/`). The class must exist on disk and contain the declared FQCN; otherwise the candidate is dropped.
+   When a seeded target's FQCN isn't already known from the filesystem walk, EventScanner locates the class file through the PSR-4 map in the app's `composer.json` (`App\` to `app/` when it declares none), accepting only files inside a scan directory and not excluded. The class must exist on disk and contain the declared FQCN; otherwise the candidate is dropped.
 
-   The `dispatchable` form is subject to an extra filter: candidates are only accepted if their resolved file sits under `app/Events/`. Without this filter, every job class using the `Dispatchable` trait would land in `events[]`. The `helper` and `facade` forms have no such filter — they are unambiguous event dispatches per Laravel's API.
+   The `dispatchable` form is subject to an extra filter: candidates are only accepted if their resolved file sits under an `Events/` directory inside a scan directory. Without this filter, every job class using the `Dispatchable` trait would land in `events[]`. The `helper` and `facade` forms have no such filter — they are unambiguous event dispatches per Laravel's API.
 
 ### Output
 

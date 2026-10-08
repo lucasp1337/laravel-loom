@@ -12,7 +12,7 @@ use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 
 /**
  * Cross-file extends/implements/use-trait resolver. Lazy index under
- * `$appRoot/app/`; vendor classes are opaque leaves.
+ * the scan directories; vendor classes are opaque leaves.
  *
  * @internal
  */
@@ -64,10 +64,11 @@ final class ClassHierarchyResolver
     /** @var array<string, array<string, bool>> */
     private array $isSubclassOfCache = [];
 
-    public function __construct(string $appRoot, AstWalker $walker)
+    public function __construct(string $appRoot, AstWalker $walker, ?ScanScope $scope = null)
     {
         $this->appRoot = $appRoot;
         $this->walker = $walker;
+        $this->scope = $scope;
     }
 
     /**
@@ -468,14 +469,9 @@ final class ClassHierarchyResolver
         }
         $this->indexed = true;
 
-        $appDir = $this->appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return;
-        }
-
         $visitor = new ClassDeclarationVisitor;
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($this->appRoot) as $file) {
             $absolute = $file->getPathname();
             // walk()===null skips beforeTraverse; visitor would leak prior state.
             if ($this->walker->walk($absolute, [$visitor]) === null) {

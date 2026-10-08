@@ -20,8 +20,9 @@ Loom parses source without running your app. It scans `app/`, plus `routes/` for
 ## Rules that apply everywhere
 
 - Targets must be `::class` references, `new X` expressions or string literals. Variables, concatenation and container lookups don't resolve.
-- Loom maps a leading `App\` to `app/` to locate classes. A class it can't find on disk is dropped.
-- Files with syntax errors are skipped without a message.
+- Loom walks the directories in [`scan.paths`](scan-config.md) (default `app/`) and skips files matching `scan.exclude`. Convention directories such as `Events/` and `Jobs/` resolve inside each scan path.
+- Loom locates classes through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class it can't find on disk, or finds outside the scan paths, is dropped.
+- Files with syntax errors are skipped. `loom:scan` prints their count, and `-v` lists them.
 - Anything inside `vendor/` is treated as opaque, so `queued` and `via()` inherited from a package don't show.
 - Dispatch links from listeners, jobs and observers come from the registered handler method only. Routes attribute by controller method.
 - Handler `dispatches[]` lists only events and jobs. Mail and notification sends inside a handler appear in `mailables[].sent_from` and `notifications[].notified_from` instead.

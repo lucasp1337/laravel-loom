@@ -37,18 +37,21 @@ trait TwoPathDiscovery
 
     abstract protected function psr4Locator(): Psr4ClassLocator;
 
+    /** Provided by {@see ScannerFilesystem}. */
+    abstract protected function scope(): ScanScope;
+
     /**
      * Provided by {@see ScannerFilesystem}.
      *
      * @return iterable<SplFileInfo>
      */
-    abstract protected function iteratePhpFiles(string $dir): iterable;
+    abstract protected function scanFiles(string $appRoot, ?PrimitiveDirectory $subdirectory = null): iterable;
 
     /** Provided by {@see ScannerFilesystem}. */
     abstract protected function relativePath(string $appRoot, string $absolute): string;
 
     /**
-     * Walk every PHP file under $directory with a fresh class visitor and map
+     * Walk every PHP file under $directory (inside each scan directory) with a fresh class visitor and map
      * each discovered class to a location DTO, keyed by FQCN. Later classes
      * with the same FQCN overwrite earlier ones (matches the prior inline
      * loops, which assigned unconditionally).
@@ -65,20 +68,16 @@ trait TwoPathDiscovery
      */
     protected function collectFromDirectory(
         string $appRoot,
-        string $directory,
+        PrimitiveDirectory $directory,
         Closure $makeVisitor,
         Closure $recordsOf,
         Closure $fqcnOf,
         Closure $toLocation,
     ): array {
-        if (! is_dir($directory)) {
-            return [];
-        }
-
         $visitor = $makeVisitor();
         $results = [];
 
-        foreach ($this->iteratePhpFiles($directory) as $file) {
+        foreach ($this->scanFiles($appRoot, $directory) as $file) {
             $this->walker()->walk($file->getPathname(), [$visitor]);
 
             foreach ($recordsOf($visitor) as $record) {
@@ -116,7 +115,7 @@ trait TwoPathDiscovery
         Closure $toLocation,
     ): ?object {
         $absolute = $this->psr4Locator()->locate($appRoot, $fqcn);
-        if ($absolute === null) {
+        if ($absolute === null || ! $this->scope()->admits($appRoot, $absolute)) {
             return null;
         }
 
