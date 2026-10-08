@@ -100,7 +100,7 @@ final class ChainModifierExtractor
      * The execution mode a PendingDispatch chain selects. `->afterResponse()`
      * and `->afterResponse(true)` yield AFTER_RESPONSE; `->afterResponse(false)`
      * cancels an earlier call; a non-literal argument is ignored. Last literal
-     * wins.
+     * wins. `PendingBatch::dispatchAfterResponse()` also selects it.
      *
      * @param  list<Node\Expr\MethodCall>  $links
      */
@@ -109,7 +109,17 @@ final class ChainModifierExtractor
         $mode = null;
 
         foreach ($links as $link) {
-            if (! $link->name instanceof Node\Identifier || $link->name->toString() !== 'afterResponse') {
+            if (! $link->name instanceof Node\Identifier) {
+                continue;
+            }
+
+            if ($link->name->toString() === 'dispatchAfterResponse') {
+                $mode = DispatchMode::AFTER_RESPONSE;
+
+                continue;
+            }
+
+            if ($link->name->toString() !== 'afterResponse') {
                 continue;
             }
 

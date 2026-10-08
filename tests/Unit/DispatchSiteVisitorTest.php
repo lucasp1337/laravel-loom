@@ -1257,6 +1257,28 @@ it('sends non-literal Bus::chain and dynamic items to unresolved', function () {
     expect($unresolved[0]->reason)->toBe('dynamic_class_name');
 });
 
+it('marks Bus::batch jobs after_response only for dispatchAfterResponse()', function () {
+    $source = <<<'PHP'
+    <?php
+    namespace App\Services;
+    use App\Jobs\A;
+    use App\Jobs\B;
+    use Illuminate\Support\Facades\Bus;
+    class Svc {
+        public function go(): void {
+            Bus::batch([new A])->dispatchAfterResponse();
+            Bus::batch([new B])->dispatch();
+        }
+    }
+    PHP;
+
+    [$sites] = runDispatchSiteVisitor($source);
+
+    expect($sites)->toHaveCount(2);
+    expect($sites[0]->mode)->toBe(DispatchMode::AFTER_RESPONSE);
+    expect($sites[1]->mode)->toBeNull();
+});
+
 // -----------------------------------------------------------------------------
 // Execution modes
 // -----------------------------------------------------------------------------
