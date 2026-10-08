@@ -1266,7 +1266,7 @@ registrations are expanded into their constituent CRUD routes (see
 `dispatches[]` cross-link — the events and jobs dispatched inside its
 controller method, joined during the cross-link pass (see
 [Dispatches](#dispatches)). Middleware-group / alias resolution is deferred
-to follow-up PRs (see [Known limitations](../reference/what-loom-detects.md#routes)).
+to follow-up PRs (see [Known limitations](../reference/what-loom-detects.md)).
 
 ### What it detects
 
@@ -1510,7 +1510,7 @@ entries: `index`, `store`, `show`, `update`, `destroy`.
 The override forms `->names(...)`, `->parameters(...)`, `->scoped(...)`,
 and `->shallow()` are **not** applied — the expansion always uses the
 default names and parameters above (see
-[Known limitations](../reference/what-loom-detects.md#routes)).
+[Known limitations](../reference/what-loom-detects.md)).
 
 #### Dispatches
 

@@ -7,6 +7,10 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
+exclude_docs: |
+  ui-design-spec.md
+  ui-query-layer-plan.md
+
 theme:
   name: material
   palette:
@@ -73,4 +77,10 @@ nav:
       - MCP tools: reference/mcp-tools.md
       - Schema: reference/schema.md
       - PHP API: reference/php-api.md
-  - Upgrading: upgrading.md
+      - UI config: reference/ui-config.md
+      - What Loom detects: reference/what-loom-detects.md
+  - Contributing:
+      - Architecture: contributing/architecture.md
+      - Class hierarchy: contributing/class-hierarchy.md
+      - Scanner internals: contributing/scanners-internals.md
+      - Decision records: contributing/adr/README.md

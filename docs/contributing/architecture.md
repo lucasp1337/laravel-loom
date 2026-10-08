@@ -168,6 +168,6 @@ If you exceed these, the first move is sharing parsed ASTs across scanners (curr
 
 ## Extension points
 
-Scanners are not a public extension point ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)). Adding a new scanner means contributing one file plus one entry in `DefaultScanners`; see [CONTRIBUTING.md](../../CONTRIBUTING.md) for the workflow.
+Scanners are not a public extension point ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)). Adding a new scanner means contributing one file plus one entry in `DefaultScanners`; see [CONTRIBUTING.md](https://github.com/lucasp1337/laravel-loom/blob/main/CONTRIBUTING.md) for the workflow.
 
 Runtime data merging (e.g. promoting `confidence` from `high` to verified after a trace) would attach to existing dispatch entries via a separate overlay, not by mutating scanner output. Loom stays static; overlays would be a layer above.

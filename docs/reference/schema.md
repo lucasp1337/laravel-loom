@@ -509,4 +509,4 @@ What to do about it:
 
 - Pin the Loom version you build tooling against, and upgrade deliberately.
 - Read the [changelog](https://github.com/lucasp1337/laravel-loom/blob/main/CHANGELOG.md) before upgrading; shape changes are listed there.
-- Regenerate the index with `php artisan loom:scan` after every upgrade instead of reusing an old file. See [Upgrading](../upgrading.md).
+- Regenerate the index with `php artisan loom:scan` after every upgrade instead of reusing an old file.

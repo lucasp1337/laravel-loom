@@ -74,7 +74,11 @@ The scan, show, diff and check commands work without them.
 
 ## Documentation
 
-Start at [getting started](docs/getting-started.md), or see the [command reference](docs/reference/commands.md) and the [JSON schema](docs/reference/schema.md).
+The site is at <https://lucasp1337.github.io/laravel-loom/>. Start at [getting started](docs/getting-started.md), or see the [command reference](docs/reference/commands.md) and the [JSON schema](docs/reference/schema.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for supported versions and how to report a vulnerability.
 
 ## Contributing
 

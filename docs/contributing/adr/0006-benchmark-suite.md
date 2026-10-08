@@ -2,7 +2,7 @@
 
 **Status**: Accepted (2026-06-07)
 
-**Reference**: [`benchmarks/README.md`](../../../benchmarks/README.md) for the suite,
+**Reference**: [`benchmarks/README.md`](https://github.com/lucasp1337/laravel-loom/blob/main/benchmarks/README.md) for the suite,
 its profiles, and the commands. This ADR captures only the load-bearing decision.
 
 ## Context
