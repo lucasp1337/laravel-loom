@@ -417,7 +417,7 @@ final class RouteScanner implements Scanner
         return ['fqcn' => null, 'method' => null];
     }
 
-    private function closureEndLine(Node\Arg|Node\VariadicPlaceholder|null $arg): ?int
+    private function closureEndLine(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): ?int
     {
         if (! $arg instanceof Node\Arg) {
             return null;
