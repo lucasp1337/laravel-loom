@@ -17,7 +17,7 @@
         "jobs",
         "unresolved_dispatches",
         "closure_listeners",
-        "scheduled",
+        "scheduled_tasks",
         "routes",
         "mailables",
         "notifications"
@@ -26,11 +26,11 @@
     "properties": {
         "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
         "loom_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
-        "scanned_at": { "type": "string", "format": "date-time" },
+        "scanned_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled", "routes", "mailables", "notifications"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled_tasks", "routes", "mailables", "notifications"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -39,7 +39,7 @@
                 "jobs": { "type": "integer", "minimum": 0 },
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
                 "closure_listeners": { "type": "integer", "minimum": 0 },
-                "scheduled": { "type": "integer", "minimum": 0 },
+                "scheduled_tasks": { "type": "integer", "minimum": 0 },
                 "routes": { "type": "integer", "minimum": 0 },
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
@@ -73,7 +73,7 @@
             "type": "array",
             "items": { "$ref": "#/$defs/closureListener" }
         },
-        "scheduled": {
+        "scheduled_tasks": {
             "type": "array",
             "items": { "$ref": "#/$defs/scheduleEntry" }
         },
@@ -199,7 +199,13 @@
                 "registration": { "enum": ["observe_call", "attribute"] },
                 "hooks": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                        "enum": [
+                            "retrieved", "creating", "created", "updating", "updated",
+                            "saving", "saved", "deleting", "deleted", "restoring", "restored",
+                            "replicating", "trashed", "forceDeleting", "forceDeleted"
+                        ]
+                    }
                 },
                 "dispatches": {
                     "type": "array",

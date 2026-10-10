@@ -45,7 +45,7 @@ $handler = static fn (string $name): array => ['listener' => "App\\Listeners\\{$
 return [
     'schema_version' => '1.0',
     'loom_version' => '0.3.0',
-    'scanned_at' => '2026-01-01T00:00:00+00:00',
+    'scanned_at' => '2026-01-01T00:00:00Z',
     'laravel_version' => '12.x',
     'events' => [
         $event('OrderPlaced', [$handler('SendReceipt')], [$site('app/Http/Controllers/OrderController.php', 20)]),
@@ -122,7 +122,7 @@ return [
             'channels_dynamic' => false,
         ],
     ],
-    'scheduled' => [],
+    'scheduled_tasks' => [],
     'routes' => [
         [
             'method' => 'POST',

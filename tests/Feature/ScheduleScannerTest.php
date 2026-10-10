@@ -32,7 +32,7 @@ function scheduleEntryAt(array $entries, string $file, int $line): ?ScheduledEnt
 }
 
 /**
- * Convenience: scan the fixture and return the `scheduled[]` list.
+ * Convenience: scan the fixture and return the `scheduled_tasks[]` list.
  *
  * @return array<int, array<string, mixed>>
  */
@@ -41,7 +41,7 @@ function scheduleEntries(): array
     $result = (new ScheduleScanner)->scan(scheduleFixturePath());
 
     /** @var array<int, array<string, mixed>> $entries */
-    $entries = $result['scheduled'];
+    $entries = $result['scheduled_tasks'];
 
     return $entries;
 }
@@ -53,7 +53,7 @@ function scheduleEntries(): array
 it('returns an empty scheduled array when neither bootstrap/app.php, Kernel.php nor app/ exist', function () {
     $result = (new ScheduleScanner)->scan(sys_get_temp_dir());
 
-    expect($result)->toBe(['scheduled' => []]);
+    expect($result)->toBe(['scheduled_tasks' => []]);
 });
 
 // ---------------------------------------------------------------------------
@@ -825,7 +825,7 @@ it('reports file paths relative to the fixture root with forward slashes', funct
 
 it('discovers Schedule facade entries declared in routes/console.php', function () {
     $entries = array_values(array_filter(
-        (new ScheduleScanner)->scan(scheduleFixturePath())['scheduled'],
+        (new ScheduleScanner)->scan(scheduleFixturePath())['scheduled_tasks'],
         fn (ScheduledEntry $e): bool => $e->file === 'routes/console.php',
     ));
 

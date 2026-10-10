@@ -6,6 +6,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Changed
 
+- Schema 1.0 and the MCP tool surface are frozen; output is sorted into a total order so two scans of the same source are byte-identical apart from `scanned_at` ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- The `scheduled` section is renamed `scheduled_tasks` (also `stats.scheduled_tasks`, `Index::scheduledTasks()` and the `Model\ScheduledTask` read model) so every section is a plural noun ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- `impact-of-change` takes `change` (was `kind`) and returns `change`; impact `handlers[]` use `handler_kind` (was `kind`) ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- Schema: `scanned_at` must end in `Z`, `observers[].hooks[]` is an enum, `get-entity` and `list-entities` errors list the accepted values ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - Laravel 11 is no longer supported; Loom requires Laravel 12.41.1+ or 13.
 - `livewire/livewire` and `laravel/mcp` are optional (`suggest`). The UI needs Livewire ^3.8 or ^4.0; `loom:mcp` needs `laravel/mcp` and exits 1 with an install hint without it.
 

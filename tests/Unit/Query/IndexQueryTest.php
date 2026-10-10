@@ -418,7 +418,7 @@ it('builds dashboard counts, health numbers and ranked fan-out', function () use
         ->and($dash->orphanEventCount)->toBe(1)
         ->and($dash->idleListenerCount)->toBe(1)
         ->and($dash->unresolvedCount)->toBe(1)
-        ->and($dash->meta->scannedAt)->toBe('2026-01-01T00:00:00+00:00');
+        ->and($dash->meta->scannedAt)->toBe('2026-01-01T00:00:00Z');
 
     // ReceiptSent has two handlers (listener + closure); the rest have one.
     expect($dash->biggestFanOut[0]->event)->toBe($e('ReceiptSent'))

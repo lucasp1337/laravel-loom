@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp;
 
 use Laravel\Mcp\Server;
+use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Mcp\Tools\DispatchesFromTool;
 use Lucasp\Loom\Mcp\Tools\DispatchSitesForTool;
 use Lucasp\Loom\Mcp\Tools\EventsFollowingTool;
@@ -27,7 +28,7 @@ final class LoomMcpServer extends Server
 {
     protected string $name = 'Laravel Loom';
 
-    protected string $version = '0.1.0';
+    protected string $version = IndexBuilder::LOOM_VERSION;
 
     protected string $instructions = <<<'MARKDOWN'
         Laravel Loom statically maps a Laravel app's event-driven architecture:

@@ -77,7 +77,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @return array{scheduled: list<ScheduledEntry>}
+     * @return array{scheduled_tasks: list<ScheduledEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -106,7 +106,7 @@ final class ScheduleScanner implements Scanner
         $result = array_values($entries);
         usort($result, fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
 
-        return ['scheduled' => $result];
+        return ['scheduled_tasks' => $result];
     }
 
     /**

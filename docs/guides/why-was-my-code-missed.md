@@ -175,7 +175,7 @@ public function via(object $notifiable): array
 
 Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under `app/`. Schedules declared anywhere else (for example a package or a custom directory) are not scanned.
 
-**Confirm:** `jq '.scheduled[] | {target, cron}' storage/loom/index.json` lists the task.
+**Confirm:** `jq '.scheduled_tasks[] | {target, cron}' storage/loom/index.json` lists the task.
 
 ### The cron value is null
 

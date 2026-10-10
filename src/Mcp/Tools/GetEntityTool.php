@@ -47,7 +47,9 @@ final class GetEntityTool extends Tool
 
         $kind = EntityKind::tryFrom($validated['kind']);
         if ($kind === null) {
-            return Response::error("Unknown kind [{$validated['kind']}].");
+            $expected = implode(', ', array_map(static fn (EntityKind $k): string => $k->value, EntityKind::cases()));
+
+            return Response::error("Unknown kind [{$validated['kind']}]; expected one of: {$expected}.");
         }
 
         $entity = $this->query->rawEntity($kind, $fqcn);

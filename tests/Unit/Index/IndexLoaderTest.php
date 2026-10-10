@@ -16,7 +16,7 @@ function minimalIndexArray(): array
     return [
         'schema_version' => '1.0',
         'loom_version' => '0.3.0',
-        'scanned_at' => '2026-06-07T12:00:00+00:00',
+        'scanned_at' => '2026-06-07T12:00:00Z',
         'laravel_version' => '12.x',
     ];
 }
@@ -26,7 +26,7 @@ it('hydrates the meta envelope from an array', function () {
 
     expect($index)->toBeInstanceOf(Index::class);
     expect($index->loomVersion)->toBe('0.3.0');
-    expect($index->scannedAt)->toBe('2026-06-07T12:00:00+00:00');
+    expect($index->scannedAt)->toBe('2026-06-07T12:00:00Z');
     expect($index->laravelVersion)->toBe('12.x');
 });
 
@@ -41,7 +41,7 @@ it('defaults every section to an empty list when absent', function () {
     expect($index->jobs())->toBe([]);
     expect($index->mailables())->toBe([]);
     expect($index->notifications())->toBe([]);
-    expect($index->scheduled())->toBe([]);
+    expect($index->scheduledTasks())->toBe([]);
     expect($index->routes())->toBe([]);
     expect($index->unresolvedDispatches())->toBe([]);
 });
@@ -108,7 +108,7 @@ it('throws when a JSON array is given (decodes to a list, then fails missing met
 it('throws when a required meta field is missing', function () {
     (new IndexLoader)->fromArray([
         'schema_version' => '1.0',
-        'scanned_at' => '2026-06-07T12:00:00+00:00',
+        'scanned_at' => '2026-06-07T12:00:00Z',
         'laravel_version' => '12.x',
     ]);
 })->throws(IndexLoadException::class, 'loom_version');
@@ -125,7 +125,7 @@ it('throws when laravel_version is missing', function () {
     (new IndexLoader)->fromArray([
         'schema_version' => '1.0',
         'loom_version' => '0.3.0',
-        'scanned_at' => '2026-06-07T12:00:00+00:00',
+        'scanned_at' => '2026-06-07T12:00:00Z',
     ]);
 })->throws(IndexLoadException::class, 'laravel_version');
 

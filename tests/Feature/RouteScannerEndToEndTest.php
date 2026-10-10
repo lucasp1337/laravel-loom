@@ -158,7 +158,7 @@ it('leaves the listener-shaped sections empty for the route fixture', function (
     expect($payload['model_events'])->toBe([]);
     expect($payload['unresolved_dispatches'])->toBe([]);
     expect($payload['closure_listeners'])->toBe([]);
-    expect($payload['scheduled'])->toBe([]);
+    expect($payload['scheduled_tasks'])->toBe([]);
     expect($payload['mailables'])->toBe([]);
     expect($payload['notifications'])->toBe([]);
 });

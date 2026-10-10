@@ -10,6 +10,7 @@ use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use Lucasp\Loom\Support\Facades;
@@ -641,44 +642,44 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     private function classifyUnresolvedReason(Node $expr): string
     {
         if ($expr instanceof Node\Expr\Variable) {
-            return 'dynamic_class_name';
+            return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
         }
 
         if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Expr\Variable) {
-            return 'dynamic_class_name';
+            return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
         }
 
         if ($expr instanceof Node\Expr\FuncCall
             && $expr->name instanceof Node\Name
             && in_array(strtolower($expr->name->toString()), ['app', 'resolve'], true)
         ) {
-            return 'container_resolution';
+            return UnresolvedReason::CONTAINER_RESOLUTION->value;
         }
 
         if ($expr instanceof Node\Expr\MethodCall
             && $expr->name instanceof Node\Identifier
             && $expr->name->toString() === 'make'
         ) {
-            return 'container_resolution';
+            return UnresolvedReason::CONTAINER_RESOLUTION->value;
         }
 
         if ($expr instanceof Node\Expr\BinaryOp\Concat) {
-            return 'string_concatenation';
+            return UnresolvedReason::STRING_CONCATENATION->value;
         }
 
         if ($expr instanceof Node\Scalar\Encapsed) {
-            return 'string_concatenation';
+            return UnresolvedReason::STRING_CONCATENATION->value;
         }
 
         if ($expr instanceof Node\Expr\Ternary) {
-            return 'conditional_dispatch';
+            return UnresolvedReason::CONDITIONAL_DISPATCH->value;
         }
 
         if ($expr instanceof Node\Expr\Match_) {
-            return 'conditional_dispatch';
+            return UnresolvedReason::CONDITIONAL_DISPATCH->value;
         }
 
-        return 'dynamic_class_name';
+        return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
     }
 
     private function renderExpression(Node\Expr $callNode, string $callLabel): string

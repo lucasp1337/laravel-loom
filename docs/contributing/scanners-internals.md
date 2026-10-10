@@ -1006,7 +1006,7 @@ Notifications do not participate in the disambiguation phase
 ## ScheduleScanner
 
 Discovers entries declared in Laravel's task scheduler and emits the
-`scheduled[]` section of the index.
+`scheduled_tasks[]` section of the index.
 
 See [ADR 0002](adr/0002-schedule-scanner.md) for the load-bearing design
 decisions (discovery strategy, cron normalisation, cross-link shape).
@@ -1054,7 +1054,7 @@ Schedule::daily()->onOneServer()->group(function () {
 });
 ```
 
-Each inner task emits as an ordinary `scheduled[]` entry — there is no
+Each inner task emits as an ordinary `scheduled_tasks[]` entry — there is no
 special marker — carrying the group's merged attributes (cron, frequency,
 `on_one_server`, `without_overlapping`, `timezone`, constraints, …). The
 group's links are spliced *before* the inner task's own links, so the
@@ -1179,7 +1179,7 @@ Field semantics:
 
 Entries are sorted by `(file, line)` ascending.
 
-`stats.scheduled` is added to the top-level stats block as the count of
+`stats.scheduled_tasks` is added to the top-level stats block as the count of
 entries.
 
 ### Cross-link behavior
@@ -1187,7 +1187,7 @@ entries.
 ScheduleScanner participates in cross-link only as a *source*. No fields
 on existing primitives are widened.
 
-- `scheduled[*].target` with `kind: "job"` carries the job FQCN.
+- `scheduled_tasks[*].target` with `kind: "job"` carries the job FQCN.
   Consumers join client-side against `jobs[*].fqcn`. There is no
   `jobs[*].scheduled` flag — see ADR 0002 §5 for rationale.
 - Dispatch sites inside a scheduled closure (`Schedule::call(fn () =>

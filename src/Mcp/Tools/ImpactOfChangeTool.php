@@ -30,9 +30,9 @@ final class ImpactOfChangeTool extends Tool
             'fqcn' => $schema->string()
                 ->description('The fully-qualified class name being changed (event, listener, or job).')
                 ->required(),
-            'kind' => $schema->string()
+            'change' => $schema->string()
                 ->enum(array_map(static fn (ChangeKind $k): string => $k->value, ChangeKind::cases()))
-                ->description('The kind of change. Affects the framing of the notes only.')
+                ->description('The kind of change being made. Affects the framing of the notes only.')
                 ->default(ChangeKind::REMOVE->value),
         ];
     }
@@ -41,19 +41,19 @@ final class ImpactOfChangeTool extends Tool
     {
         $validated = $request->validate([
             'fqcn' => 'required|string',
-            'kind' => 'sometimes|string',
+            'change' => 'sometimes|string',
         ]);
 
         $fqcn = (string) $validated['fqcn'];
-        $rawKind = $validated['kind'] ?? ChangeKind::REMOVE->value;
-        $kind = ChangeKind::tryFrom($rawKind);
-        if ($kind === null) {
+        $rawChange = $validated['change'] ?? ChangeKind::REMOVE->value;
+        $change = ChangeKind::tryFrom($rawChange);
+        if ($change === null) {
             $expected = implode(', ', array_map(static fn (ChangeKind $k): string => $k->value, ChangeKind::cases()));
 
-            return Response::error("Unknown kind [{$rawKind}]; expected one of: {$expected}.");
+            return Response::error("Unknown change [{$rawChange}]; expected one of: {$expected}.");
         }
 
-        $report = $this->query->impactOfChange($fqcn, $kind);
+        $report = $this->query->impactOfChange($fqcn, $change);
 
         return Response::text((string) json_encode(
             $report->toArray(ImpactNoteFormatter::render(...)),

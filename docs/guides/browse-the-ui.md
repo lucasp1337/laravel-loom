@@ -71,7 +71,7 @@ http://localhost:8000/loom/listeners?q=Order&sort=dispatches&dir=desc&page=1
 
 It shows listeners matching `Order`, busiest dispatchers first. A row marked `orphan` is unconnected: an event nobody handles or dispatches, or a listener that handles no event.
 
-Sections without a detail page (`scheduled`, `routes`, `closure_listeners`, `model_events`, `unresolved_dispatches`) are read straight from the table.
+Sections without a detail page (`scheduled_tasks`, `routes`, `closure_listeners`, `model_events`, `unresolved_dispatches`) are read straight from the table.
 
 ## Jump anywhere
 

@@ -13,7 +13,7 @@ final class Sorting
 {
     /**
      * Comparator that sorts associative-array rows by the given keys in order.
-     * Missing keys default to 0 for 'line', '' otherwise — so the comparator
+     * Missing keys default to 0 for 'line' and 'end_line', '' otherwise — so the comparator
      * never compares mixed types.
      *
      * @param  list<string>  $keys
@@ -25,7 +25,7 @@ final class Sorting
             $aTuple = [];
             $bTuple = [];
             foreach ($keys as $key) {
-                $default = $key === 'line' ? 0 : '';
+                $default = $key === 'line' || $key === 'end_line' ? 0 : '';
                 $aTuple[] = $a[$key] ?? $default;
                 $bTuple[] = $b[$key] ?? $default;
             }

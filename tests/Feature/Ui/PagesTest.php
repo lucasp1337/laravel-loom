@@ -82,7 +82,7 @@ it('syncs filter and sort to the url', function () {
 });
 
 it('shows a per-section empty state', function () {
-    Livewire::test(SectionIndex::class, ['section' => 'scheduled'])
+    Livewire::test(SectionIndex::class, ['section' => 'scheduled_tasks'])
         ->assertSee('No scheduled tasks in this index');
 });
 
@@ -210,7 +210,7 @@ it('applies the stale banner when app/ changed after the scan', function () {
         {
             public function lastChange(): ?int
             {
-                return strtotime('2026-01-08T00:00:00+00:00');
+                return strtotime('2026-01-08T00:00:00Z');
             }
         },
     );

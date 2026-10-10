@@ -10,11 +10,11 @@ use Lucasp\Loom\Index\ScheduleKind;
 /**
  * A scheduled task (command, job, closure, or shell exec) with its cron
  * expression — or structured sub-minute `frequency` — and lifecycle modifiers.
- * Read model for the `scheduled` section.
+ * Read model for the `scheduled_tasks` section.
  *
  * @api
  */
-final readonly class Scheduled
+final readonly class ScheduledTask
 {
     /**
      * @param  list<string>  $arguments
