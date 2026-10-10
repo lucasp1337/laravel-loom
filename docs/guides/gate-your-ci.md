@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: lucasp1337/laravel-loom@v0.3.0
+      - uses: lucasp1337/laravel-loom@v0.4.0
         with:
           strict: "true"
 ```
