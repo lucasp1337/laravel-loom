@@ -57,6 +57,12 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.highlight:
       anchor_linenums: true
+      extend_pygments_lang:
+        # Snippets are fragments, so lex PHP without requiring an opening tag
+        - name: php
+          lang: php
+          options:
+            startinline: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
