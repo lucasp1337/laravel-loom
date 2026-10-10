@@ -168,7 +168,7 @@ final class EventScanner implements Scanner
      */
     private function emit(array $merged): array
     {
-        ksort($merged);
+        $merged = collect($merged)->sortKeys()->all();
 
         $entries = [];
         foreach ($merged as $fqcn => $location) {

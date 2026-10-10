@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ClosureListenerEntry;
 use Lucasp\Loom\Dto\ClosureListenerRecord;
@@ -122,7 +124,7 @@ final class ListenerScanner implements Scanner
         $handles = [];
         $matched = false;
         foreach ($resolver->effectiveMethods($fqcn) as $method) {
-            $isHandler = str_starts_with($method->name, 'handle') || $method->name === '__invoke';
+            $isHandler = Str::startsWith($method->name, 'handle') || $method->name === '__invoke';
             if (! $isHandler || ! $method->isPublic() || $method->isAbstract || ! $method->hasParameters) {
                 continue;
             }
@@ -397,12 +399,12 @@ final class ListenerScanner implements Scanner
      */
     private function emit(array $merged, ClassHierarchyResolver $resolver): array
     {
-        ksort($merged);
+        $merged = collect($merged)->sortKeys()->all();
 
         $entries = [];
         foreach ($merged as $fqcn => $loc) {
             $handles = array_values($loc->handles);
-            usort($handles, fn (ListenerHandle $a, ListenerHandle $b): int => [$a->event, $a->method] <=> [$b->event, $b->method]);
+            $handles = array_values(collect($handles)->sort(fn (ListenerHandle $a, ListenerHandle $b): int => [$a->event, $a->method] <=> [$b->event, $b->method])->all());
 
             // file/line are non-null at emit time — guaranteed by merge()'s PSR-4 guess.
             $entries[] = new ListenerEntry(
@@ -442,19 +444,16 @@ final class ListenerScanner implements Scanner
         }
 
         $records = array_values($seen);
-        usort($records, fn (ClosureListenerRecord $a, ClosureListenerRecord $b): int => [$a->event, $a->file, $a->line] <=> [$b->event, $b->file, $b->line]);
+        $records = array_values(collect($records)->sort(fn (ClosureListenerRecord $a, ClosureListenerRecord $b): int => [$a->event, $a->file, $a->line] <=> [$b->event, $b->file, $b->line])->all());
 
         // Cross-link populates dispatches[]; emitting empty here matches the schema.
-        return array_map(
-            fn (ClosureListenerRecord $r): ClosureListenerEntry => new ClosureListenerEntry(
-                event: $r->event,
-                file: $r->file,
-                line: $r->line,
-                endLine: $r->endLine,
-                registration: $r->registration,
-                queued: false,
-            ),
-            $records,
-        );
+        return array_values(Arr::map($records, fn (ClosureListenerRecord $r): ClosureListenerEntry => new ClosureListenerEntry(
+            event: $r->event,
+            file: $r->file,
+            line: $r->line,
+            endLine: $r->endLine,
+            registration: $r->registration,
+            queued: false,
+        )));
     }
 }

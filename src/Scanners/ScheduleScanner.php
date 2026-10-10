@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
@@ -104,7 +106,7 @@ final class ScheduleScanner implements Scanner
         }
 
         $result = array_values($entries);
-        usort($result, fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
+        $result = array_values(collect($result)->sort(fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line])->all());
 
         return ['scheduled_tasks' => $result];
     }
@@ -242,7 +244,7 @@ final class ScheduleScanner implements Scanner
                     continue;
                 }
 
-                if (in_array($method, self::FREQUENCY_HELPERS, true)) {
+                if (collect(self::FREQUENCY_HELPERS)->containsStrict($method)) {
                     // Last-wins, including null when args are unresolvable.
                     $cron = $this->cronFromHelper($method, $args);
                     $frequency = null;       // a cron-based helper overrides any prior sub-minute frequency
@@ -253,7 +255,7 @@ final class ScheduleScanner implements Scanner
 
                 // Unknown method after a frequency helper: could be a future
                 // helper or a Schedule::macro. Null cron and frequency to avoid lying.
-                if ($cronWasSet && ! in_array($method, self::SAFE_MODIFIERS, true)) {
+                if ($cronWasSet && ! collect(self::SAFE_MODIFIERS)->containsStrict($method)) {
                     $cron = null;
                     $frequency = null;
                 }
@@ -307,7 +309,7 @@ final class ScheduleScanner implements Scanner
                 }
             }
 
-            sort($constraints);
+            $constraints = array_values(collect($constraints)->sort()->all());
 
             $out[] = new ScheduledEntry(
                 kind: $raw->kind,
@@ -459,7 +461,7 @@ final class ScheduleScanner implements Scanner
 
     private function normaliseAtCallable(string $value): string
     {
-        if (str_contains($value, '@')) {
+        if (Str::contains($value, '@')) {
             [$class, $method] = explode('@', $value, 2);
 
             return $class.'::'.$method;
@@ -590,7 +592,7 @@ final class ScheduleScanner implements Scanner
                     return null;
                 }
 
-                return $minute.' '.$hour.' * * '.implode(',', $days);
+                return $minute.' '.$hour.' * * '.Arr::join($days, ',');
 
             case 'monthly':
                 return '0 0 1 * *';
@@ -620,7 +622,7 @@ final class ScheduleScanner implements Scanner
                 // (daysOfMonth([1, 15])). Laravel runs these at 00:00.
                 $days = $this->collectDayArgs($args);
 
-                return $days === [] ? null : '0 0 '.implode(',', $days).' * *';
+                return $days === [] ? null : '0 0 '.Arr::join($days, ',').' * *';
 
             case 'lastDayOfMonth':
                 $time = AstHelpers::scalarString($args[0] ?? null) ?? '0:00';
@@ -681,7 +683,7 @@ final class ScheduleScanner implements Scanner
      */
     private function constraintFor(string $method, array $args): ?string
     {
-        if (in_array($method, self::DAY_CONSTRAINTS, true)) {
+        if (collect(self::DAY_CONSTRAINTS)->containsStrict($method)) {
             return $method;
         }
 
@@ -720,14 +722,14 @@ final class ScheduleScanner implements Scanner
                 }
             }
 
-            return $values === [] ? 'environments(closure)' : 'environments('.implode(',', $values).')';
+            return $values === [] ? 'environments(closure)' : 'environments('.Arr::join($values, ',').')';
         }
 
         if ($method === 'days') {
             $values = $this->collectDayArgs($args);
 
             // "days(?)" signals an unresolved arg without fabricating a value.
-            return $values === [] ? 'days(?)' : 'days('.implode(',', $values).')';
+            return $values === [] ? 'days(?)' : 'days('.Arr::join($values, ',').')';
         }
 
         return null;
