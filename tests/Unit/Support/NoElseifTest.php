@@ -12,7 +12,6 @@ declare(strict_types=1);
 const ELSEIF_ALLOWLIST = [
     'Check/DispatchGraph.php' => 'legacy, refactor tracked',
     'Check/Rules/UnresolvedDispatchesRule.php' => 'legacy, refactor tracked',
-    'Scanners/Visitors/DispatchSiteVisitor.php' => 'legacy, refactor tracked',
     'Scanners/Visitors/ObserveCallVisitor.php' => 'legacy, refactor tracked',
     'Support/ScanScope.php' => 'legacy, refactor tracked',
 ];

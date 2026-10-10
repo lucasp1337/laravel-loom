@@ -6,16 +6,15 @@ namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Index\DispatchMode;
-use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\CallSite;
 use Lucasp\Loom\Support\Ast\Literal;
-use PhpParser\Node;
 
 /**
  * Maps a fluent dispatch chain's `->method()` links to a {@see DispatchOverrides}.
  *
  * This is the single source of truth for the recognised modifier-method table.
  * It knows nothing about AST traversal direction or dispatch forms — callers
- * hand it a flat, source-order list of {@see Node\Expr\MethodCall} links and it
+ * hand it a flat, source-order list of {@see CallSite} links and it
  * pulls literal argument values via {@see Literal}. Unknown methods, and
  * recognised methods whose argument is not a static literal, are ignored.
  *
@@ -28,7 +27,7 @@ use PhpParser\Node;
 final class ChainModifierExtractor
 {
     /**
-     * @param  list<Node\Expr\MethodCall>  $links
+     * @param  list<CallSite>  $links
      */
     public static function extract(array $links): DispatchOverrides
     {
@@ -40,13 +39,14 @@ final class ChainModifierExtractor
         $afterCommit = null;
 
         foreach ($links as $link) {
-            if (! $link->name instanceof Node\Identifier) {
+            $name = $link->name();
+            if ($name === null) {
                 continue;
             }
 
-            $argValue = Args::of($link->args)->valueAt(0);
+            $argValue = $link->args()->valueAt(0);
 
-            switch ($link->name->toString()) {
+            switch ($name) {
                 case 'locale':
                     $value = Literal::string($argValue);
                     if ($value !== null) {
@@ -102,28 +102,29 @@ final class ChainModifierExtractor
      * cancels an earlier call; a non-literal argument is ignored. Last literal
      * wins. `PendingBatch::dispatchAfterResponse()` also selects it.
      *
-     * @param  list<Node\Expr\MethodCall>  $links
+     * @param  list<CallSite>  $links
      */
     public static function mode(array $links): ?DispatchMode
     {
         $mode = null;
 
         foreach ($links as $link) {
-            if (! $link->name instanceof Node\Identifier) {
+            $name = $link->name();
+            if ($name === null) {
                 continue;
             }
 
-            if ($link->name->toString() === 'dispatchAfterResponse') {
+            if ($name === 'dispatchAfterResponse') {
                 $mode = DispatchMode::AFTER_RESPONSE;
 
                 continue;
             }
 
-            if ($link->name->toString() !== 'afterResponse') {
+            if ($name !== 'afterResponse') {
                 continue;
             }
 
-            $first = Args::of($link->args)->valueAt(0);
+            $first = $link->args()->valueAt(0);
             if ($first === null) {
                 $mode = DispatchMode::AFTER_RESPONSE;
 

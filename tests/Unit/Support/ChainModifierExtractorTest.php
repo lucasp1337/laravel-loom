@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Support\Ast\CallChain;
+use Lucasp\Loom\Support\Ast\CallSite;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
@@ -16,7 +18,7 @@ use PhpParser\ParserFactory;
  * The snippet must be a single expression statement whose outermost node is a
  * MethodCall chain, e.g. `(new Job)->onQueue('q')->delay(5)`.
  *
- * @return list<Node\Expr\MethodCall>
+ * @return list<CallSite>
  */
 function chainLinks(string $expression): array
 {
@@ -36,16 +38,7 @@ function chainLinks(string $expression): array
     /** @var Node\Expr $expr */
     $expr = $stmt->expr;
 
-    $links = [];
-    $current = $expr;
-    while ($current instanceof Node\Expr\MethodCall) {
-        $links[] = $current;
-        $current = $current->var;
-    }
-
-    // Walked outermost-first; reverse to source (innermost-first) order, which
-    // is the order DispatchSiteVisitor::innerChainLinks() produces.
-    return array_reverse($links);
+    return CallChain::methodLinks($expr);
 }
 
 // -----------------------------------------------------------------------------

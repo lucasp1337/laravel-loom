@@ -9,15 +9,17 @@ use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Index\Confidence;
-use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
-use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Index\UnresolvedReason;
+use Lucasp\Loom\Scanners\Dispatch\DispatchRule;
+use Lucasp\Loom\Scanners\Dispatch\DispatchRuleMatcher;
+use Lucasp\Loom\Scanners\Dispatch\DispatchTarget;
 use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\CallChain;
+use Lucasp\Loom\Support\Ast\CallSite;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\ChainModifierExtractor;
-use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
@@ -31,49 +33,13 @@ final class DispatchSiteVisitor extends CollectingVisitor
     use TracksClassScope;
 
     /**
-     * Mail terminal methods (facade and PendingMail): the mailable argument
-     * index and the execution mode. `send` is plain: the mailable's own
-     * ShouldQueue decides whether it is queued.
-     */
-    private const MAIL_TERMINALS = [
-        'send' => [0, null],
-        'sendNow' => [0, DispatchMode::SYNC],
-        'queue' => [0, DispatchMode::PUSH],
-        'onQueue' => [1, DispatchMode::PUSH],
-        'queueOn' => [1, DispatchMode::PUSH],
-        'later' => [1, DispatchMode::PUSH],
-        'laterOn' => [2, DispatchMode::PUSH],
-    ];
-
-    private const MAIL_CHAIN_ROOT_METHODS = ['to', 'cc', 'bcc', 'locale', 'mailer'];
-
-    /** Notification::send / sendNow; `send` is plain (ShouldQueue decides). */
-    private const NOTIFICATION_FACADE_METHODS = ['send' => null, 'sendNow' => DispatchMode::SYNC];
-
-    private const NOTIFY_METHODS = ['notify' => null, 'notifyNow' => DispatchMode::SYNC];
-
-    /** Bus::* single-job methods and their execution mode (null = plain). */
-    private const BUS_METHODS = [
-        'dispatch' => null,
-        'dispatchSync' => DispatchMode::SYNC,
-        'dispatchNow' => DispatchMode::SYNC,
-        'dispatchAfterResponse' => DispatchMode::AFTER_RESPONSE,
-    ];
-
-    /** Queue::* methods that push one job, mapped to the job argument index. */
-    private const QUEUE_METHODS = ['push' => 0, 'pushOn' => 1, 'later' => 1, 'laterOn' => 2];
-
-    /** Dispatchable static forms whose target is the static class itself. */
-    private const DISPATCHABLE_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless', 'dispatchSync', 'dispatchAfterResponse'];
-
-    /**
      * Stack of MethodCall nodes currently entered but not yet left. Parents
      * enter before children, so when a dispatch call is recorded on leaveNode
      * the wrapping outer-chain modifier MethodCalls (PendingDispatch form) are
      * still on this stack. Self-contained here to avoid mutating AstWalker's
      * shared traversal with a ParentConnectingVisitor.
      *
-     * @var list<Node\Expr\MethodCall>
+     * @var list<CallSite>
      */
     private array $methodCallStack = [];
 
@@ -87,9 +53,12 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private PrettyPrinter $printer;
 
-    public function __construct()
+    private DispatchRuleMatcher $matcher;
+
+    public function __construct(?DispatchRuleMatcher $matcher = null)
     {
         $this->printer = new PrettyPrinter;
+        $this->matcher = $matcher ?? DispatchRuleMatcher::forDispatchSites();
     }
 
     protected function reset(): void
@@ -103,7 +72,10 @@ final class DispatchSiteVisitor extends CollectingVisitor
     public function enterNode(Node $node): null
     {
         if ($node instanceof Node\Expr\MethodCall) {
-            $this->methodCallStack[] = $node;
+            $site = CallSite::of($node);
+            if ($site !== null) {
+                $this->methodCallStack[] = $site;
+            }
         }
 
         $this->enterClassScope($node);
@@ -117,12 +89,15 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     public function leaveNode(Node $node): null
     {
-        if ($node instanceof Node\Expr\FuncCall) {
-            $this->handleFuncCall($node);
-        } elseif ($node instanceof Node\Expr\StaticCall) {
-            $this->handleStaticCall($node);
-        } elseif ($node instanceof Node\Expr\MethodCall) {
-            $this->handleMethodCall($node);
+        $call = CallSite::of($node);
+        if ($call !== null) {
+            $rule = $this->matcher->match($call);
+            if ($rule !== null) {
+                $this->record($call, $rule);
+            }
+        }
+
+        if ($node instanceof Node\Expr\MethodCall) {
             // Pop AFTER handling: this MethodCall may itself be an outer-chain
             // modifier wrapping a dispatch call that was recorded earlier (its
             // child leaveNode ran first), so it had to stay on the stack while
@@ -139,214 +114,46 @@ final class DispatchSiteVisitor extends CollectingVisitor
         return null;
     }
 
-    private function handleFuncCall(Node\Expr\FuncCall $node): void
+    private function record(CallSite $call, DispatchRule $rule): void
     {
-        $args = Args::of($node->args);
-
-        if (! $node->name instanceof Node\Name) {
-            return;
-        }
-
-        $name = strtolower($node->name->toString());
-
-        if ($name === 'event') {
-            $this->recordHelperOrFacade($node, $args, DispatchForm::HELPER, DispatchKinds::EVENT, 'event');
-
-            return;
-        }
-
-        if ($name === 'broadcast') {
-            $this->recordHelperOrFacade($node, $args, DispatchForm::HELPER, DispatchKinds::EVENT, 'broadcast');
-
-            return;
-        }
-
-        if ($name === 'broadcast_if' || $name === 'broadcast_unless') {
-            // Conditional forms: $boolean is arg 0, the event is arg 1.
-            $this->recordHelperOrFacade($node, $args->skip(1), DispatchForm::HELPER, DispatchKinds::EVENT, $name);
-
-            return;
-        }
-
-        if ($name === 'dispatch') {
-            $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch');
-
-            return;
-        }
-
-        if ($name === 'dispatch_sync') {
-            $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch_sync', DispatchMode::SYNC);
-        }
+        match ($rule->target) {
+            // `event($e)`, `Bus::dispatch($j)`: one argument, ternary-aware
+            DispatchTarget::PENDING_ARGUMENT => $this->recordHelperOrFacade($call, $rule),
+            // `Mail::send($m)`, `Queue::push($j)`: one argument, receiver chain
+            DispatchTarget::ARGUMENT => $this->recordSiteFromArg($call, $rule),
+            // `Bus::chain([...])`: one site per array item
+            DispatchTarget::LIST_ITEMS => $this->recordJobList($call, $rule),
+            // `Job::dispatch()`: the class itself
+            DispatchTarget::STATIC_CLASS => $this->recordDispatchable($call, $rule),
+        };
     }
 
-    private function handleStaticCall(Node\Expr\StaticCall $node): void
+    private function recordDispatchable(CallSite $call, DispatchRule $rule): void
     {
-        $args = Args::of($node->args);
-
-        if (! $node->class instanceof Node\Name) {
-            return;
-        }
-        if (! $node->name instanceof Node\Identifier) {
-            return;
-        }
-
-        $methodName = $node->name->toString();
-        $className = $node->class->toString();
-
-        if (Facades::MAIL->matches($className)) {
-            if (isset(self::MAIL_TERMINALS[$methodName])) {
-                [$argIndex, $mode] = self::MAIL_TERMINALS[$methodName];
-                $this->recordMailableSiteFromArg($node, $args, $argIndex, DispatchForm::MAIL_FACADE, 'Mail::'.$methodName, $mode);
-
-                return;
-            }
-
-            // Chain roots (to/cc/etc.) have no target on the static call itself.
-            return;
-        }
-
-        if (Facades::NOTIFICATION->matches($className)) {
-            if (Arr::exists(self::NOTIFICATION_FACADE_METHODS, $methodName)) {
-                $this->recordNotificationSiteFromArg($node, $args, 1, DispatchForm::NOTIFICATION_FACADE, 'Notification::'.$methodName, self::NOTIFICATION_FACADE_METHODS[$methodName]);
-
-                return;
-            }
-
-            return;
-        }
-
-        if (Facades::BUS->matches($className)) {
-            if (in_array($methodName, ['chain', 'batch'], true)) {
-                $this->recordJobList($node, $args, 'Bus::'.$methodName);
-            } elseif (Arr::exists(self::BUS_METHODS, $methodName)) {
-                $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::'.$methodName, self::BUS_METHODS[$methodName]);
-            }
-
-            return;
-        }
-
-        if (Facades::QUEUE->matches($className)) {
-            if ($methodName === 'bulk') {
-                $this->recordJobList($node, $args, 'Queue::bulk', DispatchMode::PUSH);
-            } elseif (isset(self::QUEUE_METHODS[$methodName])) {
-                $this->recordSiteFromArg($node, $args, self::QUEUE_METHODS[$methodName], DispatchForm::FACADE, DispatchKinds::JOB, 'Queue::'.$methodName, mode: DispatchMode::PUSH);
-            }
-
-            return;
-        }
-
-        if (! in_array($methodName, self::DISPATCHABLE_METHODS, true)) {
-            return;
-        }
-
-        // Facades have no conditional form — only the Dispatchable trait does.
-        if (Facades::EVENT->matches($className)) {
-            if ($methodName === 'dispatch') {
-                $this->recordHelperOrFacade($node, $args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
-            }
-
-            return;
-        }
-
-        // Dispatchable form: X::dispatch(...) / X::dispatchIf(...) / X::dispatchUnless(...).
         if ($this->shouldSkipResolved()) {
             return;
         }
 
-        // The sync / after-response statics exist only on the Bus Dispatchable
-        // trait (event dispatchables have no such forms), so they are jobs.
-        $staticMode = match ($methodName) {
-            'dispatchSync' => DispatchMode::SYNC,
-            'dispatchAfterResponse' => DispatchMode::AFTER_RESPONSE,
-            default => null,
-        };
+        $className = $call->className();
+        if ($className === null) {
+            return;
+        }
 
-        // (c) outer PendingDispatch chain: `Job::dispatch($o)->onQueue('high')`.
-        $outerLinks = $this->outerChainLinks($node);
+        // Outer PendingDispatch chain: `Job::dispatch($o)->onQueue('high')`.
+        $outerLinks = $this->outerChainLinks($call);
         $this->sites[] = new DispatchSiteRecord(
             classFqcn: $this->currentClassFqcn(),
             method: $this->currentMethod(),
             target: $className,
-            form: DispatchForm::DISPATCHABLE,
-            provisionalKind: $staticMode === null ? DispatchKinds::AMBIGUOUS : DispatchKinds::JOB,
+            form: $rule->form,
+            provisionalKind: $rule->kind,
             file: null,
-            line: $node->getStartLine(),
+            line: $call->line(),
             confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($outerLinks),
-            mode: $staticMode ?? ChainModifierExtractor::mode($outerLinks),
+            mode: $rule->mode ?? ChainModifierExtractor::mode($outerLinks),
             inClosure: $this->inClosure(),
         );
-    }
-
-    private function handleMethodCall(Node\Expr\MethodCall $node): void
-    {
-        $args = Args::of($node->args);
-
-        if (! $node->name instanceof Node\Identifier) {
-            return;
-        }
-        $methodName = $node->name->toString();
-
-        if (isset(self::MAIL_TERMINALS[$methodName])
-            && $this->isRootedAtFacadeChainRoot($node->var, Facades::MAIL, self::MAIL_CHAIN_ROOT_METHODS)
-        ) {
-            [$argIndex, $mode] = self::MAIL_TERMINALS[$methodName];
-            $this->recordMailableSiteFromArg($node, $args, $argIndex, DispatchForm::MAIL_CHAIN, 'Mail::...->'.$methodName, $mode);
-
-            return;
-        }
-
-        if (Arr::exists(self::NOTIFY_METHODS, $methodName)) {
-            // Opaque-receiver ->notify(...) is accepted; the chain-root walk
-            // only changes the `form` label when rooted at Notification::route.
-            $form = $this->isRootedAtFacadeChainRoot($node->var, Facades::NOTIFICATION, ['route'])
-                ? DispatchForm::NOTIFICATION_CHAIN
-                : DispatchForm::NOTIFY_METHOD;
-
-            $this->recordNotificationSiteFromArg($node, $args, 0, $form, '->'.$methodName, self::NOTIFY_METHODS[$methodName]);
-        }
-    }
-
-    /**
-     * @param  list<string>  $rootMethods
-     */
-    private function isRootedAtFacadeChainRoot(Node\Expr $receiver, Facades $facade, array $rootMethods): bool
-    {
-        $current = $receiver;
-        while ($current instanceof Node\Expr\MethodCall) {
-            $current = $current->var;
-        }
-
-        if (! $current instanceof Node\Expr\StaticCall) {
-            return false;
-        }
-        if (! $current->class instanceof Node\Name) {
-            return false;
-        }
-        if (! $current->name instanceof Node\Identifier) {
-            return false;
-        }
-        if (! $facade->matches($current->class->toString())) {
-            return false;
-        }
-
-        return in_array($current->name->toString(), $rootMethods, true);
-    }
-
-    private function recordMailableSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
-    {
-        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::MAILABLE, $callLabel, mode: $mode);
-    }
-
-    private function recordNotificationSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
-    {
-        // The facade form (Notification::send/sendNow) takes an optional channel
-        // filter at $argIndex + 1; the notify-method form has no such argument.
-        $channels = $form === DispatchForm::NOTIFICATION_FACADE
-            ? $this->channelFilterFrom($args, $argIndex + 1)
-            : null;
-
-        $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::NOTIFICATION, $callLabel, $channels, $mode);
     }
 
     /**
@@ -371,12 +178,10 @@ final class DispatchSiteVisitor extends CollectingVisitor
         return $channels;
     }
 
-    /**
-     * @param  list<string>|null  $channels
-     */
-    private function recordSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?array $channels = null, ?DispatchMode $mode = null): void
+    private function recordSiteFromArg(CallSite $call, DispatchRule $rule): void
     {
-        $argValue = $args->valueAt($argIndex);
+        $args = $call->args();
+        $argValue = $args->valueAt($rule->argIndex);
         if ($argValue === null) {
             return;
         }
@@ -388,70 +193,54 @@ final class DispatchSiteVisitor extends CollectingVisitor
                 return;
             }
 
-            // (a) inner argument-instance chain + (b) Mail/Notification facade
-            // receiver chain. The receiver chain only contributes links when
-            // $callNode is a MethodCall (the `Mail::to(...)->locale(...)->send`
-            // form); for a plain StaticCall receiver links resolve to none.
-            $innerLinks = $this->innerChainLinks($argValue);
-            $receiverLinks = $callNode instanceof Node\Expr\MethodCall
-                ? $this->mailReceiverChainLinks($callNode->var)
-                : [];
+            // Argument-instance chain + Mail/Notification receiver chain
+            // (`Mail::to(...)->locale(...)->send(...)`); a static call has no
+            // receiver links.
+            $innerLinks = CallChain::methodLinks($argValue);
+            $receiverLinks = $call->receiverLinks();
 
             $this->sites[] = new DispatchSiteRecord(
                 classFqcn: $this->currentClassFqcn(),
                 method: $this->currentMethod(),
                 target: $resolved,
-                form: $form,
-                provisionalKind: $kind,
+                form: $rule->form,
+                provisionalKind: $rule->kind,
                 file: null,
-                line: $callNode->getStartLine(),
+                line: $call->line(),
                 confidence: Confidence::HIGH->value,
                 overrides: $this->overridesFrom($innerLinks, $receiverLinks),
-                mode: $mode,
-                channels: $channels,
+                mode: $rule->mode,
+                // Only the facade form takes a channel filter argument.
+                channels: $rule->channelsAt !== null ? $this->channelFilterFrom($args, $rule->channelsAt) : null,
                 inClosure: $this->inClosure(),
             );
 
             return;
         }
 
-        if ($this->shouldSkipUnresolved()) {
-            return;
-        }
-
-        $reason = $this->classifyUnresolvedReason($argValue);
-        $expression = $this->renderExpression($callNode, $callLabel);
-
-        $this->unresolved[] = new UnresolvedDispatchRecord(
-            file: null,
-            line: $callNode->getStartLine(),
-            expression: $expression,
-            reason: $reason,
-        );
+        $this->recordUnresolved($call, $argValue, $rule);
     }
 
-    private function recordHelperOrFacade(Node\Expr $callNode, Args $args, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordHelperOrFacade(CallSite $call, DispatchRule $rule): void
     {
-        $first = $args->valueAt(0);
+        $first = $call->args()->valueAt($rule->argIndex);
         if ($first === null) {
             return;
         }
 
         $resolved = ClassRef::fromInstanceOrConstant($first);
 
-        // Ternary with two statically resolvable branches → emit both.
+        // Ternary with two statically resolvable branches: emit both.
         if ($resolved === null && $first instanceof Node\Expr\Ternary) {
-            $ternary = $first;
-            $ifBranch = $ternary->if;
-            $elseBranch = $ternary->else;
+            $ifBranch = $first->if;
 
             if ($ifBranch !== null) {
                 $ifFqcn = ClassRef::fromInstanceOrConstant($ifBranch);
-                $elseFqcn = ClassRef::fromInstanceOrConstant($elseBranch);
+                $elseFqcn = ClassRef::fromInstanceOrConstant($first->else);
 
                 if ($ifFqcn !== null && $elseFqcn !== null) {
-                    $this->emitResolved($callNode, $ifFqcn, $form, $kind, $ifBranch, $mode);
-                    $this->emitResolved($callNode, $elseFqcn, $form, $kind, $elseBranch, $mode);
+                    $this->emitResolved($call, $rule, $ifFqcn, $ifBranch);
+                    $this->emitResolved($call, $rule, $elseFqcn, $first->else);
 
                     return;
                 }
@@ -459,39 +248,27 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         if ($resolved !== null) {
-            $this->emitResolved($callNode, $resolved, $form, $kind, $first, $mode);
+            $this->emitResolved($call, $rule, $resolved, $first);
 
             return;
         }
 
-        if ($this->shouldSkipUnresolved()) {
-            return;
-        }
-
-        $reason = $this->classifyUnresolvedReason($first);
-        $expression = $this->renderExpression($callNode, $callLabel);
-
-        $this->unresolved[] = new UnresolvedDispatchRecord(
-            file: null,
-            line: $callNode->getStartLine(),
-            expression: $expression,
-            reason: $reason,
-        );
+        $this->recordUnresolved($call, $first, $rule);
     }
 
     /**
      * Bus::chain([...]) / Bus::batch([...]): one job site per literal item; a
      * non-literal list or item is recorded as unresolved.
      */
-    private function recordJobList(Node\Expr $callNode, Args $args, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordJobList(CallSite $call, DispatchRule $rule): void
     {
-        $first = $args->valueAt(0);
+        $first = $call->args()->valueAt(0);
         if ($first === null) {
             return;
         }
 
         if (! $first instanceof Node\Expr\Array_) {
-            $this->recordUnresolvedList($callNode, $first, $callLabel);
+            $this->recordUnresolved($call, $first, $rule);
 
             return;
         }
@@ -500,16 +277,16 @@ final class DispatchSiteVisitor extends CollectingVisitor
             $value = $item->value;
             $resolved = ClassRef::fromInstanceOrConstant($value);
             if ($resolved !== null && ! $item->unpack) {
-                $this->emitResolved($callNode, $resolved, DispatchForm::JOB_HELPER, DispatchKinds::JOB, $value, $mode);
+                $this->emitResolved($call, $rule, $resolved, $value);
 
                 continue;
             }
 
-            $this->recordUnresolvedList($callNode, $value, $callLabel);
+            $this->recordUnresolved($call, $value, $rule);
         }
     }
 
-    private function recordUnresolvedList(Node\Expr $callNode, Node\Expr $value, string $callLabel): void
+    private function recordUnresolved(CallSite $call, Node\Expr $value, DispatchRule $rule): void
     {
         if ($this->shouldSkipUnresolved()) {
             return;
@@ -517,36 +294,36 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         $this->unresolved[] = new UnresolvedDispatchRecord(
             file: null,
-            line: $callNode->getStartLine(),
-            expression: $this->renderExpression($callNode, $callLabel),
+            line: $call->line(),
+            expression: $this->renderExpression($call->node(), $rule->label()),
             reason: $this->classifyUnresolvedReason($value),
         );
     }
 
-    private function emitResolved(Node\Expr $callNode, string $targetFqcn, DispatchForm $form, DispatchKinds $kind, ?Node\Expr $argValue = null, ?DispatchMode $mode = null): void
+    private function emitResolved(CallSite $call, DispatchRule $rule, string $targetFqcn, Node\Expr $argValue): void
     {
         if ($this->shouldSkipResolved()) {
             return;
         }
 
-        // (a) inner argument-instance chain + (c) outer PendingDispatch chain
-        // wrapping `dispatch(...)` / `event(...)`. Inner links applied first so
-        // an outer modifier wins on a same-key conflict.
-        $innerLinks = $argValue !== null ? $this->innerChainLinks($argValue) : [];
-        $outerLinks = $this->outerChainLinks($callNode);
+        // Argument-instance chain, then the outer PendingDispatch chain wrapping
+        // `dispatch(...)` / `event(...)`. Inner links first so an outer
+        // modifier wins on a same-key conflict.
+        $innerLinks = CallChain::methodLinks($argValue);
+        $outerLinks = $this->outerChainLinks($call);
 
         $this->sites[] = new DispatchSiteRecord(
             classFqcn: $this->currentClassFqcn(),
             method: $this->currentMethod(),
             target: $targetFqcn,
-            form: $form,
-            provisionalKind: $kind,
+            form: $rule->form,
+            provisionalKind: $rule->kind,
             file: null,
-            line: $callNode->getStartLine(),
+            line: $call->line(),
             confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($innerLinks, $outerLinks),
             // `->afterResponse()` exists only on PendingDispatch, never on event().
-            mode: $mode ?? ($kind === DispatchKinds::EVENT ? null : ChainModifierExtractor::mode($outerLinks)),
+            mode: $rule->mode ?? ($rule->kind === DispatchKinds::EVENT ? null : ChainModifierExtractor::mode($outerLinks)),
             inClosure: $this->inClosure(),
         );
     }
@@ -633,40 +410,18 @@ final class DispatchSiteVisitor extends CollectingVisitor
     }
 
     /**
-     * Collect the fluent `->method()` links on the dispatched-instance argument
-     * (position a), e.g. the `delay`/`onQueue` links in
-     * `dispatch((new Job)->delay(60)->onQueue('high'))`. Walks `->var` down to
-     * the `New_`/`ClassConstFetch` root, then returns the links in source order.
+     * The outer PendingDispatch chain wrapping a dispatch call, e.g.
+     * `Job::dispatch($o)->onQueue('q')->delay(60)`. The modifier MethodCalls
+     * are ancestors of the call and are still on $this->methodCallStack while
+     * it resolves; those whose receiver chain reaches the call are its links.
      *
-     * @return list<Node\Expr\MethodCall>
+     * @return list<CallSite>
      */
-    private function innerChainLinks(Node\Expr $argValue): array
-    {
-        $links = [];
-        $current = $argValue;
-        while ($current instanceof Node\Expr\MethodCall) {
-            $links[] = $current;
-            $current = $current->var;
-        }
-
-        // Walked outermost-first; reverse to source (innermost-first) order.
-        return array_reverse($links);
-    }
-
-    /**
-     * Collect the outer PendingDispatch chain links wrapping a dispatch call
-     * (position c), e.g. `Job::dispatch($o)->onQueue('q')->delay(60)`. The
-     * modifier MethodCalls are ancestors of $dispatchNode and are still on
-     * $this->methodCallStack while $dispatchNode resolves. Selects those whose
-     * receiver chain (`->var`) reaches $dispatchNode.
-     *
-     * @return list<Node\Expr\MethodCall>
-     */
-    private function outerChainLinks(Node\Expr $dispatchNode): array
+    private function outerChainLinks(CallSite $dispatch): array
     {
         $links = [];
         foreach ($this->methodCallStack as $candidate) {
-            if ($this->receiverChainReaches($candidate->var, $dispatchNode)) {
+            if ($candidate->receiverReaches($dispatch->node())) {
                 $links[] = $candidate;
             }
         }
@@ -677,49 +432,11 @@ final class DispatchSiteVisitor extends CollectingVisitor
     }
 
     /**
-     * Collect modifier links in a Mail facade receiver chain (position b),
-     * e.g. `Mail::to($u)->locale('fr')->mailer('ses')->send($m)` — the
-     * modifiers sit in $callNode's receiver chain, between the terminal
-     * send/queue/later and the `Mail::...` static-call root.
-     *
-     * @return list<Node\Expr\MethodCall>
-     */
-    private function mailReceiverChainLinks(Node\Expr $receiver): array
-    {
-        $links = [];
-        $current = $receiver;
-        while ($current instanceof Node\Expr\MethodCall) {
-            $links[] = $current;
-            $current = $current->var;
-        }
-
-        return array_reverse($links);
-    }
-
-    /** True when walking $receiver down `->var` reaches $target. */
-    private function receiverChainReaches(Node\Expr $receiver, Node\Expr $target): bool
-    {
-        $current = $receiver;
-        while (true) {
-            if ($current === $target) {
-                return true;
-            }
-            if ($current instanceof Node\Expr\MethodCall) {
-                $current = $current->var;
-
-                continue;
-            }
-
-            return false;
-        }
-    }
-
-    /**
      * Combine link lists (in the given order) into one DispatchOverrides.
      * Later links win per key; passing inner links before outer links makes
      * an outer modifier take precedence over a same-key inner one.
      *
-     * @param  list<Node\Expr\MethodCall>  ...$linkLists
+     * @param  list<CallSite>  ...$linkLists
      */
     private function overridesFrom(array ...$linkLists): DispatchOverrides
     {

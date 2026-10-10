@@ -84,6 +84,61 @@ final readonly class CallSite
         };
     }
 
+    /**
+     * The class of a static call as written (`X` in `X::m()`). Null for any
+     * other call shape and when the class is dynamic (`$x::m()`).
+     */
+    public function className(): ?string
+    {
+        if (! $this->node instanceof Node\Expr\StaticCall) {
+            return null;
+        }
+
+        return $this->node->class instanceof Node\Name ? $this->node->class->toString() : null;
+    }
+
+    /**
+     * The leftmost call of this call's receiver chain: follows `->var` through
+     * method calls and returns the first call that is not one. Null when the
+     * chain bottoms out on something that is no call (a variable, `new`, ...).
+     */
+    public function chainRoot(): ?self
+    {
+        $site = $this;
+        while ($site !== null && $site->node instanceof Node\Expr\MethodCall) {
+            $site = self::of($site->node->var);
+        }
+
+        return $site;
+    }
+
+    /**
+     * Method calls on this call's receiver chain, in source order (innermost
+     * first), excluding this call. Dynamic method names are kept (name() is null).
+     *
+     * @return list<self>
+     */
+    public function receiverLinks(): array
+    {
+        $receiver = $this->receiver();
+
+        return $receiver instanceof Node\Expr ? CallChain::methodLinks($receiver) : [];
+    }
+
+    /** True when walking this call's receiver chain down `->var` reaches $target. */
+    public function receiverReaches(Node $target): bool
+    {
+        $current = $this->receiver();
+        while ($current !== null) {
+            if ($current === $target) {
+                return true;
+            }
+            $current = $current instanceof Node\Expr\MethodCall ? $current->var : null;
+        }
+
+        return false;
+    }
+
     public function args(): Args
     {
         return Args::of($this->node->args);
