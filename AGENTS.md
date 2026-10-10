@@ -163,6 +163,7 @@ Slash commands wire chains together:
 - PHPStan level 8, zero errors
 - Pint Laravel preset, fixtures excluded via `pint.json`
 - Pest 3 + Orchestra Testbench
+- No `elseif` / `else if` in `src/`: use `match`, a typed enum or guard clauses, and comment each non-obvious branch with the AST shape it handles (`tests/Unit/Support/NoElseifTest.php`)
 
 Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-loom-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest`.
 

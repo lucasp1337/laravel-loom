@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Support;
 
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\RouteFileReference;
+use Lucasp\Loom\Dto\RouteGroupContext;
+use Lucasp\Loom\Dto\UnresolvedGroupAttribute;
 use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Scanners\Visitors\ProviderListVisitor;
 use Lucasp\Loom\Scanners\Visitors\RouteFileLoadVisitor;
@@ -28,7 +30,7 @@ final class RouteFileDiscovery
     /** Cheap pre-filter: a file lacking all of these cannot hold a loading call. */
     private const NEEDLES = ['loadRoutesFrom', 'group', 'withRouting', 'withCommands'];
 
-    /** @var array<string, array{files: list<string>, unresolved: list<UnresolvedRoutePath>}> */
+    /** @var array<string, array{files: list<string>, unresolved: list<UnresolvedRoutePath>, contexts: array<string, list<RouteGroupContext>>, attributes: list<UnresolvedGroupAttribute>}> */
     private array $results = [];
 
     private RoutePathResolver $resolver;
@@ -63,7 +65,30 @@ final class RouteFileDiscovery
     }
 
     /**
-     * @return array{files: list<string>, unresolved: list<UnresolvedRoutePath>}
+     * The group contexts a discovered file is loaded under, one per distinct
+     * loading path. Empty for files nothing loads, which Laravel would
+     * register ungrouped.
+     *
+     * @return list<RouteGroupContext>
+     */
+    public function contexts(string $appRoot, string $file): array
+    {
+        return $this->result($appRoot)['contexts'][$file] ?? [];
+    }
+
+    /**
+     * Group attributes at a loading call that could not be resolved, sorted by
+     * file and line.
+     *
+     * @return list<UnresolvedGroupAttribute>
+     */
+    public function unresolvedAttributes(string $appRoot): array
+    {
+        return $this->result($appRoot)['attributes'];
+    }
+
+    /**
+     * @return array{files: list<string>, unresolved: list<UnresolvedRoutePath>, contexts: array<string, list<RouteGroupContext>>, attributes: list<UnresolvedGroupAttribute>}
      */
     private function result(string $appRoot): array
     {
@@ -71,7 +96,7 @@ final class RouteFileDiscovery
     }
 
     /**
-     * @return array{files: list<string>, unresolved: list<UnresolvedRoutePath>}
+     * @return array{files: list<string>, unresolved: list<UnresolvedRoutePath>, contexts: array<string, list<RouteGroupContext>>, attributes: list<UnresolvedGroupAttribute>}
      */
     private function discover(string $appRoot): array
     {
@@ -81,10 +106,12 @@ final class RouteFileDiscovery
         }
 
         if (! $this->scope->discoversRoutes()) {
-            return ['files' => array_keys($files), 'unresolved' => []];
+            return ['files' => array_keys($files), 'unresolved' => [], 'contexts' => [], 'attributes' => []];
         }
 
         $unresolved = [];
+        $attributes = [];
+        $loads = [];
         $queue = [];
         $queued = [];
         $enqueue = function (string $path) use (&$queue, &$queued, $appRoot): void {
@@ -113,18 +140,98 @@ final class RouteFileDiscovery
             foreach ($this->references($queue[$i]) as $reference) {
                 $outcome = $this->follow($reference, $queue[$i], $appRoot);
 
+                // a path that could not be followed: kept for reporting
                 if ($outcome instanceof UnresolvedRoutePath) {
                     $unresolved[] = $outcome;
-                } elseif ($outcome !== null && ! $this->scope->isExcluded($appRoot, $outcome)) {
-                    $files[$outcome] = true;
-                    $enqueue($outcome);
+
+                    continue;
+                }
+
+                // a command directory, or a file the scan excludes: not a route file to read
+                if ($outcome === null || $this->scope->isExcluded($appRoot, $outcome)) {
+                    continue;
+                }
+
+                $files[$outcome] = true;
+                $enqueue($outcome);
+                $loads[$queue[$i]][] = ['file' => $outcome, 'context' => $reference->context];
+
+                foreach ($this->unresolvedAttributesOf($reference, $queue[$i]) as $attribute) {
+                    $attributes[] = $attribute;
                 }
             }
         }
 
         usort($unresolved, fn (UnresolvedRoutePath $a, UnresolvedRoutePath $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
 
-        return ['files' => array_keys($files), 'unresolved' => $unresolved];
+        usort($attributes, fn (UnresolvedGroupAttribute $a, UnresolvedGroupAttribute $b): int => [$a->file, $a->line, $a->attribute->value] <=> [$b->file, $b->line, $b->attribute->value]);
+
+        return [
+            'files' => array_keys($files),
+            'unresolved' => $unresolved,
+            'contexts' => $this->composeContexts($loads),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * Push each loading call's context down the load graph. A file nothing
+     * loads is a root with the empty context; a loaded file is wrapped by every
+     * context of every file that loads it. A file already on the current path
+     * is not followed again, so a load cycle cannot grow a context forever.
+     *
+     * @param  array<string, list<array{file: string, context: RouteGroupContext}>>  $loads  by loading file
+     * @return array<string, list<RouteGroupContext>> resolved contexts by loaded file, de-duplicated
+     */
+    private function composeContexts(array $loads): array
+    {
+        $loaded = [];
+        foreach ($loads as $edges) {
+            foreach ($edges as $edge) {
+                $loaded[$edge['file']] = true;
+            }
+        }
+
+        $contexts = [];
+        foreach (array_keys($loads) as $file) {
+            if (! isset($loaded[$file])) {
+                $this->pushContexts($loads, $file, RouteGroupContext::empty(), [$file], $contexts);
+            }
+        }
+
+        return array_map(array_values(...), $contexts);
+    }
+
+    /**
+     * @param  array<string, list<array{file: string, context: RouteGroupContext}>>  $loads
+     * @param  list<string>  $path  files on the way to $file, to stop load cycles
+     * @param  array<string, array<string, RouteGroupContext>>  $contexts  by loaded file, then context key
+     */
+    private function pushContexts(array $loads, string $file, RouteGroupContext $context, array $path, array &$contexts): void
+    {
+        foreach ($loads[$file] ?? [] as $edge) {
+            if (in_array($edge['file'], $path, true)) {
+                continue;
+            }
+
+            $inherited = $edge['context']->within($context)->resolved();
+            $contexts[$edge['file']][$inherited->key()] = $inherited;
+            $this->pushContexts($loads, $edge['file'], $inherited, [...$path, $edge['file']], $contexts);
+        }
+    }
+
+    /**
+     * The group attributes of a loading call that were not literals, one entry
+     * per attribute however many enclosing groups set it.
+     *
+     * @return list<UnresolvedGroupAttribute>
+     */
+    private function unresolvedAttributesOf(RouteFileReference $reference, string $sourceFile): array
+    {
+        return array_values(collect($reference->context->unresolved)
+            ->unique(fn (RouteGroupAttribute $attribute): string => $attribute->value)
+            ->map(fn (RouteGroupAttribute $attribute): UnresolvedGroupAttribute => new UnresolvedGroupAttribute($sourceFile, $reference->line, $reference->loader, $attribute))
+            ->all());
     }
 
     /**

@@ -152,3 +152,75 @@ it('reads provider lists from a returned list and from config providers', functi
     expect($list->getProviders())->toBe(['App\Providers\A', 'Modules\B\P'])
         ->and($config->getProviders())->toBe(['App\Providers\A', 'Modules\B\P']);
 });
+
+/**
+ * @return array{prefix: list<string>, name: string, middleware: list<string>, controller: ?string, unresolved: list<string>}
+ */
+function contextOf(RouteFileReference $reference): array
+{
+    return [
+        'prefix' => $reference->context->prefixSegments,
+        'name' => $reference->context->namePrefix,
+        'middleware' => $reference->context->middleware(),
+        'controller' => $reference->context->controller(),
+        'unresolved' => array_map(fn ($a): string => $a->value, $reference->context->unresolved),
+    ];
+}
+
+it('captures the enclosing group chain of a loading call, own group included', function () {
+    $refs = loadReferences(<<<'PHP'
+    Route::middleware('web')->prefix('shop')->name('shop.')->group(function () {
+        $this->loadRoutesFrom(__DIR__.'/a.php');
+        Route::prefix('inner')->group(__DIR__.'/b.php');
+    });
+    PHP);
+
+    expect(contextOf($refs[0]))->toMatchArray(['prefix' => ['shop'], 'name' => 'shop.', 'middleware' => ['web']])
+        ->and(contextOf($refs[1]))->toMatchArray(['prefix' => ['shop', 'inner'], 'name' => 'shop.', 'middleware' => ['web']]);
+});
+
+it('captures array-config groups and the controller of a fluent group', function () {
+    $refs = loadReferences(<<<'PHP'
+    Route::group(['prefix' => '/x/', 'as' => 'x.', 'middleware' => ['auth', Foo::class]], __DIR__.'/a.php');
+    Route::controller(Ctl::class)->group(__DIR__.'/b.php');
+    PHP);
+
+    expect(contextOf($refs[0]))->toMatchArray(['prefix' => ['x'], 'name' => 'x.', 'middleware' => ['auth', 'App\Foo']])
+        ->and(contextOf($refs[1])['controller'])->toBe('App\Ctl');
+});
+
+it('applies the web and api wrappers of withRouting with the default or literal api prefix', function () {
+    $default = loadReferences('$app->withRouting(web: __DIR__."/w.php", api: __DIR__."/a.php");');
+    $custom = loadReferences('$app->withRouting(api: __DIR__."/a.php", apiPrefix: "/v2/");');
+    $positional = loadReferences('$app->withRouting(null, null, __DIR__."/a.php", null, null, null, null, "svc");');
+
+    expect(contextOf($default[0]))->toMatchArray(['prefix' => [], 'middleware' => ['web']])
+        ->and(contextOf($default[1]))->toMatchArray(['prefix' => ['api'], 'middleware' => ['api']])
+        ->and(contextOf($custom[0])['prefix'])->toBe(['v2'])
+        ->and(contextOf($positional[0])['prefix'])->toBe(['svc']);
+});
+
+it('does not guess an api prefix or group attribute that is not a literal', function () {
+    $routing = loadReferences('$app->withRouting(api: __DIR__."/a.php", apiPrefix: config("x"));');
+    $groups = loadReferences(<<<'PHP'
+    Route::prefix('a')->prefix($dynamic)->name($n)->middleware($m)->group(__DIR__.'/a.php');
+    Route::group($attributes, __DIR__.'/b.php');
+    PHP);
+
+    expect(contextOf($routing[0]))->toMatchArray(['prefix' => [], 'middleware' => ['api'], 'unresolved' => ['prefix']])
+        ->and(contextOf($groups[0]))->toMatchArray(['prefix' => [], 'name' => '', 'middleware' => []])
+        ->and(contextOf($groups[0])['unresolved'])->toEqualCanonicalizing(['prefix', 'name', 'middleware'])
+        ->and(contextOf($groups[1])['unresolved'])->toBe(['attributes']);
+});
+
+it('lets a nested group controller replace an inherited one', function () {
+    $refs = loadReferences(<<<'PHP'
+    Route::controller(Outer::class)->group(function () {
+        Route::controller(Inner::class)->group(__DIR__.'/a.php');
+        Route::prefix('p')->group(__DIR__.'/b.php');
+    });
+    PHP);
+
+    expect(contextOf($refs[0])['controller'])->toBe('App\Inner')
+        ->and(contextOf($refs[1])['controller'])->toBe('App\Outer');
+});

@@ -1423,6 +1423,10 @@ Three pieces of context are merged into the leaf route:
   tuple, a bare `Ctrl::class`, or a `'Class@method'` string keeps its own
   controller.
 
+#### Route files loaded under a group
+
+`RouteFileLoadVisitor` follows the same `RouteGroupTracker` as `RouteChainVisitor`, so a loading call carries the cumulative group context at the call site (its own `->group($path)` included). `RouteFileDiscovery` composes these contexts along the load graph (`RouteGroupContext::within()`; a file already on the path is not re-entered) and `RouteScanner` seeds one `RouteChainVisitor` per distinct context of a file. `withRouting` is modelled as Laravel's `buildRoutingCallback()` does: `web` is `Route::middleware('web')->group()`, `api` is `Route::middleware('api')->prefix($apiPrefix)->group()` with `apiPrefix` defaulting to `api`. A non-literal value is left out and reported through `unresolvedAttributes()`.
+
 #### Middleware
 
 Each route's `middleware` field is the **resolved chain** Loom can see

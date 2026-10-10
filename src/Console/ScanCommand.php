@@ -9,6 +9,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Lucasp\Loom\Dto\SkippedFile;
+use Lucasp\Loom\Dto\UnresolvedGroupAttribute;
 use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\Sections;
@@ -96,6 +97,14 @@ class ScanCommand extends Command
             $this->listUnresolvedRoutes($unresolvedRoutes, $appRoot);
         }
 
+        $unresolvedAttributes = $discovery->unresolvedAttributes($appRoot);
+        if ($unresolvedAttributes !== []) {
+            $this->line('unresolved group attributes: '.count($unresolvedAttributes).(! $this->output->isVerbose() ? ' (-v lists them)' : ''));
+        }
+        if ($unresolvedAttributes !== [] && $this->output->isVerbose()) {
+            $this->listUnresolvedAttributes($unresolvedAttributes, $appRoot);
+        }
+
         return self::SUCCESS;
     }
 
@@ -181,6 +190,20 @@ class ScanCommand extends Command
         foreach ($unresolved as $path) {
             $file = Str::startsWith($path->file, $prefix) ? Str::chopStart($path->file, $prefix) : $path->file;
             $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$path->line.'  '.$path->message());
+        }
+    }
+
+    /**
+     * @param  list<UnresolvedGroupAttribute>  $unresolved
+     */
+    private function listUnresolvedAttributes(array $unresolved, string $appRoot): void
+    {
+        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        $this->line('Group attributes not applied:');
+        foreach ($unresolved as $attribute) {
+            $file = Str::startsWith($attribute->file, $prefix) ? Str::chopStart($attribute->file, $prefix) : $attribute->file;
+            $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$attribute->line.'  '.$attribute->message());
         }
     }
 

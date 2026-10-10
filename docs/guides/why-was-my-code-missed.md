@@ -212,7 +212,7 @@ Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `t
 
 ### A route is missing entirely
 
-Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found.
+Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found. If a loaded file's routes have the wrong prefix or middleware, the loading group used a value Loom can't read (`->prefix($prefix)`); `-v` lists these under "Group attributes not applied". Use a literal there.
 
 ## When nothing shows up for a file
 

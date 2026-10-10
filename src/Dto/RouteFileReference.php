@@ -20,5 +20,7 @@ final readonly class RouteFileReference
         public int $line,
         /** True when a directory is a legitimate value (command paths), so a non-file is not an error. */
         public bool $allowsDirectory = false,
+        /** Group attributes enclosing the call, plus those the call itself applies to the file. */
+        public RouteGroupContext $context = new RouteGroupContext(prefixSegments: [], namePrefix: '', controllerNode: null),
     ) {}
 }

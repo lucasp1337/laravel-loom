@@ -8,11 +8,13 @@ use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteEntry;
+use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\ResourceAction;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ResourceFilter;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
@@ -47,16 +49,23 @@ final class RouteScanner implements Scanner
         $entries = [];
 
         foreach ($this->routeFiles($appRoot) as $file) {
-            // Fresh visitor per file: walk()===null bypasses beforeTraverse,
-            // so reusing one would leak the previous file's entries.
-            $visitor = new RouteChainVisitor;
-            if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
+            // Fresh visitors per file: walk()===null bypasses beforeTraverse,
+            // so reusing one would leak the previous file's entries. A file
+            // loaded under several groups is read once per distinct group.
+            $inherited = $this->routeDiscovery?->contexts($appRoot, $file->getPathname()) ?? [];
+            $visitors = array_map(
+                fn (RouteGroupContext $context): RouteChainVisitor => new RouteChainVisitor($context),
+                $inherited === [] ? [RouteGroupContext::empty()] : $inherited,
+            );
+            if ($this->walker->walk($file->getPathname(), $visitors) === null) {
                 continue;
             }
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
-            foreach ($this->translate($visitor->getEntries(), $relative) as $entry) {
-                $entries[] = $entry;
+            foreach ($visitors as $visitor) {
+                foreach ($this->translate($visitor->getEntries(), $relative) as $entry) {
+                    $entries[] = $entry;
+                }
             }
         }
 
@@ -280,13 +289,16 @@ final class RouteScanner implements Scanner
         $except = [];
 
         $chain = $raw->chain;
-        for ($i = 1, $n = count($chain); $i < $n; $i++) {
-            $method = $chain[$i]->method;
-            if ($method === 'only') {
-                $only = $this->stringArgList($chain[$i]->args);
-            } elseif ($method === 'except') {
-                $except = $this->stringArgList($chain[$i]->args);
-            }
+        // Index 0 is the root call; modifiers start at index 1.
+        foreach (array_slice($chain, 1) as $link) {
+            match (ResourceFilter::tryFrom($link->method)) {
+                // ->only(['index', 'show'])
+                ResourceFilter::ONLY => $only = $this->stringArgList($link->args),
+                // ->except(['create', 'edit'])
+                ResourceFilter::EXCEPT => $except = $this->stringArgList($link->args),
+                // any other chain modifier does not narrow the action set
+                null => null,
+            };
         }
 
         if ($only !== null) {

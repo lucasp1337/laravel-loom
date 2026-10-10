@@ -27,6 +27,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- Routes of a loaded file inherit the prefix, name prefix, middleware and controller of the group that loads it, and `withRouting()` applies the `web` and `api` middleware and the `api` prefix; non-literal values are listed by `loom:scan -v`.
 - `scan.discover_routes` (default on): route files loaded by `loadRoutesFrom()`, `Route::group()` paths and `withRouting()` are read without listing them in `scan.route_paths`; `loom:scan --no-discover-routes` disables it for one run; unresolved paths show under `loom:scan -v` ([#123](https://github.com/lucasp1337/laravel-loom/issues/123)).
 - `routes[].end_line` for closure routes.
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.

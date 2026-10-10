@@ -128,11 +128,19 @@ final class RoutePathResolver
         $segments = [];
 
         foreach (explode('/', Str::substr($path, strlen($drive))) as $segment) {
+            // `..` climbs to the parent
             if ($segment === '..') {
                 array_pop($segments);
-            } elseif ($segment !== '' && $segment !== '.') {
-                $segments[] = $segment;
+
+                continue;
             }
+
+            // an empty or `.` segment adds nothing
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            $segments[] = $segment;
         }
 
         return $drive.'/'.implode('/', $segments);
