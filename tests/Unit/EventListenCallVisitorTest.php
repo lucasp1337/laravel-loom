@@ -5,9 +5,6 @@ declare(strict_types=1);
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Parse a PHP source string and run EventListenCallVisitor (after NameResolver) over it.
@@ -24,16 +21,7 @@ function runEventListenCallVisitor(string $source): array
  */
 function runEventListenCallVisitorFull(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new EventListenCallVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new EventListenCallVisitor, $source);
 
     return [
         'pairs' => $visitor->getPairs(),

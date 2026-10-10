@@ -10,14 +10,13 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('events-following')]
 #[Description('Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3).')]
-final class EventsFollowingTool extends Tool
+final class EventsFollowingTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -43,9 +42,6 @@ final class EventsFollowingTool extends Tool
 
         $depth = (int) ($validated['depth'] ?? ChainDepth::DEFAULT);
 
-        return Response::text((string) json_encode(
-            $this->query->eventChain($validated['event_fqcn'], $depth)->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($this->query->eventChain($validated['event_fqcn'], $depth)->toArray());
     }
 }

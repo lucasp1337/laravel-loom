@@ -12,16 +12,16 @@ use Lucasp\Loom\Support\Ast\Args;
  *
  * @internal
  */
-final class ScheduleChainEntry
+final readonly class ScheduleChainEntry
 {
     /**
-     * @param  list<ScheduleChainLink>  $chain
+     * @param  list<ChainLink>  $chain
      */
     public function __construct(
-        public readonly ScheduleKind $kind,
-        public readonly string $rootMethod,
-        public readonly Args $rootArgs,
-        public readonly array $chain,
-        public readonly int $line,
+        public ScheduleKind $kind,
+        public string $rootMethod,
+        public Args $rootArgs,
+        public array $chain,
+        public int $line,
     ) {}
 }

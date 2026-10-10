@@ -12,7 +12,12 @@ use Lucasp\Loom\Dto\ScheduleFrequency;
 use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
+use Lucasp\Loom\Scanners\Schedule\CronHelper;
+use Lucasp\Loom\Scanners\Schedule\ScheduleArgs;
+use Lucasp\Loom\Scanners\Schedule\ScheduleConstraint;
+use Lucasp\Loom\Scanners\Schedule\ScheduleModifier;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
+use Lucasp\Loom\Support\AppPath;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
@@ -31,19 +36,6 @@ use PhpParser\Node;
 final class ScheduleScanner implements Scanner
 {
     use ScannerFilesystem;
-
-    private const FREQUENCY_HELPERS = [
-        'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes',
-        'everyFiveMinutes', 'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
-        'hourly', 'hourlyAt',
-        'everyOddHour',
-        'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
-        'daily', 'dailyAt', 'twiceDaily', 'twiceDailyAt',
-        'weekly', 'weeklyOn',
-        'monthly', 'monthlyOn', 'twiceMonthly', 'daysOfMonth', 'lastDayOfMonth',
-        'quarterly', 'quarterlyOn', 'yearly', 'yearlyOn',
-        'cron',
-    ];
 
     /** Sub-minute helpers can't be a 5-field cron; they emit a structured frequency in seconds. */
     private const SUB_MINUTE_SECONDS = [
@@ -145,7 +137,7 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverBootstrapForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
+        $file = AppPath::join($appRoot, 'bootstrap/app.php');
         if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
@@ -163,7 +155,7 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverConsoleRoutesForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'routes'.DIRECTORY_SEPARATOR.'console.php';
+        $file = AppPath::join($appRoot, 'routes/console.php');
         if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
@@ -224,11 +216,9 @@ final class ScheduleScanner implements Scanner
             $frequency = null;
             $name = null;
             $timezone = null;
-            $withoutOverlapping = false;
             $withoutOverlappingExpiresAt = null;
-            $onOneServer = false;
-            $runInBackground = false;
-            $evenInMaintenanceMode = false;
+            /** @var array<string, true> $modifiers seen ScheduleModifier values */
+            $modifiers = [];
             $constraints = [];
             $cronWasSet = false;
 
@@ -246,9 +236,10 @@ final class ScheduleScanner implements Scanner
                     continue;
                 }
 
-                if (collect(self::FREQUENCY_HELPERS)->containsStrict($method)) {
+                $helper = CronHelper::tryFrom($method);
+                if ($helper !== null) {
                     // Last-wins, including null when args are unresolvable.
-                    $cron = $this->cronFromHelper($method, $args);
+                    $cron = $helper->cron($args);
                     $frequency = null;       // a cron-based helper overrides any prior sub-minute frequency
                     $cronWasSet = true;
 
@@ -262,45 +253,21 @@ final class ScheduleScanner implements Scanner
                     $frequency = null;
                 }
 
-                if ($method === 'name') {
-                    $label = Literal::string($args->valueAt(0));
-                    if ($label !== null) {
-                        $name = $label;
-                    }
-
-                    continue;
-                }
-
-                if ($method === 'timezone') {
-                    $tz = Literal::string($args->valueAt(0));
-                    if ($tz !== null) {
-                        $timezone = $tz;
-                    }
-
-                    continue;
-                }
-
-                if ($method === 'withoutOverlapping') {
-                    $withoutOverlapping = true;
-                    $withoutOverlappingExpiresAt = Literal::int($args->valueAt(0));
-
-                    continue;
-                }
-
-                if ($method === 'onOneServer') {
-                    $onOneServer = true;
-
-                    continue;
-                }
-
-                if ($method === 'runInBackground') {
-                    $runInBackground = true;
-
-                    continue;
-                }
-
-                if ($method === 'evenInMaintenanceMode') {
-                    $evenInMaintenanceMode = true;
+                $modifier = ScheduleModifier::tryFrom($method);
+                if ($modifier !== null) {
+                    $modifiers[$modifier->value] = true;
+                    match ($modifier) {
+                        // `->name('label')`: a string literal only; last literal wins
+                        ScheduleModifier::NAME => $name = Literal::string($args->valueAt(0)) ?? $name,
+                        // `->timezone('UTC')`: a string literal only; last literal wins
+                        ScheduleModifier::TIMEZONE => $timezone = Literal::string($args->valueAt(0)) ?? $timezone,
+                        // `->withoutOverlapping(10)`: expiry is the int literal, or null when absent
+                        ScheduleModifier::WITHOUT_OVERLAPPING => $withoutOverlappingExpiresAt = Literal::int($args->valueAt(0)),
+                        // presence flags, read from $modifiers below
+                        ScheduleModifier::ON_ONE_SERVER,
+                        ScheduleModifier::RUN_IN_BACKGROUND,
+                        ScheduleModifier::EVEN_IN_MAINTENANCE_MODE => null,
+                    };
 
                     continue;
                 }
@@ -323,11 +290,11 @@ final class ScheduleScanner implements Scanner
                 cron: $cron,
                 frequency: $frequency,
                 timezone: $timezone,
-                withoutOverlapping: $withoutOverlapping,
+                withoutOverlapping: isset($modifiers[ScheduleModifier::WITHOUT_OVERLAPPING->value]),
                 withoutOverlappingExpiresAt: $withoutOverlappingExpiresAt,
-                onOneServer: $onOneServer,
-                runInBackground: $runInBackground,
-                evenInMaintenanceMode: $evenInMaintenanceMode,
+                onOneServer: isset($modifiers[ScheduleModifier::ON_ONE_SERVER->value]),
+                runInBackground: isset($modifiers[ScheduleModifier::RUN_IN_BACKGROUND->value]),
+                evenInMaintenanceMode: isset($modifiers[ScheduleModifier::EVEN_IN_MAINTENANCE_MODE->value]),
                 constraints: $constraints,
                 file: $relativeFile,
                 line: $raw->line,
@@ -462,287 +429,66 @@ final class ScheduleScanner implements Scanner
         return $parts === null ? $value : $parts[0].'::'.$parts[1];
     }
 
-    /**
-     * @return list<int>|null
-     */
-    private function scalarIntArray(?Node\Expr $node): ?array
-    {
-        if (! $node instanceof Node\Expr\Array_) {
-            return null;
-        }
-        $values = [];
-        foreach ($node->items as $item) {
-            $int = Literal::int($item->value);
-            if ($int === null) {
-                return null;
-            }
-            $values[] = $int;
-        }
-        if ($values === []) {
-            return null;
-        }
-
-        return $values;
-    }
-
-    /**
-     * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
-     * null when an arg can't be resolved statically.
-     */
-    private function cronFromHelper(string $method, Args $args): ?string
-    {
-        switch ($method) {
-            case 'cron':
-                return Literal::string($args->valueAt(0));
-
-            case 'everyMinute':
-                return '* * * * *';
-            case 'everyTwoMinutes':
-                return '*/2 * * * *';
-            case 'everyThreeMinutes':
-                return '*/3 * * * *';
-            case 'everyFourMinutes':
-                return '*/4 * * * *';
-            case 'everyFiveMinutes':
-                return '*/5 * * * *';
-            case 'everyTenMinutes':
-                return '*/10 * * * *';
-            case 'everyFifteenMinutes':
-                return '*/15 * * * *';
-            case 'everyThirtyMinutes':
-                return '0,30 * * * *';
-
-            case 'hourly':
-                return '0 * * * *';
-            case 'hourlyAt':
-                $minute = Literal::int($args->valueAt(0));
-
-                return $minute === null ? null : $minute.' * * * *';
-
-            case 'everyOddHour':
-                return (Literal::int($args->valueAt(0)) ?? 0).' 1-23/2 * * *';
-
-            case 'everyTwoHours':
-                return (Literal::int($args->valueAt(0)) ?? 0).' */2 * * *';
-            case 'everyThreeHours':
-                return (Literal::int($args->valueAt(0)) ?? 0).' */3 * * *';
-            case 'everyFourHours':
-                return (Literal::int($args->valueAt(0)) ?? 0).' */4 * * *';
-            case 'everySixHours':
-                return (Literal::int($args->valueAt(0)) ?? 0).' */6 * * *';
-
-            case 'daily':
-                return '0 0 * * *';
-            case 'dailyAt':
-                $time = Literal::string($args->valueAt(0));
-                if ($time === null) {
-                    return null;
-                }
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' * * *';
-
-            case 'twiceDaily':
-                $first = Literal::int($args->valueAt(0)) ?? 1;
-                $second = Literal::int($args->valueAt(1)) ?? 13;
-
-                return '0 '.$first.','.$second.' * * *';
-
-            case 'twiceDailyAt':
-                $first = Literal::int($args->valueAt(0));
-                $second = Literal::int($args->valueAt(1));
-                $minute = Literal::int($args->valueAt(2)) ?? 0;
-                if ($first === null || $second === null) {
-                    return null;
-                }
-
-                return $minute.' '.$first.','.$second.' * * *';
-
-            case 'weekly':
-                return '0 0 * * 0';
-            case 'weeklyOn':
-                $time = Literal::string($args->valueAt(1)) ?? '0:00';
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-                $day = Literal::int($args->valueAt(0));
-                if ($day !== null) {
-                    return $minute.' '.$hour.' * * '.$day;
-                }
-                // weeklyOn([1, 3, 5], '08:00') form.
-                $days = $this->scalarIntArray($args->valueAt(0));
-                if ($days === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' * * '.Arr::join($days, ',');
-
-            case 'monthly':
-                return '0 0 1 * *';
-            case 'monthlyOn':
-                $day = Literal::int($args->valueAt(0)) ?? 1;
-                $time = Literal::string($args->valueAt(1)) ?? '0:00';
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' '.$day.' * *';
-
-            case 'twiceMonthly':
-                $first = Literal::int($args->valueAt(0)) ?? 1;
-                $second = Literal::int($args->valueAt(1)) ?? 16;
-                $time = Literal::string($args->valueAt(2)) ?? '0:00';
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' '.$first.','.$second.' * *';
-
-            case 'daysOfMonth':
-                // Accepts variadic ints (daysOfMonth(1, 15)) or a single array
-                // (daysOfMonth([1, 15])). Laravel runs these at 00:00.
-                $days = $this->collectDayArgs($args);
-
-                return $days === [] ? null : '0 0 '.Arr::join($days, ',').' * *';
-
-            case 'lastDayOfMonth':
-                $time = Literal::string($args->valueAt(0)) ?? '0:00';
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                // "L" matches Laravel's runtime token for last-day-of-month.
-                return $minute.' '.$hour.' L * *';
-
-            case 'quarterly':
-                return '0 0 1 1-12/3 *';
-            case 'quarterlyOn':
-                $day = Literal::int($args->valueAt(0)) ?? 1;
-                $time = Literal::string($args->valueAt(1)) ?? '0:00';
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' '.$day.' 1-12/3 *';
-            case 'yearly':
-                return '0 0 1 1 *';
-            case 'yearlyOn':
-                $month = Literal::int($args->valueAt(0)) ?? 1;
-                $day = $args->valueAt(1);
-                $time = Literal::string($args->valueAt(2)) ?? '0:00';
-                $dayInt = Literal::int($day);
-                if ($dayInt === null) {
-                    $dayInt = 1;
-                }
-                [$hour, $minute] = $this->splitTime($time);
-                if ($hour === null) {
-                    return null;
-                }
-
-                return $minute.' '.$hour.' '.$dayInt.' '.$month.' *';
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array{0: ?int, 1: ?int}
-     */
-    private function splitTime(string $time): array
-    {
-        if (! preg_match('/^(\d{1,2}):(\d{1,2})$/', $time, $m)) {
-            return [null, null];
-        }
-
-        return [(int) $m[1], (int) $m[2]];
-    }
-
     private function constraintFor(string $method, Args $args): ?string
     {
+        // `->weekdays()`, `->mondays()`, ...: recorded by name
         if (collect(self::DAY_CONSTRAINTS)->containsStrict($method)) {
             return $method;
         }
 
-        if ($method === 'between' || $method === 'unlessBetween') {
-            $a = Literal::string($args->valueAt(0));
-            $b = Literal::string($args->valueAt(1));
-            if ($a !== null && $b !== null) {
-                return $method.'('.$a.','.$b.')';
-            }
-
-            return $method.'(closure)';
-        }
-
-        if ($method === 'when' || $method === 'skip') {
-            return $method.'(closure)';
-        }
-
-        if ($method === 'environments') {
-            $values = [];
-            foreach ($args->values() as $value) {
-                $s = Literal::string($value);
-                if ($s !== null) {
-                    $values[] = $s;
-
-                    continue;
-                }
-                if ($value instanceof Node\Expr\Array_) {
-                    foreach ($value->items as $item) {
-                        if ($item->value instanceof Node\Scalar\String_) {
-                            $values[] = $item->value->value;
-                        }
-                    }
-                }
-            }
-
-            return $values === [] ? 'environments(closure)' : 'environments('.Arr::join($values, ',').')';
-        }
-
-        if ($method === 'days') {
-            $values = $this->collectDayArgs($args);
-
-            // "days(?)" signals an unresolved arg without fabricating a value.
-            return $values === [] ? 'days(?)' : 'days('.Arr::join($values, ',').')';
-        }
-
-        return null;
+        return match (ScheduleConstraint::tryFrom($method)) {
+            // `->between('8:00', '17:00')`: both bounds literal, else a closure-valued window
+            ScheduleConstraint::BETWEEN,
+            ScheduleConstraint::UNLESS_BETWEEN => $this->windowConstraint($method, $args),
+            // `->when(fn ...)` / `->skip(fn ...)`: the predicate is not statically evaluable
+            ScheduleConstraint::WHEN,
+            ScheduleConstraint::SKIP => $method.'(closure)',
+            // `->environments('staging', ['production'])`
+            ScheduleConstraint::ENVIRONMENTS => $this->environmentsConstraint($args),
+            // `->days(0, 3)` / `->days([0, 3])`; "days(?)" signals an unresolved arg without fabricating a value
+            ScheduleConstraint::DAYS => $this->daysConstraint($args),
+            // not a constraint
+            null => null,
+        };
     }
 
-    /**
-     * Collects statically-resolvable day integers from a variadic int list
-     * (days(0, 3)) or a single array argument (days([0, 3])).
-     *
-     * @return list<int>
-     */
-    private function collectDayArgs(Args $args): array
+    private function windowConstraint(string $method, Args $args): string
+    {
+        $a = Literal::string($args->valueAt(0));
+        $b = Literal::string($args->valueAt(1));
+
+        return $a !== null && $b !== null ? $method.'('.$a.','.$b.')' : $method.'(closure)';
+    }
+
+    private function environmentsConstraint(Args $args): string
     {
         $values = [];
         foreach ($args->values() as $value) {
-            $int = Literal::int($value);
-            if ($int !== null) {
-                $values[] = $int;
+            // `environments('staging')`: a string literal argument
+            $s = Literal::string($value);
+            if ($s !== null) {
+                $values[] = $s;
 
                 continue;
             }
+            // `environments(['staging', 'production'])`: string items of an array argument
             if ($value instanceof Node\Expr\Array_) {
                 foreach ($value->items as $item) {
-                    $itemInt = Literal::int($item->value);
-                    if ($itemInt !== null) {
-                        $values[] = $itemInt;
+                    if ($item->value instanceof Node\Scalar\String_) {
+                        $values[] = $item->value->value;
                     }
                 }
             }
         }
 
-        return $values;
+        return $values === [] ? 'environments(closure)' : 'environments('.Arr::join($values, ',').')';
+    }
+
+    private function daysConstraint(Args $args): string
+    {
+        $values = ScheduleArgs::dayArgs($args);
+
+        return $values === [] ? 'days(?)' : 'days('.Arr::join($values, ',').')';
     }
 
     private function dedupeKey(ScheduledEntry $entry): string

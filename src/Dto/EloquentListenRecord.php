@@ -9,13 +9,13 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class EloquentListenRecord
+final readonly class EloquentListenRecord
 {
     public function __construct(
-        public readonly string $model,
-        public readonly string $hook,
-        public readonly string $handler,
-        public readonly string $method,
-        public readonly int $line,
+        public string $model,
+        public string $hook,
+        public string $handler,
+        public string $method,
+        public int $line,
     ) {}
 }

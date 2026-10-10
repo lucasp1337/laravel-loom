@@ -9,7 +9,7 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class ClassDeclaration
+final readonly class ClassDeclaration
 {
     /**
      * @param  'class'|'interface'|'trait'  $kind
@@ -20,15 +20,15 @@ final class ClassDeclaration
      * @param  list<TraitAdaptation>  $adaptations
      */
     public function __construct(
-        public readonly string $fqcn,
-        public readonly string $kind,
-        public readonly ?string $parent,
-        public readonly array $parents,
-        public readonly array $interfaces,
-        public readonly array $traits,
-        public readonly int $line,
-        public readonly bool $isAbstract = false,
-        public readonly array $methods = [],
-        public readonly array $adaptations = [],
+        public string $fqcn,
+        public string $kind,
+        public ?string $parent,
+        public array $parents,
+        public array $interfaces,
+        public array $traits,
+        public int $line,
+        public bool $isAbstract = false,
+        public array $methods = [],
+        public array $adaptations = [],
     ) {}
 }

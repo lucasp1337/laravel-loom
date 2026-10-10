@@ -120,7 +120,7 @@ final class ScanScope
      */
     private function resolveDirectories(string $appRoot, array $paths): array
     {
-        $root = Str::rtrim($appRoot, '/\\');
+        $root = AppPath::root($appRoot);
         $found = [];
 
         foreach ($paths as $path) {
@@ -241,12 +241,11 @@ final class ScanScope
             return false;
         }
 
-        $prefix = Str::rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR;
-        if (! Str::startsWith($absolute, $prefix)) {
+        $relative = AppPath::relative($appRoot, $absolute);
+        if ($relative === null) {
             return false;
         }
 
-        $relative = Str::replace(DIRECTORY_SEPARATOR, '/', Str::chopStart($absolute, $prefix));
         $candidate = '';
         foreach (explode('/', $relative) as $segment) {
             $candidate = $candidate === '' ? $segment : $candidate.'/'.$segment;

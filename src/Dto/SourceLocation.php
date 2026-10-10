@@ -9,10 +9,10 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class SourceLocation
+final readonly class SourceLocation
 {
     public function __construct(
-        public readonly string $file,
-        public readonly int $line,
+        public string $file,
+        public int $line,
     ) {}
 }

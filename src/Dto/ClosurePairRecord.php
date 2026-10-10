@@ -11,12 +11,12 @@ use Lucasp\Loom\Index\ListenerRegistration;
  *
  * @internal
  */
-final class ClosurePairRecord
+final readonly class ClosurePairRecord
 {
     public function __construct(
-        public readonly string $event,
-        public readonly int $line,
-        public readonly int $endLine,
-        public readonly ListenerRegistration $registration,
+        public string $event,
+        public int $line,
+        public int $endLine,
+        public ListenerRegistration $registration,
     ) {}
 }

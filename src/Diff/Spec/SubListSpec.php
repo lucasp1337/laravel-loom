@@ -14,13 +14,13 @@ use Lucasp\Loom\Index\Field;
  *
  * @internal
  */
-final class SubListSpec
+final readonly class SubListSpec
 {
     /**
      * @param  Closure(array<string,mixed>): string  $memberIdentity
      */
     public function __construct(
-        public readonly Field $field,
-        public readonly Closure $memberIdentity,
+        public Field $field,
+        public Closure $memberIdentity,
     ) {}
 }

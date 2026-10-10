@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Dto;
 
 /** @internal */
-final class SubscriberClassRecord
+final readonly class SubscriberClassRecord
 {
     /**
      * @param  list<ListenerHandle>  $handles
@@ -13,11 +13,11 @@ final class SubscriberClassRecord
      * @param  list<ListenerPair>  $foreignPairs
      */
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
-        public readonly bool $queued,
-        public readonly array $handles,
-        public readonly array $closureHandles,
-        public readonly array $foreignPairs,
+        public string $fqcn,
+        public int $line,
+        public bool $queued,
+        public array $handles,
+        public array $closureHandles,
+        public array $foreignPairs,
     ) {}
 }

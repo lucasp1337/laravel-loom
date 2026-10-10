@@ -19,7 +19,7 @@ use PhpParser\Node;
  *
  * @internal
  */
-final class RouteGroupContext
+final readonly class RouteGroupContext
 {
     /**
      * @param  list<string>  $prefixSegments  cumulative prefix segments, outermost first
@@ -31,13 +31,13 @@ final class RouteGroupContext
      * @param  list<RouteGroupAttribute>  $unresolved  attributes of the enclosing groups that were not static literals
      */
     public function __construct(
-        public readonly array $prefixSegments,
-        public readonly string $namePrefix,
-        public readonly ?Node\Expr $controllerNode,
-        public readonly array $middlewareNodes = [],
-        public readonly ?string $inheritedController = null,
-        public readonly array $inheritedMiddleware = [],
-        public readonly array $unresolved = [],
+        public array $prefixSegments,
+        public string $namePrefix,
+        public ?Node\Expr $controllerNode,
+        public array $middlewareNodes = [],
+        public ?string $inheritedController = null,
+        public array $inheritedMiddleware = [],
+        public array $unresolved = [],
     ) {}
 
     /** The empty context used when no group encloses a route. */

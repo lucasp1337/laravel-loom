@@ -10,14 +10,13 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('route-to-events')]
 #[Description('Resolve an HTTP route (verb + URI) to the event chain its controller action triggers. Matches case-insensitively on verb and exactly on URI (leading slash optional), then follows the controller method through the dispatch graph (depth 1..6, default 3). Closure or unresolved-controller routes return an empty chain with a note.')]
-final class RouteToEventsTool extends Tool
+final class RouteToEventsTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -55,9 +54,6 @@ final class RouteToEventsTool extends Tool
             return Response::error("No route found for {$verb} {$uri}.");
         }
 
-        return Response::text((string) json_encode(
-            $result->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($result->toArray());
     }
 }

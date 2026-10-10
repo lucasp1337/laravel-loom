@@ -12,7 +12,7 @@ use PhpParser\Node;
  *
  * @internal
  */
-final class RouteGroupAttributes
+final readonly class RouteGroupAttributes
 {
     /**
      * @param  ?string  $prefix  trimmed prefix segment ('/'-stripped); null when absent/empty
@@ -22,10 +22,10 @@ final class RouteGroupAttributes
      * @param  list<RouteGroupAttribute>  $unresolved  attributes present in the source whose value is not a static literal
      */
     public function __construct(
-        public readonly ?string $prefix,
-        public readonly ?string $name,
-        public readonly ?Node\Expr $controllerNode,
-        public readonly array $middlewareNodes = [],
-        public readonly array $unresolved = [],
+        public ?string $prefix,
+        public ?string $name,
+        public ?Node\Expr $controllerNode,
+        public array $middlewareNodes = [],
+        public array $unresolved = [],
     ) {}
 }

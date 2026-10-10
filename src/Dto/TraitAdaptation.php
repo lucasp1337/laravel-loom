@@ -11,16 +11,16 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class TraitAdaptation
+final readonly class TraitAdaptation
 {
     /**
      * @param  list<string>  $insteadof
      */
     public function __construct(
-        public readonly ?string $trait,
-        public readonly string $method,
-        public readonly ?string $alias,
-        public readonly ?MethodVisibility $visibility,
-        public readonly array $insteadof = [],
+        public ?string $trait,
+        public string $method,
+        public ?string $alias,
+        public ?MethodVisibility $visibility,
+        public array $insteadof = [],
     ) {}
 }

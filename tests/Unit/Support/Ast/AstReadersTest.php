@@ -6,11 +6,9 @@ use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\EventsDispatcher;
 use Lucasp\Loom\Support\Ast\ValueLists;
+use Lucasp\Loom\Support\AstWalker;
 use PhpParser\Node;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitorAbstract;
-use PhpParser\ParserFactory;
 
 /**
  * Parse a `<receiver>->listen(...)` snippet (after NameResolver) and return the
@@ -18,11 +16,7 @@ use PhpParser\ParserFactory;
  */
 function parseListenReceiver(string $useLines, string $body, bool $namespaced = true): Node\Expr
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
     $prefix = $namespaced ? "<?php namespace App;\n" : "<?php\n";
-    $ast = $parser->parse($prefix.$useLines."\n".$body.';');
-
-    expect($ast)->not->toBeNull();
 
     $collector = new class extends NodeVisitorAbstract
     {
@@ -41,10 +35,7 @@ function parseListenReceiver(string $useLines, string $body, bool $namespaced = 
         }
     };
 
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($collector);
-    $traverser->traverse($ast);
+    AstWalker::walkSource($prefix.$useLines."\n".$body.';', [$collector]);
 
     expect($collector->receiver)->not->toBeNull();
 
@@ -267,7 +258,7 @@ it('lists a single class constant or the class constants of an array, skipping t
 });
 
 it('detects a directly implemented interface', function () {
-    $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse('<?php class A implements B, C\\D {}');
+    $ast = AstWalker::walkSource('<?php class A implements B, C\\D {}');
     $class = $ast[0];
 
     expect($class)->toBeInstanceOf(Node\Stmt\Class_::class)

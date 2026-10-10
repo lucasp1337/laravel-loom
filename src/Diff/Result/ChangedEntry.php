@@ -9,15 +9,15 @@ namespace Lucasp\Loom\Diff\Result;
  *
  * @internal
  */
-final class ChangedEntry
+final readonly class ChangedEntry
 {
     /**
      * @param  list<FieldChange>  $fieldChanges
      * @param  list<SubListDelta>  $subListDeltas
      */
     public function __construct(
-        public readonly string $identity,
-        public readonly array $fieldChanges,
-        public readonly array $subListDeltas,
+        public string $identity,
+        public array $fieldChanges,
+        public array $subListDeltas,
     ) {}
 }

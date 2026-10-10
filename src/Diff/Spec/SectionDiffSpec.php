@@ -16,7 +16,7 @@ use Lucasp\Loom\Index\Sections;
  *
  * @internal
  */
-final class SectionDiffSpec
+final readonly class SectionDiffSpec
 {
     /**
      * @param  Closure(array<string,mixed>): string  $identity
@@ -24,9 +24,9 @@ final class SectionDiffSpec
      * @param  list<SubListSpec>  $subLists
      */
     public function __construct(
-        public readonly Sections $section,
-        public readonly Closure $identity,
-        public readonly array $semanticFields,
-        public readonly array $subLists = [],
+        public Sections $section,
+        public Closure $identity,
+        public array $semanticFields,
+        public array $subLists = [],
     ) {}
 }

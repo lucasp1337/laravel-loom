@@ -9,16 +9,16 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class NotificationClassRecord
+final readonly class NotificationClassRecord
 {
     /**
      * @param  list<string>  $channels
      */
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
-        public readonly QueueConfigData $queueConfig,
-        public readonly array $channels,
-        public readonly bool $channelsDynamic,
+        public string $fqcn,
+        public int $line,
+        public QueueConfigData $queueConfig,
+        public array $channels,
+        public bool $channelsDynamic,
     ) {}
 }

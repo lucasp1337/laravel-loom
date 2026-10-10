@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Dto;
 
 /** @internal */
-final class ListenerClassRecord
+final readonly class ListenerClassRecord
 {
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
-        public readonly bool $queued,
+        public string $fqcn,
+        public int $line,
+        public bool $queued,
     ) {}
 }

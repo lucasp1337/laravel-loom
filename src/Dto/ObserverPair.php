@@ -9,14 +9,14 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class ObserverPair
+final readonly class ObserverPair
 {
     /**
      * @param  list<string>  $observers
      */
     public function __construct(
-        public readonly string $model,
-        public readonly array $observers,
-        public readonly int $line,
+        public string $model,
+        public array $observers,
+        public int $line,
     ) {}
 }

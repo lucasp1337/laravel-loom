@@ -3,25 +3,13 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * @return array<int, array{model: string, hook: string, handler: string, method: string, line: int}>
  */
 function runEloquentListenStringVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new EloquentListenStringVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new EloquentListenStringVisitor, $source);
 
     return $visitor->getEntries();
 }
