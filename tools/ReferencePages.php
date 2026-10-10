@@ -162,6 +162,10 @@ final class ReferencePages
         $nested = [];
 
         foreach ($object['properties'] as $field => $node) {
+            // `file` and `line` with nothing to add are explained once in the page intro
+            if (in_array($field, ['file', 'line'], true) && ($node['description'] ?? '') === '') {
+                continue;
+            }
             [$type, $inline] = $this->typeOf($node);
             $rows[] = sprintf(
                 '| `%s`%s | %s | %s |',
@@ -170,13 +174,29 @@ final class ReferencePages
                 $type,
                 $this->cell($node['description'] ?? ''),
             );
-            if ($inline !== null && isset($inline['properties'])) {
+            if ($inline !== null && isset($inline['properties']) && $this->hasDescriptions($inline)) {
                 $suffix = ($node['type'] ?? null) === 'array' ? '[]' : '';
                 $nested[] = $this->subTable($inline, ($path === '' ? '' : "{$path}.").$field.$suffix);
             }
         }
 
         return implode("\n", $rows).($nested === [] ? '' : "\n\n".implode("\n\n", $nested));
+    }
+
+    /**
+     * Whether any property carries a description; a table of bare keys adds nothing.
+     *
+     * @param  array<string, mixed>  $object
+     */
+    private function hasDescriptions(array $object): bool
+    {
+        foreach ($object['properties'] as $node) {
+            if (($node['description'] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

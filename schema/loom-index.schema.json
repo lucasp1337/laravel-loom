@@ -73,7 +73,7 @@
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
             },
-            "description": "Count of entries per section; always mirrors the array sizes."
+            "description": "One integer count per section, keyed by section name; always mirrors the array sizes."
         },
         "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
         "model_events": { "type": "array", "items": { "$ref": "#/$defs/modelEvent" } },
@@ -249,7 +249,7 @@
                 },
                 "registration": {
                     "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"],
-                    "description": "How the listener was found: `subscriber` (a subscriber's `subscribe()` method, return-array or imperative form), `listen_array` (`$listen` in an `EventServiceProvider`), `event_listen_call` (`Event::listen()` in a provider), `auto_discovered` (typed `handle()` parameter). When several paths find the same listener the order is `subscriber`, `listen_array`, `event_listen_call`, `auto_discovered`."
+                    "description": "`subscriber` (a subscriber's `subscribe()`), `listen_array` (`$listen`), `event_listen_call` (`Event::listen()`), `auto_discovered` (typed `handle()`). When several find the same listener, that order of precedence applies."
                 },
                 "queued": {
                     "type": "boolean",
@@ -351,7 +351,7 @@
                 "timeout": { "type": ["string", "integer", "null"] },
                 "backoff": { "type": ["string", "integer", "null"] }
             },
-            "description": "Queue properties read from class property literals. A key is `null` when the class declares no such property (the framework default applies at runtime). The literal keeps its own type."
+            "description": "Class-level property literals. A key is `null` when the class declares no such property (the framework default applies). The literal keeps its own type."
         },
         "dispatchSite": {
             "type": "object",
@@ -362,11 +362,11 @@
                 "line": { "type": "integer", "minimum": 1 },
                 "method": {
                     "type": "string",
-                    "description": "Origin of the dispatch: `Class::method` for code in a class method (a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB /uri` for a route closure, `Class::$dispatchesEvents[hook]` for a model's `$dispatchesEvents` entry."
+                    "description": "Origin: `Class::method` (a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB /uri` for a route closure, `Class::$dispatchesEvents[hook]` for a model entry."
                 },
                 "mode": {
                     "enum": ["sync", "after_response", "push"],
-                    "description": "How the call form executes, omitted for plain forms whose outcome follows the target's `queued` flag. `sync`: `dispatchSync`, `dispatch_sync`, `dispatchNow`, `sendNow`, `notifyNow`. `after_response`: `dispatchAfterResponse`, `->afterResponse()` on a chain. `push`: `Queue::push/pushOn/later/laterOn/bulk`, `Mail::queue/onQueue/queueOn/later/laterOn`. The `ShouldQueue` flag and the `sync` driver are not evaluated."
+                    "description": "How the call form executes; omitted for plain forms, whose outcome follows the target's `queued` flag. `sync`: `dispatchSync`, `dispatchNow`, `sendNow`, `notifyNow`. `after_response`: `dispatchAfterResponse`, `->afterResponse()`. `push`: `Queue::push/later/bulk`, `Mail::queue/later`. `ShouldQueue` and the sync driver are not evaluated."
                 },
                 "overrides": {
                     "$ref": "#/$defs/dispatchOverrides",
@@ -411,7 +411,7 @@
                     "description": "From `->afterCommit()`; only ever `true`."
                 }
             },
-            "description": "Fluent modifiers resolved statically at the call site. Only keys that were found are present, and the object is omitted when none were. A non-literal argument leaves its key absent."
+            "description": "Fluent modifiers found at the call site. Only keys that were found are present; a non-literal argument leaves its key absent."
         },
         "dispatch": {
             "type": "object",
@@ -472,7 +472,7 @@
                     "description": "Dispatches attributed to the closure by source span. Filled by the cross-link pass."
                 }
             },
-            "description": "Closure and arrow-function listener registrations. They have no class name, so each site is one entry and none is joined into `events[].handled_by`. Not deduplicated. Dispatch sites inside `[line, end_line]` of the same file belong to it, including sites in nested closures."
+            "description": "Closure and arrow-function registrations, one entry per site, never joined into `events[].handled_by`. Not deduplicated. Dispatches inside `[line, end_line]` of the file belong to it, nested closures included."
         },
         "scheduleEntry": {
             "type": "object",
@@ -499,7 +499,7 @@
             "properties": {
                 "kind": {
                     "enum": ["command", "job", "closure", "exec"],
-                    "description": "Decided by the root call. `command`: `->command()`, target is the signature string verbatim or the FQCN for a `::class` argument. `job`: `->job()`, target is the FQCN. `closure`: `->call()`, target is `null` for an inline closure and `Class::method` for a tuple or `Class@method` callable. `exec`: `->exec()`, target is the shell command."
+                    "description": "`command`: `->command()`, target is the signature or FQCN. `job`: `->job()`, target is the FQCN. `closure`: `->call()`, target is `null` for an inline closure, else `Class::method`. `exec`: `->exec()`, target is the shell string."
                 },
                 "name": {
                     "type": ["string", "null"],
@@ -524,7 +524,7 @@
                 },
                 "cron": {
                     "type": ["string", "null"],
-                    "description": "Canonical five-field expression for every recognised frequency helper (`daily` is `0 0 * * *`; `cron()` is passed through verbatim). `null` when no recognised helper appears, its argument is a variable, or the last helper is unrecognised. The last frequency helper in a chain wins, as at runtime."
+                    "description": "Canonical five-field expression for every recognised helper (`daily` is `0 0 * * *`; `cron()` passes through). `null` for an unrecognised helper or a variable argument. The last helper in the chain wins."
                 },
                 "frequency": {
                     "oneOf": [
@@ -546,7 +546,7 @@
                             }
                         }
                     ],
-                    "description": "Sub-minute interval for `everySecond` and its six siblings, whose cron is `null`. `null` for every other entry. At most one of `cron` and `frequency` is set; the last helper wins."
+                    "description": "Sub-minute interval for the seven `every...Seconds` helpers, whose cron is `null`; `null` otherwise. At most one of `cron` and `frequency` is set."
                 },
                 "timezone": {
                     "type": ["string", "null"],
@@ -587,7 +587,7 @@
                     "description": "Line of the root call, not the trailing modifier."
                 }
             },
-            "description": "Task scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `target`; kernel and bootstrap forms win over the facade form. A `job` target can be joined to `jobs[].fqcn` client-side; there is no back-pointer."
+            "description": "Scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `target`; kernel and bootstrap forms win over the facade form. Join a `job` target to `jobs[]` client-side."
         },
         "route": {
             "type": "object",
@@ -636,7 +636,7 @@
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "Dispatches from the controller method, or for a closure route those within `[line, end_line]` of the file (each such event lists the route in `dispatched_from`). Filled by the cross-link pass; empty when the controller cannot be resolved."
+                    "description": "From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Filled by the cross-link pass; empty when the controller cannot be resolved."
                 }
             },
             "description": "HTTP routes, one per route. A route registered against several verbs is reported as `ANY`."
@@ -689,11 +689,11 @@
                 "channels": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "From a `via()` whose body is a single `return [...]` of literal strings (lowercased: `mail`, `database`, `slack`, ...) or `Class::class` constants (FQCN). Source order. `[]` when `via()` is dynamic or not declared; an inherited `via()` reads as not declared."
+                    "description": "From a `via()` that is a single `return [...]` of literal strings (lowercased) or `Class::class` constants (FQCN), in source order. `[]` when `via()` is dynamic, not declared or inherited."
                 },
                 "channels_dynamic": {
                     "type": "boolean",
-                    "description": "`true` only when `via()` exists but is not a single literal-array return (conditional, property access, variable or keyed items). Channels then exist at runtime but are invisible to static analysis."
+                    "description": "`true` only when `via()` exists but is not a single literal-array return, so channels exist at runtime but are invisible statically."
                 }
             },
             "description": "Notification classes."
@@ -711,7 +711,7 @@
                 },
                 "reason": {
                     "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
-                    "description": "`dynamic_class_name`: `event($variable)` and similar. `container_resolution`: class fetched from the container (`app()`, `resolve()`, `->make()`). `string_concatenation`: name built by concatenation or interpolation. `conditional_dispatch`: a ternary or conditional whose branches cannot be evaluated."
+                    "description": "`dynamic_class_name`: a variable. `container_resolution`: `app()`, `resolve()`, `->make()`. `string_concatenation`: concatenation or interpolation. `conditional_dispatch`: a ternary whose branches cannot be evaluated."
                 }
             },
             "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."
