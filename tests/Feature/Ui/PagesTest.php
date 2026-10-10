@@ -210,7 +210,7 @@ it('applies the stale banner when app/ changed after the scan', function () {
         {
             public function lastChange(): ?int
             {
-                return strtotime('2026-01-08T00:00:00+00:00');
+                return strtotime('2026-01-08T00:00:00Z');
             }
         },
     );

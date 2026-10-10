@@ -34,7 +34,7 @@ function checkCommandIndex(array $overrides = []): array
         'schema_version' => '1.0',
         'loom_version' => '0.3.0',
         'laravel_version' => '12.x',
-        'scanned_at' => '2026-01-01T00:00:00+00:00',
+        'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => [
             'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,

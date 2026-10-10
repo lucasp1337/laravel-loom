@@ -26,7 +26,7 @@
     "properties": {
         "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
         "loom_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
-        "scanned_at": { "type": "string", "format": "date-time" },
+        "scanned_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
@@ -199,7 +199,13 @@
                 "registration": { "enum": ["observe_call", "attribute"] },
                 "hooks": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                        "enum": [
+                            "retrieved", "creating", "created", "updating", "updated",
+                            "saving", "saved", "deleting", "deleted", "restoring", "restored",
+                            "replicating", "trashed", "forceDeleting", "forceDeleted"
+                        ]
+                    }
                 },
                 "dispatches": {
                     "type": "array",

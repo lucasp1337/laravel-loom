@@ -20,7 +20,7 @@ function differBaseIndex(): array
         'schema_version' => '1.0',
         'loom_version' => '1.0.0',
         'laravel_version' => '12.x',
-        'scanned_at' => '2026-01-01T00:00:00+00:00',
+        'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => ['events' => 1, 'listeners' => 1],
         'events' => [
             [
@@ -221,7 +221,7 @@ it('is order-independent for sublist members', function () {
 it('ignores metadata-only differences', function () {
     $old = differBaseIndex();
     $new = differBaseIndex();
-    $new['scanned_at'] = '2099-12-31T23:59:59+00:00';
+    $new['scanned_at'] = '2099-12-31T23:59:59Z';
     $new['loom_version'] = '9.9.9';
     $new['laravel_version'] = '99.x';
     $new['stats'] = ['events' => 999, 'listeners' => 999, 'noise' => true];

@@ -17,10 +17,10 @@ function snapshotFile(string $scannedAt): string
 }
 
 it('loads the snapshot and reports availability', function () {
-    $source = new SnapshotIndexSource(new IndexLoader, snapshotFile('2026-01-01T00:00:00+00:00'));
+    $source = new SnapshotIndexSource(new IndexLoader, snapshotFile('2026-01-01T00:00:00Z'));
 
     expect($source->isAvailable())->toBeTrue()
-        ->and($source->index()->scannedAt)->toBe('2026-01-01T00:00:00+00:00')
+        ->and($source->index()->scannedAt)->toBe('2026-01-01T00:00:00Z')
         ->and($source->index())->toBe($source->index());
 });
 

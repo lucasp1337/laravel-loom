@@ -166,6 +166,8 @@ final class ScanScope
                 continue;
             }
 
+            // Directory iteration order is filesystem-dependent; sort so scans are reproducible.
+            $paths = [];
             $iterator = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS)
             );
@@ -175,7 +177,12 @@ final class ScanScope
                     continue;
                 }
 
-                $absolute = $entry->getPathname();
+                $paths[$entry->getPathname()] = $entry;
+            }
+
+            ksort($paths, SORT_STRING);
+
+            foreach ($paths as $absolute => $entry) {
                 if (isset($seen[$absolute]) || $this->isExcluded($appRoot, $absolute)) {
                     continue;
                 }

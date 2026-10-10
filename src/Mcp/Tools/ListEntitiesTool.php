@@ -43,7 +43,9 @@ final class ListEntitiesTool extends Tool
         try {
             $section = Sections::from($validated['section']);
         } catch (ValueError) {
-            return Response::error("Unknown section [{$validated['section']}].");
+            $expected = implode(', ', array_map(static fn (Sections $s): string => $s->value, Sections::cases()));
+
+            return Response::error("Unknown section [{$validated['section']}]; expected one of: {$expected}.");
         }
 
         $items = $this->repository->payload()[$section->value] ?? [];

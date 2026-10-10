@@ -78,17 +78,17 @@ function mcpCharacterizationCases(): array
         'route.missing' => [RouteToEventsTool::class, ['method' => 'DELETE', 'uri' => 'nope']],
         'route.verb_mismatch' => [RouteToEventsTool::class, ['method' => 'GET', 'uri' => 'orders']],
         'impact.event' => [ImpactOfChangeTool::class, ['fqcn' => $order]],
-        'impact.event_rename' => [ImpactOfChangeTool::class, ['fqcn' => $order, 'kind' => 'rename']],
+        'impact.event_rename' => [ImpactOfChangeTool::class, ['fqcn' => $order, 'change' => 'rename']],
         'impact.event_singular' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Events\\ReceiptSent']],
         'impact.event_none' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Events\\Lonely']],
         'impact.listener_orphans' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\ArchiveReceipt']],
-        'impact.listener_rename' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\ArchiveReceipt', 'kind' => 'rename']],
+        'impact.listener_rename' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\ArchiveReceipt', 'change' => 'rename']],
         'impact.listener_no_orphans' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\SendReceipt']],
         'impact.listener_would_orphan' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\PingListener']],
         'impact.listener_idle' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\Idle']],
         'impact.job' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Jobs\\SendMail']],
         'impact.unknown' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Nope']],
-        'impact.bad_kind' => [ImpactOfChangeTool::class, ['fqcn' => $order, 'kind' => 'explode']],
+        'impact.bad_change' => [ImpactOfChangeTool::class, ['fqcn' => $order, 'change' => 'explode']],
         'orphans' => [FindOrphansTool::class, []],
         'unresolved' => [FindUnresolvedDispatchesTool::class, []],
         'entity.event' => [GetEntityTool::class, ['kind' => 'event', 'fqcn' => $order]],
@@ -183,10 +183,10 @@ it('pins the error strings verbatim', function () {
     $errors = static fn (string $case): string => implode('|', mcpActualSnapshot()['cases'][$case]['errors']);
 
     expect($errors('route.missing'))->toContain('No route found for DELETE nope.')
-        ->and($errors('entity.unknown_kind'))->toContain('Unknown kind [route].')
+        ->and($errors('entity.unknown_kind'))->toContain('Unknown kind [route]; expected one of: event, listener, observer, job, mailable, notification.')
         ->and($errors('entity.missing'))->toContain('No job found for App\\Nope.')
-        ->and($errors('list.unknown'))->toContain('Unknown section [widgets].')
-        ->and($errors('impact.bad_kind'))->toContain('Unknown kind [explode]; expected one of: remove, rename.')
+        ->and($errors('list.unknown'))->toContain('Unknown section [widgets]; expected one of:')
+        ->and($errors('impact.bad_change'))->toContain('Unknown change [explode]; expected one of: remove, rename.')
         ->and($errors('handlers.empty'))->toContain('event_fqcn is required.')
         ->and($errors('sites.empty'))->toContain('event_fqcn is required.')
         ->and($errors('dispatches_from.empty'))->toContain('method_fqcn is required.');

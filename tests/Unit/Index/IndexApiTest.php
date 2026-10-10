@@ -43,7 +43,7 @@ function representativeIndexArray(): array
     return [
         'schema_version' => '1.0',
         'loom_version' => '0.3.0',
-        'scanned_at' => '2026-06-07T12:00:00+00:00',
+        'scanned_at' => '2026-06-07T12:00:00Z',
         'laravel_version' => '12.x',
         'events' => [
             [
@@ -432,7 +432,7 @@ it('round-trips the section payloads through toArray, recomputing the envelope',
 
     // Meta envelope is preserved verbatim.
     expect($out['loom_version'])->toBe('0.3.0');
-    expect($out['scanned_at'])->toBe('2026-06-07T12:00:00+00:00');
+    expect($out['scanned_at'])->toBe('2026-06-07T12:00:00Z');
     expect($out['laravel_version'])->toBe('12.x');
 
     // Section payloads survive the round-trip untouched.

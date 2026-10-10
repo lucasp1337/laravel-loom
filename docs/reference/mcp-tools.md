@@ -2,7 +2,7 @@
 
 Every tool the `loom` server exposes over `php artisan loom:mcp`, with its inputs and the shape of what it returns. For how to register the server and what to ask it, see [Ask an agent about your events](../guides/ask-an-agent.md).
 
-All tools are read-only and return one JSON document as text. The examples below are real responses from a small order app in which `OrderController` fires `OrderPlaced`, `SendReceipt` handles it, and `SendReceipt` fires `ReceiptSent` and queues `SendMail`.
+All tools are read-only and return one JSON document as text. Tool names, input names and the output key names below are stable as of 1.0: renaming or removing one is a major change; adding an optional input or an output key is minor. The examples below are real responses from a small order app in which `OrderController` fires `OrderPlaced`, `SendReceipt` handles it, and `SendReceipt` fires `ReceiptSent` and queues `SendMail`.
 
 | Tool | Answers | Inputs |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ All tools are read-only and return one JSON document as text. The examples below
 | [`events-following`](#events-following) | What does this event set off, transitively? | `event_fqcn`, `depth` |
 | [`events-from-method`](#events-from-method) | What does this method set off, transitively? | `method_fqcn`, `depth` |
 | [`route-to-events`](#route-to-events) | What does this HTTP route set off? | `method`, `uri`, `depth` |
-| [`impact-of-change`](#impact-of-change) | What does removing or renaming this class affect? | `fqcn`, `kind` |
+| [`impact-of-change`](#impact-of-change) | What does removing or renaming this class affect? | `fqcn`, `change` |
 | [`find-orphans`](#find-orphans) | Which events and listeners are dead weight? | none |
 | [`find-unresolved-dispatches`](#find-unresolved-dispatches) | Which dispatches couldn't Loom resolve? | none |
 
@@ -25,6 +25,8 @@ Class names are fully qualified and case-sensitive, written the way PHP writes t
 `depth` is an integer number of handler-to-dispatch hops, default `3`. Values outside `1` to `6` are clamped, not rejected. The response echoes the depth actually used.
 
 A method reference (`method_fqcn`) is `Class::method`, `Class@method`, or a bare `Class` for every method it has.
+
+Output keys are snake_case. Wherever a handler is described, `handler_kind` is `listener` or `closure`.
 
 Errors come back as a text message instead of JSON. Empty results are not errors, except where a tool below says otherwise.
 
@@ -60,7 +62,7 @@ Lists one section of the index verbatim, with a count. Use it to find a class na
 }
 ```
 
-`items` has the same fields as that section of the [index](schema.md). An unknown `section` returns `Unknown section [widgets].`
+`items` has the same fields as that section of the [index](schema.md). An unknown `section` returns `Unknown section [widgets]; expected one of: events, listeners, ...` with the full list.
 
 ### `get-entity`
 
@@ -90,7 +92,7 @@ Fetches one class's record by kind and name.
 }
 ```
 
-A missing class returns `No job found for App\Nope.` (with the kind you asked for), and an unknown `kind` returns `Unknown kind [route].`
+A missing class returns `No job found for App\Nope.` (with the kind you asked for), and an unknown `kind` returns `Unknown kind [route]; expected one of: event, listener, observer, job, mailable, notification.`
 
 `entity` is the raw index entry, snake_case, identical to what `list-entities` and `index.json` carry.
 
@@ -235,14 +237,14 @@ Reports what removing or renaming a class touches.
 | Input | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `fqcn` | string | yes | none | An event, listener or job |
-| `kind` | string | no | `remove` | `remove` or `rename`. Changes the wording of `notes` only |
+| `change` | string | no | `remove` | `remove` or `rename`. Changes the wording of `notes` only |
 
 For a listener, the response says which events it handles and which would be left with no handler:
 
 ```json
 {
   "fqcn": "App\\Listeners\\ArchiveReceipt",
-  "kind": "remove",
+  "change": "remove",
   "entity": "listener",
   "handles": ["App\\Events\\ReceiptSent"],
   "would_orphan_events": [],
@@ -254,7 +256,7 @@ For a listener, the response says which events it handles and which would be lef
 }
 ```
 
-For an event (`"entity": "event"`), the response has `dispatchers`, `handlers`, and a `downstream` chain instead. A class Loom doesn't know returns `"entity": "unknown"` and a note. An unrecognized `kind` returns `Unknown kind [explode]; expected one of: remove, rename.`
+For an event (`"entity": "event"`), the response has `dispatchers`, `handlers`, and a `downstream` chain instead; each `handlers` entry is `{ listener, method, handler_kind }`, and a closure handler is named `file:line` with method `closure`. A class Loom doesn't know returns `"entity": "unknown"` and a note. An unrecognized `change` returns `Unknown change [explode]; expected one of: remove, rename.`
 
 ### `find-orphans`
 

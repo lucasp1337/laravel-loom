@@ -8,24 +8,40 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
 {
   "schema_version": string,       // "MAJOR.MINOR" of this document shape, e.g. "1.0"
   "loom_version": string,        // semver of Loom that produced this index (informational)
-  "scanned_at": string,           // ISO 8601 UTC timestamp
+  "scanned_at": string,           // ISO 8601 UTC timestamp, always ending in "Z"
   "laravel_version": string,      // detected Laravel version of the scanned app
   "stats": object,                // counts by section
   "events": array,                // discovered event classes
   "model_events": array,          // Eloquent model event entries
   "listeners": array,             // discovered listeners
-  "closure_listeners": array,     // discovered closure / arrow-function listener registrations
-  "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
+  "jobs": array,                  // discovered job classes
+  "unresolved_dispatches": array, // dispatch sites that could not be statically resolved
+  "closure_listeners": array,     // discovered closure / arrow-function listener registrations
   "scheduled": array,             // task-scheduler entries
   "routes": array,                // registered HTTP routes
   "mailables": array,             // discovered mailable classes
-  "notifications": array,         // discovered notification classes
-  "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
+  "notifications": array          // discovered notification classes
 }
 ```
 
 All fields are required. Empty arrays are valid. `null` is never valid for an array field. `additionalProperties: false` at the top level — fields beyond these are a schema violation.
+
+## Determinism
+
+Two scans of identical source produce byte-identical JSON, except `scanned_at`. Files are read in sorted path order, and every section is sorted by its natural key followed by tie-breakers, so the order is total:
+
+| Section | Order |
+|---|---|
+| `events`, `model_events` | `id` |
+| `listeners`, `jobs`, `mailables`, `notifications` | `fqcn` |
+| `observers` | `fqcn`, `observes` |
+| `closure_listeners` | `event`, `file`, `line`, `end_line`, `registration` |
+| `scheduled` | `file`, `line`, `kind`, `target`, `name`, `cron` |
+| `routes` | `file`, `line`, `method`, `uri`, `name` |
+| `unresolved_dispatches` | `file`, `line`, `expression`, `reason` |
+
+Nested sets use the same rule: dispatch sites by `file`, `line`, `method`, `mode`; `dispatches[]` by `file`, `line`, `target`, `kind`; `handled_by[]` by `listener` (or `handler`), `method`; `handles[]` by `event`, `method`. Arrays whose source order is meaningful (`middleware`, `channels`, `arguments`) keep it. Paths are relative to the app root, so scanning the same tree from another directory gives the same output.
 
 ## `events[]`
 
@@ -243,16 +259,16 @@ The cross-link pass intentionally does NOT add closure entries to `events[*].han
 
 ```
 {
-  "connection": string | null,
-  "queue": string | null,
-  "delay": integer | null,
-  "tries": integer | null,
-  "timeout": integer | null,
-  "backoff": integer | null
+  "connection": string | integer | null,
+  "queue": string | integer | null,
+  "delay": string | integer | null,
+  "tries": string | integer | null,
+  "timeout": string | integer | null,
+  "backoff": string | integer | null
 }
 ```
 
-All six keys are required when `queue_config` is an object; each value is the scalar literal declared as a class property, or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
+All six keys are required when `queue_config` is an object; each value is the string or integer literal declared as a class property (the literal's own type is kept), or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
 
 `dispatched_from[]` uses `$defs/dispatchSite` (the same shape as `events[*].dispatched_from`). It is populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` whose `target` matches the job's FQCN.
 
@@ -269,7 +285,7 @@ Entries are sorted by `fqcn` ascending.
   "line": integer,
   "observes": string,             // FQCN of the observed model
   "registration": enum,           // "observe_call" | "attribute"
-  "hooks": array<string>,         // hook method names declared on the observer
+  "hooks": array<enum>,           // observable model events the observer has a method for; sorted; values of the model event enum below, minus booting/booted
   "dispatches": array             // same shape as listeners.dispatches; cross-link populated
 }
 ```
@@ -362,7 +378,7 @@ Registered HTTP routes discovered from the application's route definitions. One 
 `method` enum:
 
 ```
-GET, POST, PUT, PATCH, DELETE, OPTIONS, ANY
+GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD, ANY
 ```
 
 A route registered against multiple verbs that share one definition is reported as `ANY`. Routes whose action is a closure (or otherwise not a `Controller@method` callable) carry `null` for both `controller_fqcn` and `controller_method`; `name` is `null` whenever no `->name(...)` was applied.
@@ -448,14 +464,14 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
 {
   "events": integer,
   "listeners": integer,
-  "closure_listeners": integer,
-  "jobs": integer,
   "observers": integer,
+  "jobs": integer,
+  "unresolved_dispatches": integer,
+  "closure_listeners": integer,
   "scheduled": integer,
   "routes": integer,
   "mailables": integer,
-  "notifications": integer,
-  "unresolved_dispatches": integer
+  "notifications": integer
 }
 ```
 
@@ -489,7 +505,7 @@ Reader behaviour, in `IndexLoader`, `loom:check` and `loom:diff`:
 - Missing `schema_version` (written before 1.0), older major or newer major: refused with a message to re-run `php artisan loom:scan`. There is no migration; the index is a derived file.
 - `loom:diff` refuses to compare two indexes with different majors, and exits `2`.
 
-`schema_version` `1.0` is the baseline. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
+`schema_version` `1.0` is the baseline and is frozen: every field name, enum value and nullability on this page, and the MCP tool names and inputs in [MCP tools](mcp-tools.md), follow the table above from here. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
 
 Because the schema sets `additionalProperties: false`, a consumer that validates with a stored copy of the schema will reject a later minor. Validate with the schema shipped in the same release as the producer, or don't validate.
 
@@ -502,6 +518,8 @@ Some enums grow in minor releases. Consumers must tolerate values they don't kno
 - `reason` on `unresolved_dispatches[]`
 - `confidence`: only `high` is emitted today; `medium` and `low` are reserved, ordered `high > medium > low`
 - `routes[].method`
+- `model_events[].event` and `observers[].hooks[]`, which follow Eloquent's event list
+- `scheduled[].kind` and `scheduled[].frequency.unit`
 
 Removing or renaming a value is a major change. Adding one is minor.
 
