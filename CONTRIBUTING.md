@@ -16,6 +16,8 @@ Rules for consumer docs:
 
 The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `vendor/bin/pest`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
 
+The schema, MCP tool and config reference pages carry generated regions (between `<!-- generated:NAME -->` markers) built from `schema/loom-index.schema.json`, the MCP tool classes and `config/loom.php`. After changing any of those, run `composer docs:generate`; `tests/Docs/ReferenceDriftTest.php` fails when a committed page is stale.
+
 ## Prerequisites
 
 - PHP **8.3+** with `ext-mbstring`, `ext-xml`, `ext-dom`, `ext-xmlwriter`
