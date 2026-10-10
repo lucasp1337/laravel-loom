@@ -7,20 +7,27 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
+copyright: Laravel Loom · MIT licensed
+
 theme:
   name: material
+  variant: classic
+  custom_dir: overrides
+  font:
+    text: Literata
+    code: IBM Plex Mono
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -29,11 +36,15 @@ theme:
     - navigation.top
     - navigation.tracking
     - navigation.indexes
+    - navigation.footer
     - content.code.copy
     - content.action.edit
     - search.suggest
     - search.highlight
     - toc.follow
+
+extra_css:
+  - stylesheets/loom.css
 
 markdown_extensions:
   - admonition
