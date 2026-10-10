@@ -24,4 +24,3 @@ New here? [Getting started](getting-started.md) takes a few minutes and ends wit
 - [MCP tools](reference/mcp-tools.md)
 - [Schema](reference/schema.md)
 - [PHP API](reference/php-api.md)
-- [Upgrading](upgrading.md)

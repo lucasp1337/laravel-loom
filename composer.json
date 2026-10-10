@@ -2,7 +2,7 @@
     "name": "lucasp1337/laravel-loom",
     "description": "Static architectural inspector for Laravel applications — emits a JSON index of events, listeners, and observers.",
     "keywords": ["laravel", "static-analysis", "events", "listeners", "observers", "loom"],
-    "homepage": "https://github.com/lucasp1337/laravel-loom",
+    "homepage": "https://lucasp1337.github.io/laravel-loom/",
     "license": "MIT",
     "authors": [
         {

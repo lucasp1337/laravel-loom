@@ -25,6 +25,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `loom:scan --output`, repeatable `--path` and `--route-path`, a summary line, and `-v` to list skipped files with the parse error.
 - Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
 - Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
+- `SECURITY.md` (private vulnerability reporting) and a manually triggered docs-site deploy workflow ([#102](https://github.com/lucasp1337/laravel-loom/issues/102), [#104](https://github.com/lucasp1337/laravel-loom/issues/104)).
 
 ## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
 
@@ -35,7 +36,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Breaking
 
-- Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
+- Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`.
 - Index gains a required `schema_version` (`"1.0"`). `IndexLoader`, `loom:check` and `loom:diff` refuse a missing or different major; `loom:diff` refuses cross-major.
 - `model_events[].handled_by` is now `{handler, method, file, line}` objects, not `"Fqcn::hook"` strings.
 - `file` paths must be relative; the absolute-path fallback is removed and the schema rejects absolute paths.
