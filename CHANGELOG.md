@@ -10,6 +10,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Changed
 
+- `src/` uses `Illuminate\Support` `Arr`/`Str`/`Collection` helpers instead of native array, string and sort functions; output is unchanged ([#133](https://github.com/lucasp1337/laravel-loom/issues/133)).
 - Schema 1.0 and the MCP tool surface are frozen; output is sorted into a total order so two scans of the same source are byte-identical apart from `scanned_at` ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - The `scheduled` section is renamed `scheduled_tasks` (also `stats.scheduled_tasks`, `Index::scheduledTasks()` and the `Model\ScheduledTask` read model) so every section is a plural noun ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - `impact-of-change` takes `change` (was `kind`) and returns `change`; impact `handlers[]` use `handler_kind` (was `kind`) ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
