@@ -57,18 +57,18 @@ shell:
 
 # Serve the docs site locally with live reload at http://localhost:8000.
 docs-serve:
-    docker run --rm -it -p 8000:8000 -v $(pwd):/docs squidfunk/mkdocs-material serve --dev-addr 0.0.0.0:8000
+    docker run --rm -it -p 8000:8000 -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical serve --dev-addr 0.0.0.0:8000"
 
 # Build the docs site into ./site (strict: fails on broken links / nav).
 docs-build:
-    docker run --rm -v $(pwd):/docs squidfunk/mkdocs-material build --strict
+    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical build --clean --strict"
 
 # Publish the docs to the gh-pages branch. Builds in Docker, stages the branch
 # locally, then pushes with your own git credentials — no GitHub Actions, no
 # CI minutes. Run it whenever you want the published site refreshed.
 docs-deploy:
-    docker run --rm -v $(pwd):/docs squidfunk/mkdocs-material build --strict
-    docker run --rm -v $(pwd):/docs --entrypoint ghp-import squidfunk/mkdocs-material -n -f -m "docs: deploy site" -b gh-pages site
+    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical build --clean --strict"
+    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "apt-get update -qq && apt-get install -y -qq git && git config --global --add safe.directory /docs && pip install -q ghp-import && ghp-import -n -f -m 'docs: deploy site' -b gh-pages site"
     git push --force origin gh-pages
 
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
