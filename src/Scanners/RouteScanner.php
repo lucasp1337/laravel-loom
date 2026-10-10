@@ -26,10 +26,33 @@ use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
 
 /**
- * Discovers HTTP routes declared via the `Route` facade under routes/.
+ * Discovers HTTP routes declared via the `Route` facade under routes/ and in
+ * the route files that providers and bootstrap/app.php load.
  *
- * Slice 1: leaf verb routes only (get/post/.../any/match). Group prefixes,
- * middleware chains, and dispatch cross-links are out of scope.
+ * Roots: `Route::get/post/put/patch/delete/options` (one entry), `any` (method
+ * `ANY`) and `match([...])` (one entry per listed verb). The action is a tuple,
+ * an invokable `Ctrl::class` or one-element tuple (`__invoke`), a legacy
+ * `'Ctrl@method'` string, or a closure (both controller fields null). `->name()`
+ * on the chain sets the name.
+ *
+ * Groups (array form and fluent form, nested outer to inner) contribute a
+ * prefix (always a leading slash, root `/`), a name prefix concatenated as-is,
+ * a default controller for bare method-name actions (an action that names a
+ * class keeps its own), and middleware. Middleware is verbatim, with
+ * parameters kept (`throttle:60,1`) and `::class` resolved: a repeated
+ * `middleware()` on a group registrar chain keeps only the last call, nested
+ * groups append inner after outer, and calls on a route instance accumulate;
+ * exact duplicates are removed. Aliases and groups are not expanded.
+ *
+ * `Route::resource` expands to seven routes and `apiResource` to five
+ * (no `create`/`edit`), with `{singular}` member parameters, `update` as a
+ * single `PUT`, enclosing group context applied, and `->only()`/`->except()`
+ * honoured. `names()`, `parameters()`, `scoped()` and `shallow()` are not
+ * applied.
+ *
+ * Files loaded under a group inherit its context: see
+ * {@see RouteFileLoadVisitor}. A file loaded from two groups is read once per
+ * context, so its routes appear under both.
  *
  * @internal
  */

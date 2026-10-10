@@ -137,27 +137,7 @@ docs/                       # consumer-facing docs (published site)
 
 ## Adding a scanner
 
-The workflow is automated via a chain of specialized agents (see `AGENTS.md`). The high-level steps:
-
-1. **Design.** Document the scanner (scanner internals live under `docs/contributing/`), covering what it detects, what it emits to the schema, edge cases, and known limitations. Mirror the structure of the existing scanner docs.
-
-2. **Implement.** Create `src/Scanners/{Name}Scanner.php` implementing `Lucasp\Loom\Contracts\Scanner`. Three concerns must live in separate methods:
-   - Discovery (filesystem walk / provider reflection / attribute scan)
-   - Parsing (delegated to one or more `NodeVisitor` classes in `src/Scanners/Visitors/`)
-   - Emission (build schema-shaped arrays, sort deterministically)
-
-   For a class-based primitive (a class in a convention directory, plus classes reached from dispatch sites), skip the hand-written skeleton: add a `ClassSpec` in `src/Scanners/Discovery/` and let `ClassPrimitiveDiscovery` run it. See [architecture](docs/contributing/architecture.md#class-based-primitives).
-
-3. **Visitors.** Extend `CollectingVisitor` and clear per-file state in `reset()`. Read on `leaveNode` (NameResolver child-first ordering — see [architecture](docs/contributing/architecture.md)). Expose collected data via a getter.
-
-4. **Register.** Add the scanner to `Lucasp\Loom\Scanners\DefaultScanners` (the single list used by `ScanCommand`, the Justfile and the benchmarks), and update the consumer docs page listing what Loom detects.
-
-5. **Test.** Three layers:
-   - Unit tests in `tests/Unit/` that feed heredoc snippets to each visitor and assert collected output
-   - Integration test in `tests/Feature/` that points the scanner at a fixture in `tests/Fixtures/{name}-fixture-app/`
-   - End-to-end test that registers the scanner against `IndexBuilder` and asserts the resulting index validates against the schema
-
-6. **Toolchain.** PHPStan level 8, Pint clean, Pest green.
+See [Add a scanner](docs/contributing/add-a-scanner.md). The scanner and visitor docblocks are the behaviour spec; there is no separate internals page.
 
 ## Adding a fixture
 

@@ -19,7 +19,7 @@ php artisan loom:scan
 Loom index written to /var/www/shop/storage/loom/index.json
 ```
 
-That file is the index: one JSON document with every event, listener, job, mailable, notification, schedule and route Loom found, each with a file and line. The scan reads your source and never boots your app, so it's safe to run anywhere.
+That file is the index: one JSON document with every event, listener, job, mailable, notification, schedule and route Loom found, each with a file and line. The scan never boots your app.
 
 ## Follow an event
 
@@ -52,7 +52,7 @@ The `events` entry for `OrderPlaced` tells you both directions of the story:
 !!! warning "The filter is partial"
     It applies to events, listeners, observers and model events only. Jobs, mailables, notifications, routes and schedules print in full, so searching for `SendReceipt` returns those sections unfiltered.
 
-The output above is one entry. Follow `handled_by` to the listener's own entry to see what it dispatches next, and [the index](concepts/the-index.md) shows how to read that chain.
+Follow `handled_by` to the listener's own entry to see what it dispatches next; [the index](concepts/the-index.md) shows how to read that chain.
 
 ## Open the UI
 
@@ -62,22 +62,16 @@ Loom also mounts a read-only browser UI in your app. Visit `/loom` locally.
 http://localhost:8000/loom
 ```
 
-You land on a dashboard with a count for each primitive, and every entry links to its detail page. The UI reads the file `loom:scan` wrote; it never scans itself, so scan again after you change code.
+You land on a dashboard with a count per primitive. The UI reads the file `loom:scan` wrote and never scans itself, so scan again after you change code.
 
 !!! warning "Local only by default"
     Only the `local` environment can open `/loom`. Anywhere else you get a 403 until you define a `viewLoom` gate. [Browse the UI](guides/browse-the-ui.md) covers the gate and the config.
 
 ## When it doesn't work
 
-Run `loom:show` on a machine that hasn't scanned yet and you get:
+`loom:show` before any scan prints `Loom index not found at ... Run `php artisan loom:scan` first.` and exits with a failure status.
 
-```text
-Loom index not found at /var/www/shop/storage/loom/index.json. Run `php artisan loom:scan` first.
-```
-
-Scan first. The command exits with a failure status, so a script notices too.
-
-If a dispatch you expected is missing, it may have landed in the `unresolved_dispatches` section instead. Loom lists calls like `event($class)` there, with a file and line, because it can't tell which class a variable holds. [Why was my code missed?](guides/why-was-my-code-missed.md) walks through the common symptoms.
+If a dispatch you expected is missing, it may be in `unresolved_dispatches`: calls like `event($class)` are listed there with a file and line, because Loom can't tell which class a variable holds. [Why was my code missed?](guides/why-was-my-code-missed.md) walks through the symptoms.
 
 ## Where to next
 

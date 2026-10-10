@@ -1,35 +1,20 @@
 # Architecture Decision Records
 
-This directory holds load-bearing design decisions for Loom. Each ADR captures
-*why* a particular path was taken — usually with two or three plausible
-alternatives ruled out — so future contributors don't have to re-litigate the
-same trade-off.
+This directory holds load-bearing design decisions: why a path was taken, with the alternatives ruled out.
 
-## What goes in an ADR vs. elsewhere
+## ADR or reference
 
-- **ADR** (a file in this directory) — a decision that constrains how something
-  is built. Opaque-leaf vendor strategy, eager filesystem walk vs. Composer
-  autoload, schema versioning policy. Short, focused, *immutable* once
-  `Accepted`.
-- **Reference docs (`docs/contributing/scanners-internals.md`, `docs/contributing/class-hierarchy.md`,
-  `docs/contributing/architecture.md`, `docs/reference/schema.md`)** — *what* the code does today.
-  Drifts freely with the code, same lifecycle as the source it documents.
-- **CHANGELOG** — what shipped, when, in which version.
+- **ADR**: a decision that constrains how something is built. Short and immutable once `Accepted`.
+- **Reference** (scanner and visitor docblocks, [class hierarchy](../class-hierarchy.md), [architecture](../architecture.md), the generated [schema](../../reference/schema.md) page): what the code does today. It changes with the code.
+- **CHANGELOG**: what shipped, in which version.
 
-If a doc is describing current behaviour and would need to be edited on every
-refactor, it's a reference doc, not an ADR.
+A document that would be edited on every refactor is a reference, not an ADR.
 
 ## Conventions
 
-- **Filename**: `NNNN-kebab-case-title.md`, zero-padded four-digit serial.
-- **Status**: `Proposed` → `Accepted` → (later) `Superseded by NNNN` or
-  `Deprecated`. Accepted ADRs are not edited — write a new ADR that supersedes
-  the old one and update the old one's status line.
-- **Sections**: `Status`, `Context`, `Decision`, `Consequences`, optionally
-  `Alternatives considered`.
-- **Length**: brief. A reader should be able to skim one in 60 seconds.
-- **Cross-references**: link from the ADR to relevant reference docs; link
-  back from reference docs to the ADR for the "why".
+- File name `NNNN-kebab-case-title.md`.
+- Status goes `Proposed`, `Accepted`, then `Superseded by NNNN` or `Deprecated`. An accepted ADR is not edited; write a new one that supersedes it.
+- Sections: `Status`, `Context`, `Decision`, `Consequences`, optionally `Rejected`. Keep it skimmable in a minute.
 
 ## Index
 

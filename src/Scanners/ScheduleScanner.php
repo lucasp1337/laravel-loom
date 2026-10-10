@@ -26,6 +26,30 @@ use PhpParser\Node;
  * Discovers entries declared in Laravel's task scheduler (Kernel, bootstrap/app.php,
  * routes/console.php and Schedule facade calls under app/).
  *
+ * Four surfaces, merged by (file, line) with the kernel and bootstrap forms
+ * preferred over the facade form:
+ * 1. `schedule(Schedule $schedule)` in app/Console/Kernel.php;
+ * 2. the `->withSchedule(function (Schedule $schedule) {...})` link of
+ *    `Application::configure()` in bootstrap/app.php;
+ * 3. `Schedule::call/command/job/exec(...)` anywhere under the scan paths;
+ * 4. routes/console.php, read with the facade visitor.
+ *
+ * One entry per chain, anchored at the root call. `kind` follows the root
+ * method; a `->call()` tuple callable or `Class@method` string normalizes to
+ * `Class::method`, an inline closure gives a null target. Frequency helpers
+ * give a canonical cron (multi-hour helpers honour their minutes argument,
+ * `quarterlyOn`, `daysOfMonth` and `everyOddHour` included); the seven
+ * sub-minute helpers give `frequency` instead; the last frequency helper in
+ * the chain wins across that boundary, as at runtime. A frequency helper
+ * followed by a method not known to be safe, or any helper with a non-literal
+ * argument, leaves `cron` null rather than guessing. Day and time-window
+ * helpers, `when`/`skip` and `environments` become opaque `constraints`.
+ *
+ * `->group(Closure)` (variable or facade form, nested groups concatenating)
+ * splices the outer chain's links before each inner task's own, so the inner
+ * modifiers win. Dispatches inside a scheduled closure are not attributed to
+ * the task.
+ *
  * @internal
  */
 final class ScheduleScanner implements Scanner

@@ -17,6 +17,11 @@ use PhpParser\Node;
 
 /**
  * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
+ * One chain per outermost call whose root is `call`, `command`, `job` or
+ * `exec`. In facade mode the receiver is the `Schedule` facade. In kernel mode
+ * it is a variable inside a `schedule()` method, and in bootstrap mode a
+ * variable inside a closure passed to `withSchedule()`. Group frames are
+ * pushed on enter and popped on leave so inner tasks see them.
  *
  * @internal
  */

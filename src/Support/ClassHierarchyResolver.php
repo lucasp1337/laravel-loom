@@ -15,6 +15,21 @@ use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
  * Cross-file extends/implements/use-trait resolver. Lazy index under
  * the scan directories; vendor classes are opaque leaves.
  *
+ * Results have no leading backslash, are deterministic (depth first, parent
+ * before its own parents, declaration order within a level, first occurrence
+ * wins) and tolerate inheritance cycles. An unknown name gives `[]`; use
+ * `knows()` to tell unknown from parentless. The interface and trait closures
+ * include the queried interface or trait itself.
+ *
+ * `effectiveMethods()` follows PHP precedence: the parent's methods (private
+ * ones are not inherited), overlaid by trait methods, overlaid by the class's
+ * own. Trait `insteadof` drops the excluded method, `as` renames or changes
+ * visibility (a visibility-only `as` changes the method in place, so
+ * `handle as protected` hides it), and an abstract trait method never
+ * replaces a concrete inherited one. Keys are lower-cased; `definedIn` is the
+ * class or trait holding the code and `declaredIn` the class `self` means.
+ * Methods only: properties and constants are not resolved.
+ *
  * @internal
  */
 final class ClassHierarchyResolver

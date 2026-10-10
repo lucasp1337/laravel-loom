@@ -27,6 +27,13 @@ use PhpParser\Node;
  * enclosing `Route::...->group()` frames, the call's own group, or the
  * `web` / `api` wrapper `withRouting()` applies.
  *
+ * `withRouting` follows Laravel's routing callback: `web` is
+ * `Route::middleware('web')->group()`, `api` is `Route::middleware('api')
+ * ->prefix($apiPrefix)->group()` with the prefix defaulting to `api`. Bare
+ * `loadRoutesFrom()` adds no group, as Laravel does not wrap it. A non-literal
+ * attribute is not guessed; it is reported through `unresolvedAttributes()`.
+ * `domain`, `where` and `namespace` of the loading group are not recorded.
+ *
  * @internal
  */
 final class RouteFileLoadVisitor extends CollectingVisitor

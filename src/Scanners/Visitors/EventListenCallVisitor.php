@@ -19,6 +19,22 @@ use PhpParser\Node;
  * equivalent container forms (`$this->app['events']->listen(...)`,
  * `app(Dispatcher::class)->listen(...)`, `$dispatcher->listen(...)`).
  *
+ * The surrounding class is not checked, so providers in any layout count. The
+ * receiver is the `Event` facade (FQCN or bare alias) or a dispatcher:
+ * `$this->app['events']`, `app(Dispatcher::class)`, `resolve(Dispatcher::class)`,
+ * `$this->app->make/makeWith(Dispatcher::class)`, or a local variable assigned
+ * from one of those earlier in the same file (a single flat pass; reassigning
+ * it to something else ends tracking). `Dispatcher` is matched by
+ * `Illuminate\Contracts\Events\Dispatcher`, `Illuminate\Events\Dispatcher` or
+ * the bare basename. A dispatcher typed in a `boot()` parameter or held in a
+ * property is not tracked.
+ *
+ * The first argument is an event class-string or an array of them; a closure
+ * or arrow function as the first argument infers the event from its first
+ * parameter's class type (nullable unwrapped, union gives one per class,
+ * untyped, `object` and `mixed` skipped). The second argument takes the same
+ * shapes as `$listen` values, or a closure, which becomes a closure listener.
+ *
  * @internal
  */
 final class EventListenCallVisitor extends CollectingVisitor

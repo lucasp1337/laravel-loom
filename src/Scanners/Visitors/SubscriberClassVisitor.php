@@ -17,6 +17,20 @@ use PhpParser\Node;
 /**
  * Extracts events handled by a class's `subscribe()` method — either via the
  * returned event=>handler map or imperative `$events->listen(...)` calls.
+ * A subscriber can mix both forms.
+ *
+ * Return-array form: `[Event::class => 'method']` or `[Event::class => [self::class,
+ * 'method']]` (`self`, `static` or the class's own name), handled by the
+ * subscriber itself. A closure value becomes a closure listener.
+ *
+ * Imperative form: `->listen(...)` on the method's first parameter, whatever its
+ * name or type. The visitor follows control flow (`if`, `foreach`, `try`) but not
+ * nested closures or other methods. Routing of the second argument:
+ * - own class tuple or a bare `'method'` string: the subscriber's own handles;
+ * - `[Other::class, 'method']`: a regular listener entry for `Other`, whose
+ *   `registration` becomes `subscriber`, the highest precedence, as the
+ *   subscriber is what registers it at runtime;
+ * - a closure or arrow function: a closure listener.
  *
  * @internal
  */
