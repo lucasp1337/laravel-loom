@@ -19,6 +19,8 @@ use Lucasp\Loom\Support\OptionalPackages;
  */
 final class McpCommand extends Command
 {
+    use ReadsCommandInput;
+
     protected $signature = 'loom:mcp
         {--snapshot= : Path to an index.json to serve (default: storage/loom/index.json)}
         {--scan : Run a fresh loom:scan before serving}
@@ -44,8 +46,8 @@ final class McpCommand extends Command
         $repository = $this->laravel->make(IndexRepository::class);
         $registrar = $this->laravel->make(Registrar::class);
 
-        $snapshot = $this->option('snapshot');
-        $hasSnapshot = is_string($snapshot) && $snapshot !== '';
+        $snapshot = $this->stringOpt('snapshot');
+        $hasSnapshot = $snapshot !== '';
 
         if ($hasSnapshot && $this->option('scan')) {
             $this->components->error('--scan writes the default index and cannot be combined with --snapshot.');

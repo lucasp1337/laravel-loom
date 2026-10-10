@@ -15,6 +15,7 @@ use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\DefaultScanners;
+use Lucasp\Loom\Support\AppPath;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
@@ -26,6 +27,8 @@ use Lucasp\Loom\Support\ScanScope;
 /** @internal */
 class ScanCommand extends Command
 {
+    use ReadsCommandInput;
+
     protected $signature = 'loom:scan
         {--output= : Write the index here instead of the configured index_path}
         {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}
@@ -122,8 +125,8 @@ class ScanCommand extends Command
     private function resolveScope(string $appRoot): ScanScope
     {
         $config = config('loom.scan');
-        $paths = array_values(Arr::where((array) $this->option('path'), static fn (mixed $v): bool => is_string($v)));
-        $routePaths = array_values(Arr::where((array) $this->option('route-path'), static fn (mixed $v): bool => is_string($v)));
+        $paths = $this->stringListOpt('path');
+        $routePaths = $this->stringListOpt('route-path');
 
         $config = is_array($config) ? $config : [];
         if ((bool) $this->option('no-discover-routes')) {
@@ -140,14 +143,12 @@ class ScanCommand extends Command
 
     private function resolveOutputPath(): string
     {
-        $option = $this->option('output');
-        if (! is_string($option) || $option === '') {
+        $option = $this->stringOpt('output');
+        if ($option === '') {
             return $this->laravel->make(IndexPath::class)->resolve();
         }
 
-        $isAbsolute = Str::startsWith($option, '/') || Str::startsWith($option, '\\') || Str::isMatch('#^[A-Za-z]:[\\/]#', $option);
-
-        return $isAbsolute ? $option : $this->laravel->basePath($option);
+        return AppPath::isAbsolute($option) ? $option : $this->laravel->basePath($option);
     }
 
     /**
@@ -170,12 +171,9 @@ class ScanCommand extends Command
      */
     private function listSkipped(array $skipped, string $appRoot): void
     {
-        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-
         $this->line('Skipped files:');
         foreach ($skipped as $file) {
-            $path = Str::startsWith($file->file, $prefix) ? Str::chopStart($file->file, $prefix) : $file->file;
-            $location = Str::replace(DIRECTORY_SEPARATOR, '/', $path).($file->line !== null ? ':'.$file->line : '');
+            $location = AppPath::display($appRoot, $file->file).($file->line !== null ? ':'.$file->line : '');
             $this->line("  {$location}  {$file->message}");
         }
     }
@@ -185,12 +183,9 @@ class ScanCommand extends Command
      */
     private function listUnresolvedRoutes(array $unresolved, string $appRoot): void
     {
-        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-
         $this->line('Route paths not followed:');
         foreach ($unresolved as $path) {
-            $file = Str::startsWith($path->file, $prefix) ? Str::chopStart($path->file, $prefix) : $path->file;
-            $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$path->line.'  '.$path->message());
+            $this->line('  '.AppPath::display($appRoot, $path->file).':'.$path->line.'  '.$path->message());
         }
     }
 
@@ -199,12 +194,9 @@ class ScanCommand extends Command
      */
     private function listUnresolvedAttributes(array $unresolved, string $appRoot): void
     {
-        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-
         $this->line('Group attributes not applied:');
         foreach ($unresolved as $attribute) {
-            $file = Str::startsWith($attribute->file, $prefix) ? Str::chopStart($attribute->file, $prefix) : $attribute->file;
-            $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$attribute->line.'  '.$attribute->message());
+            $this->line('  '.AppPath::display($appRoot, $attribute->file).':'.$attribute->line.'  '.$attribute->message());
         }
     }
 

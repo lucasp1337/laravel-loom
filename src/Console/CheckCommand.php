@@ -18,6 +18,8 @@ use Lucasp\Loom\Support\IndexPath;
 /** @internal */
 class CheckCommand extends Command
 {
+    use ReadsCommandInput;
+
     protected $signature = 'loom:check
         {index? : Path to index.json (default: storage/loom/index.json)}
         {--baseline= : Path to a baseline index.json for growth checks}
@@ -98,46 +100,16 @@ class CheckCommand extends Command
         return $skip;
     }
 
-    private function stringArg(string $name): string
-    {
-        $value = $this->argument($name);
-
-        return is_string($value) ? $value : '';
-    }
-
-    private function stringOpt(string $name): string
-    {
-        $value = $this->option($name);
-
-        return is_string($value) ? $value : '';
-    }
-
     /**
      * @return array<string,mixed>|null
      */
     private function decode(string $path): ?array
     {
-        if (! is_file($path)) {
-            $this->error("Not a file: {$path}");
-
+        $data = $this->decodeJsonObject($path);
+        if ($data === null) {
             return null;
         }
 
-        $raw = file_get_contents($path);
-        if ($raw === false) {
-            $this->error("Could not read {$path}.");
-
-            return null;
-        }
-
-        $data = json_decode($raw, true);
-        if (! is_array($data)) {
-            $this->error("{$path} is not a valid JSON object.");
-
-            return null;
-        }
-
-        /** @var array<string,mixed> $data */
         try {
             IndexSchema::assertSupported($data);
         } catch (IndexLoadException $e) {
