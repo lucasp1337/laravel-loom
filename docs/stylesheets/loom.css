@@ -134,19 +134,10 @@ body[data-md-color-scheme="slate"] {
 .md-header__title { margin-left: 4px; }
 .md-header__topic:first-child { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
 
-/* Loom mark replaces the stock logo glyph (drawn with a mask so it follows the accent) */
-.md-header__button.md-logo svg,
-.md-nav__button.md-logo svg { display: none; }
+/* Loom logo from art/, dark variant swapped under the slate scheme */
 .md-header__button.md-logo { padding: 0; margin: 0 6px 0 0; }
-.md-header__button.md-logo::before {
-  content: "";
-  display: block;
-  width: 26px;
-  height: 26px;
-  background: var(--md-primary-fg-color);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 3v20M10 3v20M15 3v20M20 3v20' opacity='.4'/%3E%3Cpath d='M2 8c6-4 10 4 22 0M2 14c6-4 10 4 22 0M2 20c6-4 10 4 22 0'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 3v20M10 3v20M15 3v20M20 3v20' opacity='.4'/%3E%3Cpath d='M2 8c6-4 10 4 22 0M2 14c6-4 10 4 22 0M2 20c6-4 10 4 22 0'/%3E%3C/svg%3E") center / contain no-repeat;
-}
+.md-header__button.md-logo img { height: 30px; width: 30px; }
+[data-md-color-scheme="slate"] .md-header__button.md-logo img { content: url("../assets/logo-dark.svg"); }
 
 /* search pill */
 .md-search__button {
