@@ -17,6 +17,6 @@ final class OptionalPackages
 
     public function has(OptionalPackage $package): bool
     {
-        return ! in_array($package, $this->unavailable, true) && class_exists($package->probeClass());
+        return ! collect($this->unavailable)->containsStrict($package) && class_exists($package->probeClass());
     }
 }

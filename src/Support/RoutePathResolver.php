@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\RouteFileReference;
 use PhpParser\Node;
@@ -143,6 +144,6 @@ final class RoutePathResolver
             $segments[] = $segment;
         }
 
-        return $drive.'/'.implode('/', $segments);
+        return $drive.'/'.Arr::join($segments, '/');
     }
 }

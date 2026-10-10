@@ -76,7 +76,7 @@ class AstWalker
     public function skippedFiles(): array
     {
         $skipped = $this->skipped;
-        ksort($skipped);
+        $skipped = collect($skipped)->sortKeys()->all();
 
         return array_values($skipped);
     }

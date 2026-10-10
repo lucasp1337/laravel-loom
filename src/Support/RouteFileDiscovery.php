@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\RouteFileReference;
 use Lucasp\Loom\Dto\RouteGroupContext;
@@ -48,10 +49,7 @@ final class RouteFileDiscovery
      */
     public function files(string $appRoot): array
     {
-        return array_map(
-            fn (string $path): SplFileInfo => new SplFileInfo($path),
-            $this->result($appRoot)['files'],
-        );
+        return array_values(Arr::map($this->result($appRoot)['files'], fn (string $path): SplFileInfo => new SplFileInfo($path)));
     }
 
     /**
@@ -162,9 +160,9 @@ final class RouteFileDiscovery
             }
         }
 
-        usort($unresolved, fn (UnresolvedRoutePath $a, UnresolvedRoutePath $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
+        $unresolved = array_values(collect($unresolved)->sort(fn (UnresolvedRoutePath $a, UnresolvedRoutePath $b): int => [$a->file, $a->line] <=> [$b->file, $b->line])->all());
 
-        usort($attributes, fn (UnresolvedGroupAttribute $a, UnresolvedGroupAttribute $b): int => [$a->file, $a->line, $a->attribute->value] <=> [$b->file, $b->line, $b->attribute->value]);
+        $attributes = array_values(collect($attributes)->sort(fn (UnresolvedGroupAttribute $a, UnresolvedGroupAttribute $b): int => [$a->file, $a->line, $a->attribute->value] <=> [$b->file, $b->line, $b->attribute->value])->all());
 
         return [
             'files' => array_keys($files),
@@ -199,7 +197,7 @@ final class RouteFileDiscovery
             }
         }
 
-        return array_map(array_values(...), $contexts);
+        return Arr::map($contexts, static fn (array $list): array => array_values($list));
     }
 
     /**
@@ -210,7 +208,7 @@ final class RouteFileDiscovery
     private function pushContexts(array $loads, string $file, RouteGroupContext $context, array $path, array &$contexts): void
     {
         foreach ($loads[$file] ?? [] as $edge) {
-            if (in_array($edge['file'], $path, true)) {
+            if (collect($path)->containsStrict($edge['file'])) {
                 continue;
             }
 

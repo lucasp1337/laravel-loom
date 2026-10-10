@@ -197,7 +197,7 @@ final class RouteGroupTracker
             $current = $current instanceof Node\Expr\MethodCall ? $current->var : null;
         }
 
-        return array_reverse($setters);
+        return array_values(collect($setters)->reverse()->all());
     }
 
     /**
