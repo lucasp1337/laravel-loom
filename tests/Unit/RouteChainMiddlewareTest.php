@@ -3,9 +3,6 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Middleware of every route in $php, keyed by the route's URI.
@@ -14,15 +11,10 @@ use PhpParser\ParserFactory;
  */
 function routeMiddlewareOf(string $php): array
 {
-    $ast = (new ParserFactory)->createForNewestSupportedVersion()
-        ->parse('<?php namespace App; use Illuminate\Support\Facades\Route; '.$php);
-    expect($ast)->not->toBeNull();
-
-    $visitor = new RouteChainVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(
+        new RouteChainVisitor,
+        '<?php namespace App; use Illuminate\Support\Facades\Route; '.$php,
+    );
 
     $out = [];
     foreach ($visitor->getEntries() as $entry) {

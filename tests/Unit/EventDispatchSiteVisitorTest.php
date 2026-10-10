@@ -5,9 +5,6 @@ declare(strict_types=1);
 use Lucasp\Loom\Dto\EventDispatchTarget;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Parse a PHP source string and run EventDispatchSiteVisitor (after NameResolver) over it.
@@ -16,16 +13,7 @@ use PhpParser\ParserFactory;
  */
 function runEventDispatchSiteVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new EventDispatchSiteVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new EventDispatchSiteVisitor, $source);
 
     return $visitor->getTargets();
 }

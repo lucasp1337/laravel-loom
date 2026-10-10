@@ -4,21 +4,11 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
 use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /** @return list<DispatchesEventsMapping> */
 function dispatchesEventsMappings(string $source): array
 {
-    $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse($source);
-    expect($ast)->not->toBeNull();
-
-    $visitor = new DispatchesEventsVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new DispatchesEventsVisitor, $source);
 
     return $visitor->getMappings();
 }
