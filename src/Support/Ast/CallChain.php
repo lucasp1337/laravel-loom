@@ -65,6 +65,31 @@ final readonly class CallChain
     }
 
     /**
+     * Method calls on the receiver spine of $outer, innermost first, $outer
+     * included when it is one. Unlike {@see from()} it never fails: dynamic
+     * names are kept (name() is null) and the walk stops at the first
+     * non-method-call node.
+     *
+     * @return list<CallSite>
+     */
+    public static function methodLinks(Node\Expr $outer): array
+    {
+        $links = [];
+        $current = $outer;
+
+        // `$receiver->method(...)`: collect, then keep descending the receiver
+        while ($current instanceof Node\Expr\MethodCall) {
+            $site = CallSite::of($current);
+            if ($site !== null) {
+                array_unshift($links, $site);
+            }
+            $current = $current->var;
+        }
+
+        return $links;
+    }
+
+    /**
      * All links, root first.
      *
      * @return non-empty-list<CallSite>
