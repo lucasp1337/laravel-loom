@@ -16,8 +16,7 @@ final readonly class ScannerStat
         public string $scanner,
         public float $milliseconds,
         public array $sections,
-    ) {
-    }
+    ) {}
 
     public function entries(): int
     {

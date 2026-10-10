@@ -19,6 +19,5 @@ final class SubscriberClassRecord
         public readonly array $handles,
         public readonly array $closureHandles,
         public readonly array $foreignPairs,
-    ) {
-    }
+    ) {}
 }

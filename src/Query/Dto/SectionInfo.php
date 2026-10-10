@@ -16,6 +16,5 @@ final readonly class SectionInfo
         public bool $present,
         public bool $listed,
         public ?EntityKind $detailKind,
-    ) {
-    }
+    ) {}
 }

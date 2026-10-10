@@ -15,6 +15,5 @@ final class ModelEventEntry
         public readonly string $model,
         public readonly string $event,
         public readonly array $handledBy,
-    ) {
-    }
+    ) {}
 }

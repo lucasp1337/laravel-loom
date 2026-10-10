@@ -28,8 +28,7 @@ class SnapshotIndexSource implements IndexSource
     public function __construct(
         private readonly IndexLoader $loader,
         protected string $path,
-    ) {
-    }
+    ) {}
 
     public function index(): Index
     {

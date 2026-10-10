@@ -38,8 +38,7 @@ final readonly class ImpactReport
         public array $wouldOrphanEvents = [],
         public array $dispatches = [],
         public array $notes = [],
-    ) {
-    }
+    ) {}
 
     /**
      * @param  (Closure(ImpactNote, self): string)|null  $renderNote  turns a note code into prose; codes are emitted when null

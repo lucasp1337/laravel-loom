@@ -22,8 +22,7 @@ final class RuleReport
         public readonly string $description,
         public readonly bool $skipped,
         public readonly array $violations,
-    ) {
-    }
+    ) {}
 
     public function passed(): bool
     {

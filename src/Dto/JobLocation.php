@@ -16,6 +16,5 @@ final class JobLocation
         public readonly int $line,
         public readonly bool $queued,
         public readonly QueueConfigData $queueConfig,
-    ) {
-    }
+    ) {}
 }

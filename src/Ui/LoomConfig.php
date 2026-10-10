@@ -14,9 +14,7 @@ use Lucasp\Loom\Query\ChainDepth;
  */
 final class LoomConfig
 {
-    public function __construct(private readonly Repository $config)
-    {
-    }
+    public function __construct(private readonly Repository $config) {}
 
     public function enabled(): bool
     {

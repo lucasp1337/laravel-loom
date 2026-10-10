@@ -19,6 +19,5 @@ final class ClosureListenerRecord
         public readonly int $line,
         public readonly int $endLine,
         public readonly ListenerRegistration $registration,
-    ) {
-    }
+    ) {}
 }

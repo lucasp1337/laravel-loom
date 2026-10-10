@@ -25,8 +25,7 @@ final class RouteGroupContext
         public readonly string $namePrefix,
         public readonly ?Node\Expr $controllerNode,
         public readonly array $middlewareNodes = [],
-    ) {
-    }
+    ) {}
 
     /** The empty context used when no group encloses a route. */
     public static function empty(): self

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
-use Lucasp\Loom\Index\IndexLoadException;
-use Lucasp\Loom\Index\IndexSchema;
 use Lucasp\Loom\Diff\Format\FormatterFactory;
 use Lucasp\Loom\Diff\Format\UnknownDiffFormatException;
 use Lucasp\Loom\Diff\IndexDiffer;
+use Lucasp\Loom\Index\IndexLoadException;
+use Lucasp\Loom\Index\IndexSchema;
 
 /** @internal */
 class DiffCommand extends Command

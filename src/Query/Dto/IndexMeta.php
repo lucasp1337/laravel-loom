@@ -11,6 +11,5 @@ final readonly class IndexMeta
         public string $loomVersion,
         public string $scannedAt,
         public string $laravelVersion,
-    ) {
-    }
+    ) {}
 }

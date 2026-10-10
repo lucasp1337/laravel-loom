@@ -12,6 +12,5 @@ final readonly class TableRow
         public array $cells,
         public ?string $url,
         public bool $orphan,
-    ) {
-    }
+    ) {}
 }

@@ -15,9 +15,7 @@ use Throwable;
  */
 final class GitAppChangeClock implements AppChangeClock
 {
-    public function __construct(private readonly string $basePath)
-    {
-    }
+    public function __construct(private readonly string $basePath) {}
 
     private const TTL_SECONDS = 30;
 

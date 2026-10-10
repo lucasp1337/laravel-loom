@@ -17,8 +17,7 @@ final class CheckRunner
 {
     public function __construct(
         private readonly CheckRuleRegistry $registry = new CheckRuleRegistry,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  list<string>  $skip  RuleKey values to skip

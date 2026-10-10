@@ -13,8 +13,7 @@ final readonly class DispatchSiteSet
     public function __construct(
         public string $event,
         public array $sites,
-    ) {
-    }
+    ) {}
 
     public function count(): int
     {

@@ -18,9 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class RequireIndex
 {
-    public function __construct(private readonly UiContext $context)
-    {
-    }
+    public function __construct(private readonly UiContext $context) {}
 
     public function handle(Request $request, Closure $next): Response
     {

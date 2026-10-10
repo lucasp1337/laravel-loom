@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use Illuminate\Contracts\Console\Kernel;
 
 /**
  * A section-complete (but metadata-light) index, written to disk for the
@@ -185,7 +186,7 @@ it('emits valid, parseable JSON for the json format when entries change', functi
 
     $exitCode = $this->artisan('loom:diff', ['old' => $a, 'new' => $b, '--format' => 'json']);
 
-    $printed = trim($this->app[\Illuminate\Contracts\Console\Kernel::class]->output());
+    $printed = trim($this->app[Kernel::class]->output());
 
     expect($exitCode)->toBe(1);
 

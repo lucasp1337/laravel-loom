@@ -14,6 +14,5 @@ final class ListenerHandle
     public function __construct(
         public readonly string $event,
         public readonly string $method,
-    ) {
-    }
+    ) {}
 }

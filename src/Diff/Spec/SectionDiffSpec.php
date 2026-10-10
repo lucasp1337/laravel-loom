@@ -28,6 +28,5 @@ final class SectionDiffSpec
         public readonly Closure $identity,
         public readonly array $semanticFields,
         public readonly array $subLists = [],
-    ) {
-    }
+    ) {}
 }

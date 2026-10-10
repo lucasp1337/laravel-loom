@@ -27,8 +27,7 @@ final readonly class Notification
         public array $notifiedFrom,
         public array $channels,
         public bool $channelsDynamic,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

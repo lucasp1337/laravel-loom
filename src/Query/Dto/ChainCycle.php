@@ -15,8 +15,7 @@ final readonly class ChainCycle
     public function __construct(
         public string $fromHandler,
         public string $backToEvent,
-    ) {
-    }
+    ) {}
 
     /** @return array{from_handler: string, back_to_event: string} */
     public function toArray(): array

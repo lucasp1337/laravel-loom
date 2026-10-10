@@ -22,8 +22,7 @@ final readonly class Dispatch
         public Confidence $confidence,
         public string $file,
         public int $line,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

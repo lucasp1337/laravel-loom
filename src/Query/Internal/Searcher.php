@@ -42,10 +42,7 @@ final class Searcher
         Sections::CLOSURE_LISTENERS,
     ];
 
-    public function __construct(private readonly Index $index)
-    {
-
-    }
+    public function __construct(private readonly Index $index) {}
 
     /** @return list<SearchHit> */
     public function search(string $term, int $limit): array

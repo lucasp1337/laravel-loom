@@ -11,8 +11,7 @@ final readonly class ListenerHandler
         public string $listener,
         public string $method,
         public bool $queued,
-    ) {
-    }
+    ) {}
 
     /** @return array{listener: string, method: string, queued: bool} */
     public function toArray(): array

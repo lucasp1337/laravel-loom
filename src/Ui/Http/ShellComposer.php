@@ -20,8 +20,7 @@ final class ShellComposer
     public function __construct(
         private readonly UiContext $context,
         private readonly StaleIndex $stale,
-    ) {
-    }
+    ) {}
 
     public function compose(View $view): void
     {

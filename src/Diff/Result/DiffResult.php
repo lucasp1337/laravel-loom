@@ -17,8 +17,7 @@ final class DiffResult
      */
     public function __construct(
         public readonly array $sections,
-    ) {
-    }
+    ) {}
 
     public function hasChanges(): bool
     {

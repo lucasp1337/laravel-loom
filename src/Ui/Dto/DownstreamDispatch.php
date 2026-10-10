@@ -15,6 +15,5 @@ final readonly class DownstreamDispatch
         public ?string $url,
         public string $via,
         public string $location,
-    ) {
-    }
+    ) {}
 }

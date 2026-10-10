@@ -21,8 +21,7 @@ final readonly class DispatchOverrides
         public ?string $queue,
         public ?int $delay,
         public ?bool $afterCommit,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

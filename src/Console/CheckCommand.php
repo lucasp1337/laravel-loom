@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
-use Lucasp\Loom\Index\IndexLoadException;
-use Lucasp\Loom\Index\IndexSchema;
 use Lucasp\Loom\Check\CheckContext;
 use Lucasp\Loom\Check\CheckRunner;
 use Lucasp\Loom\Check\Format\CheckFormatterFactory;
 use Lucasp\Loom\Check\Format\UnknownCheckFormatException;
 use Lucasp\Loom\Check\RuleKey;
+use Lucasp\Loom\Index\IndexLoadException;
+use Lucasp\Loom\Index\IndexSchema;
 use Lucasp\Loom\Support\IndexPath;
 
 /** @internal */

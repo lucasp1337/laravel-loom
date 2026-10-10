@@ -12,6 +12,5 @@ final class ModelEventHandler
         public readonly string $method,
         public readonly string $file,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

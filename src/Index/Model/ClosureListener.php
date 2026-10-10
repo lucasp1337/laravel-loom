@@ -24,8 +24,7 @@ final readonly class ClosureListener
         public ListenerRegistration $registration,
         public bool $queued,
         public array $dispatches,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

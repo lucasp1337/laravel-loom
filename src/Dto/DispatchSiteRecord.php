@@ -46,6 +46,5 @@ final class DispatchSiteRecord
          * (stripped before schema validation).
          */
         public readonly bool $inClosure = false,
-    ) {
-    }
+    ) {}
 }

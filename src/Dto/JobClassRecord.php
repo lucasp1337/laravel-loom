@@ -13,6 +13,5 @@ final class JobClassRecord
         public readonly bool $queued,
         public readonly bool $hasHandle,
         public readonly QueueConfigData $queueConfig,
-    ) {
-    }
+    ) {}
 }

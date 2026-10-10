@@ -20,8 +20,7 @@ final class SchemaValidationRule implements CheckRule
 {
     public function __construct(
         private readonly SchemaValidator $validator = new SchemaValidator,
-    ) {
-    }
+    ) {}
 
     public function key(): RuleKey
     {

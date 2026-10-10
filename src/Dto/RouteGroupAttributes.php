@@ -24,6 +24,5 @@ final class RouteGroupAttributes
         public readonly ?string $name,
         public readonly ?Node\Expr $controllerNode,
         public readonly array $middlewareNodes = [],
-    ) {
-    }
+    ) {}
 }

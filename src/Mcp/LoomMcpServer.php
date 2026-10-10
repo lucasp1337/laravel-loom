@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp;
 
 use Laravel\Mcp\Server;
+use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Mcp\Tools\DispatchesFromTool;
 use Lucasp\Loom\Mcp\Tools\DispatchSitesForTool;
@@ -44,7 +45,7 @@ final class LoomMcpServer extends Server
         `find-orphans` and `find-unresolved-dispatches` answer review questions.
         MARKDOWN;
 
-    /** @var array<int, class-string<\Laravel\Mcp\Server\Tool>> */
+    /** @var array<int, class-string<Tool>> */
     protected array $tools = [
         ListEntitiesTool::class,
         GetEntityTool::class,

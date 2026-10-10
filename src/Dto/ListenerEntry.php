@@ -19,6 +19,5 @@ final class ListenerEntry
         public readonly array $handles,
         public readonly ListenerRegistration $registration,
         public readonly bool $queued,
-    ) {
-    }
+    ) {}
 }

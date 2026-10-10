@@ -22,6 +22,5 @@ final class TraitAdaptation
         public readonly ?string $alias,
         public readonly ?MethodVisibility $visibility,
         public readonly array $insteadof = [],
-    ) {
-    }
+    ) {}
 }

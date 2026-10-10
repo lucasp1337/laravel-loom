@@ -18,6 +18,5 @@ final class QueueConfigData
         public readonly string|int|null $tries,
         public readonly string|int|null $timeout,
         public readonly string|int|null $backoff,
-    ) {
-    }
+    ) {}
 }

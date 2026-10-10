@@ -21,8 +21,7 @@ final readonly class ModelEvent
         public string $model,
         public string $event,
         public array $handledBy,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

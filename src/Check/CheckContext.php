@@ -22,8 +22,7 @@ final class CheckContext
         private readonly array $index,
         private readonly ?array $baseline,
         private readonly bool $strict,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string,mixed>

@@ -16,6 +16,5 @@ final class ClosureListenerEntry
         public readonly int $endLine,
         public readonly ListenerRegistration $registration,
         public readonly bool $queued,
-    ) {
-    }
+    ) {}
 }

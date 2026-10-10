@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Index\IndexBuilder;
+use Lucasp\Loom\Index\IndexSchema;
 
 it('produces an empty index that validates against the schema', function () {
     $builder = new IndexBuilder;
@@ -45,10 +46,10 @@ it('emits jobs as an empty array and stats.jobs as 0 for an empty app', function
 });
 
 it('stamps the current schema_version and rejects absolute file paths', function () {
-    $builder = new Lucasp\Loom\Index\IndexBuilder;
+    $builder = new IndexBuilder;
     $payload = $builder->build(sys_get_temp_dir(), '12.x')->toArray();
 
-    expect($payload['schema_version'])->toBe(Lucasp\Loom\Index\IndexSchema::VERSION);
+    expect($payload['schema_version'])->toBe(IndexSchema::VERSION);
 
     $payload['events'][] = [
         'id' => 'A', 'fqcn' => 'A', 'kind' => 'class', 'file' => '/abs/A.php', 'line' => 1,

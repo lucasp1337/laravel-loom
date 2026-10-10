@@ -22,9 +22,7 @@ final class AppGenerator
     /** Scheduled-job entries are capped so `large`'s Kernel stays a sane size. */
     private const MAX_SCHEDULED_JOBS = 50;
 
-    public function __construct(private readonly Filesystem $files = new Filesystem)
-    {
-    }
+    public function __construct(private readonly Filesystem $files = new Filesystem) {}
 
     public function generate(BenchProfile $profile, string $targetDir): void
     {

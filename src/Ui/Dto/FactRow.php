@@ -17,6 +17,5 @@ final readonly class FactRow
         public array $cells = [],
         public array $columns = [],
         public array $table = [],
-    ) {
-    }
+    ) {}
 }

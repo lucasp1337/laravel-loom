@@ -14,6 +14,5 @@ final readonly class PaletteItem
         public string $label,
         public string $subtitle,
         public ?string $url,
-    ) {
-    }
+    ) {}
 }

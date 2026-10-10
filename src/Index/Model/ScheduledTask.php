@@ -38,8 +38,7 @@ final readonly class ScheduledTask
         public array $constraints,
         public string $file,
         public int $line,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

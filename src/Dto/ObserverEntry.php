@@ -19,6 +19,5 @@ final class ObserverEntry
         public readonly string $observes,
         public readonly ObserverRegistration $registration,
         public readonly array $hooks,
-    ) {
-    }
+    ) {}
 }

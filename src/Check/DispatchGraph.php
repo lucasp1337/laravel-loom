@@ -24,8 +24,7 @@ final class DispatchGraph
      */
     private function __construct(
         private readonly array $adjacency,
-    ) {
-    }
+    ) {}
 
     public static function fromContext(CheckContext $context): self
     {

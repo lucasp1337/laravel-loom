@@ -15,6 +15,5 @@ final class FieldChange
         public readonly string $field,
         public readonly mixed $old,
         public readonly mixed $new,
-    ) {
-    }
+    ) {}
 }

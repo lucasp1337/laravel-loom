@@ -14,6 +14,5 @@ final readonly class NavItem
         public string $label,
         public int $count,
         public string $url,
-    ) {
-    }
+    ) {}
 }

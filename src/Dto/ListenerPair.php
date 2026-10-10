@@ -15,6 +15,5 @@ final class ListenerPair
         public readonly string $event,
         public readonly string $listener,
         public readonly string $method,
-    ) {
-    }
+    ) {}
 }

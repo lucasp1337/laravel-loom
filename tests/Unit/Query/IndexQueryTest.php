@@ -28,9 +28,7 @@ function queryFor(array $overrides = []): IndexQuery
 
     return new IndexQuery(new class($index) implements IndexSource
     {
-        public function __construct(private readonly Index $index)
-        {
-        }
+        public function __construct(private readonly Index $index) {}
 
         public function index(): Index
         {

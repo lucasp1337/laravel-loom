@@ -17,6 +17,5 @@ final class EventDispatchTarget
         public readonly string $fqcn,
         public readonly int $line,
         public readonly DispatchForm $form,
-    ) {
-    }
+    ) {}
 }
