@@ -66,6 +66,7 @@ src/
     ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
     ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
     ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
+    Fqcn.php                        # the one home for class-name strings: normalize, short, namespaceOf, same, split*Member (FqcnConfinementTest forbids ltrim-style copies)
 
 schema/
   loom-index.schema.json           # the contract for every index Loom emits
