@@ -35,7 +35,7 @@ abstract class LoomTool extends Tool
      */
     protected static function enumValues(string $enum): array
     {
-        return Arr::map($enum::cases(), static fn (BackedEnum $case): string => (string) $case->value);
+        return array_values(Arr::map($enum::cases(), static fn (BackedEnum $case): string => (string) $case->value));
     }
 
     /**
