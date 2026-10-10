@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-/** Visitor output for a notification class. `queued` is resolved by the scanner. */
+/**
+ * Visitor output for a notification class. `queued` is resolved by the scanner.
+ *
+ * @internal
+ */
 final class NotificationClassRecord
 {
     /**

@@ -11,6 +11,8 @@ namespace Lucasp\Loom\Index;
  * {@see Index::toArray()}. The `stats` block is derived from the same list,
  * filtered to descriptors flagged `inStats`. Adding a section requires only a
  * new {@see Sections} case plus one entry here.
+ *
+ * @internal
  */
 final class SectionRegistry
 {
@@ -27,7 +29,7 @@ final class SectionRegistry
         ['section' => Sections::JOBS, 'inStats' => true],
         ['section' => Sections::UNRESOLVED_DISPATCHES, 'inStats' => true],
         ['section' => Sections::CLOSURE_LISTENERS, 'inStats' => true],
-        ['section' => Sections::SCHEDULED, 'inStats' => true],
+        ['section' => Sections::SCHEDULED_TASKS, 'inStats' => true],
         ['section' => Sections::ROUTES, 'inStats' => true],
         ['section' => Sections::MAILABLES, 'inStats' => true],
         ['section' => Sections::NOTIFICATIONS, 'inStats' => true],

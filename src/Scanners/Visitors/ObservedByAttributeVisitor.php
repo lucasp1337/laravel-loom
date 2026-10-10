@@ -11,6 +11,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Finds `#[ObservedBy(Observer::class)]` (and array form) on model classes.
+ *
+ * @internal
  */
 final class ObservedByAttributeVisitor extends NodeVisitorAbstract
 {

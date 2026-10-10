@@ -17,6 +17,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Extracts events handled by a class's `subscribe()` method — either via the
  * returned event=>handler map or imperative `$events->listen(...)` calls.
+ *
+ * @internal
  */
 final class SubscriberClassVisitor extends NodeVisitorAbstract
 {

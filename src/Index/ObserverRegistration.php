@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Index;
  * How an observer registration was discovered, emitted on
  * `observers[*].registration`: a `Model::observe(...)` call or an
  * `#[ObservedBy]` attribute.
+ *
+ * @api
  */
 enum ObserverRegistration: string
 {

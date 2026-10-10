@@ -9,6 +9,8 @@ use Lucasp\Loom\Index\Field;
 /**
  * An event-to-method binding declared by a class listener, emitted on
  * `listeners[*].handles`.
+ *
+ * @api
  */
 final readonly class Handle
 {

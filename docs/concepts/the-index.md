@@ -21,7 +21,7 @@ The index opens with metadata and a `stats` block, then carries one array per pr
   "closure_listeners": [ { "...": "..." } ],
   "jobs": [ { "...": "..." } ],
   "observers": [ { "...": "..." } ],
-  "scheduled": [ { "...": "..." } ],
+  "scheduled_tasks": [ { "...": "..." } ],
   "routes": [ { "...": "..." } ],
   "mailables": [ { "...": "..." } ],
   "notifications": [ { "...": "..." } ],

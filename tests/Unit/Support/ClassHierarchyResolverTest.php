@@ -148,3 +148,57 @@ it('strips leading backslashes from input FQCNs', function () {
     expect($resolver->extendsChain('\\App\\A'))->toBe(['App\\B', 'App\\C']);
     expect($resolver->knows('\\App\\A'))->toBeTrue();
 });
+
+it('layers own methods over trait methods over inherited ones', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+
+    $parented = $resolver->effectiveMethods('App\\Parented');
+    expect($parented['shared']->definedIn)->toBe('App\\Loud');
+    expect($parented['shared']->declaredIn)->toBe('App\\Parented');
+    expect($parented['musthave']->definedIn)->toBe('App\\Parented');
+    expect($parented['musthave']->isAbstract)->toBeFalse();
+
+    expect($resolver->effectiveMethods('App\\Overriding')['shared']->definedIn)->toBe('App\\Overriding');
+    expect($resolver->effectiveMethods('App\\Grand')['shared']->definedIn)->toBe('App\\Grand');
+});
+
+it('does not inherit private parent methods', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+
+    expect($resolver->effectiveMethods('App\\Grand'))->toHaveKey('secret');
+    expect($resolver->effectiveMethods('App\\Parented'))->not->toHaveKey('secret');
+});
+
+it('applies trait visibility changes and aliases', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+    $methods = $resolver->effectiveMethods('App\\Hidden');
+
+    expect($methods['shared']->isPublic())->toBeFalse();
+    expect($methods['viatrait']->isPublic())->toBeTrue();
+    expect($methods['renamed']->name)->toBe('renamed');
+    expect($methods['renamed']->isPublic())->toBeTrue();
+});
+
+it('resolves self in a parameter type against the declaring class', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+
+    $fromParent = $resolver->effectiveMethods('App\\Parented')['viaparent'];
+    $fromTrait = $resolver->effectiveMethods('App\\Parented')['viatrait'];
+
+    expect($resolver->firstParameterClasses($fromParent))->toBe(['App\\Grand']);
+    expect($resolver->firstParameterClasses($fromTrait))->toBe(['App\\Parented']);
+});
+
+it('reports only concrete known classes as instantiable', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+
+    expect($resolver->isInstantiable('App\\Parented'))->toBeTrue();
+    expect($resolver->isInstantiable('App\\Loud'))->toBeFalse();
+    expect($resolver->isInstantiable('Vendor\\Unknown'))->toBeFalse();
+});
+
+it('terminates on an inheritance cycle', function () {
+    $resolver = makeClassHierarchyResolver('Methods');
+
+    expect($resolver->effectiveMethods('App\\CycleA'))->toBe([]);
+});

@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Check\Result;
  * A single policy breach found by a rule. `context` carries structured detail
  * (fqcn, file, line, cycle trail) for the JSON formatter; `message` is the
  * human-readable rendering used by the text and markdown formatters.
+ *
+ * @internal
  */
 final class Violation
 {

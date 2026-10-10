@@ -20,7 +20,7 @@ function differBaseIndex(): array
         'schema_version' => '1.0',
         'loom_version' => '1.0.0',
         'laravel_version' => '12.x',
-        'scanned_at' => '2026-01-01T00:00:00+00:00',
+        'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => ['events' => 1, 'listeners' => 1],
         'events' => [
             [
@@ -54,7 +54,7 @@ function differBaseIndex(): array
         'jobs' => [],
         'unresolved_dispatches' => [],
         'closure_listeners' => [],
-        'scheduled' => [],
+        'scheduled_tasks' => [],
         'mailables' => [],
         'notifications' => [],
     ];
@@ -221,7 +221,7 @@ it('is order-independent for sublist members', function () {
 it('ignores metadata-only differences', function () {
     $old = differBaseIndex();
     $new = differBaseIndex();
-    $new['scanned_at'] = '2099-12-31T23:59:59+00:00';
+    $new['scanned_at'] = '2099-12-31T23:59:59Z';
     $new['loom_version'] = '9.9.9';
     $new['laravel_version'] = '99.x';
     $new['stats'] = ['events' => 999, 'listeners' => 999, 'noise' => true];
@@ -313,6 +313,19 @@ it('surfaces a dispatched_from overrides change as a member remove plus add', fu
     expect($delta->removed)->toHaveCount(1);
     expect($delta->added[0]['overrides'])->toBe(['queue' => 'high']);
     expect($delta->removed[0]['overrides'])->toBe([]);
+});
+
+it('surfaces a dispatched_from mode change as a member remove plus add', function () {
+    $old = differBaseIndex();
+    $new = differBaseIndex();
+    $new['events'][0]['dispatched_from'][0]['mode'] = 'sync';
+
+    $delta = differ()->diff($old, $new)->sections()['events']->changed[0]->subListDeltas[0];
+
+    expect($delta->field)->toBe('dispatched_from');
+    expect($delta->added[0]['mode'])->toBe('sync');
+    expect($delta->removed)->toHaveCount(1);
+    expect($delta->removed[0])->not->toHaveKey('mode');
 });
 
 // -----------------------------------------------------------------------------
@@ -565,11 +578,11 @@ it('identifies scheduled entries by (file,line,kind,target) including a null tar
         'run_in_background' => false,
         'constraints' => [],
     ];
-    $old['scheduled'] = [$base];
+    $old['scheduled_tasks'] = [$base];
     // Same null-target identity, cron changed.
-    $new['scheduled'] = [['cron' => '0 1 * * *'] + $base];
+    $new['scheduled_tasks'] = [['cron' => '0 1 * * *'] + $base];
 
-    $diff = differ()->diff($old, $new)->sections()['scheduled'];
+    $diff = differ()->diff($old, $new)->sections()['scheduled_tasks'];
 
     expect($diff->added)->toBe([]);
     expect($diff->removed)->toBe([]);
@@ -592,10 +605,10 @@ it('reports a scheduled constraints member add and remove as a sublist delta', f
         'run_in_background' => false,
         'constraints' => ['weekdays()', 'at(02:00)'],
     ];
-    $old['scheduled'] = [$base];
-    $new['scheduled'] = [['constraints' => ['weekdays()', 'at(03:00)']] + $base];
+    $old['scheduled_tasks'] = [$base];
+    $new['scheduled_tasks'] = [['constraints' => ['weekdays()', 'at(03:00)']] + $base];
 
-    $delta = differ()->diff($old, $new)->sections()['scheduled']->changed[0]->subListDeltas[0];
+    $delta = differ()->diff($old, $new)->sections()['scheduled_tasks']->changed[0]->subListDeltas[0];
 
     expect($delta->field)->toBe('constraints');
     expect($delta->added)->toBe(['at(03:00)']);
@@ -617,7 +630,7 @@ it('uses the registry spec order for the section keys', function () {
         'jobs',
         'unresolved_dispatches',
         'closure_listeners',
-        'scheduled',
+        'scheduled_tasks',
         'mailables',
         'notifications',
     ]);

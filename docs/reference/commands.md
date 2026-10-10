@@ -13,15 +13,32 @@ Loom adds five Artisan commands. All of them read or write a single snapshot, by
 ## loom:scan
 
 ```bash
-php artisan loom:scan
+php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [-v]
 ```
 
-Statically parses the app (no boot of your routes or queues), validates the result against the [schema](schema.md) and writes `storage/loom/index.json`. It takes no arguments or options.
+Statically parses the app (no boot of your routes or queues), validates the result against the [schema](schema.md) and writes `storage/loom/index.json`. Which directories it walks comes from [`scan.*` config](scan-config.md).
+
+| Option | Meaning |
+| --- | --- |
+| `--output=PATH` | Write the index here instead of `index_path`. A relative path is resolved from the project root. The MCP server and UI keep reading `index_path`. |
+| `--path=DIR` | Scan this directory instead of `scan.paths`. Repeat it for several. Relative to the project root; `*` globs are allowed. |
+| `--route-path=DIR` | Read routes from this directory instead of `scan.route_paths`. Repeat it for several. Same rules as `--path`. |
+| `--no-discover-routes` | Do not follow route-file loading calls for this run, as if `scan.discover_routes` were `false`. Wins over the config value. |
+| `-v` | List every skipped file with its path, line and the parser's message, and every route-file path that could not be followed with its reason. |
+
+When it finishes it prints the path written and one summary line: the entry count of each section, unresolved dispatches and skipped files.
+
+```
+Loom index written to storage/loom/index.json
+events: 12, listeners: 18, ..., unresolved dispatches: 3, ..., skipped files: 1 (-v lists them)
+```
+
+A skipped file is one Loom could not read or parse. It is skipped by every scanner, counted once, and does not change the exit code. Without `-v` only the count is shown.
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | Index written |
-| `1` | The generated index failed schema validation; nothing is written |
+| `0` | Index written, with or without skipped files |
+| `1` | A scan path is invalid or matches no directory, the generated index failed schema validation, or the output could not be written. Nothing is written. |
 
 ## loom:show
 
@@ -105,8 +122,8 @@ Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio. It 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Server stopped normally |
-| `1` | The MCP server is not registered |
+| `1` | `laravel/mcp` isn't installed, `mcp.enabled` is `false`, or the MCP server is not registered |
 
 ## Configuration
 
-Loom has few settings, and the scan, show, diff and check commands need none. `index_path` (env `LOOM_INDEX_PATH`) sets where the snapshot lives for the CLI, the MCP server and the UI; `null` means `storage/loom/index.json`. Set `ui.index_path` only to point the UI at a different file. Every UI key, with defaults, is in [UI configuration](ui-config.md). Publish the file with `php artisan vendor:publish --tag=loom-config`.
+Loom has few settings, and the show, diff and check commands need none. Which directories `loom:scan` walks is set by the `scan` keys in [Scan configuration](scan-config.md). `index_path` (env `LOOM_INDEX_PATH`) sets where the snapshot lives for the CLI, the MCP server and the UI; `null` means `storage/loom/index.json`. Set `ui.index_path` only to point the UI at a different file. Every UI key, with defaults, is in [UI configuration](ui-config.md). `mcp.enabled` (env `LOOM_MCP_ENABLED`, default `true`) turns `loom:mcp` off even when `laravel/mcp` is installed. Publish the file with `php artisan vendor:publish --tag=loom-config`.

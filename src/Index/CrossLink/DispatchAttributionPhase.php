@@ -5,19 +5,21 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\Field;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\Sections;
-use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 
 /**
  * Phase 3 — attributes each dispatch site to its enclosing handler's
  * `dispatches[]`: a listener method that handles an event, a job's `handle()`,
  * or an observer's Eloquent hook.
+ *
+ * @internal
  */
 final class DispatchAttributionPhase implements CrossLinkPhase
 {
     public function apply(CrossLinkContext $context): void
     {
-        $observerHooks = array_flip(ObserverClassVisitor::HOOKS);
+        $observerHooks = array_flip(ModelHook::observableValues());
         $listenerIndex = $context->index(Sections::LISTENERS);
         $jobIndex = $context->index(Sections::JOBS);
 

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Diff\Result;
 
 /**
  * Membership change in a single sublist field of a matched entry.
+ *
+ * @internal
  */
 final class SubListDelta
 {

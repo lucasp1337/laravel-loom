@@ -9,7 +9,11 @@ use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/** Collects concrete mailable classes with their queue-config properties. */
+/**
+ * Collects concrete mailable classes with their queue-config properties.
+ *
+ * @internal
+ */
 final class MailableClassVisitor extends NodeVisitorAbstract
 {
     /** @var list<MailableClassRecord> */

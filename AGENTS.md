@@ -8,7 +8,7 @@ This file is for the parts that don't fit anywhere else: conventions that aren't
 
 ## Scope
 
-Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled`, `mailables`, `notifications`, `routes`, `unresolved_dispatches`. All are in `schema/loom-index.schema.json`.
+Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled_tasks`, `mailables`, `notifications`, `routes`, `unresolved_dispatches`. All are in `schema/loom-index.schema.json`.
 
 Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
 
@@ -62,6 +62,8 @@ src/
     Visitors/                       # PhpParser NodeVisitorAbstract subclasses
   Support/
     AstWalker.php                   # parser + NameResolver wrapper
+    ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
+    ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
     ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
 
 schema/
@@ -93,8 +95,11 @@ These have caused regressions. Don't rediscover them.
 - `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
 - `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
 - `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; cross-link phase 5 joins them.
-- `$defs/dispatchSite` carries an **optional** `overrides` object (`$defs/dispatchOverrides`) alongside `{file, line, method}` — dispatch-time fluent modifiers (`locale`, `mailer`, `connection`, `queue`, `delay`, `after_commit`). It's emitted only when at least one modifier is statically resolved; sites with none have no `overrides` key (additive, non-breaking). All four reverse-reference arrays share the shape, so any may carry it (events rarely do). `$defs/dispatchSite` also carries an **optional, notification-only** `channels` array — the literal channel filter from `Notification::send($users, $n, $channels)` / `sendNow(...)` — emitted only on `notifications[*].notified_from` entries and omitted when absent, empty, or non-literal (additive, non-breaking).
-- `closure_listeners[*].dispatches` — populated by the cross-link pass from DispatchScanner's dispatch sites, using the `$defs/dispatch` shape. Attribution is **positional by source span** (not by enclosing class + method, which closures lack): a site is attributed when it shares a file with the closure listener and its line falls within `[line, end_line]` inclusive. Each `closure_listeners[]` entry carries `end_line` (the closure body's closing line) for this. Resolved dispatches only — unresolved targets inside a closure go to neither `dispatches[]` nor `unresolved_dispatches[]`. No reverse edge: the target's `dispatched_from[]` does not list the closure (same rationale as `handled_by` skipping closures).
+- `$defs/dispatchSite` carries an **optional** `mode` (`DispatchMode`: `sync`, `after_response`, `push`; omitted for plain dispatches) and an **optional** `overrides` object (`$defs/dispatchOverrides`) alongside `{file, line, method}` — dispatch-time fluent modifiers (`locale`, `mailer`, `connection`, `queue`, `delay`, `after_commit`). It's emitted only when at least one modifier is statically resolved; sites with none have no `overrides` key (additive, non-breaking). All four reverse-reference arrays share the shape, so any may carry it (events rarely do). `$defs/dispatchSite` also carries an **optional, notification-only** `channels` array — the literal channel filter from `Notification::send($users, $n, $channels)` / `sendNow(...)` — emitted only on `notifications[*].notified_from` entries and omitted when absent, empty, or non-literal (additive, non-breaking).
+- `closure_listeners[*].dispatches` — populated by the cross-link pass from DispatchScanner's dispatch sites, using the `$defs/dispatch` shape. Only *registration* closures (closure listeners, closure routes) own the sites inside them; `ClosureOwnershipPhase` hands a site in any other closure (`DB::transaction(fn () => ...)`, `each`, `tap`) to the enclosing class method. Attribution is **positional by source span** (not by enclosing class + method, which closures lack): a site is attributed when it shares a file with the closure listener and its line falls within `[line, end_line]` inclusive. Each `closure_listeners[]` entry carries `end_line` (the closure body's closing line) for this. Resolved dispatches only in `dispatches[]`; an unresolved target inside a closure goes to `unresolved_dispatches[]` like any other. No reverse edge: the target's `dispatched_from[]` does not list the closure (same rationale as `handled_by` skipping closures).
+- `routes[*].dispatches` for a closure route — filled by `RouteDispatchAttributionPhase` by span: the route carries `end_line` (the closure's last line, optional, closure actions only) and a site in `[line, end_line]` of the same file belongs to it. Unlike closure listeners, the event's `dispatched_from` does list the route, with `method` set to `VERB uri`.
+- `$dispatchesEvents` entries are dispatch sites emitted by DispatchScanner (`DispatchesEventsVisitor`), so they reach `events[*].dispatched_from` with `method` `Model::$dispatchesEvents[hook]`.
+- Handler methods and observer hooks come from `ClassHierarchyResolver::effectiveMethods()`, not from the class body alone.
 - `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
 
 If two scanners ever write to the same field, you've drifted from the design — fix the drift, don't merge the writes.
@@ -117,13 +122,14 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 ## The cross-link pass
 
-`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext` — five phases, in order:
+`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. The main phases, in order:
 
 1. **`events[*].handled_by`** — listeners' `handles` `{event, method}` pairs inverted onto matching event entries as `{listener, method}` pairs
 2. **Disambiguate `kind: ambiguous`** — Dispatchable-form sites (`X::dispatch(...)`) get `kind = event` if their target is in `events[]`, else `kind = job`
-3. **`listeners[*].dispatches`** — sites whose enclosing context is a listener FQCN + enclosing method is in that listener's `handles[*].method` set
-4. **`observers[*].dispatches` and `jobs[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook, or whose enclosing context is a job FQCN + enclosing method is `handle`
-5. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — sites with finalized `kind === 'event'` matched to event entries, plus sites with finalized `kind === 'job'` matched to job entries
+3. **Closure ownership** — `ClosureOwnershipPhase` keeps closure-internal sites that a closure listener or closure route owns, and releases the rest to the enclosing class method
+4. **`listeners[*].dispatches`** — sites whose enclosing context is a listener FQCN + enclosing method is in that listener's `handles[*].method` set
+5. **`observers[*].dispatches` and `jobs[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook, or whose enclosing context is a job FQCN + enclosing method is `handle`
+6. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — sites with finalized `kind === 'event'` matched to event entries, plus sites with finalized `kind === 'job'` matched to job entries
 
 After cross-link: strip `_dispatch_sites` from the merged sections before constructing the `Index`. Schema validation happens against the stripped payload.
 
@@ -151,7 +157,7 @@ Slash commands wire chains together:
 
 ## Tech invariants
 
-- PHP 8.3+, Laravel 11+
+- PHP 8.3+, Laravel 12+
 - `nikic/php-parser` for all AST work — no regex parsing of PHP source
 - `justinrainbow/json-schema` for validation
 - PHPStan level 8, zero errors

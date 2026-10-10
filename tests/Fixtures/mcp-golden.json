@@ -16,7 +16,7 @@
                             "jobs",
                             "unresolved_dispatches",
                             "closure_listeners",
-                            "scheduled",
+                            "scheduled_tasks",
                             "mailables",
                             "notifications",
                             "routes"
@@ -200,8 +200,8 @@
                         "description": "The fully-qualified class name being changed (event, listener, or job).",
                         "type": "string"
                     },
-                    "kind": {
-                        "description": "The kind of change. Affects the framing of the notes only.",
+                    "change": {
+                        "description": "The kind of change being made. Affects the framing of the notes only.",
                         "default": "remove",
                         "enum": [
                             "remove",
@@ -459,76 +459,76 @@
         },
         "impact.event": {
             "content": [
-                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Removing this event orphans its 1 handler; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"change\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"handler_kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Removing this event orphans its 1 handler; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
             ],
             "errors": []
         },
         "impact.event_rename": {
             "content": [
-                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"kind\":\"rename\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Renaming this event requires updating all 1 dispatch site and 1 handler below.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+                "{\"fqcn\":\"App\\\\Events\\\\OrderPlaced\",\"change\":\"rename\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Http/Controllers/OrderController.php\",\"line\":20,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\SendReceipt\",\"method\":\"handle\",\"handler_kind\":\"listener\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\OrderPlaced\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\OrderPlaced\",\"handler\":\"App\\\\Listeners\\\\SendReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\OrderPlaced\",\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\"],\"cycles\":[],\"truncated\":true},\"notes\":[\"Renaming this event requires updating all 1 dispatch site and 1 handler below.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
             ],
             "errors": []
         },
         "impact.event_singular": {
             "content": [
-                "{\"fqcn\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"method\":\"handle\",\"kind\":\"listener\"},{\"listener\":\"app/Providers/EventServiceProvider.php:30\",\"method\":\"closure\",\"kind\":\"closure\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\ReceiptSent\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false},\"notes\":[\"Removing this event orphans its 2 handlers; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+                "{\"fqcn\":\"App\\\\Events\\\\ReceiptSent\",\"change\":\"remove\",\"entity\":\"event\",\"dispatchers\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7,\"method\":\"dispatch\"}],\"handlers\":[{\"listener\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"method\":\"handle\",\"handler_kind\":\"listener\"},{\"listener\":\"app/Providers/EventServiceProvider.php:30\",\"method\":\"closure\",\"handler_kind\":\"closure\"}],\"downstream\":{\"root\":\"App\\\\Events\\\\ReceiptSent\",\"depth\":3,\"edges\":[{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\",\"handler_kind\":\"listener\",\"dispatches\":[]},{\"event\":\"App\\\\Events\\\\ReceiptSent\",\"handler\":\"app/Providers/EventServiceProvider.php:30\",\"handler_kind\":\"closure\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Providers/EventServiceProvider.php\",\"line\":32}]},{\"event\":\"App\\\\Events\\\\Ping\",\"handler\":\"App\\\\Listeners\\\\PingListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}]},{\"event\":\"App\\\\Events\\\\Pong\",\"handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"handler_kind\":\"listener\",\"dispatches\":[{\"target\":\"App\\\\Events\\\\Ping\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PongListener.php\",\"line\":7}]}],\"events_reached\":[\"App\\\\Events\\\\ReceiptSent\",\"App\\\\Events\\\\Ping\",\"App\\\\Events\\\\Pong\"],\"cycles\":[{\"from_handler\":\"App\\\\Listeners\\\\PongListener::handle\",\"back_to_event\":\"App\\\\Events\\\\Ping\"}],\"truncated\":false},\"notes\":[\"Removing this event orphans its 2 handlers; its 1 dispatch site would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
             ],
             "errors": []
         },
         "impact.event_none": {
             "content": [
-                "{\"fqcn\":\"App\\\\Events\\\\Lonely\",\"kind\":\"remove\",\"entity\":\"event\",\"dispatchers\":[],\"handlers\":[],\"downstream\":{\"root\":\"App\\\\Events\\\\Lonely\",\"depth\":3,\"edges\":[],\"events_reached\":[\"App\\\\Events\\\\Lonely\"],\"cycles\":[],\"truncated\":false},\"notes\":[\"Removing this event orphans its 0 handlers; its 0 dispatch sites would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+                "{\"fqcn\":\"App\\\\Events\\\\Lonely\",\"change\":\"remove\",\"entity\":\"event\",\"dispatchers\":[],\"handlers\":[],\"downstream\":{\"root\":\"App\\\\Events\\\\Lonely\",\"depth\":3,\"edges\":[],\"events_reached\":[\"App\\\\Events\\\\Lonely\"],\"cycles\":[],\"truncated\":false},\"notes\":[\"Removing this event orphans its 0 handlers; its 0 dispatch sites would dispatch a missing class.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
             ],
             "errors": []
         },
         "impact.listener_orphans": {
             "content": [
-                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"change\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.listener_rename": {
             "content": [
-                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"kind\":\"rename\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Listeners\\\\ArchiveReceipt\",\"change\":\"rename\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\ReceiptSent\"],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.listener_no_orphans": {
             "content": [
-                "{\"fqcn\":\"App\\\\Listeners\\\\SendReceipt\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\OrderPlaced\"],\"would_orphan_events\":[\"App\\\\Events\\\\OrderPlaced\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\OrderPlaced.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Listeners\\\\SendReceipt\",\"change\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\OrderPlaced\"],\"would_orphan_events\":[\"App\\\\Events\\\\OrderPlaced\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\ReceiptSent\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":7},{\"target\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"job\",\"confidence\":\"high\",\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\OrderPlaced.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.listener_would_orphan": {
             "content": [
-                "{\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\Ping\"],\"would_orphan_events\":[\"App\\\\Events\\\\Ping\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\Ping.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Listeners\\\\PingListener\",\"change\":\"remove\",\"entity\":\"listener\",\"handles\":[\"App\\\\Events\\\\Ping\"],\"would_orphan_events\":[\"App\\\\Events\\\\Ping\"],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Listeners/PingListener.php\",\"line\":7}],\"notes\":[\"Removing this class would leave 1 event with no remaining handler: App\\\\Events\\\\Ping.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.listener_idle": {
             "content": [
-                "{\"fqcn\":\"App\\\\Listeners\\\\Idle\",\"kind\":\"remove\",\"entity\":\"listener\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Listeners\\\\Idle\",\"change\":\"remove\",\"entity\":\"listener\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.job": {
             "content": [
-                "{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"kind\":\"remove\",\"entity\":\"job\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
+                "{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"change\":\"remove\",\"entity\":\"job\",\"handles\":[],\"would_orphan_events\":[],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}],\"notes\":[\"No handled event would be left without a handler by this change.\",\"Downstream dispatches from this class are listed; their own chains are not expanded here.\"]}"
             ],
             "errors": []
         },
         "impact.unknown": {
             "content": [
-                "{\"fqcn\":\"App\\\\Nope\",\"kind\":\"remove\",\"entity\":\"unknown\",\"dispatchers\":[],\"handlers\":[],\"downstream\":null,\"notes\":[\"No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.\"]}"
+                "{\"fqcn\":\"App\\\\Nope\",\"change\":\"remove\",\"entity\":\"unknown\",\"dispatchers\":[],\"handlers\":[],\"downstream\":null,\"notes\":[\"No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.\"]}"
             ],
             "errors": []
         },
-        "impact.bad_kind": {
+        "impact.bad_change": {
             "content": [
-                "Unknown kind [explode]; expected one of: remove, rename."
+                "Unknown change [explode]; expected one of: remove, rename."
             ],
             "errors": [
-                "Unknown kind [explode]; expected one of: remove, rename."
+                "Unknown change [explode]; expected one of: remove, rename."
             ]
         },
         "orphans": {
@@ -581,10 +581,10 @@
         },
         "entity.unknown_kind": {
             "content": [
-                "Unknown kind [route]."
+                "Unknown kind [route]; expected one of: event, listener, observer, job, mailable, notification."
             ],
             "errors": [
-                "Unknown kind [route]."
+                "Unknown kind [route]; expected one of: event, listener, observer, job, mailable, notification."
             ]
         },
         "entity.missing": {
@@ -653,7 +653,7 @@
         },
         "list.scheduled_empty": {
             "content": [
-                "{\"section\":\"scheduled\",\"count\":0,\"items\":[]}"
+                "{\"section\":\"scheduled_tasks\",\"count\":0,\"items\":[]}"
             ],
             "errors": []
         },
@@ -671,10 +671,10 @@
         },
         "list.unknown": {
             "content": [
-                "Unknown section [widgets]."
+                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes."
             ],
             "errors": [
-                "Unknown section [widgets]."
+                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes."
             ]
         }
     }

@@ -11,6 +11,8 @@ use Lucasp\Loom\Index\Sections;
  * Phase 1 — inverts `listeners[*].handles` `{event, method}` pairs onto the
  * matching `events[*].handled_by` as `{listener, method}` pairs. Records each
  * listener's method set on the context for {@see DispatchAttributionPhase}.
+ *
+ * @internal
  */
 final class HandledByPhase implements CrossLinkPhase
 {

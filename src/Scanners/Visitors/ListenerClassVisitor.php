@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ListenerClassRecord;
-use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
- * Collects listener classes and their handle() event-type signature.
+ * Collects the named classes in a file. Which methods handle which events is
+ * decided from the resolved class (inherited and trait methods included), not
+ * from the file.
+ *
+ * @internal
  */
 final class ListenerClassVisitor extends NodeVisitorAbstract
 {
@@ -39,36 +42,10 @@ final class ListenerClassVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $queued = AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
-
-        $hasHandle = false;
-        $handles = [];
-
-        foreach ($node->stmts as $stmt) {
-            if (! $stmt instanceof Node\Stmt\ClassMethod) {
-                continue;
-            }
-            if ($stmt->name->toString() !== 'handle') {
-                continue;
-            }
-
-            $hasHandle = true;
-            if ($stmt->params !== []) {
-                $type = $stmt->params[0]->type;
-                // Only bare Node\Name supported — unions/intersections/nullables are gaps.
-                if ($type instanceof Node\Name) {
-                    $handles[] = new ListenerHandle(event: $type->toString(), method: 'handle');
-                }
-            }
-            break;
-        }
-
         $this->classes[] = new ListenerClassRecord(
             fqcn: $node->namespacedName->toString(),
             line: $node->getStartLine(),
-            queued: $queued,
-            hasHandle: $hasHandle,
-            handles: $handles,
+            queued: AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value),
         );
 
         return null;

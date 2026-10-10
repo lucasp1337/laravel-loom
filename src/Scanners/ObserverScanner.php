@@ -9,19 +9,24 @@ use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\SourceLocation;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use Lucasp\Loom\Support\Sorting;
 
 /**
  * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
  * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
+ *
+ * @internal
  */
 final class ObserverScanner implements Scanner
 {
@@ -31,10 +36,11 @@ final class ObserverScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+        $this->scope = $scope;
     }
 
     /**
@@ -42,12 +48,7 @@ final class ObserverScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return ['observers' => [], 'model_events' => []];
-        }
-
-        /** @var array<string, array{file: string, line: int, hooks: list<string>}> $classMap */
+        /** @var array<string, array{file: string, line: int}> $classMap */
         $classMap = [];
 
         /** @var array<int, array{model: string, observer: string, registration: ObserverRegistration}> $observerRegs */
@@ -56,7 +57,7 @@ final class ObserverScanner implements Scanner
         /** @var array<int, array{model: string, hook: string, handler: string, method: string, file: string, line: int}> $listenEntries */
         $listenEntries = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $classVisitor = new ObserverClassVisitor;
             $attrVisitor = new ObservedByAttributeVisitor;
             $observeVisitor = new ObserveCallVisitor;
@@ -75,7 +76,6 @@ final class ObserverScanner implements Scanner
                 $classMap[$class->fqcn] = [
                     'file' => $relative,
                     'line' => $class->line,
-                    'hooks' => $classVisitor->getHooks($class->fqcn),
                 ];
             }
 
@@ -111,7 +111,7 @@ final class ObserverScanner implements Scanner
             }
         }
 
-        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap);
+        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, new ClassHierarchyResolver($appRoot, $this->walker));
         $modelEvents = $this->buildModelEvents($observers, $listenEntries);
 
         return [
@@ -124,10 +124,10 @@ final class ObserverScanner implements Scanner
      * Precedence: attribute > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: ObserverRegistration}>  $regs
-     * @param  array<string, array{file: string, line: int, hooks: list<string>}>  $classMap
+     * @param  array<string, array{file: string, line: int}>  $classMap
      * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>
      */
-    private function mergeObservers(string $appRoot, array $regs, array $classMap): array
+    private function mergeObservers(string $appRoot, array $regs, array $classMap, ClassHierarchyResolver $resolver): array
     {
         /** @var array<string, ObserverRegistration> $registrationByPair */
         $registrationByPair = [];
@@ -159,12 +159,34 @@ final class ObserverScanner implements Scanner
                 'observes' => $model,
                 'file' => is_array($location) ? $location['file'] : $location->file,
                 'line' => is_array($location) ? $location['line'] : $location->line,
-                'hooks' => is_array($location) ? $location['hooks'] : [],
+                'hooks' => $this->hooksOf($resolver, $observer),
                 'registration' => $registration,
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * Observable Eloquent events the observer has a method for. Laravel
+     * registers an observer method with `method_exists`, so declared,
+     * inherited and trait methods all count, whatever their visibility.
+     *
+     * @return list<string>
+     */
+    private function hooksOf(ClassHierarchyResolver $resolver, string $observerFqcn): array
+    {
+        $methods = $resolver->effectiveMethods($observerFqcn);
+
+        $hooks = [];
+        foreach (ModelHook::observableValues() as $hook) {
+            if (isset($methods[strtolower($hook)])) {
+                $hooks[] = $hook;
+            }
+        }
+        sort($hooks);
+
+        return $hooks;
     }
 
     private function precedence(ObserverRegistration $registration): int
@@ -289,7 +311,7 @@ final class ObserverScanner implements Scanner
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?SourceLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
+        if ($absolute === null || ! $this->scope()->admits($appRoot, $absolute)) {
             return null;
         }
 

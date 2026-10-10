@@ -16,6 +16,8 @@ use Lucasp\Loom\Index\Sections;
  * otherwise, with a baseline, only dispatches absent from the baseline (newly
  * introduced) fail. Without a baseline and without strict mode, growth cannot
  * be determined, so nothing fails.
+ *
+ * @internal
  */
 final class UnresolvedDispatchesRule implements CheckRule
 {

@@ -4,15 +4,49 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Changed
+
+- Schema 1.0 and the MCP tool surface are frozen; output is sorted into a total order so two scans of the same source are byte-identical apart from `scanned_at` ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- The `scheduled` section is renamed `scheduled_tasks` (also `stats.scheduled_tasks`, `Index::scheduledTasks()` and the `Model\ScheduledTask` read model) so every section is a plural noun ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- `impact-of-change` takes `change` (was `kind`) and returns `change`; impact `handlers[]` use `handler_kind` (was `kind`) ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- Schema: `scanned_at` must end in `Z`, `observers[].hooks[]` is an enum, `get-entity` and `list-entities` errors list the accepted values ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- Laravel 11 is no longer supported; Loom requires Laravel 12.41.1+ or 13.
+- `livewire/livewire` and `laravel/mcp` are optional (`suggest`). The UI needs Livewire ^3.8 or ^4.0; `loom:mcp` needs `laravel/mcp` and exits 1 with an install hint without it.
+
+### Fixed
+
+- Dispatches inside pass-through closures (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`) now count for the enclosing method, and unresolved ones reach `unresolved_dispatches` ([#97](https://github.com/lucasp1337/laravel-loom/issues/97)).
+- Dispatches inside closure routes are attributed to the route, and the event lists the route as a dispatch site ([#81](https://github.com/lucasp1337/laravel-loom/issues/81)).
+- A model's `$dispatchesEvents` entries are recorded as event dispatch sites ([#80](https://github.com/lucasp1337/laravel-loom/issues/80)).
+- Listener auto-discovery follows Laravel: inherited, trait-provided, `__invoke` and `handle*` methods are found, abstract classes are skipped. Observer hooks include inherited and trait methods, and `booting`/`booted` no longer count ([#98](https://github.com/lucasp1337/laravel-loom/issues/98)).
+
+### Added
+
+- `scan.discover_routes` (default on): route files loaded by `loadRoutesFrom()`, `Route::group()` paths and `withRouting()` are read without listing them in `scan.route_paths`; `loom:scan --no-discover-routes` disables it for one run; unresolved paths show under `loom:scan -v` ([#123](https://github.com/lucasp1337/laravel-loom/issues/123)).
+- `routes[].end_line` for closure routes.
+- `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
+- `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
+- `scan.paths`, `scan.route_paths`, `scan.psr4_paths` and `scan.exclude` config: scan modules and custom layouts, locate classes through `composer.json` PSR-4. See [docs/reference/scan-config.md](docs/reference/scan-config.md).
+- `loom:scan --output`, repeatable `--path` and `--route-path`, a summary line, and `-v` to list skipped files with the parse error.
+- Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
+- Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
+- `SECURITY.md` (private vulnerability reporting) and a manually triggered docs-site deploy workflow ([#102](https://github.com/lucasp1337/laravel-loom/issues/102), [#104](https://github.com/lucasp1337/laravel-loom/issues/104)).
+
+## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
+
+### Fixed
+
+- `Event::listen(function (Event $e) {...})` now infers the event from the closure's type hint ([#79](https://github.com/lucasp1337/laravel-loom/issues/79)).
+- `Bus::chain([...])` and `Bus::batch([...])` jobs are now recorded as dispatch sites; non-literal lists go to `unresolved_dispatches`.
+
 ### Breaking
 
-- Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`. See [Upgrading](docs/upgrading.md).
+- Index files from 0.2 no longer validate. Earlier required-field additions (`closure_listeners[].end_line`, `scheduled[].name`, `scheduled[].even_in_maintenance_mode`) are folded into schema `1.0`; strict semver applies from there. Re-run `loom:scan`.
 - Index gains a required `schema_version` (`"1.0"`). `IndexLoader`, `loom:check` and `loom:diff` refuse a missing or different major; `loom:diff` refuses cross-major.
 - `model_events[].handled_by` is now `{handler, method, file, line}` objects, not `"Fqcn::hook"` strings.
 - `file` paths must be relative; the absolute-path fallback is removed and the schema rejects absolute paths.
 - MCP `get-entity` returns the raw snake_case index entry.
 - MCP chain tools always emit `truncated` and `cycles`.
-- `livewire/livewire` and `laravel/mcp` (^1.0) are now installed with the package.
 
 ### Added
 
@@ -32,6 +66,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `overrides` on dispatch sites (queue, connection, delay and similar modifiers) and `channels` on `Notification::send()` sites.
 - `composer bench` performance suite that gates on counts, not wall time. See [benchmarks/README.md](benchmarks/README.md). ([#61](https://github.com/lucasp1337/laravel-loom/pull/61))
 - `ScheduleScanner` and `JobsScanner` for `scheduled[]` and `jobs[]`.
+
+### Fixed
+
+- `ScheduleScanner` now reads `routes/console.php`. ([#75](https://github.com/lucasp1337/laravel-loom/issues/75))
 
 ### Changed
 

@@ -14,6 +14,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
+ *
+ * @internal
  */
 final class ScheduleChainVisitor extends NodeVisitorAbstract
 {
@@ -150,7 +152,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     /**
      * Returns links root-first, or null if malformed.
      *
-     * @return list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
+     * @return list<array{method: string, args: array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
      */
     private function collectChain(Node\Expr $outer): ?array
     {

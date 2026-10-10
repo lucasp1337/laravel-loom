@@ -21,12 +21,16 @@ use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
+use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 
 /**
  * Discovers event listeners from auto-discovery (app/Listeners/),
  * $listen arrays, Event::listen() calls, and $subscribe / Event::subscribe.
+ *
+ * @internal
  */
 final class ListenerScanner implements Scanner
 {
@@ -36,10 +40,11 @@ final class ListenerScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+        $this->scope = $scope;
     }
 
     /**
@@ -47,9 +52,9 @@ final class ListenerScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $resolver = new ClassHierarchyResolver($appRoot, $this->walker);
+        $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
 
-        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot);
+        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot, $resolver);
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
@@ -70,22 +75,17 @@ final class ListenerScanner implements Scanner
     /**
      * @return array<string, ListenerLocation>
      */
-    private function discoverFromAutoDiscovery(string $appRoot): array
+    private function discoverFromAutoDiscovery(string $appRoot, ClassHierarchyResolver $resolver): array
     {
-        $listenersDir = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Listeners';
-        if (! is_dir($listenersDir)) {
-            return [];
-        }
-
         $visitor = new ListenerClassVisitor;
         $results = [];
 
-        foreach ($this->iteratePhpFiles($listenersDir) as $file) {
+        foreach ($this->scanFiles($appRoot, PrimitiveDirectory::LISTENERS) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
-                // Auto-discovery requires a literal handle() method.
-                if (! $class->hasHandle) {
+                $handles = $this->discoverHandles($resolver, $class->fqcn);
+                if ($handles === null) {
                     continue;
                 }
 
@@ -95,7 +95,7 @@ final class ListenerScanner implements Scanner
                     queued: $class->queued,
                     registration: ListenerRegistration::AUTO_DISCOVERED,
                 );
-                foreach ($class->handles as $handle) {
+                foreach ($handles as $handle) {
                     $location->handles[$handle->event.'::'.$handle->method] = $handle;
                 }
                 $results[$class->fqcn] = $location;
@@ -106,20 +106,46 @@ final class ListenerScanner implements Scanner
     }
 
     /**
+     * Mirrors Laravel's listener discovery: an instantiable class, and every
+     * public `handle*` or `__invoke` method with a first parameter, whether
+     * declared, inherited or provided by a trait. Events come from that
+     * parameter's class types. Null when the class has no such method.
+     *
+     * @return list<ListenerHandle>|null
+     */
+    private function discoverHandles(ClassHierarchyResolver $resolver, string $fqcn): ?array
+    {
+        if (! $resolver->isInstantiable($fqcn)) {
+            return null;
+        }
+
+        $handles = [];
+        $matched = false;
+        foreach ($resolver->effectiveMethods($fqcn) as $method) {
+            $isHandler = str_starts_with($method->name, 'handle') || $method->name === '__invoke';
+            if (! $isHandler || ! $method->isPublic() || $method->isAbstract || ! $method->hasParameters) {
+                continue;
+            }
+
+            $matched = true;
+            foreach ($resolver->firstParameterClasses($method) as $event) {
+                $handles[] = new ListenerHandle(event: $event, method: $method->name);
+            }
+        }
+
+        return $matched ? $handles : null;
+    }
+
+    /**
      * @return array{0: list<ListenerPair>, 1: list<ClosureListenerRecord>}
      */
     private function discoverFromListenArray(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [[], []];
-        }
-
         $visitor = new ListenArrayVisitor;
         $pairs = [];
         $closures = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
             foreach ($visitor->getPairs() as $pair) {
@@ -144,16 +170,11 @@ final class ListenerScanner implements Scanner
      */
     private function discoverFromEventListenCalls(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [[], []];
-        }
-
         $visitor = new EventListenCallVisitor;
         $pairs = [];
         $closures = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
             foreach ($visitor->getPairs() as $pair) {
@@ -178,17 +199,12 @@ final class ListenerScanner implements Scanner
      */
     private function discoverSubscriberFqcns(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [];
-        }
-
         $arrayVisitor = new SubscribeArrayVisitor;
         $callVisitor = new EventSubscribeCallVisitor;
 
         $seen = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$arrayVisitor, $callVisitor]);
             foreach ($arrayVisitor->getSubscribers() as $fqcn) {
                 $seen[$fqcn] = true;
@@ -213,7 +229,7 @@ final class ListenerScanner implements Scanner
 
         foreach ($fqcns as $fqcn) {
             $absolute = $this->locator->locate($appRoot, $fqcn);
-            if ($absolute === null) {
+            if ($absolute === null || ! $this->scope()->admits($appRoot, $absolute)) {
                 continue;
             }
 
@@ -352,7 +368,7 @@ final class ListenerScanner implements Scanner
     private function locateByPsr4Guess(string $appRoot, string $fqcn): ?ListenerLocation
     {
         $absolute = $this->locator->locate($appRoot, $fqcn);
-        if ($absolute === null) {
+        if ($absolute === null || ! $this->scope()->admits($appRoot, $absolute)) {
             return null;
         }
 

@@ -11,6 +11,8 @@ use PhpParser\Node;
  * Extracts the six queueable-class properties (`connection`, `queue`,
  * `delay`, `tries`, `timeout`, `backoff`) declared as scalar literals
  * on a class. Properties not declared map to `null`.
+ *
+ * @internal
  */
 final class QueueConfig
 {

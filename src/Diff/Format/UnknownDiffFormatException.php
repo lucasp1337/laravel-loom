@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Diff\Format;
 
 use InvalidArgumentException;
 
+/** @internal */
 final class UnknownDiffFormatException extends InvalidArgumentException
 {
     public static function for(string $format): self

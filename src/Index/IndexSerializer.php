@@ -27,6 +27,8 @@ use RuntimeException;
  *
  * The cross-link pass mutates `dispatched_from[]`, `dispatches[]`, etc., so
  * those keys are initialized to `[]` here; downstream code appends.
+ *
+ * @internal
  */
 final class IndexSerializer
 {
@@ -83,6 +85,11 @@ final class IndexSerializer
             Field::LINE->value => $e->line,
             Field::CONFIDENCE->value => $e->confidence,
         ];
+
+        // Omitted for plain dispatches so existing site arrays stay byte-identical.
+        if ($e->mode !== null) {
+            $out[Field::MODE->value] = $e->mode->value;
+        }
 
         // Internal-only: carried on `_dispatch_sites` (stripped before schema
         // validation) so DispatchedFromPhase can surface it. Omitted entirely
@@ -257,7 +264,7 @@ final class IndexSerializer
     /** @return array<string, mixed> */
     public function route(RouteEntry $e): array
     {
-        return [
+        $out = [
             Field::METHOD->value => $e->method,
             Field::URI->value => $e->uri,
             Field::NAME->value => $e->name,
@@ -268,6 +275,13 @@ final class IndexSerializer
             Field::LINE->value => $e->line,
             Field::DISPATCHES->value => $e->dispatches,
         ];
+
+        // Only closure actions carry a span; omitting it keeps other routes unchanged.
+        if ($e->endLine !== null) {
+            $out[Field::END_LINE->value] = $e->endLine;
+        }
+
+        return $out;
     }
 
     /** @return array<string, mixed> */

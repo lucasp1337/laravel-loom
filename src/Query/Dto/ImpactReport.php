@@ -52,7 +52,7 @@ final readonly class ImpactReport
             $this->notes,
         );
 
-        $head = ['fqcn' => $this->fqcn, 'kind' => $this->kind->value, 'entity' => $this->entity->value];
+        $head = ['fqcn' => $this->fqcn, 'change' => $this->kind->value, 'entity' => $this->entity->value];
 
         if ($this->entity === ImpactEntity::EVENT || $this->entity === ImpactEntity::UNKNOWN) {
             return $head + [

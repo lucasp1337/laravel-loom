@@ -10,6 +10,8 @@ namespace Lucasp\Loom\Index;
  * in the public schema. The cross-link pass and the per-target scanners read
  * `form` to disambiguate `kind` (e.g. `DISPATCHABLE` is ambiguous until
  * resolved to event or job).
+ *
+ * @internal
  */
 enum DispatchForm: string
 {
@@ -22,4 +24,5 @@ enum DispatchForm: string
     case NOTIFY_METHOD = 'notify_method';
     case NOTIFICATION_FACADE = 'notification_facade';
     case NOTIFICATION_CHAIN = 'notification_chain';
+    case DISPATCHES_EVENTS = 'dispatches_events';
 }

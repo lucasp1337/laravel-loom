@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Support;
 /**
  * Non-facade Laravel FQCNs Loom matches against — contracts and
  * framework base classes.
+ *
+ * @internal
  */
 enum LaravelClasses: string
 {

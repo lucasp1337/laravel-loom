@@ -13,7 +13,9 @@ use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
 
 /**
@@ -21,6 +23,8 @@ use PhpParser\Node;
  *
  * Slice 1: leaf verb routes only (get/post/.../any/match). Group prefixes,
  * middleware chains, and dispatch cross-links are out of scope.
+ *
+ * @internal
  */
 final class RouteScanner implements Scanner
 {
@@ -28,9 +32,11 @@ final class RouteScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null, ?RouteFileDiscovery $routeDiscovery = null)
     {
+        $this->routeDiscovery = $routeDiscovery;
         $this->walker = $walker ?? new AstWalker;
+        $this->scope = $scope;
     }
 
     /**
@@ -38,14 +44,9 @@ final class RouteScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        $routesDir = $appRoot.DIRECTORY_SEPARATOR.'routes';
-        if (! is_dir($routesDir)) {
-            return ['routes' => []];
-        }
-
         $entries = [];
 
-        foreach ($this->iteratePhpFiles($routesDir) as $file) {
+        foreach ($this->routeFiles($appRoot) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
             $visitor = new RouteChainVisitor;
@@ -160,6 +161,7 @@ final class RouteScanner implements Scanner
             file: $relativeFile,
             line: $raw->line,
             dispatches: [],
+            endLine: $this->closureEndLine($args[1] ?? null),
         )];
     }
 
@@ -194,6 +196,7 @@ final class RouteScanner implements Scanner
                 file: $relativeFile,
                 line: $raw->line,
                 dispatches: [],
+                endLine: $this->closureEndLine($args[2] ?? null),
             );
         }
 
@@ -306,7 +309,7 @@ final class RouteScanner implements Scanner
      * Collect literal action names from `->only(...)` / `->except(...)` args,
      * accepting both an array argument and variadic string arguments.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<string>
      */
     private function stringArgList(array $args): array
@@ -352,7 +355,7 @@ final class RouteScanner implements Scanner
      *
      * @return list<string>
      */
-    private function verbList(Node\Arg|Node\VariadicPlaceholder|null $arg): array
+    private function verbList(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): array
     {
         if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
             return [];
@@ -379,7 +382,7 @@ final class RouteScanner implements Scanner
      *
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveAction(Node\Arg|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
+    private function resolveAction(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
     {
         if (! $arg instanceof Node\Arg) {
             return ['fqcn' => null, 'method' => null];
@@ -411,6 +414,19 @@ final class RouteScanner implements Scanner
 
         // Variable, dynamic expression, etc. — never guess.
         return ['fqcn' => null, 'method' => null];
+    }
+
+    private function closureEndLine(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): ?int
+    {
+        if (! $arg instanceof Node\Arg) {
+            return null;
+        }
+
+        $value = $arg->value;
+
+        return $value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction
+            ? $value->getEndLine()
+            : null;
     }
 
     /**

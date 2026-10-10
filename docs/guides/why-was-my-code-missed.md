@@ -19,7 +19,7 @@ For a compact list of what each primitive supports, see [What Loom detects](../r
 
 `OrderPlaced` shows an empty `handled_by`, or the listener shows `handles: []`. Pick the shape that matches your code.
 
-**The `handle()` parameter has no usable type.** Loom reads the event from the first parameter's type. An untyped parameter, a union (`OrderPlaced|OrderUpdated`), a nullable (`?OrderPlaced`), an intersection or a builtin type gives it nothing to read. Type the parameter with one event class:
+**The handler method has no usable type.** For classes in `app/Listeners/`, Loom follows Laravel's discovery: every public method named `handle*` or `__invoke` with a first parameter counts, whether it is declared on the class, inherited from a parent or provided by a trait. It reads the event from that parameter's type, including a nullable (`?OrderPlaced`) or a union (`OrderPlaced|OrderUpdated`, one event per class). An untyped parameter, an intersection or a builtin type gives it nothing to read. Type the parameter with an event class:
 
 ```php
 public function handle(OrderPlaced $event): void
@@ -37,6 +37,8 @@ protected $listen = [
 
 **The listener registers itself inside a nested closure.** In a subscriber's `subscribe()` method, Loom follows `if`, `foreach` and `try` blocks but not closures inside them, so `collect([...])->each(fn () => $events->listen(...))` is invisible. Register with plain `$events->listen(...)` calls or return an array.
 
+**The handler is not discoverable.** Laravel skips abstract classes, traits and interfaces, methods made non-public (`use HandlesOrders { handle as protected; }`) and methods with no parameter, so Loom does too. A handler inherited from a vendor class can't be seen, because Loom only reads your own source.
+
 **Confirm:** `php artisan loom:show OrderPlaced` lists the listener under `handled_by`.
 
 ### A closure listener has no back-link
@@ -49,7 +51,7 @@ You registered `Event::listen(OrderPlaced::class, fn ($e) => ...)` and `OrderPla
 jq '.closure_listeners[] | select(.event == "App\\Events\\OrderPlaced")' storage/loom/index.json
 ```
 
-If you want the link in `handled_by`, move the closure body into a listener class and register it by name. The same applies in reverse: an event or job dispatched from inside a closure listener appears in that closure's `dispatches`, but the target's `dispatched_from` doesn't list the closure.
+If you want the link in `handled_by`, move the closure body into a listener class and register it by name. The same applies in reverse: an event or job dispatched from inside a closure listener appears in that closure's `dispatches`, but the target's `dispatched_from` doesn't list the closure. A closure that isn't a registration (`DB::transaction(fn () => ...)`, `each`, `tap`) is different: its dispatches count for the enclosing method.
 
 Closure listeners always show `queued: false`, even if you wrap the work in a queued call.
 
@@ -65,7 +67,11 @@ Loom finds events in `app/Events/`, plus any class passed to `event(...)`, `broa
 
 `Event::listen('eloquent.created: App\Models\Order', ...)` with a closure doesn't add anything to `model_events[].handled_by`, which only holds `Observer::method` names. The closure is in `closure_listeners` with the raw event string. An observer that only registers through this string form also never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
 
-Hook methods inherited from a parent observer or provided by a trait aren't seen either. Declare the hook method on the observer class itself.
+Hook methods declared on the observer, inherited from a parent observer or provided by a trait are all read. Only the events Eloquent lets an observer subscribe to count, so a `booting()` or `booted()` method is ignored; use `Event::listen('eloquent.booted: ...')` or a model `booted()` method for those.
+
+### A model's `$dispatchesEvents` event shows no dispatcher
+
+Each `'created' => InvoiceCreated::class` entry in a model's `$dispatchesEvents` becomes a `dispatched_from` site on the event, with a method like `App\Models\Invoice::$dispatchesEvents[created]`. The key must be a string literal and the value a `Foo::class` reference. A value built at runtime, or a property set in a constructor, isn't read.
 
 ## Dispatches
 
@@ -88,13 +94,16 @@ A ternary where both branches are `new X()` is fine. Loom records both.
 
 Loom skips these on purpose:
 
-- Anything inside a closure or arrow function, such as `collect($orders)->each(fn ($o) => event(new OrderPlaced($o)))`. The closure may never run, so Loom won't claim it does. Move the dispatch into a named method.
-- Code outside any class, such as script-level statements.
-- `dispatchSync`, `dispatchNow`, `dispatchAfterResponse`, `Queue::push` and `Queue::later`.
+- Code outside any class and outside a route closure, such as script-level statements.
+- A closure passed to a registration API other than `Event::listen`, model events and routes, such as `Queue::before(...)`. Those closures aren't tracked as handlers, so their dispatches count for the enclosing method.
+- A first-class callable passed as the callback (`->each($this->notify(...))`). Only the closure body is read, not the method it points to.
+- `Queue::pushRaw`.
 - `Bus::chain([...])` and `Bus::batch([...])`. The jobs inside never show a `dispatched_from`.
 - A dispatcher fetched from the container: `app(Dispatcher::class)->dispatch(...)`.
 
-Closure-internal dispatches with dynamic targets also don't reach `unresolved_dispatches`, so there's no warning for them either.
+Dispatches inside `DB::transaction(fn () => ...)`, `->each(function () {...})`, `tap`, `DB::afterCommit` and closures assigned to a variable are recorded against the enclosing method, as if the closure ran there. A dynamic target inside such a closure shows up in `unresolved_dispatches`.
+
+A dispatch inside a handler that a class inherits, or that comes from a trait, is attributed to the class that declares it, not to each listener that reuses it. The event's `dispatched_from` still lists the site.
 
 !!! warning "A listener that dispatches from a helper method"
     A listener's `dispatches` only includes dispatches made inside the method registered as its handler. If `handle()` calls `$this->issueReceipt()` and that private method fires `ReceiptIssued`, the dispatch still counts toward `ReceiptIssued`'s `dispatched_from`, but it won't appear in `SendReceipt`'s `dispatches`. Fire the event from `handle()` itself for the link to show. The same rule applies to jobs (`handle()`) and observers (the hook methods).
@@ -127,9 +136,9 @@ Loom reads class-level properties with literal values, such as `public $tries = 
 
 ### A job is missing from the jobs list
 
-Loom finds jobs in `app/Jobs/` and any class passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` whose file it can locate. It skips abstract classes, interfaces and traits. A job outside `app/Jobs/` that's only dispatched through `dispatchSync` or `Bus::chain` isn't found. Move it under `app/Jobs/`.
+Loom finds jobs in `app/Jobs/` and any class passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` whose file it can locate. It skips abstract classes, interfaces and traits. A job outside `app/Jobs/` that's only dispatched through a variable or an unrecognised form isn't found. Move it under `app/Jobs/`.
 
-A class whose file can't be located is dropped, since every entry needs a file and line. Loom maps a leading `App\` to `app/`, so a project with a different root namespace won't match.
+A class whose file can't be located is dropped, since every entry needs a file and line. Loom locates classes through the PSR-4 map in `composer.json`, and only inside the [scan paths](../reference/scan-config.md).
 
 ## Mail and notifications
 
@@ -164,12 +173,9 @@ public function via(object $notifiable): array
 
 ### A scheduled task is missing
 
-Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, and `Schedule::` calls in any file under `app/`. It does not read `routes/console.php`, which is where Laravel 11 and later put schedules by default.
+Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under `app/`. Schedules declared anywhere else (for example a package or a custom directory) are not scanned.
 
-!!! warning "Schedules in routes/console.php are not scanned"
-    If your `Schedule::command(...)` calls live in `routes/console.php`, they won't appear in `scheduled`. Move them into `->withSchedule(function (Schedule $schedule) { ... })` in `bootstrap/app.php`, or into a service provider under `app/`.
-
-**Confirm:** `jq '.scheduled[] | {target, cron}' storage/loom/index.json` lists the task.
+**Confirm:** `jq '.scheduled_tasks[] | {target, cron}' storage/loom/index.json` lists the task.
 
 ### The cron value is null
 
@@ -194,7 +200,7 @@ A `->job(...)` for a class in `vendor/` gives a valid target with no matching ro
 
 ### A route has no controller
 
-`controller_fqcn` and `controller_method` are `null` when the action is a closure (`fn () => ...`) or a variable. Loom won't guess. Use `[OrderController::class, 'show']`, an invokable `OrderController::class`, or the `'OrderController@show'` string.
+`controller_fqcn` and `controller_method` are `null` when the action is a closure (`fn () => ...`) or a variable. Loom won't guess. For a closure, the route still gets the events and jobs dispatched inside it, and `end_line` marks where the closure ends. Use `[OrderController::class, 'show']`, an invokable `OrderController::class`, or the `'OrderController@show'` string if you want a controller target.
 
 ### Middleware shows `web` or `auth`, not the classes
 
@@ -206,12 +212,12 @@ Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `t
 
 ### A route is missing entirely
 
-Loom reads `*.php` files under `routes/` and looks for `Route::` facade calls. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found.
+Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found.
 
 ## When nothing shows up for a file
 
 Two checks apply to every primitive.
 
-**The file doesn't parse.** Loom skips files with syntax errors silently. Run `php -l app/Listeners/SendReceipt.php`, fix it and scan again.
+**The file doesn't parse.** Loom skips files with syntax errors. `php artisan loom:scan -v` lists them with the line and parser message. Fix the file and scan again.
 
-**The code isn't under `app/`.** Loom scans `app/` (and `routes/` for routes, `bootstrap/app.php` for the scheduler). Vendor packages and modules kept elsewhere are ignored.
+**The code isn't in a scan path.** Loom scans `scan.paths` (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to [`scan.paths`](../reference/scan-config.md); vendor packages are ignored. Check `scan.exclude` too.

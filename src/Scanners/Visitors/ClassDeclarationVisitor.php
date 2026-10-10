@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ClassDeclaration;
+use Lucasp\Loom\Dto\MethodDeclaration;
+use Lucasp\Loom\Dto\MethodVisibility;
+use Lucasp\Loom\Dto\TraitAdaptation;
+use PhpParser\Modifiers;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects class/interface/trait declarations for ClassHierarchyResolver.
  * Skips anonymous classes (no namespacedName).
+ *
+ * @internal
  */
 final class ClassDeclarationVisitor extends NodeVisitorAbstract
 {
@@ -74,6 +80,9 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             interfaces: $interfaces,
             traits: $this->collectTraits($node->stmts),
             line: $node->getStartLine(),
+            isAbstract: $node->isAbstract(),
+            methods: $this->collectMethods($node->stmts),
+            adaptations: $this->collectAdaptations($node->stmts),
         );
     }
 
@@ -113,6 +122,8 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
             interfaces: [],
             traits: $this->collectTraits($node->stmts),
             line: $node->getStartLine(),
+            methods: $this->collectMethods($node->stmts),
+            adaptations: $this->collectAdaptations($node->stmts),
         );
     }
 
@@ -133,6 +144,111 @@ final class ClassDeclarationVisitor extends NodeVisitorAbstract
         }
 
         return $traits;
+    }
+
+    /**
+     * @param  array<int, Node\Stmt>  $stmts
+     * @return list<MethodDeclaration>
+     */
+    private function collectMethods(array $stmts): array
+    {
+        $methods = [];
+        foreach ($stmts as $stmt) {
+            if (! $stmt instanceof Node\Stmt\ClassMethod) {
+                continue;
+            }
+
+            $first = $stmt->params[0] ?? null;
+            $methods[] = new MethodDeclaration(
+                name: $stmt->name->toString(),
+                visibility: $this->visibility($stmt->flags),
+                isAbstract: $stmt->isAbstract(),
+                hasParameters: $first !== null,
+                firstParameterClasses: $first !== null ? $this->typeClasses($first->type) : [],
+            );
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Class names a parameter type accepts: a named type, its nullable form, or
+     * the class members of a union. Intersection and builtin types yield none.
+     *
+     * @return list<string>
+     */
+    private function typeClasses(Node\ComplexType|Node\Identifier|Node\Name|null $type): array
+    {
+        if ($type instanceof Node\NullableType) {
+            $type = $type->type;
+        }
+
+        if ($type instanceof Node\Name) {
+            return [$type->toString()];
+        }
+
+        if (! $type instanceof Node\UnionType) {
+            return [];
+        }
+
+        $classes = [];
+        foreach ($type->types as $member) {
+            if ($member instanceof Node\Name) {
+                $classes[] = $member->toString();
+            }
+        }
+
+        return $classes;
+    }
+
+    /**
+     * @param  array<int, Node\Stmt>  $stmts
+     * @return list<TraitAdaptation>
+     */
+    private function collectAdaptations(array $stmts): array
+    {
+        $adaptations = [];
+        foreach ($stmts as $stmt) {
+            if (! $stmt instanceof Node\Stmt\TraitUse) {
+                continue;
+            }
+
+            foreach ($stmt->adaptations as $adaptation) {
+                if ($adaptation instanceof Node\Stmt\TraitUseAdaptation\Precedence) {
+                    $adaptations[] = new TraitAdaptation(
+                        trait: $adaptation->trait?->toString(),
+                        method: $adaptation->method->toString(),
+                        alias: null,
+                        visibility: null,
+                        insteadof: array_values(array_map(static fn (Node\Name $name): string => $name->toString(), $adaptation->insteadof)),
+                    );
+
+                    continue;
+                }
+
+                if (! $adaptation instanceof Node\Stmt\TraitUseAdaptation\Alias) {
+                    continue;
+                }
+
+                $adaptations[] = new TraitAdaptation(
+                    trait: $adaptation->trait?->toString(),
+                    method: $adaptation->method->toString(),
+                    alias: $adaptation->newName?->toString(),
+                    visibility: $adaptation->newModifier === null ? null : $this->visibility($adaptation->newModifier),
+                );
+            }
+        }
+
+        return $adaptations;
+    }
+
+    private function visibility(int $flags): MethodVisibility
+    {
+        return match (true) {
+            ($flags & Modifiers::PRIVATE) !== 0 => MethodVisibility::PRIVATE,
+            ($flags & Modifiers::PROTECTED) !== 0 => MethodVisibility::PROTECTED,
+            default => MethodVisibility::PUBLIC,
+        };
     }
 
     /** @return list<ClassDeclaration> */

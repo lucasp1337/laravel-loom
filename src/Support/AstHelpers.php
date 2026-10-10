@@ -8,6 +8,8 @@ use PhpParser\Node;
 
 /**
  * Stateless AST helpers shared by visitors.
+ *
+ * @internal
  */
 final class AstHelpers
 {
@@ -96,7 +98,7 @@ final class AstHelpers
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private static function firstArgIsDispatcherClass(array $args): bool
     {
@@ -181,6 +183,20 @@ final class AstHelpers
         }
 
         return null;
+    }
+
+    /** Resolve a `true` / `false` constant literal, or null for anything else. */
+    public static function boolLiteral(?Node $node): ?bool
+    {
+        if (! $node instanceof Node\Expr\ConstFetch) {
+            return null;
+        }
+
+        return match (strtolower($node->name->getLast())) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
     }
 
     public static function scalarString(?Node $node): ?string

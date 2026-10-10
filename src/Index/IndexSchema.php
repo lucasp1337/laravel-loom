@@ -8,6 +8,8 @@ namespace Lucasp\Loom\Index;
  * The index schema version ("MAJOR.MINOR"), independent of the package version.
  * MAJOR bumps only on breaking shape changes; MINOR on additive ones. Readers
  * accept the same MAJOR with any MINOR.
+ *
+ * @internal
  */
 final class IndexSchema
 {

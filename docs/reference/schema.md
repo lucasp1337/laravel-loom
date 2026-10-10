@@ -8,24 +8,40 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
 {
   "schema_version": string,       // "MAJOR.MINOR" of this document shape, e.g. "1.0"
   "loom_version": string,        // semver of Loom that produced this index (informational)
-  "scanned_at": string,           // ISO 8601 UTC timestamp
+  "scanned_at": string,           // ISO 8601 UTC timestamp, always ending in "Z"
   "laravel_version": string,      // detected Laravel version of the scanned app
   "stats": object,                // counts by section
   "events": array,                // discovered event classes
   "model_events": array,          // Eloquent model event entries
   "listeners": array,             // discovered listeners
-  "closure_listeners": array,     // discovered closure / arrow-function listener registrations
-  "jobs": array,                  // discovered job classes
   "observers": array,             // discovered observers
-  "scheduled": array,             // task-scheduler entries
+  "jobs": array,                  // discovered job classes
+  "unresolved_dispatches": array, // dispatch sites that could not be statically resolved
+  "closure_listeners": array,     // discovered closure / arrow-function listener registrations
+  "scheduled_tasks": array,             // task-scheduler entries
   "routes": array,                // registered HTTP routes
   "mailables": array,             // discovered mailable classes
-  "notifications": array,         // discovered notification classes
-  "unresolved_dispatches": array  // dispatch sites that could not be statically resolved
+  "notifications": array          // discovered notification classes
 }
 ```
 
 All fields are required. Empty arrays are valid. `null` is never valid for an array field. `additionalProperties: false` at the top level — fields beyond these are a schema violation.
+
+## Determinism
+
+Two scans of identical source produce byte-identical JSON, except `scanned_at`. Files are read in sorted path order, and every section is sorted by its natural key followed by tie-breakers, so the order is total:
+
+| Section | Order |
+|---|---|
+| `events`, `model_events` | `id` |
+| `listeners`, `jobs`, `mailables`, `notifications` | `fqcn` |
+| `observers` | `fqcn`, `observes` |
+| `closure_listeners` | `event`, `file`, `line`, `end_line`, `registration` |
+| `scheduled_tasks` | `file`, `line`, `kind`, `target`, `name`, `cron` |
+| `routes` | `file`, `line`, `method`, `uri`, `name` |
+| `unresolved_dispatches` | `file`, `line`, `expression`, `reason` |
+
+Nested sets use the same rule: dispatch sites by `file`, `line`, `method`, `mode`; `dispatches[]` by `file`, `line`, `target`, `kind`; `handled_by[]` by `listener` (or `handler`), `method`; `handles[]` by `event`, `method`. Arrays whose source order is meaningful (`middleware`, `channels`, `arguments`) keep it. Paths are relative to the app root, so scanning the same tree from another directory gives the same output.
 
 ## `events[]`
 
@@ -47,13 +63,26 @@ All fields are required. Empty arrays are valid. `null` is never valid for an ar
 {
   "file": string,
   "line": integer,
-  "method": string,               // "ClassName::methodName" of the dispatching context
+  "method": string,               // where the dispatch happens, see below
+  "mode": enum,                   // optional; "sync" | "after_response" | "push"; omitted for plain dispatches
   "overrides": object,            // optional; $defs/dispatchOverrides; omitted when empty
   "channels": array<string>       // optional; notification-only; omitted when no static channel filter
 }
 ```
 
+`method` names the origin of the dispatch: `ClassName::methodName` for code in a class method (a dispatch inside a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB uri` (for example `GET /orders`) for a route closure, and `ClassName::$dispatchesEvents[hook]` for a model's `$dispatchesEvents` entry.
+
 The same `$defs/dispatchSite` shape is referenced by `jobs[*].dispatched_from`, `mailables[*].sent_from`, and `notifications[*].notified_from` — it's the single source of truth for a dispatch site. It used to be inline under `events[*].dispatched_from`; the `{file, line, method}` body is unchanged, only the schema reference was promoted.
+
+`mode` records how the call site executes, when the call form says so. It is **optional** and omitted for plain forms (`dispatch()`, `X::dispatch()`, `Mail::send()`, `Notification::send()`, `$user->notify()`), whose queued-or-inline outcome is decided by the target's `queued` flag.
+
+| `mode` | Call forms |
+|---|---|
+| `sync` | `X::dispatchSync()`, `dispatch_sync()`, `Bus::dispatchSync()`, `Bus::dispatchNow()`, `Mail::sendNow()`, `Notification::sendNow()`, `->notifyNow()` |
+| `after_response` | `X::dispatchAfterResponse()`, `Bus::dispatchAfterResponse()`, `->afterResponse()` on a dispatch chain (`afterResponse(false)` is not) |
+| `push` | `Queue::push/pushOn/later/laterOn/bulk`, `Mail::queue/onQueue/queueOn/later/laterOn` |
+
+`mode` describes the call form only. `ShouldQueue` and the `sync` queue driver are not evaluated, so a `push` or plain site can still run inline when the queue connection is `sync`.
 
 `overrides` (`$defs/dispatchOverrides`) records statically-resolvable fluent modifiers applied at the dispatch site. It is **optional**: the key is present only when at least one modifier was found, and is omitted entirely otherwise — so a site with no modifiers has no `overrides` key. Adding it was a non-breaking additive change.
 
@@ -118,6 +147,8 @@ deleting, deleted, restoring, restored, replicating, trashed,
 forceDeleting, forceDeleted, booting, booted
 ```
 
+`booting` and `booted` appear only from `Event::listen('eloquent.booted: ...')` strings. Observer methods are matched against the observable events (everything above except `booting` and `booted`).
+
 ## `listeners[]`
 
 ```
@@ -127,7 +158,7 @@ forceDeleting, forceDeleted, booting, booted
   "line": integer,
   "handles": array,               // {event, method} pairs this listener handles
   "registration": enum,           // see below
-  "queued": boolean,              // true iff class directly implements ShouldQueue
+  "queued": boolean,              // true iff the class implements ShouldQueue, directly or via a parent class or interface (a trait cannot confer it)
   "dispatches": array             // populated by cross-link from DispatchScanner
 }
 ```
@@ -204,7 +235,7 @@ Closure and arrow-function listener registrations. Distinct from `listeners[]` b
 }
 ```
 
-It is populated by the cross-link pass from dispatch sites that fall within the closure's `[line, end_line]` span in the same `file`. This makes closure listeners feature-equivalent to class listeners for dispatch attribution. Earlier releases declared `dispatches` as `array<string>` and always emitted it empty, so no real data ever matched the old item type; the change to `$defs/dispatch` objects is the corrected, populated shape. `confidence` is currently always `"high"`; `"medium"` / `"low"` are reserved for future runtime overlay work.
+It is populated by the cross-link pass from dispatch sites that fall within the closure's `[line, end_line]` span in the same `file`, including sites in closures nested inside it. This makes closure listeners feature-equivalent to class listeners for dispatch attribution. Earlier releases declared `dispatches` as `array<string>` and always emitted it empty, so no real data ever matched the old item type; the change to `$defs/dispatch` objects is the corrected, populated shape. `confidence` is currently always `"high"`; `"medium"` / `"low"` are reserved for future runtime overlay work.
 
 Entries are sorted by `(event, file, line)` ascending. No dedupe — each registration site is its own entry.
 
@@ -217,7 +248,7 @@ The cross-link pass intentionally does NOT add closure entries to `events[*].han
   "fqcn": string,
   "file": string,
   "line": integer,
-  "queued": boolean,              // true iff class directly implements ShouldQueue
+  "queued": boolean,              // true iff the class implements ShouldQueue, directly or via a parent class or interface (a trait cannot confer it)
   "queue_config": object | null,  // null when queued is false; $defs/queueConfig otherwise
   "dispatched_from": array,       // populated by cross-link; $defs/dispatchSite entries
   "dispatches": array             // populated by cross-link; $defs/dispatch entries
@@ -228,16 +259,16 @@ The cross-link pass intentionally does NOT add closure entries to `events[*].han
 
 ```
 {
-  "connection": string | null,
-  "queue": string | null,
-  "delay": integer | null,
-  "tries": integer | null,
-  "timeout": integer | null,
-  "backoff": integer | null
+  "connection": string | integer | null,
+  "queue": string | integer | null,
+  "delay": string | integer | null,
+  "tries": string | integer | null,
+  "timeout": string | integer | null,
+  "backoff": string | integer | null
 }
 ```
 
-All six keys are required when `queue_config` is an object; each value is the scalar literal declared as a class property, or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
+All six keys are required when `queue_config` is an object; each value is the string or integer literal declared as a class property (the literal's own type is kept), or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
 
 `dispatched_from[]` uses `$defs/dispatchSite` (the same shape as `events[*].dispatched_from`). It is populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` whose `target` matches the job's FQCN.
 
@@ -254,7 +285,7 @@ Entries are sorted by `fqcn` ascending.
   "line": integer,
   "observes": string,             // FQCN of the observed model
   "registration": enum,           // "observe_call" | "attribute"
-  "hooks": array<string>,         // hook method names declared on the observer
+  "hooks": array<enum>,           // observable model events the observer has a method for; sorted; values of the model event enum below, minus booting/booted
   "dispatches": array             // same shape as listeners.dispatches; cross-link populated
 }
 ```
@@ -268,7 +299,7 @@ When the same `(observer, model)` pair is discovered through both paths, precede
 
 One observer registered against N models produces N entries.
 
-## `scheduled[]`
+## `scheduled_tasks[]`
 
 Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One entry per chain.
 
@@ -317,7 +348,7 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 
 Entries are sorted by `(file, line)` ascending. Deduplication is on `(file, line, kind, target)`; merging across kernel / bootstrap / facade discovery favours kernel and bootstrap forms over facade.
 
-Cross-link is one-directional: `scheduled[*].target` with `kind: "job"` carries a job FQCN that consumers can join against `jobs[*].fqcn` client-side. There is no `jobs[*].scheduled` back-pointer for rationale.
+Cross-link is one-directional: `scheduled_tasks[*].target` with `kind: "job"` carries a job FQCN that consumers can join against `jobs[*].fqcn` client-side. There is no `jobs[*].scheduled` back-pointer for rationale.
 
 See [schedule scanner](../guides/why-was-my-code-missed.md) for behaviour details and known limitations.
 
@@ -335,18 +366,19 @@ Registered HTTP routes discovered from the application's route definitions. One 
   "middleware": array<string>,    // middleware identifiers applied to the route, including those inherited from enclosing groups; verbatim names (alias->class and group expansion are not resolved)
   "file": string,                 // path to the route definition, relative to app root
   "line": integer,                // 1-indexed line of the route definition
-  "dispatches": array             // events/jobs dispatched inside the route's controller method; same shape as listeners[*].dispatches
+  "end_line": integer,            // optional; 1-indexed last line of a closure action; omitted for every other action
+  "dispatches": array             // events/jobs dispatched inside the route's controller method or closure; same shape as listeners[*].dispatches
 }
 ```
 
-`$defs/route`. All fields are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
+`$defs/route`. All fields except `end_line` are required. `name`, `controller_fqcn`, and `controller_method` may be `null`.
 
-`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. It is populated by the cross-link pass and stays empty until cross-linked, as well as for closure routes and routes whose controller cannot be resolved.
+`dispatches[]` uses `$defs/dispatch` — the same shape as `listeners[*].dispatches` — and lists the events/jobs dispatched inside the route's controller method, cross-linked from their dispatch sites. For a closure route (`end_line` present) it lists the dispatches that fall within `[line, end_line]` of the route's file, and each such event also lists the route in `dispatched_from`. It is populated by the cross-link pass and stays empty until cross-linked, as well as for routes whose controller cannot be resolved.
 
 `method` enum:
 
 ```
-GET, POST, PUT, PATCH, DELETE, OPTIONS, ANY
+GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD, ANY
 ```
 
 A route registered against multiple verbs that share one definition is reported as `ANY`. Routes whose action is a closure (or otherwise not a `Controller@method` callable) carry `null` for both `controller_fqcn` and `controller_method`; `name` is `null` whenever no `->name(...)` was applied.
@@ -432,14 +464,14 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
 {
   "events": integer,
   "listeners": integer,
-  "closure_listeners": integer,
-  "jobs": integer,
   "observers": integer,
-  "scheduled": integer,
+  "jobs": integer,
+  "unresolved_dispatches": integer,
+  "closure_listeners": integer,
+  "scheduled_tasks": integer,
   "routes": integer,
   "mailables": integer,
-  "notifications": integer,
-  "unresolved_dispatches": integer
+  "notifications": integer
 }
 ```
 
@@ -473,7 +505,7 @@ Reader behaviour, in `IndexLoader`, `loom:check` and `loom:diff`:
 - Missing `schema_version` (written before 1.0), older major or newer major: refused with a message to re-run `php artisan loom:scan`. There is no migration; the index is a derived file.
 - `loom:diff` refuses to compare two indexes with different majors, and exits `2`.
 
-`schema_version` `1.0` is the baseline. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
+`schema_version` `1.0` is the baseline and is frozen: every field name, enum value and nullability on this page, and the MCP tool names and inputs in [MCP tools](mcp-tools.md), follow the table above from here. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled_tasks[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
 
 Because the schema sets `additionalProperties: false`, a consumer that validates with a stored copy of the schema will reject a later minor. Validate with the schema shipped in the same release as the producer, or don't validate.
 
@@ -486,6 +518,8 @@ Some enums grow in minor releases. Consumers must tolerate values they don't kno
 - `reason` on `unresolved_dispatches[]`
 - `confidence`: only `high` is emitted today; `medium` and `low` are reserved, ordered `high > medium > low`
 - `routes[].method`
+- `model_events[].event` and `observers[].hooks[]`, which follow Eloquent's event list
+- `scheduled_tasks[].kind` and `scheduled_tasks[].frequency.unit`
 
 Removing or renaming a value is a major change. Adding one is minor.
 
@@ -493,4 +527,4 @@ What to do about it:
 
 - Pin the Loom version you build tooling against, and upgrade deliberately.
 - Read the [changelog](https://github.com/lucasp1337/laravel-loom/blob/main/CHANGELOG.md) before upgrading; shape changes are listed there.
-- Regenerate the index with `php artisan loom:scan` after every upgrade instead of reusing an old file. See [Upgrading](../upgrading.md).
+- Regenerate the index with `php artisan loom:scan` after every upgrade instead of reusing an old file.

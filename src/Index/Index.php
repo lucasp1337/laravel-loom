@@ -15,7 +15,7 @@ use Lucasp\Loom\Index\Model\ModelEvent;
 use Lucasp\Loom\Index\Model\Notification;
 use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
-use Lucasp\Loom\Index\Model\Scheduled;
+use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 
 /**
@@ -26,6 +26,8 @@ use Lucasp\Loom\Index\Model\UnresolvedDispatch;
  * lookups below return read-model value objects from {@see Model}, so consumers
  * (UI, MCP server, custom tooling) never reach into raw arrays. {@see toArray()}
  * remains the inverse used for JSON serialization.
+ *
+ * @api
  */
 final class Index
 {
@@ -96,10 +98,10 @@ final class Index
         return $this->hydrate(Sections::NOTIFICATIONS, Notification::fromArray(...));
     }
 
-    /** @return list<Scheduled> */
-    public function scheduled(): array
+    /** @return list<ScheduledTask> */
+    public function scheduledTasks(): array
     {
-        return $this->hydrate(Sections::SCHEDULED, Scheduled::fromArray(...));
+        return $this->hydrate(Sections::SCHEDULED_TASKS, ScheduledTask::fromArray(...));
     }
 
     /** @return list<Route> */

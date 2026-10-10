@@ -15,6 +15,8 @@ use Lucasp\Loom\Index\Field;
  * corresponding modifier was absent or its argument was not a static literal.
  * Internal to dispatch resolution; serialized to the optional `overrides`
  * block only when {@see DispatchOverrides::isEmpty()} is false.
+ *
+ * @internal
  */
 final readonly class DispatchOverrides
 {

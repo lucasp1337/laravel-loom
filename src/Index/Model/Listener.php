@@ -10,6 +10,8 @@ use Lucasp\Loom\Index\ListenerRegistration;
 /**
  * A class listener: the events/methods it handles, how it was registered, and
  * what it dispatches. Read model for the `listeners` section.
+ *
+ * @api
  */
 final readonly class Listener
 {

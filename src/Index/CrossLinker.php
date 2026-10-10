@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Index;
 
 use Lucasp\Loom\Index\CrossLink\AmbiguousDisambiguationPhase;
 use Lucasp\Loom\Index\CrossLink\ClosureDispatchAttributionPhase;
+use Lucasp\Loom\Index\CrossLink\ClosureOwnershipPhase;
 use Lucasp\Loom\Index\CrossLink\CrossLinkContext;
 use Lucasp\Loom\Index\CrossLink\CrossLinkPhase;
 use Lucasp\Loom\Index\CrossLink\DispatchAttributionPhase;
@@ -21,6 +22,8 @@ use Lucasp\Loom\Index\CrossLink\SortPhase;
  *
  * The default phase order matters — disambiguation must finalize a site's
  * kind before attribution and dispatched_from read it, and sorting runs last.
+ *
+ * @internal
  */
 final class CrossLinker
 {
@@ -35,6 +38,7 @@ final class CrossLinker
         $this->phases = $phases ?? [
             new HandledByPhase,
             new AmbiguousDisambiguationPhase,
+            new ClosureOwnershipPhase,
             new DispatchAttributionPhase,
             new ClosureDispatchAttributionPhase,
             new DispatchedFromPhase,

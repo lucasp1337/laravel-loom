@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Index;
 
 /**
  * Top-level section names emitted by the index.
+ *
+ * @internal
  */
 enum Sections: string
 {
@@ -16,7 +18,7 @@ enum Sections: string
     case JOBS = 'jobs';
     case UNRESOLVED_DISPATCHES = 'unresolved_dispatches';
     case CLOSURE_LISTENERS = 'closure_listeners';
-    case SCHEDULED = 'scheduled';
+    case SCHEDULED_TASKS = 'scheduled_tasks';
     case MAILABLES = 'mailables';
     case NOTIFICATIONS = 'notifications';
     case ROUTES = 'routes';

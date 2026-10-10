@@ -16,6 +16,8 @@ use PhpParser\NodeVisitorAbstract;
  * Collects (event, listener) pairs from Event::listen(...) calls and the
  * equivalent container forms (`$this->app['events']->listen(...)`,
  * `app(Dispatcher::class)->listen(...)`, `$dispatcher->listen(...)`).
+ *
+ * @internal
  */
 final class EventListenCallVisitor extends NodeVisitorAbstract
 {
@@ -75,7 +77,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if ($node->name->toString() !== 'listen') {
             return;
         }
-        if (count($node->args) < 2) {
+        if (count($node->args) < 1) {
             return;
         }
 
@@ -90,7 +92,7 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
         if ($node->name->toString() !== 'listen') {
             return;
         }
-        if (count($node->args) < 2) {
+        if (count($node->args) < 1) {
             return;
         }
         if (! AstHelpers::resolvesToEventsDispatcher($node->var, $this->dispatcherVars)) {
@@ -120,14 +122,26 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
      * Extract the (event, listener) pair from a `listen(event, listener)`
      * arg list, shared by the facade and container receiver forms.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function handleListenArgs(array $args): void
     {
         $first = $args[0];
-        $second = $args[1];
+        if (! $first instanceof Node\Arg) {
+            return;
+        }
 
-        if (! $first instanceof Node\Arg || ! $second instanceof Node\Arg) {
+        // Inferred form: the event comes from the closure's first parameter type.
+        if ($first->value instanceof Node\Expr\Closure || $first->value instanceof Node\Expr\ArrowFunction) {
+            foreach ($this->eventsFromClosureType($first->value) as $event) {
+                $this->recordClosurePair($event, $first->value);
+            }
+
+            return;
+        }
+
+        $second = $args[1] ?? null;
+        if (! $second instanceof Node\Arg) {
             return;
         }
 
@@ -168,6 +182,31 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
             listener: $resolved['listener'],
             method: $resolved['method'],
         );
+    }
+
+    /**
+     * Event classes named by the closure's first parameter type (union: one each).
+     * Untyped, builtin-typed (`object`, `mixed`) and non-class hints yield none.
+     *
+     * @return list<string>
+     */
+    private function eventsFromClosureType(Node\Expr\Closure|Node\Expr\ArrowFunction $closure): array
+    {
+        $type = ($closure->params[0] ?? null)?->type;
+        if ($type instanceof Node\NullableType) {
+            $type = $type->type;
+        }
+        $candidates = $type instanceof Node\UnionType ? $type->types : [$type];
+
+        $events = [];
+        foreach ($candidates as $candidate) {
+            if (! $candidate instanceof Node\Name) {
+                continue;
+            }
+            $events[] = $candidate->toString();
+        }
+
+        return array_values(array_unique($events));
     }
 
     private function recordListen(string $event, Node\Expr $listener): void

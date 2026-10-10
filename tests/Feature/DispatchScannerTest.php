@@ -6,6 +6,7 @@ use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Scanners\DispatchScanner;
 
 function dispatchFixturePath(): string
@@ -61,12 +62,13 @@ it('records each unresolved entry as an UnresolvedDispatchEntry DTO with file=ap
     }
 });
 
-it('emits ten recognised dispatch sites in the fixture', function () {
+it('emits eleven recognised dispatch sites in the fixture', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
 
-    // Nine class-method sites plus the one resolved site inside the closure in
-    // SendOrderConfirmation::handle (tagged inClosure for the closure phase).
-    expect($result['_dispatch_sites'])->toHaveCount(10);
+    // Ten class-method sites (including the dispatch_sync in Checkout) plus the
+    // one resolved site inside the closure in SendOrderConfirmation::handle
+    // (tagged inClosure for the closure phase).
+    expect($result['_dispatch_sites'])->toHaveCount(11);
 });
 
 it('records each site as a DispatchSiteRecord DTO with file=app/...', function () {
@@ -134,14 +136,14 @@ it('records a resolved site inside a closure tagged inClosure, leaving class-met
     expect($classSite->inClosure)->toBeFalse();
 });
 
-it('does not record dispatch_sync as a site or as unresolved', function () {
+it('records dispatch_sync as a sync site, not as unresolved', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
 
-    foreach ($result['_dispatch_sites'] as $site) {
-        if ($site->file === 'app/Services/Checkout.php') {
-            expect($site->line)->not->toBe(17);
-        }
-    }
+    $site = findSite($result['_dispatch_sites'], 'app/Services/Checkout.php', 17);
+    expect($site)->not->toBeNull();
+    expect($site->mode)->toBe(DispatchMode::SYNC);
+    expect($site->target)->toBe('App\\Jobs\\SendReceipt');
+
     foreach ($result['unresolved_dispatches'] as $entry) {
         if ($entry->file === 'app/Services/Checkout.php') {
             expect($entry->line)->not->toBe(17);

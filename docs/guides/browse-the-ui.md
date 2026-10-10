@@ -4,6 +4,8 @@ By the end of this page you'll have `/loom` open in your browser, you'll have fo
 
 You've run `php artisan loom:scan` and have an index on disk. The examples use a checkout app where `OrderPlaced` fires from `OrderController` and is handled by `SendOrderConfirmation` and `ReserveStock`.
 
+The UI needs `livewire/livewire` (^3.8 or ^4.0), which Loom doesn't install for you: `composer require livewire/livewire --dev`. Without it nothing is mounted, and `loom:scan` prints that hint.
+
 ## See what happens when OrderPlaced fires
 
 Start your app locally and open the UI.
@@ -69,7 +71,7 @@ http://localhost:8000/loom/listeners?q=Order&sort=dispatches&dir=desc&page=1
 
 It shows listeners matching `Order`, busiest dispatchers first. A row marked `orphan` is unconnected: an event nobody handles or dispatches, or a listener that handles no event.
 
-Sections without a detail page (`scheduled`, `routes`, `closure_listeners`, `model_events`, `unresolved_dispatches`) are read straight from the table.
+Sections without a detail page (`scheduled_tasks`, `routes`, `closure_listeners`, `model_events`, `unresolved_dispatches`) are read straight from the table.
 
 ## Jump anywhere
 

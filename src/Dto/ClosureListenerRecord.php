@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\ListenerRegistration;
 
-/** Scanner-level closure handler: visitor output enriched with the file path. */
+/**
+ * Scanner-level closure handler: visitor output enriched with the file path.
+ *
+ * @internal
+ */
 final class ClosureListenerRecord
 {
     public function __construct(

@@ -6,19 +6,25 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ClassRecord;
+use Lucasp\Loom\Dto\EventDispatchTarget;
 use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\SourceLocation;
 use Lucasp\Loom\Index\DispatchForm;
+use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventDispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use Lucasp\Loom\Support\TwoPathDiscovery;
 
 /**
  * Discovers event classes under app/Events/ plus targets reached from
  * statically resolvable dispatch sites elsewhere in app/.
+ *
+ * @internal
  */
 final class EventScanner implements Scanner
 {
@@ -29,10 +35,11 @@ final class EventScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null)
+    public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
         $this->locator = $locator ?? new Psr4ClassLocator;
+        $this->scope = $scope;
     }
 
     protected function walker(): AstWalker
@@ -76,7 +83,7 @@ final class EventScanner implements Scanner
     {
         return $this->collectFromDirectory(
             $appRoot,
-            $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Events',
+            PrimitiveDirectory::EVENTS,
             fn (): EventClassVisitor => new EventClassVisitor,
             fn (EventClassVisitor $visitor): array => $visitor->getClasses(),
             fn (ClassRecord $record): string => $record->fqcn,
@@ -93,19 +100,21 @@ final class EventScanner implements Scanner
      */
     private function discoverFromDispatchSites(string $appRoot, array $fsClasses): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
-            return [];
-        }
-
         $visitor = new EventDispatchSiteVisitor;
         /** @var array<string, bool> $candidates true when seen via an unambiguous form */
         $candidates = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
+        foreach ($this->scanFiles($appRoot) as $file) {
+            // Fresh per file: a failed parse skips beforeTraverse and would leak state.
+            $mappingVisitor = new DispatchesEventsVisitor;
+            $this->walker->walk($file->getPathname(), [$visitor, $mappingVisitor]);
 
-            foreach ($visitor->getTargets() as $target) {
+            $targets = $visitor->getTargets();
+            foreach ($mappingVisitor->getMappings() as $mapping) {
+                $targets[] = new EventDispatchTarget($mapping->eventFqcn, $mapping->line, DispatchForm::DISPATCHES_EVENTS);
+            }
+
+            foreach ($targets as $target) {
                 $isUnambiguous = $target->form !== DispatchForm::DISPATCHABLE;
                 if (! isset($candidates[$target->fqcn])) {
                     $candidates[$target->fqcn] = $isUnambiguous;
@@ -129,8 +138,8 @@ final class EventScanner implements Scanner
             }
 
             // Dispatchable form is ambiguous with jobs — accept only when the
-            // resolved file is under app/Events/.
-            if ($unambiguous || str_starts_with($located->file, 'app/Events/')) {
+            // resolved file is under an Events/ scan directory.
+            if ($unambiguous || $this->isUnderPrimitiveDirectory($appRoot, $located->file, PrimitiveDirectory::EVENTS)) {
                 $kept[$fqcn] = null;
             }
         }

@@ -14,7 +14,7 @@ function diffCommandIndex(): array
         'schema_version' => '1.0',
         'loom_version' => '1.0.0',
         'laravel_version' => '12.x',
-        'scanned_at' => '2026-01-01T00:00:00+00:00',
+        'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => ['events' => 1, 'listeners' => 1],
         'events' => [
             [
@@ -44,7 +44,7 @@ function diffCommandIndex(): array
         'jobs' => [],
         'unresolved_dispatches' => [],
         'closure_listeners' => [],
-        'scheduled' => [],
+        'scheduled_tasks' => [],
         'mailables' => [],
         'notifications' => [],
     ];

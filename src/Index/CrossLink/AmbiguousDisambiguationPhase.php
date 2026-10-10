@@ -12,6 +12,8 @@ use Lucasp\Loom\Index\Sections;
  * Phase 2 — `X::dispatch()` is ambiguous (the Dispatchable trait covers both
  * events and jobs). Resolve each ambiguous site to `event` if its target is a
  * known event, else `job`, mutating the dispatch sites for later phases.
+ *
+ * @internal
  */
 final class AmbiguousDisambiguationPhase implements CrossLinkPhase
 {

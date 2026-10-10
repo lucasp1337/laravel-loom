@@ -13,6 +13,8 @@ use Lucasp\Loom\Diff\Result\SubListDelta;
 /**
  * Human-readable terminal diff with ANSI colors: green `+` for additions,
  * red `-` for removals, yellow `~` for changed entries.
+ *
+ * @internal
  */
 final class TextDiffFormatter implements DiffFormatter
 {

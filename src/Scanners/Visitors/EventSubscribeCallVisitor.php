@@ -11,6 +11,8 @@ use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects subscriber FQCNs from Event::subscribe(...) static calls.
+ *
+ * @internal
  */
 final class EventSubscribeCallVisitor extends NodeVisitorAbstract
 {

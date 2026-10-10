@@ -15,6 +15,8 @@ use Lucasp\Loom\Index\Sections;
  * Single source of truth for how each index section is diffed: identity,
  * semantic fields, and sublists. The list order is the report order and
  * mirrors the {@see Sections} enum.
+ *
+ * @internal
  */
 final class DiffSpecRegistry
 {
@@ -83,7 +85,7 @@ final class DiffSpecRegistry
                 [],
             ),
             new SectionDiffSpec(
-                Sections::SCHEDULED,
+                Sections::SCHEDULED_TASKS,
                 self::byKeys([Field::FILE, Field::LINE, Field::KIND, Field::TARGET]),
                 [Field::CRON, Field::TIMEZONE, Field::WITHOUT_OVERLAPPING, Field::ON_ONE_SERVER, Field::RUN_IN_BACKGROUND],
                 [
@@ -149,9 +151,9 @@ final class DiffSpecRegistry
     }
 
     /**
-     * Dispatch-site member identity: (file, line, method) plus normalized
+     * Dispatch-site member identity: (file, line, method) plus mode and normalized
      * overrides, and optionally normalized channels for notifications. This
-     * makes an override/channel change surface as a remove+add of the member.
+     * makes a mode, override or channel change surface as a remove+add of the member.
      *
      * @return Closure(array<string,mixed>): string
      */
@@ -162,6 +164,7 @@ final class DiffSpecRegistry
                 self::scalar($member[Field::FILE->value] ?? null),
                 self::scalar($member[Field::LINE->value] ?? null),
                 self::scalar($member[Field::METHOD->value] ?? null),
+                self::scalar($member[Field::MODE->value] ?? null),
                 self::canonical($member[Field::OVERRIDES->value] ?? []),
             ];
             if ($includeChannels) {

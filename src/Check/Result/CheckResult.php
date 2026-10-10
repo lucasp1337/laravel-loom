@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Check\Result;
 /**
  * The aggregate result of a `loom:check` run: one {@see RuleReport} per rule in
  * registry order. The command's exit code derives from {@see passed()}.
+ *
+ * @internal
  */
 final class CheckResult
 {

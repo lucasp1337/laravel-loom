@@ -6,7 +6,11 @@ namespace Lucasp\Loom\Support;
 
 use Illuminate\Contracts\Config\Repository;
 
-/** Single source of truth for where the index snapshot lives. */
+/**
+ * Single source of truth for where the index snapshot lives.
+ *
+ * @internal
+ */
 final class IndexPath
 {
     public function __construct(

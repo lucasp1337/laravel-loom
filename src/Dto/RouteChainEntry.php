@@ -6,11 +6,15 @@ namespace Lucasp\Loom\Dto;
 
 use PhpParser\Node;
 
-/** A raw route chain captured by RouteChainVisitor (pre-translation). */
+/**
+ * A raw route chain captured by RouteChainVisitor (pre-translation).
+ *
+ * @internal
+ */
 final class RouteChainEntry
 {
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      * @param  list<RouteChainLink>  $chain
      * @param  list<string>  $groupPrefix  cumulative enclosing-group prefix segments
      * @param  string  $groupNamePrefix  cumulative enclosing-group name prefix ('' when none)

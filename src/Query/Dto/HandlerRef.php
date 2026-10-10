@@ -17,9 +17,9 @@ final readonly class HandlerRef
     ) {
     }
 
-    /** @return array{listener: string, method: string, kind: string} */
+    /** @return array{listener: string, method: string, handler_kind: string} */
     public function toArray(): array
     {
-        return ['listener' => $this->listener, 'method' => $this->method, 'kind' => $this->kind->value];
+        return ['listener' => $this->listener, 'method' => $this->method, 'handler_kind' => $this->kind->value];
     }
 }

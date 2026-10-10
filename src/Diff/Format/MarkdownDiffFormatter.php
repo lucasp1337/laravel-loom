@@ -13,6 +13,8 @@ use Lucasp\Loom\Diff\Result\SubListDelta;
  * GitHub-flavored Markdown diff, suitable to paste into a PR comment: a `##`
  * heading per non-empty section with bullet lists for added/removed entries
  * and nested lists for changed entries' field and sublist deltas.
+ *
+ * @internal
  */
 final class MarkdownDiffFormatter implements DiffFormatter
 {

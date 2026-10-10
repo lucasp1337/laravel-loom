@@ -16,6 +16,8 @@ use Lucasp\Loom\Index\Sections;
  * Runs after {@see AmbiguousDisambiguationPhase} so `provisionalKind` is
  * already resolved, and after {@see DispatchAttributionPhase} for ordering
  * consistency with the class-handler attribution.
+ *
+ * @internal
  */
 final class ClosureDispatchAttributionPhase implements CrossLinkPhase
 {

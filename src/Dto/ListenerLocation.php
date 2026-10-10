@@ -13,6 +13,8 @@ use Lucasp\Loom\Index\ListenerRegistration;
  * Mutable because the merge pass updates fields incrementally as it folds in
  * each registration source. The final readonly DTO is `ListenerEntry`, built
  * at emit time.
+ *
+ * @internal
  */
 final class ListenerLocation
 {

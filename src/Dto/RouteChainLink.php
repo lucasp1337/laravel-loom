@@ -6,11 +6,15 @@ namespace Lucasp\Loom\Dto;
 
 use PhpParser\Node;
 
-/** One link in a `Route::get(...)->name(...)` chain. */
+/**
+ * One link in a `Route::get(...)->name(...)` chain.
+ *
+ * @internal
+ */
 final class RouteChainLink
 {
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     public function __construct(
         public readonly string $method,

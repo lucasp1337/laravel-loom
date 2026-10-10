@@ -54,3 +54,24 @@ it('gates page routes but not static assets', function () {
 it('honours the configured path', function () {
     expect(route('loom.dashboard', absolute: false))->toBe('/loom');
 });
+
+it('escapes hostile strings from the index', function () {
+    $hostile = '<script>alert(1)</script>';
+
+    $this->writeSnapshot(['routes' => [[
+        'method' => 'GET',
+        'uri' => $hostile,
+        'name' => null,
+        'controller_fqcn' => null,
+        'controller_method' => null,
+        'middleware' => [],
+        'file' => 'routes/web.php',
+        'line' => 1,
+        'dispatches' => [],
+    ]]]);
+
+    $this->get('/loom/routes')
+        ->assertOk()
+        ->assertDontSee($hostile, false)
+        ->assertSee(e($hostile), false);
+});

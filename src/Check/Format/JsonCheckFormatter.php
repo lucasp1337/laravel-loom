@@ -11,6 +11,8 @@ use Lucasp\Loom\Check\Result\Violation;
 /**
  * Machine-readable report as pretty JSON. Every rule is included (even passing
  * or skipped) so consumers can see the full set that ran.
+ *
+ * @internal
  */
 final class JsonCheckFormatter implements CheckFormatter
 {

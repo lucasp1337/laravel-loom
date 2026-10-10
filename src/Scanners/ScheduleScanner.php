@@ -15,10 +15,14 @@ use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
 
 /**
- * Discovers entries declared in Laravel's task scheduler.
+ * Discovers entries declared in Laravel's task scheduler (Kernel, bootstrap/app.php,
+ * routes/console.php and Schedule facade calls under app/).
+ *
+ * @internal
  */
 final class ScheduleScanner implements Scanner
 {
@@ -66,13 +70,14 @@ final class ScheduleScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
+        $this->scope = $scope;
     }
 
     /**
-     * @return array{scheduled: list<ScheduledEntry>}
+     * @return array{scheduled_tasks: list<ScheduledEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -85,6 +90,12 @@ final class ScheduleScanner implements Scanner
         foreach ($this->discoverBootstrapForm($appRoot) as $entry) {
             $entries[$this->dedupeKey($entry)] = $entry;
         }
+        foreach ($this->discoverConsoleRoutesForm($appRoot) as $entry) {
+            $key = $this->dedupeKey($entry);
+            if (! isset($entries[$key])) {
+                $entries[$key] = $entry;
+            }
+        }
         foreach ($this->discoverFacadeForm($appRoot) as $entry) {
             $key = $this->dedupeKey($entry);
             if (! isset($entries[$key])) {
@@ -95,7 +106,7 @@ final class ScheduleScanner implements Scanner
         $result = array_values($entries);
         usort($result, fn (ScheduledEntry $a, ScheduledEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
 
-        return ['scheduled' => $result];
+        return ['scheduled_tasks' => $result];
     }
 
     /**
@@ -103,17 +114,26 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverKernelForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'Console'.DIRECTORY_SEPARATOR.'Kernel.php';
-        if (! is_file($file)) {
-            return [];
+        $entries = [];
+
+        foreach ($this->scope()->directories($appRoot) as $directory) {
+            $file = $directory.DIRECTORY_SEPARATOR.'Console'.DIRECTORY_SEPARATOR.'Kernel.php';
+            if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
+                continue;
+            }
+
+            // Fresh visitor per file: walk()===null bypasses beforeTraverse.
+            $visitor = new ScheduleChainVisitor(ScheduleMode::KERNEL);
+            if ($this->walker->walk($file, [$visitor]) === null) {
+                continue;
+            }
+
+            foreach ($this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file)) as $entry) {
+                $entries[] = $entry;
+            }
         }
 
-        $visitor = new ScheduleChainVisitor(ScheduleMode::KERNEL);
-        if ($this->walker->walk($file, [$visitor]) === null) {
-            return [];
-        }
-
-        return $this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file));
+        return $entries;
     }
 
     /**
@@ -122,7 +142,7 @@ final class ScheduleScanner implements Scanner
     private function discoverBootstrapForm(string $appRoot): array
     {
         $file = $appRoot.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
-        if (! is_file($file)) {
+        if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
 
@@ -137,16 +157,29 @@ final class ScheduleScanner implements Scanner
     /**
      * @return list<ScheduledEntry>
      */
-    private function discoverFacadeForm(string $appRoot): array
+    private function discoverConsoleRoutesForm(string $appRoot): array
     {
-        $appDir = $appRoot.DIRECTORY_SEPARATOR.'app';
-        if (! is_dir($appDir)) {
+        $file = $appRoot.DIRECTORY_SEPARATOR.'routes'.DIRECTORY_SEPARATOR.'console.php';
+        if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
 
+        $visitor = new ScheduleChainVisitor(ScheduleMode::FACADE);
+        if ($this->walker->walk($file, [$visitor]) === null) {
+            return [];
+        }
+
+        return $this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file));
+    }
+
+    /**
+     * @return list<ScheduledEntry>
+     */
+    private function discoverFacadeForm(string $appRoot): array
+    {
         $entries = [];
 
-        foreach ($this->iteratePhpFiles($appDir) as $file) {
+        foreach ($this->scanFiles($appRoot) as $file) {
             // Fresh visitor per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries.
             $visitor = new ScheduleChainVisitor(ScheduleMode::FACADE);
@@ -301,7 +334,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      */
     private function resolveTarget(ScheduleKind $kind, array $rootArgs): ?string
     {
@@ -348,7 +381,7 @@ final class ScheduleScanner implements Scanner
      * list. Plain items emit their literal value; keyed items emit "key=value".
      * Unresolvable items are skipped rather than fabricated.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $rootArgs
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      * @return list<string>
      */
     private function resolveCommandArguments(array $rootArgs): array
@@ -465,7 +498,7 @@ final class ScheduleScanner implements Scanner
      * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
      * null when an arg can't be resolved statically.
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function cronFromHelper(string $method, array $args): ?string
     {
@@ -644,7 +677,7 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function constraintFor(string $method, array $args): ?string
     {
@@ -704,7 +737,7 @@ final class ScheduleScanner implements Scanner
      * Collects statically-resolvable day integers from a variadic int list
      * (days(0, 3)) or a single array argument (days([0, 3])).
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<int>
      */
     private function collectDayArgs(array $args): array

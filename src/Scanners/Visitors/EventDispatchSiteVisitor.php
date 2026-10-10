@@ -14,6 +14,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Collects statically resolvable event-class targets from dispatch sites.
  * Dynamic forms are handled by DispatchScanner.
+ *
+ * @internal
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {
@@ -92,7 +94,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
     private function resolveFirstArgClass(array $args): ?string
     {

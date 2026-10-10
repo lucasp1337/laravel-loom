@@ -11,6 +11,7 @@ use Lucasp\Loom\Diff\Format\FormatterFactory;
 use Lucasp\Loom\Diff\Format\UnknownDiffFormatException;
 use Lucasp\Loom\Diff\IndexDiffer;
 
+/** @internal */
 class DiffCommand extends Command
 {
     protected $signature = 'loom:diff {old : Path to the old index.json} {new : Path to the new index.json} {--format=text : Output format (text|json|markdown)}';

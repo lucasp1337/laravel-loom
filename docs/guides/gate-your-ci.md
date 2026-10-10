@@ -108,15 +108,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: lucasp1337/laravel-loom@main
+      - uses: lucasp1337/laravel-loom@v0.3.0
         with:
           strict: "true"
 ```
 
 `pull-requests: write` lets the action post the comment. `strict: "true"` fails the build on any unresolved dispatch. Orphans, cycles and schema errors always fail it.
-
-!!! note "No release tag includes the action yet"
-    Neither `v0.1.0` nor `v0.2.0` contains it, so the example points at `main`. Once a release ships it, pin to that tag instead of a moving branch.
 
 The job is green when the check exits `0`. It fails with the same exit code the check returned, and the PR comment lists the violations from the [markdown format](../reference/check-rules-and-formats.md#markdown).
 

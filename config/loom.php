@@ -7,8 +7,33 @@ return [
     // null means storage/loom/index.json.
     'index_path' => env('LOOM_INDEX_PATH'),
 
+    'scan' => [
+        // Directories loom:scan walks, relative to the project root. `*` globs
+        // are allowed (e.g. 'Modules/*'). Convention directories (Events,
+        // Listeners, Jobs, Mail, Notifications) resolve inside each one.
+        'paths' => ['app'],
+
+        // Directories holding route files, relative to the project root. `*`
+        // globs are allowed (e.g. 'Modules/*/routes'). Route files are read
+        // for `routes[]` and for dispatches inside route closures.
+        'route_paths' => ['routes'],
+
+        // Also read route files that providers (`loadRoutesFrom()`), route
+        // groups with a file path and bootstrap/app.php `withRouting()` load by
+        // a statically resolvable path. Unresolvable paths are listed by `-v`.
+        'discover_routes' => true,
+
+        // Also scan every directory in composer.json's autoload.psr-4.
+        'psr4_paths' => false,
+
+        // Globs relative to the project root; matching files and everything
+        // under matching directories are skipped by every scanner.
+        'exclude' => [],
+    ],
+
     'ui' => [
-        // Kill switch. The UI is also mounted only in the environments below.
+        // Kill switch. The UI needs livewire/livewire and is also mounted only
+        // in the environments below.
         'enabled' => env('LOOM_UI_ENABLED', true),
 
         // App environments that mount the UI. In any other environment no
@@ -30,5 +55,10 @@ return [
 
         // Default chain depth on the chain page (clamped to 1-6).
         'chain_depth' => 3,
+    ],
+
+    'mcp' => [
+        // Turns off `loom:mcp` even when laravel/mcp is installed.
+        'enabled' => env('LOOM_MCP_ENABLED', true),
     ],
 ];

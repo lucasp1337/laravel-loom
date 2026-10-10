@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
+use Illuminate\Support\Carbon;
 use Lucasp\Loom\Contracts\Scanner;
 use RuntimeException;
 
 /**
  * Runs registered scanners, merges their sections, cross-links relations,
  * and produces an Index.
+ *
+ * @internal
  */
 class IndexBuilder
 {
@@ -130,7 +133,7 @@ class IndexBuilder
         return new Index(
             schemaVersion: IndexSchema::VERSION,
             loomVersion: self::LOOM_VERSION,
-            scannedAt: gmdate('Y-m-d\TH:i:s\Z'),
+            scannedAt: Carbon::now('UTC')->format('Y-m-d\TH:i:s\Z'),
             laravelVersion: $laravelVersion,
             sections: $sections,
         );

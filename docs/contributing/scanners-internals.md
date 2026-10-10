@@ -20,9 +20,9 @@ EventScanner uses two discovery paths and merges them by FQCN:
    - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` (`form: facade`)
    - `SomeEvent::dispatch(...)`, `SomeEvent::dispatchIf($cond, ...)`, and `SomeEvent::dispatchUnless($cond, ...)` (`form: dispatchable`). The conditional forms resolve to the same target as `dispatch(...)`; the leading condition argument is ignored for resolution.
 
-   When a seeded target's FQCN isn't already known from the filesystem walk, EventScanner locates the class file via a PSR-4 guess (mapping leading `App\` to `app/`). The class must exist on disk and contain the declared FQCN; otherwise the candidate is dropped.
+   When a seeded target's FQCN isn't already known from the filesystem walk, EventScanner locates the class file through the PSR-4 map in the app's `composer.json` (`App\` to `app/` when it declares none), accepting only files inside a scan directory and not excluded. The class must exist on disk and contain the declared FQCN; otherwise the candidate is dropped.
 
-   The `dispatchable` form is subject to an extra filter: candidates are only accepted if their resolved file sits under `app/Events/`. Without this filter, every job class using the `Dispatchable` trait would land in `events[]`. The `helper` and `facade` forms have no such filter — they are unambiguous event dispatches per Laravel's API.
+   The `dispatchable` form is subject to an extra filter: candidates are only accepted if their resolved file sits under an `Events/` directory inside a scan directory. Without this filter, every job class using the `Dispatchable` trait would land in `events[]`. The `helper` and `facade` forms have no such filter — they are unambiguous event dispatches per Laravel's API.
 
 ### Output
 
@@ -66,7 +66,7 @@ Discovers event listeners and emits the `listeners[]` section of the index.
 
 ListenerScanner uses four discovery paths and merges them by listener FQCN:
 
-1. **Auto-discovery via `app/Listeners/`.** Every class in `app/Listeners/` with a public `handle()` method is a listener candidate. The first parameter's type-hint becomes the event the listener handles. Classes that transitively implement `Illuminate\Contracts\Queue\ShouldQueue` — directly or via a parent class indexed under `app/` — are marked `queued: true`.
+1. **Auto-discovery via `app/Listeners/`.** Mirrors Laravel's `DiscoverEvents`: every instantiable (not abstract, trait or interface) class in `app/Listeners/` is resolved through `ClassHierarchyResolver::effectiveMethods()`, and each public method named `handle*` or `__invoke` that has a first parameter is a handler. Declared, inherited and trait-provided methods all count, with trait `as` renames and `insteadof` applied; the effective method name is recorded. The events are the class names in the first parameter's type (a nullable or union type gives each class; builtin and intersection members give none; `self` resolves to the declaring class). A matching method with no class type still lists the listener, with `handles: []`. Classes that transitively implement `Illuminate\Contracts\Queue\ShouldQueue` — directly or via a parent class indexed under `app/` — are marked `queued: true`.
 
 2. **`$listen` array on `EventServiceProvider`.** Walks the entire `app/` tree (not just `app/Providers/`) and looks at classes named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`. The `$listen` property (any visibility, must be `array`) is parsed: each `EventClass::class => [Listener::class, …]` pair becomes a registration. Bare `Listener::class` values map to `method: "handle"`. Tuple values `[Listener::class, 'method']` preserve the method name. Resolvable callable values — `Closure::fromCallable([Listener::class, 'method'])`, `Closure::fromCallable([Listener::class])` (method defaults to `"handle"`), and `Listener::method(...)` first-class callable syntax — resolve to the same FQCN+method and route through the same merge as the literal tuple.
 
@@ -174,6 +174,7 @@ The same event handled by different methods on one listener (`[Listener::class, 
 
 - **Listener registered via multiple paths.** Single entry. `handles` is the union of `(event, method)` tuples; `registration` is the highest-precedence source.
 - **Listener with typed `handle(OrderPlaced $event)`.** Auto-discovered. `handles: [{ "event": "App\\Events\\OrderPlaced", "method": "handle" }]` (or whatever the resolved type-hint is).
+- **Listener with `handle()` and no parameter, an abstract class, or `use T { handle as protected; }`.** Not discovered, because Laravel skips them.
 - **Listener with `handle($event)` (no type-hint).** Auto-discovered with `handles: []`. The listener is still registered; it just doesn't auto-discover a target event. Other paths may still add entries.
 - **Listener listed in `$listen` but located outside `app/Listeners/`.** Picked up via the PSR-4 guess (leading `App\` → `app/`). If the file can't be located on disk, the listener is dropped (the schema requires `file` and `line`).
 - **`$listen` tuple form `[Listener::class, 'method']`.** Both the listener FQCN and the method name are recorded. The resulting `handles[]` entry is `{event: …, method: "method"}`.
@@ -200,6 +201,8 @@ Three discovery paths:
 1. **Closure value inside `$listen` array.** `protected $listen = [OrderPlaced::class => [fn ($e) => …]]` (or a long-form `function ($e) { … }`) on a class named `EventServiceProvider` OR extending `Illuminate\Foundation\Support\Providers\EventServiceProvider`. Emitted with `registration: "listen_array"`.
 
 2. **Closure as the second argument of a dispatcher `listen()` call.** `Event::listen(OrderPlaced::class, fn ($e) => …)` anywhere under `app/`. Emitted with `registration: "event_listen_call"`. The class-shape filter that applies to `$listen` walks does NOT apply here — any qualifying `listen()` call does. This covers both the `Event::` facade form and the container-resolved dispatcher forms (`$this->app['events']->listen(...)`, `app(Dispatcher::class)->listen(...)`, `resolve(Dispatcher::class)->listen(...)`, `$this->app->make(Dispatcher::class)->listen(...)`, and a local variable assigned from one of those) — see the [ListenerScanner container-form registrations](#container-form-registrations) for the exact receiver shapes and their limitations.
+
+   **Inferred event.** `Event::listen(function (OrderPlaced $e) { … })` (closure or arrow function as the *first* argument) takes the event from the first parameter's type, resolved through `use` imports. Nullable hints unwrap; union hints emit one entry per class. Untyped, `object`, `mixed` or other builtin hints have no event and are skipped.
 
 3. **Closure inside a subscriber's `subscribe()` body** — either as a return-array value (`return [OrderPlaced::class => fn ($e) => …]`) or as the second argument to an imperative `$events->listen(OrderPlaced::class, fn ($e) => …)` call against the dispatcher parameter. Applies to any class registered as a subscriber (via `$subscribe` array or `Event::subscribe(...)`). Both sub-cases emit with `registration: "subscriber"`.
 
@@ -251,7 +254,9 @@ Each entry in `dispatches[]` is a dispatch object conforming to `$defs/dispatch`
 
 Attribution is **positional, by source span.** A closure listener has no class or method identity to key on — unlike `listeners[*].dispatches`, which matches a dispatch to its enclosing listener by class plus method. So closures match by line instead: a dispatch site is attributed to a closure listener when it sits in the same file and its line falls within `[line, end_line]` inclusive.
 
-Only resolved (statically-known) dispatches are captured. A dispatch with a dynamic or otherwise unresolvable target inside a closure body is not added to `dispatches[]` — and is not added to `unresolved_dispatches[]` either; closure-internal unresolved dispatches are out of scope.
+Only resolved (statically-known) dispatches are captured in `dispatches[]`. A dispatch with a dynamic target inside a closure body goes to `unresolved_dispatches[]` like any other.
+
+The closure listener is a *registration* closure and owns every site in its span. A closure that is merely passed along (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`, a variable-assigned closure) is *pass-through*: `ClosureOwnershipPhase` clears its `inClosure` tag so the sites are attributed to the enclosing class method instead. A route closure is the other registration closure; see [routes](#routescanner).
 
 Entries are sorted by `(event, file, line)` ascending for determinism.
 
@@ -296,7 +301,7 @@ ObserverScanner uses three discovery paths and emits both observer entries and s
 
    Path 3 contributes to **`model_events[]` only**, never to `observers[]`. The handler may not be a true observer class — promoting it to `observers[]` with a synthetic single-hook `hooks` list would misrepresent it.
 
-For each observer discovered through paths 1 or 2, the scanner enumerates hook methods. It locates the observer's file (from the in-memory class-to-file map built during the walk, with PSR-4 fallback) and collects every method named with one of the canonical Eloquent hooks. Visibility is not a filter — `public`, `protected`, and `private` methods all count.
+For each observer discovered through paths 1 or 2, the scanner enumerates hook methods. It locates the observer's file (from the in-memory class-to-file map built during the walk, with PSR-4 fallback) and resolves the observer's effective methods (declared, trait-provided and inherited; a vendor parent is opaque), keeping those named after an observable Eloquent event (`ModelHook::observableValues()`). Laravel registers an observer method when `method_exists` is true, so visibility is not a filter. `booting` and `booted` are fired as model events but are not observable, so they are never hooks.
 
 ### Output
 
@@ -353,6 +358,8 @@ deleting, deleted, restoring, restored, replicating, trashed,
 forceDeleting, forceDeleted, booting, booted
 ```
 
+`booting` and `booted` are valid `model_events.event` values (from `eloquent.booted: {Model}` strings) but never observer `hooks[]`: Laravel's observable-event list stops at `forceDeleted`.
+
 ### Expected behavior
 
 - **Observer registered via both attribute and `Model::observe()`.** Single entry per `(observer, model)` pair with `registration: attribute`.
@@ -360,6 +367,7 @@ forceDeleting, forceDeleted, booting, booted
 - **Observer registered against multiple models.** Multiple entries (one per model). The schema's single-string `observes` constraint requires this.
 - **Observer with no hook methods that match the canonical enum.** Still emitted with `hooks: []`. The registration exists; the hook list is empty.
 - **Observer class with mixed-visibility hook methods.** All hooks are collected regardless of visibility (public, protected, private).
+- **Hook inherited from a parent observer or provided by a trait.** Counted, alongside the observer's own.
 - **`#[ObservedBy([A::class, B::class])]`.** Produces two observer entries.
 - **Model_events dedupe.** Observer hooks AND `Event::listen('eloquent.created: User', UserObserver::class . '@created')` referring to the same observer hook contribute the same `"UserObserver::created"` string — deduplicated to a single entry in `handled_by`.
 - **Path 3 with non-observer handler.** `Event::listen('eloquent.deleted: App\Models\Product', 'App\Handlers\InvoiceHandler@deleted')` produces a `model_events` entry with `InvoiceHandler::deleted` in `handled_by` but does NOT create an observer entry for `InvoiceHandler`.
@@ -438,7 +446,7 @@ This is the most cross-cutting scanner. It runs last (after EventScanner, Listen
 
 ### What it detects
 
-DispatchScanner walks every PHP file under `app/` and records dispatch sites in any class method body. Recognized forms:
+DispatchScanner walks every PHP file under `app/` and `routes/` and records dispatch sites in any class method body, and in closures inside them. In `routes/` only closure bodies yield sites (the route owns them). It also records each literal `'hook' => Foo::class` entry of a class's `$dispatchesEvents` property as an `event` site (`form: dispatches_events`, `method: $dispatchesEvents[hook]`) through `DispatchesEventsVisitor`; `EventScanner` seeds the same targets into `events[]`. Recognized forms:
 
 - `event(new SomeEvent(...))` and `event(SomeEvent::class)` — `kind: event`, `form: helper`
 - `broadcast(new SomeEvent(...))` and `broadcast(SomeEvent::class)` — `kind: event`, `form: helper` (the broadcast-path twin of `event()`; event at arg 0)
@@ -446,12 +454,13 @@ DispatchScanner walks every PHP file under `app/` and records dispatch sites in 
 - `Event::dispatch(new SomeEvent(...))` and `Event::dispatch(SomeEvent::class)` — `kind: event`, `form: facade`
 - `dispatch(new SomeJob(...))` and `dispatch(SomeJob::class)` — `kind: job`, `form: job_helper`
 - `Bus::dispatch(new SomeJob(...))` — `kind: job`, `form: bus_facade`
+- `Bus::chain([...])` and `Bus::batch([...])` — one `kind: job` site per literal item (`new X`, `X::class`); a non-literal list or item goes to `unresolved_dispatches`. `withChain`/`->chain()` on a dispatched job is not detected.
 - `SomeClass::dispatch(...)` Dispatchable trait — `kind: ambiguous` at the visitor level, finalized by the cross-link pass against `events[]`
 - `SomeClass::dispatchIf($cond, ...)` and `SomeClass::dispatchUnless($cond, ...)` conditional Dispatchable forms — resolved exactly like `SomeClass::dispatch(...)` (the static class is the target; the leading condition argument does not affect resolution). Same `kind: ambiguous` → cross-link finalization. These exist only as static Dispatchable-trait forms; there is no `Event::dispatchIf` / `Event::dispatchUnless` facade form (Laravel's `Event` facade has no such methods), so no facade conditional form is recognised.
 
 A dispatched target wrapped in a fluent chain resolves through the chain to its target FQCN. `AstHelpers::resolveStaticClass()` unwraps a leading `MethodCall` chain before resolving, so `dispatch((new ProcessOrder())->delay(60))` and `ProcessOrder::dispatch()->onQueue('high')` resolve to `ProcessOrder` rather than falling through to `unresolved_dispatches[]`. Only `new X` and `X::class` receivers resolve through the chain — a variable receiver (`$job->onQueue('high')` where `$job` is a variable) does not. The chain modifier *values* are captured into the site's `overrides` object (see below).
 
-The visitor maintains a class+method stack on `enterNode`/`leaveNode` of `Stmt\Class_` and `Stmt\ClassMethod`, plus a closure-depth counter. Each recorded site carries:
+The visitor maintains a class+method stack on `enterNode`/`leaveNode` of `Stmt\Class_` and `Stmt\ClassMethod`, plus a closure-depth counter. A site with a closure depth above zero carries `inClosure: true`; cross-link decides whether a registration closure owns it. Each recorded site carries:
 
 - `target` — resolved FQCN of the dispatched event or job
 - `kind` — `event`, `job`, or `ambiguous` (finalized in cross-link)
@@ -563,6 +572,8 @@ Two chain positions are read:
 ```
 
 ### Channel filter (`channels`, notifications only)
+
+`$defs/dispatchSite` also carries an optional `mode` (`DispatchMode`: `sync`, `after_response`, `push`), a sibling of `overrides`, set from the call form: `dispatchSync` / `dispatch_sync` / `Bus::dispatchSync` / `Bus::dispatchNow` / `Mail::sendNow` / `Notification::sendNow` / `notifyNow` map to `sync`; `dispatchAfterResponse` and a literal-true `->afterResponse()` on the dispatch chain map to `after_response`; `Queue::push/pushOn/later/laterOn/bulk` and `Mail::queue/onQueue/queueOn/later/laterOn` map to `push`. Plain forms emit no `mode`. The visitor sets it (`ChainModifierExtractor::mode()` reads the chain); the cross-link pass copies it onto the reverse arrays. `X::dispatchSync()` / `X::dispatchAfterResponse()` exist only on the Bus `Dispatchable` trait, so those sites are `kind: job` straight away rather than ambiguous. `Queue::pushRaw` (string payload) is not recorded. `ShouldQueue` and the `sync` queue driver are never evaluated.
 
 `$defs/dispatchSite` carries one further optional field — `channels` — emitted only on `notifications[*].notified_from` entries. It records the literal channel filter passed as the third argument to `Notification::send($users, $notification, $channels)` / `Notification::sendNow(...)`, which restricts that dispatch to a specific channel set and overrides the notification's own `via()`. Values use the same representation as `notifications[*].channels`: literal string channel names stored lowercased, `Class::class` channel constants stored as FQCN, in source order.
 
@@ -995,14 +1006,14 @@ Notifications do not participate in the disambiguation phase
 ## ScheduleScanner
 
 Discovers entries declared in Laravel's task scheduler and emits the
-`scheduled[]` section of the index.
+`scheduled_tasks[]` section of the index.
 
 See [ADR 0002](adr/0002-schedule-scanner.md) for the load-bearing design
 decisions (discovery strategy, cron normalisation, cross-link shape).
 
 ### What it detects
 
-ScheduleScanner walks three discovery surfaces and merges results by
+ScheduleScanner walks four discovery surfaces and merges results by
 `(file, line)`:
 
 1. **`Console\Kernel::schedule(Schedule $schedule)`** — any class
@@ -1022,6 +1033,11 @@ ScheduleScanner walks three discovery surfaces and merges results by
    `Illuminate\Support\Facades\Schedule`). Useful for schedules registered
    in service providers or in package boot logic.
 
+4. **`routes/console.php`** — walked with the same facade-form visitor as
+   surface 3; Laravel 11+ apps put `Schedule::...` calls here by default.
+   Entries carry the `routes/console.php` relative path and dedupe on the
+   usual key.
+
 Each captured root call is the start of a fluent chain. The visitor walks
 down the chain collecting `(methodName, args)` for every link, then
 emits one entry per chain.
@@ -1038,7 +1054,7 @@ Schedule::daily()->onOneServer()->group(function () {
 });
 ```
 
-Each inner task emits as an ordinary `scheduled[]` entry — there is no
+Each inner task emits as an ordinary `scheduled_tasks[]` entry — there is no
 special marker — carrying the group's merged attributes (cron, frequency,
 `on_one_server`, `without_overlapping`, `timezone`, constraints, …). The
 group's links are spliced *before* the inner task's own links, so the
@@ -1163,7 +1179,7 @@ Field semantics:
 
 Entries are sorted by `(file, line)` ascending.
 
-`stats.scheduled` is added to the top-level stats block as the count of
+`stats.scheduled_tasks` is added to the top-level stats block as the count of
 entries.
 
 ### Cross-link behavior
@@ -1171,7 +1187,7 @@ entries.
 ScheduleScanner participates in cross-link only as a *source*. No fields
 on existing primitives are widened.
 
-- `scheduled[*].target` with `kind: "job"` carries the job FQCN.
+- `scheduled_tasks[*].target` with `kind: "job"` carries the job FQCN.
   Consumers join client-side against `jobs[*].fqcn`. There is no
   `jobs[*].scheduled` flag — see ADR 0002 §5 for rationale.
 - Dispatch sites inside a scheduled closure (`Schedule::call(fn () =>
@@ -1250,7 +1266,7 @@ registrations are expanded into their constituent CRUD routes (see
 `dispatches[]` cross-link — the events and jobs dispatched inside its
 controller method, joined during the cross-link pass (see
 [Dispatches](#dispatches)). Middleware-group / alias resolution is deferred
-to follow-up PRs (see [Known limitations](../reference/what-loom-detects.md#routes)).
+to follow-up PRs (see [Known limitations](../reference/what-loom-detects.md)).
 
 ### What it detects
 
@@ -1494,7 +1510,7 @@ entries: `index`, `store`, `show`, `update`, `destroy`.
 The override forms `->names(...)`, `->parameters(...)`, `->scoped(...)`,
 and `->shallow()` are **not** applied — the expansion always uses the
 default names and parameters above (see
-[Known limitations](../reference/what-loom-detects.md#routes)).
+[Known limitations](../reference/what-loom-detects.md)).
 
 #### Dispatches
 

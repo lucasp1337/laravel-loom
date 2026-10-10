@@ -10,6 +10,8 @@ use RuntimeException;
 /**
  * Validates an index payload against schema/loom-index.schema.json.
  * Throws RuntimeException when the schema file is missing.
+ *
+ * @internal
  */
 final class SchemaValidator
 {

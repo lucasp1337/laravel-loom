@@ -6,11 +6,14 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
+use Lucasp\Loom\Index\DispatchMode;
 
 /**
  * A statically resolved dispatch site. Internal to the cross-link pass —
  * not part of the public schema (`_dispatch_sites` is stripped before the
  * Index is built).
+ *
+ * @internal
  */
 final class DispatchSiteRecord
 {
@@ -27,6 +30,8 @@ final class DispatchSiteRecord
         public readonly int $line,
         public readonly string $confidence = 'high',
         public readonly DispatchOverrides $overrides = new DispatchOverrides,
+        /** Execution mode; null for the plain dispatch form. */
+        public readonly ?DispatchMode $mode = null,
         /**
          * Dispatch-time channel filter from Notification::send/sendNow arg 2;
          * null when absent or non-literal.

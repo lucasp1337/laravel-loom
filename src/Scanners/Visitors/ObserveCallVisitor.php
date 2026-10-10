@@ -12,6 +12,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Finds `Model::observe(Observer::class)` calls. Tracks enclosing class so
  * `self::` / `static::` resolve to the declaring class; `parent::` is skipped.
+ *
+ * @internal
  */
 final class ObserveCallVisitor extends NodeVisitorAbstract
 {

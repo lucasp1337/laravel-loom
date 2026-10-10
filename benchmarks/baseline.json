@@ -10,7 +10,7 @@
                 "jobs": 2,
                 "unresolved_dispatches": 0,
                 "closure_listeners": 2,
-                "scheduled": 5,
+                "scheduled_tasks": 5,
                 "routes": 3,
                 "mailables": 1,
                 "notifications": 1
@@ -41,7 +41,7 @@
                     "_dispatch_sites": 6
                 },
                 "ScheduleScanner": {
-                    "scheduled": 5
+                    "scheduled_tasks": 5
                 },
                 "RouteScanner": {
                     "routes": 3
@@ -58,7 +58,7 @@
                 "jobs": 28,
                 "unresolved_dispatches": 0,
                 "closure_listeners": 2,
-                "scheduled": 31,
+                "scheduled_tasks": 31,
                 "routes": 42,
                 "mailables": 14,
                 "notifications": 14
@@ -89,7 +89,7 @@
                     "_dispatch_sites": 84
                 },
                 "ScheduleScanner": {
-                    "scheduled": 31
+                    "scheduled_tasks": 31
                 },
                 "RouteScanner": {
                     "routes": 42
@@ -106,7 +106,7 @@
                 "jobs": 290,
                 "unresolved_dispatches": 0,
                 "closure_listeners": 2,
-                "scheduled": 53,
+                "scheduled_tasks": 53,
                 "routes": 435,
                 "mailables": 145,
                 "notifications": 145
@@ -137,7 +137,7 @@
                     "_dispatch_sites": 870
                 },
                 "ScheduleScanner": {
-                    "scheduled": 53
+                    "scheduled_tasks": 53
                 },
                 "RouteScanner": {
                     "routes": 435

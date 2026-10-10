@@ -17,6 +17,8 @@ use PhpParser\NodeVisitorAbstract;
 /**
  * Captures `Route` facade route chains (e.g. `Route::get(...)->name(...)`).
  * Only chains whose root static call is an HTTP-verb router method are kept.
+ *
+ * @internal
  */
 final class RouteChainVisitor extends NodeVisitorAbstract
 {
@@ -236,7 +238,7 @@ final class RouteChainVisitor extends NodeVisitorAbstract
      * Flatten the argument nodes of a single fluent `->middleware(...)` setter
      * (variadic-aware).
      *
-     * @param  array<int, Node\Arg|Node\VariadicPlaceholder>  $args
+     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<Node\Expr>
      */
     private function fluentMiddlewareArgs(array $args): array
@@ -368,7 +370,7 @@ final class RouteChainVisitor extends NodeVisitorAbstract
      * Returns links root-first, or null if malformed. The root link's receiver
      * is the static class; intermediate links chain via `->var`.
      *
-     * @return list<array{method: string, args: array<int, Node\Arg|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
+     * @return list<array{method: string, args: array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
      */
     private function collectChain(Node\Expr $outer): ?array
     {

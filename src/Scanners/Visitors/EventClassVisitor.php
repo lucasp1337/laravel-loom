@@ -8,7 +8,11 @@ use Lucasp\Loom\Dto\ClassRecord;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
-/** Collects top-level class declarations (FQCN + line). */
+/**
+ * Collects top-level class declarations (FQCN + line).
+ *
+ * @internal
+ */
 final class EventClassVisitor extends NodeVisitorAbstract
 {
     /** @var list<ClassRecord> */

@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Index;
 
 /**
  * Top-level envelope/meta keys emitted alongside the index sections.
+ *
+ * @internal
  */
 enum MetaField: string
 {

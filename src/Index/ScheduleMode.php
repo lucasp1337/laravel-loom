@@ -12,6 +12,8 @@ namespace Lucasp\Loom\Index;
  * `KERNEL` and `BOOTSTRAP` accept a variable `$schedule` receiver (the
  * `schedule(Schedule $schedule)` convention); `FACADE` matches only the
  * `Schedule` facade and ignores variable receivers.
+ *
+ * @internal
  */
 enum ScheduleMode: string
 {

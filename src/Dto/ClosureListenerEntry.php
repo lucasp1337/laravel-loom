@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Dto;
 
 use Lucasp\Loom\Index\ListenerRegistration;
 
+/** @internal */
 final class ClosureListenerEntry
 {
     public function __construct(

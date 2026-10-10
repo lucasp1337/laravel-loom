@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Dto;
 /**
  * Visitor-emitted unresolved dispatch — `file` is filled by DispatchScanner
  * before promoting to the schema-shape `UnresolvedDispatchEntry`.
+ *
+ * @internal
  */
 final class UnresolvedDispatchRecord
 {
