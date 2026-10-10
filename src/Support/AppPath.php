@@ -61,6 +61,6 @@ final class AppPath
     /** True for a POSIX absolute path, a UNC path or a Windows drive path. */
     public static function isAbsolute(string $path): bool
     {
-        return Str::startsWith($path, ['/', '\\']) || Str::isMatch('#^[A-Za-z]:[\\/]#', $path);
+        return Str::startsWith($path, ['/', '\\']) || Str::isMatch('#^[A-Za-z]:[\\\\/]#', $path);
     }
 }
