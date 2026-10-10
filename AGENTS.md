@@ -62,6 +62,7 @@ src/
     Visitors/                       # CollectingVisitor subclasses (state reset is built in)
   Support/
     AstWalker.php                   # parser + NameResolver wrapper
+    Ast/                            # facade over php-parser nodes: Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
     ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
     ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
     ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
@@ -86,6 +87,8 @@ CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules, ho
 These have caused regressions. Don't rediscover them.
 
 **Visitors read on `leaveNode`, not `enterNode`.** `AstWalker` attaches `NameResolver` first. NameResolver rewrites `Node\Name` references as it descends — so by the time you're in `enterNode` for an outer node (e.g. a `FuncCall`), the inner `New_->class` or `ClassConstFetch->class` you want to read has NOT been resolved yet. `EventClassVisitor` is the one exception (it reads `$node->namespacedName` on the class itself, which NameResolver sets before descent). Everywhere else, use `leaveNode`. We've shipped this bug at least twice.
+
+**Read call arguments through `Support\Ast`.** Visitors and scanners do not name `PhpParser\Node\Arg`: use `Args::of($call->args)` (`at()`, `valueAt()`, `named()`, `lookup()`, `hasUnpack()`, `isFirstClassCallable()`), `CallSite` for one call and `CallChain::from()` for a fluent chain. `AstConfinementTest` enforces it.
 
 **One source of truth per output field.**
 - `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Each entry is a `{listener, method}` pair. Listener scanners don't write to event entries. Closure registrations in `closure_listeners[]` are intentionally NOT joined back into `handled_by` — that field's shape requires an FQCN + method, which closures lack.
