@@ -17,7 +17,7 @@
         "jobs",
         "unresolved_dispatches",
         "closure_listeners",
-        "scheduled",
+        "scheduled_tasks",
         "routes",
         "mailables",
         "notifications"
@@ -30,7 +30,7 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled", "routes", "mailables", "notifications"],
+            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled_tasks", "routes", "mailables", "notifications"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -39,7 +39,7 @@
                 "jobs": { "type": "integer", "minimum": 0 },
                 "unresolved_dispatches": { "type": "integer", "minimum": 0 },
                 "closure_listeners": { "type": "integer", "minimum": 0 },
-                "scheduled": { "type": "integer", "minimum": 0 },
+                "scheduled_tasks": { "type": "integer", "minimum": 0 },
                 "routes": { "type": "integer", "minimum": 0 },
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
@@ -73,7 +73,7 @@
             "type": "array",
             "items": { "$ref": "#/$defs/closureListener" }
         },
-        "scheduled": {
+        "scheduled_tasks": {
             "type": "array",
             "items": { "$ref": "#/$defs/scheduleEntry" }
         },

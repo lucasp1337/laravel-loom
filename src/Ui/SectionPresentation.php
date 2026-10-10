@@ -14,7 +14,7 @@ use Lucasp\Loom\Index\Model\ModelEventHandler;
 use Lucasp\Loom\Index\Model\Notification;
 use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
-use Lucasp\Loom\Index\Model\Scheduled;
+use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
@@ -136,17 +136,17 @@ final class SectionPresentation
                 NodeType::CLOSURE,
                 shortcut: 'c',
             ),
-            Sections::SCHEDULED => new SectionSpec(
+            Sections::SCHEDULED_TASKS => new SectionSpec(
                 $section,
                 'Scheduled',
                 'No scheduled tasks in this index',
                 'Loom found no tasks in routes/console.php or the Kernel schedule.',
                 [
-                    new ColumnSpec('name', 'Task', static fn (Scheduled $s): string => $s->name ?? $s->target ?? $s->kind->value, ColumnRole::NAME, SortField::NAME),
-                    self::text('kind', 'Kind', static fn (Scheduled $s): string => $s->kind->value),
-                    self::text('schedule', 'Schedule', static fn (Scheduled $s): string => $s->cron
+                    new ColumnSpec('name', 'Task', static fn (ScheduledTask $s): string => $s->name ?? $s->target ?? $s->kind->value, ColumnRole::NAME, SortField::NAME),
+                    self::text('kind', 'Kind', static fn (ScheduledTask $s): string => $s->kind->value),
+                    self::text('schedule', 'Schedule', static fn (ScheduledTask $s): string => $s->cron
                         ?? ($s->frequency !== null ? 'every '.$s->frequency->every.' '.$s->frequency->unit->value : '')),
-                    self::text('target', 'Target', static fn (Scheduled $s): string => $s->target ?? ''),
+                    self::text('target', 'Target', static fn (ScheduledTask $s): string => $s->target ?? ''),
                     self::file(),
                 ],
             ),

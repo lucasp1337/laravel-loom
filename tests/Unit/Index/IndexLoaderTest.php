@@ -41,7 +41,7 @@ it('defaults every section to an empty list when absent', function () {
     expect($index->jobs())->toBe([]);
     expect($index->mailables())->toBe([]);
     expect($index->notifications())->toBe([]);
-    expect($index->scheduled())->toBe([]);
+    expect($index->scheduledTasks())->toBe([]);
     expect($index->routes())->toBe([]);
     expect($index->unresolvedDispatches())->toBe([]);
 });

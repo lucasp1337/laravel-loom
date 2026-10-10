@@ -279,7 +279,7 @@ A `##` heading per section. Field changes use `→` and members are prefixed `+`
 | events, listeners, jobs, mailables, notifications | `fqcn` |
 | observers | `fqcn` and `observes` |
 | model_events | `id` |
-| scheduled | `file`, `line`, `kind`, `target` |
+| scheduled_tasks | `file`, `line`, `kind`, `target` |
 | unresolved_dispatches | `file`, `line`, `expression` |
 | closure_listeners | `file`, `line`, `event`, `registration` |
 

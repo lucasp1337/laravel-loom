@@ -42,20 +42,20 @@ it('produces a schema-valid index with ScheduleScanner registered', function () 
     expect($builder->validate($payload))->toBe([]);
 });
 
-it('reports stats.scheduled equal to the count of scheduled entries', function () {
+it('reports stats.scheduled_tasks equal to the count of scheduled entries', function () {
     $payload = buildScheduleEndToEndPayload();
 
-    expect($payload)->toHaveKey('scheduled');
-    expect($payload['stats'])->toHaveKey('scheduled');
-    expect($payload['stats']['scheduled'])->toBe(count($payload['scheduled']));
-    expect($payload['stats']['scheduled'])->toBeGreaterThan(0);
+    expect($payload)->toHaveKey('scheduled_tasks');
+    expect($payload['stats'])->toHaveKey('scheduled_tasks');
+    expect($payload['stats']['scheduled_tasks'])->toBe(count($payload['scheduled_tasks']));
+    expect($payload['stats']['scheduled_tasks'])->toBeGreaterThan(0);
 });
 
 it('serialises the new frequency/constraint entries with the expected cron and constraints', function () {
     $payload = buildScheduleEndToEndPayload();
 
     /** @var array<int, array<string, mixed>> $scheduled */
-    $scheduled = $payload['scheduled'];
+    $scheduled = $payload['scheduled_tasks'];
 
     $byTarget = [];
     foreach ($scheduled as $entry) {
@@ -74,7 +74,7 @@ it('serialises the name and even_in_maintenance_mode fields on schedule entries'
     $payload = buildScheduleEndToEndPayload();
 
     /** @var array<int, array<string, mixed>> $scheduled */
-    $scheduled = $payload['scheduled'];
+    $scheduled = $payload['scheduled_tasks'];
 
     $byTarget = [];
     foreach ($scheduled as $entry) {
@@ -95,7 +95,7 @@ it('sorts the scheduled array by (file, line) ascending in the built index', fun
     $payload = buildScheduleEndToEndPayload();
 
     /** @var array<int, array<string, mixed>> $scheduled */
-    $scheduled = $payload['scheduled'];
+    $scheduled = $payload['scheduled_tasks'];
 
     $tuples = array_map(
         static fn (array $e): array => [

@@ -62,7 +62,7 @@ final class SortPhase implements CrossLinkPhase
             Sections::CLOSURE_LISTENERS->value => [
                 Field::EVENT->value, $file, $line, Field::END_LINE->value, Field::REGISTRATION->value,
             ],
-            Sections::SCHEDULED->value => [
+            Sections::SCHEDULED_TASKS->value => [
                 $file, $line, Field::KIND->value, Field::TARGET->value, Field::NAME->value, Field::CRON->value,
             ],
             Sections::ROUTES->value => [

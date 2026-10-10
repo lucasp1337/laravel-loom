@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index;
 
 /**
- * The kind of work a scheduled entry runs, emitted on `scheduled[*].kind`:
+ * The kind of work a scheduled entry runs, emitted on `scheduled_tasks[*].kind`:
  * an artisan command, a queued/dispatched job, an inline closure, or a
  * shell command via `exec()`.
  *

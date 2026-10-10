@@ -54,7 +54,7 @@ function differBaseIndex(): array
         'jobs' => [],
         'unresolved_dispatches' => [],
         'closure_listeners' => [],
-        'scheduled' => [],
+        'scheduled_tasks' => [],
         'mailables' => [],
         'notifications' => [],
     ];
@@ -578,11 +578,11 @@ it('identifies scheduled entries by (file,line,kind,target) including a null tar
         'run_in_background' => false,
         'constraints' => [],
     ];
-    $old['scheduled'] = [$base];
+    $old['scheduled_tasks'] = [$base];
     // Same null-target identity, cron changed.
-    $new['scheduled'] = [['cron' => '0 1 * * *'] + $base];
+    $new['scheduled_tasks'] = [['cron' => '0 1 * * *'] + $base];
 
-    $diff = differ()->diff($old, $new)->sections()['scheduled'];
+    $diff = differ()->diff($old, $new)->sections()['scheduled_tasks'];
 
     expect($diff->added)->toBe([]);
     expect($diff->removed)->toBe([]);
@@ -605,10 +605,10 @@ it('reports a scheduled constraints member add and remove as a sublist delta', f
         'run_in_background' => false,
         'constraints' => ['weekdays()', 'at(02:00)'],
     ];
-    $old['scheduled'] = [$base];
-    $new['scheduled'] = [['constraints' => ['weekdays()', 'at(03:00)']] + $base];
+    $old['scheduled_tasks'] = [$base];
+    $new['scheduled_tasks'] = [['constraints' => ['weekdays()', 'at(03:00)']] + $base];
 
-    $delta = differ()->diff($old, $new)->sections()['scheduled']->changed[0]->subListDeltas[0];
+    $delta = differ()->diff($old, $new)->sections()['scheduled_tasks']->changed[0]->subListDeltas[0];
 
     expect($delta->field)->toBe('constraints');
     expect($delta->added)->toBe(['at(03:00)']);
@@ -630,7 +630,7 @@ it('uses the registry spec order for the section keys', function () {
         'jobs',
         'unresolved_dispatches',
         'closure_listeners',
-        'scheduled',
+        'scheduled_tasks',
         'mailables',
         'notifications',
     ]);

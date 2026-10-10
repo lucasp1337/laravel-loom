@@ -29,7 +29,7 @@ final class SectionRegistry
         ['section' => Sections::JOBS, 'inStats' => true],
         ['section' => Sections::UNRESOLVED_DISPATCHES, 'inStats' => true],
         ['section' => Sections::CLOSURE_LISTENERS, 'inStats' => true],
-        ['section' => Sections::SCHEDULED, 'inStats' => true],
+        ['section' => Sections::SCHEDULED_TASKS, 'inStats' => true],
         ['section' => Sections::ROUTES, 'inStats' => true],
         ['section' => Sections::MAILABLES, 'inStats' => true],
         ['section' => Sections::NOTIFICATIONS, 'inStats' => true],

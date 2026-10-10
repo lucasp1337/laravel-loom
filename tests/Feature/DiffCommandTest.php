@@ -44,7 +44,7 @@ function diffCommandIndex(): array
         'jobs' => [],
         'unresolved_dispatches' => [],
         'closure_listeners' => [],
-        'scheduled' => [],
+        'scheduled_tasks' => [],
         'mailables' => [],
         'notifications' => [],
     ];

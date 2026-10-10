@@ -18,7 +18,7 @@ Reference for `storage/loom/index.json`. The authoritative definition is `schema
   "jobs": array,                  // discovered job classes
   "unresolved_dispatches": array, // dispatch sites that could not be statically resolved
   "closure_listeners": array,     // discovered closure / arrow-function listener registrations
-  "scheduled": array,             // task-scheduler entries
+  "scheduled_tasks": array,             // task-scheduler entries
   "routes": array,                // registered HTTP routes
   "mailables": array,             // discovered mailable classes
   "notifications": array          // discovered notification classes
@@ -37,7 +37,7 @@ Two scans of identical source produce byte-identical JSON, except `scanned_at`. 
 | `listeners`, `jobs`, `mailables`, `notifications` | `fqcn` |
 | `observers` | `fqcn`, `observes` |
 | `closure_listeners` | `event`, `file`, `line`, `end_line`, `registration` |
-| `scheduled` | `file`, `line`, `kind`, `target`, `name`, `cron` |
+| `scheduled_tasks` | `file`, `line`, `kind`, `target`, `name`, `cron` |
 | `routes` | `file`, `line`, `method`, `uri`, `name` |
 | `unresolved_dispatches` | `file`, `line`, `expression`, `reason` |
 
@@ -299,7 +299,7 @@ When the same `(observer, model)` pair is discovered through both paths, precede
 
 One observer registered against N models produces N entries.
 
-## `scheduled[]`
+## `scheduled_tasks[]`
 
 Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One entry per chain.
 
@@ -348,7 +348,7 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 
 Entries are sorted by `(file, line)` ascending. Deduplication is on `(file, line, kind, target)`; merging across kernel / bootstrap / facade discovery favours kernel and bootstrap forms over facade.
 
-Cross-link is one-directional: `scheduled[*].target` with `kind: "job"` carries a job FQCN that consumers can join against `jobs[*].fqcn` client-side. There is no `jobs[*].scheduled` back-pointer for rationale.
+Cross-link is one-directional: `scheduled_tasks[*].target` with `kind: "job"` carries a job FQCN that consumers can join against `jobs[*].fqcn` client-side. There is no `jobs[*].scheduled` back-pointer for rationale.
 
 See [schedule scanner](../guides/why-was-my-code-missed.md) for behaviour details and known limitations.
 
@@ -468,7 +468,7 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
   "jobs": integer,
   "unresolved_dispatches": integer,
   "closure_listeners": integer,
-  "scheduled": integer,
+  "scheduled_tasks": integer,
   "routes": integer,
   "mailables": integer,
   "notifications": integer
@@ -505,7 +505,7 @@ Reader behaviour, in `IndexLoader`, `loom:check` and `loom:diff`:
 - Missing `schema_version` (written before 1.0), older major or newer major: refused with a message to re-run `php artisan loom:scan`. There is no migration; the index is a derived file.
 - `loom:diff` refuses to compare two indexes with different majors, and exits `2`.
 
-`schema_version` `1.0` is the baseline and is frozen: every field name, enum value and nullability on this page, and the MCP tool names and inputs in [MCP tools](mcp-tools.md), follow the table above from here. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
+`schema_version` `1.0` is the baseline and is frozen: every field name, enum value and nullability on this page, and the MCP tool names and inputs in [MCP tools](mcp-tools.md), follow the table above from here. Before it, `loom_version` was the only marker and several shapes changed without a bump (for example `closure_listeners[].end_line` and `scheduled_tasks[].name` became required). Those changes are folded into `1.0`; from here the table above applies strictly.
 
 Because the schema sets `additionalProperties: false`, a consumer that validates with a stored copy of the schema will reject a later minor. Validate with the schema shipped in the same release as the producer, or don't validate.
 
@@ -519,7 +519,7 @@ Some enums grow in minor releases. Consumers must tolerate values they don't kno
 - `confidence`: only `high` is emitted today; `medium` and `low` are reserved, ordered `high > medium > low`
 - `routes[].method`
 - `model_events[].event` and `observers[].hooks[]`, which follow Eloquent's event list
-- `scheduled[].kind` and `scheduled[].frequency.unit`
+- `scheduled_tasks[].kind` and `scheduled_tasks[].frequency.unit`
 
 Removing or renaming a value is a major change. Adding one is minor.
 

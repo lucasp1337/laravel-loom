@@ -40,7 +40,7 @@ Lists one section of the index verbatim, with a count. Use it to find a class na
 
 | Input | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `section` | string | yes | One of `events`, `listeners`, `observers`, `model_events`, `jobs`, `routes`, `scheduled`, `mailables`, `notifications`, `unresolved_dispatches`, `closure_listeners` |
+| `section` | string | yes | One of `events`, `listeners`, `observers`, `model_events`, `jobs`, `routes`, `scheduled_tasks`, `mailables`, `notifications`, `unresolved_dispatches`, `closure_listeners` |
 
 ```json
 {

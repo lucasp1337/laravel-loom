@@ -13,7 +13,7 @@ use Lucasp\Loom\Index\Model\Listener;
 use Lucasp\Loom\Index\Model\ModelEvent;
 use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
-use Lucasp\Loom\Index\Model\Scheduled;
+use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 use Lucasp\Loom\Index\Sections;
 
@@ -36,7 +36,7 @@ final class SectionReader
             Sections::JOBS => $index->jobs(),
             Sections::UNRESOLVED_DISPATCHES => $index->unresolvedDispatches(),
             Sections::CLOSURE_LISTENERS => $index->closureListeners(),
-            Sections::SCHEDULED => $index->scheduled(),
+            Sections::SCHEDULED_TASKS => $index->scheduledTasks(),
             Sections::MAILABLES => $index->mailables(),
             Sections::NOTIFICATIONS => $index->notifications(),
             Sections::ROUTES => $index->routes(),
@@ -50,7 +50,7 @@ final class SectionReader
             $item instanceof ClosureListener => $item->event,
             $item instanceof ModelEvent => $item->id,
             $item instanceof UnresolvedDispatch => $item->file.':'.$item->line,
-            $item instanceof Scheduled => $item->name ?? $item->target ?? $item->kind->value,
+            $item instanceof ScheduledTask => $item->name ?? $item->target ?? $item->kind->value,
             default => self::stringProperty($item, 'fqcn'),
         };
     }

@@ -122,7 +122,7 @@ return [
             'channels_dynamic' => false,
         ],
     ],
-    'scheduled' => [],
+    'scheduled_tasks' => [],
     'routes' => [
         [
             'method' => 'POST',

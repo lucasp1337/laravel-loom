@@ -108,7 +108,7 @@ function mcpCharacterizationCases(): array
         'list.jobs' => [ListEntitiesTool::class, ['section' => 'jobs']],
         'list.mailables' => [ListEntitiesTool::class, ['section' => 'mailables']],
         'list.notifications' => [ListEntitiesTool::class, ['section' => 'notifications']],
-        'list.scheduled_empty' => [ListEntitiesTool::class, ['section' => 'scheduled']],
+        'list.scheduled_empty' => [ListEntitiesTool::class, ['section' => 'scheduled_tasks']],
         'list.routes' => [ListEntitiesTool::class, ['section' => 'routes']],
         'list.unresolved' => [ListEntitiesTool::class, ['section' => 'unresolved_dispatches']],
         'list.unknown' => [ListEntitiesTool::class, ['section' => 'widgets']],

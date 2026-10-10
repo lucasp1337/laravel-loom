@@ -67,7 +67,7 @@ calls are cheap and you can call as many getters as you need.
 | `jobs()` | `list<Model\Job>` |
 | `mailables()` | `list<Model\Mailable>` |
 | `notifications()` | `list<Model\Notification>` |
-| `scheduled()` | `list<Model\Scheduled>` |
+| `scheduledTasks()` | `list<Model\ScheduledTask>` |
 | `routes()` | `list<Model\Route>` |
 | `unresolvedDispatches()` | `list<Model\UnresolvedDispatch>` |
 
@@ -138,7 +138,7 @@ typed enums (listed below the tables).
 | `Job` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $dispatchedFrom`, `list<Dispatch> $dispatches` |
 | `Mailable` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $sentFrom` |
 | `Notification` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $notifiedFrom`, `list<string> $channels`, `bool $channelsDynamic` |
-| `Scheduled` | `ScheduleKind $kind`, `?string $name`, `?string $target`, `list<string> $arguments`, `?string $queue`, `?string $connection`, `?string $cron`, `?Frequency $frequency`, `?string $timezone`, `bool $withoutOverlapping`, `?int $withoutOverlappingExpiresAt`, `bool $onOneServer`, `bool $runInBackground`, `bool $evenInMaintenanceMode`, `list<string> $constraints`, `string $file`, `int $line` |
+| `ScheduledTask` | `ScheduleKind $kind`, `?string $name`, `?string $target`, `list<string> $arguments`, `?string $queue`, `?string $connection`, `?string $cron`, `?Frequency $frequency`, `?string $timezone`, `bool $withoutOverlapping`, `?int $withoutOverlappingExpiresAt`, `bool $onOneServer`, `bool $runInBackground`, `bool $evenInMaintenanceMode`, `list<string> $constraints`, `string $file`, `int $line` |
 | `Route` | `string $method`, `string $uri`, `?string $name`, `?string $controllerFqcn`, `?string $controllerMethod`, `list<string> $middleware`, `string $file`, `int $line`, `list<Dispatch> $dispatches`, `?int $endLine` |
 | `UnresolvedDispatch` | `string $file`, `int $line`, `string $expression`, `string $reason` |
 
@@ -150,7 +150,7 @@ typed enums (listed below the tables).
 | `DispatchSite` | `string $file`, `int $line`, `string $method`, `?DispatchOverrides $overrides`, `?list<string> $channels` |
 | `DispatchOverrides` | `?string $locale`, `?string $mailer`, `?string $connection`, `?string $queue`, `?int $delay`, `?bool $afterCommit` |
 | `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff` |
-| `Frequency` | `FrequencyUnit $unit`, `int $every` — a sub-minute schedule frequency (`scheduled[*].frequency`); present only when `cron` is `null` |
+| `Frequency` | `FrequencyUnit $unit`, `int $every` — a sub-minute schedule frequency (`scheduled_tasks[*].frequency`); present only when `cron` is `null` |
 | `Handle` | `string $event`, `string $method` — a listener's event→method binding (`listeners[*].handles`) |
 | `ModelEventHandler` | `string $handler`, `string $method`, `string $file`, `int $line` — an observer hook or `Event::listen` target on `model_events[*].handled_by` |
 | `Handler` | `string $listener`, `string $method` — an event's listener→method binding (`events[*].handled_by`) |
@@ -170,8 +170,8 @@ The schema's string-valued fields hydrate into typed enums (all in
 |---|---|---|
 | `listeners[*].registration`, `closure_listeners[*].registration` | `ListenerRegistration` | `LISTEN_ARRAY`, `AUTO_DISCOVERED`, `EVENT_LISTEN_CALL`, `SUBSCRIBER` |
 | `observers[*].registration` | `ObserverRegistration` | `OBSERVE_CALL`, `ATTRIBUTE` |
-| `scheduled[*].kind` | `ScheduleKind` | `COMMAND`, `JOB`, `CLOSURE`, `EXEC` |
-| `scheduled[*].frequency.unit` | `FrequencyUnit` | `SECONDS` |
+| `scheduled_tasks[*].kind` | `ScheduleKind` | `COMMAND`, `JOB`, `CLOSURE`, `EXEC` |
+| `scheduled_tasks[*].frequency.unit` | `FrequencyUnit` | `SECONDS` |
 | `dispatches[*].kind` | `DispatchKinds` | `EVENT`, `JOB`, `MAILABLE`, `NOTIFICATION`, `AMBIGUOUS` |
 | `dispatches[*].confidence` | `Confidence` | `HIGH`, `MEDIUM`, `LOW` |
 
@@ -186,7 +186,7 @@ runtime-overlay work.
 Public classes carry `@api` and are listed here:
 
 - `Lucasp\Loom\Index\`: `Index`, `IndexLoader`, `IndexLoadException`, and the enums `Confidence`, `DispatchKinds`, `DispatchMode`, `FrequencyUnit`, `ListenerRegistration`, `ObserverRegistration`, `ScheduleKind`.
-- `Lucasp\Loom\Index\Model\`: the value objects above (`ClosureListener`, `Dispatch`, `DispatchOverrides`, `DispatchSite`, `Event`, `Frequency`, `Handle`, `Handler`, `Job`, `Listener`, `Mailable`, `ModelEvent`, `ModelEventHandler`, `Notification`, `Observer`, `QueueConfig`, `Route`, `Scheduled`, `UnresolvedDispatch`).
+- `Lucasp\Loom\Index\Model\`: the value objects above (`ClosureListener`, `Dispatch`, `DispatchOverrides`, `DispatchSite`, `Event`, `Frequency`, `Handle`, `Handler`, `Job`, `Listener`, `Mailable`, `ModelEvent`, `ModelEventHandler`, `Notification`, `Observer`, `QueueConfig`, `Route`, `ScheduledTask`, `UnresolvedDispatch`).
 
 The surface mirrors the [schema](schema.md), so it changes when the schema does.
 

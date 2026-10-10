@@ -82,7 +82,7 @@ it('syncs filter and sort to the url', function () {
 });
 
 it('shows a per-section empty state', function () {
-    Livewire::test(SectionIndex::class, ['section' => 'scheduled'])
+    Livewire::test(SectionIndex::class, ['section' => 'scheduled_tasks'])
         ->assertSee('No scheduled tasks in this index');
 });
 

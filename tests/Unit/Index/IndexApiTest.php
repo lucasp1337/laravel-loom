@@ -24,7 +24,7 @@ use Lucasp\Loom\Index\Model\Notification;
 use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\QueueConfig;
 use Lucasp\Loom\Index\Model\Route;
-use Lucasp\Loom\Index\Model\Scheduled;
+use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Index\ScheduleKind;
@@ -173,7 +173,7 @@ function representativeIndexArray(): array
                 ],
             ],
         ],
-        'scheduled' => [
+        'scheduled_tasks' => [
             [
                 'kind' => 'command',
                 'name' => 'reports:daily',
@@ -293,7 +293,7 @@ it('hydrates every section into correctly-typed read-model value objects', funct
     expect($index->jobs())->toHaveCount(1)->each->toBeInstanceOf(Job::class);
     expect($index->unresolvedDispatches())->toHaveCount(1)->each->toBeInstanceOf(UnresolvedDispatch::class);
     expect($index->closureListeners())->toHaveCount(1)->each->toBeInstanceOf(ClosureListener::class);
-    expect($index->scheduled())->toHaveCount(2)->each->toBeInstanceOf(Scheduled::class);
+    expect($index->scheduledTasks())->toHaveCount(2)->each->toBeInstanceOf(ScheduledTask::class);
     expect($index->routes())->toHaveCount(1)->each->toBeInstanceOf(Route::class);
     expect($index->mailables())->toHaveCount(1)->each->toBeInstanceOf(Mailable::class);
     expect($index->notifications())->toHaveCount(1)->each->toBeInstanceOf(Notification::class);
@@ -373,7 +373,7 @@ it('hydrates a closure listener span and enum registration', function () {
 });
 
 it('hydrates a scheduled entry with kind enum and modifiers', function () {
-    $scheduled = (new IndexLoader)->fromArray(representativeIndexArray())->scheduled()[0];
+    $scheduled = (new IndexLoader)->fromArray(representativeIndexArray())->scheduledTasks()[0];
 
     expect($scheduled->kind)->toBe(ScheduleKind::COMMAND);
     expect($scheduled->name)->toBe('reports:daily');
@@ -394,7 +394,7 @@ it('hydrates a scheduled entry with kind enum and modifiers', function () {
 });
 
 it('hydrates a sub-minute frequency into a Frequency value object', function () {
-    $scheduled = (new IndexLoader)->fromArray(representativeIndexArray())->scheduled()[1];
+    $scheduled = (new IndexLoader)->fromArray(representativeIndexArray())->scheduledTasks()[1];
 
     expect($scheduled->cron)->toBeNull();
     expect($scheduled->frequency)->toBeInstanceOf(Frequency::class);
@@ -436,7 +436,7 @@ it('round-trips the section payloads through toArray, recomputing the envelope',
     expect($out['laravel_version'])->toBe('12.x');
 
     // Section payloads survive the round-trip untouched.
-    foreach (['events', 'model_events', 'listeners', 'observers', 'jobs', 'unresolved_dispatches', 'closure_listeners', 'scheduled', 'routes', 'mailables', 'notifications'] as $section) {
+    foreach (['events', 'model_events', 'listeners', 'observers', 'jobs', 'unresolved_dispatches', 'closure_listeners', 'scheduled_tasks', 'routes', 'mailables', 'notifications'] as $section) {
         expect($out[$section])->toBe($source[$section]);
     }
 

@@ -85,7 +85,7 @@ final class DiffSpecRegistry
                 [],
             ),
             new SectionDiffSpec(
-                Sections::SCHEDULED,
+                Sections::SCHEDULED_TASKS,
                 self::byKeys([Field::FILE, Field::LINE, Field::KIND, Field::TARGET]),
                 [Field::CRON, Field::TIMEZONE, Field::WITHOUT_OVERLAPPING, Field::ON_ONE_SERVER, Field::RUN_IN_BACKGROUND],
                 [
