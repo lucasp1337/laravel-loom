@@ -7,17 +7,17 @@ namespace Lucasp\Loom\Dto;
 use Lucasp\Loom\Index\ObserverRegistration;
 
 /** @internal */
-final class ObserverEntry
+final readonly class ObserverEntry
 {
     /**
      * @param  list<string>  $hooks
      */
     public function __construct(
-        public readonly string $fqcn,
-        public readonly string $file,
-        public readonly int $line,
-        public readonly string $observes,
-        public readonly ObserverRegistration $registration,
-        public readonly array $hooks,
+        public string $fqcn,
+        public string $file,
+        public int $line,
+        public string $observes,
+        public ObserverRegistration $registration,
+        public array $hooks,
     ) {}
 }

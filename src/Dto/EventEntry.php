@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Dto;
 
 /** @internal */
-final class EventEntry
+final readonly class EventEntry
 {
     public function __construct(
-        public readonly string $id,
-        public readonly string $fqcn,
-        public readonly string $file,
-        public readonly int $line,
+        public string $id,
+        public string $fqcn,
+        public string $file,
+        public int $line,
     ) {}
 }

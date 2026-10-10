@@ -9,12 +9,12 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class JobLocation
+final readonly class JobLocation
 {
     public function __construct(
-        public readonly string $file,
-        public readonly int $line,
-        public readonly bool $queued,
-        public readonly QueueConfigData $queueConfig,
+        public string $file,
+        public int $line,
+        public bool $queued,
+        public QueueConfigData $queueConfig,
     ) {}
 }
