@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Livewire;
 
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Arr;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Lucasp\Loom\Index\SectionRegistry;
@@ -38,9 +39,9 @@ class Dashboard extends Component
         return $this->renderPage('loom::livewire.dashboard', [
             'dashboard' => $dashboard,
             'stats' => $stats,
-            'orphanEvents' => array_slice($orphans->orphanEvents, 0, self::LIST_LIMIT),
-            'idleListeners' => array_slice($orphans->idleListeners, 0, self::LIST_LIMIT),
-            'unresolved' => array_slice($ui->query->unresolvedDispatches(), 0, self::LIST_LIMIT),
+            'orphanEvents' => Arr::take($orphans->orphanEvents, self::LIST_LIMIT),
+            'idleListeners' => Arr::take($orphans->idleListeners, self::LIST_LIMIT),
+            'unresolved' => Arr::take($ui->query->unresolvedDispatches(), self::LIST_LIMIT),
             'links' => $ui->links,
         ], ['title' => 'Dashboard', 'crumbs' => [['Dashboard', null]], 'active' => null]);
     }

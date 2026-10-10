@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui\Support;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Job;
 use Lucasp\Loom\Index\Model\Listener;
@@ -67,7 +68,7 @@ final readonly class NodeFacts
                 $url = $links->entity(EntityKind::EVENT, $id);
                 break;
             case $entity instanceof Listener:
-                $facts[] = ['Handles', $entity->handles === [] ? 'unresolved' : implode(', ', array_map(static fn ($h): string => Fqcn::short($h->event), $entity->handles))];
+                $facts[] = ['Handles', $entity->handles === [] ? 'unresolved' : Arr::join(Arr::map($entity->handles, static fn ($h): string => Fqcn::short($h->event)), ', ')];
                 $facts[] = ['Registration', $entity->registration->value];
                 $facts[] = ['Queued', $entity->queued ? 'yes' : 'no'];
                 $url = $links->entity(EntityKind::LISTENER, $id);
@@ -83,7 +84,7 @@ final readonly class NodeFacts
                 $url = $links->entity(EntityKind::MAILABLE, $id);
                 break;
             case $entity instanceof Notification:
-                $facts[] = ['Channels', $entity->channelsDynamic ? 'dynamic' : implode(', ', $entity->channels)];
+                $facts[] = ['Channels', $entity->channelsDynamic ? 'dynamic' : Arr::join($entity->channels, ', ')];
                 $url = $links->entity(EntityKind::NOTIFICATION, $id);
                 break;
         }

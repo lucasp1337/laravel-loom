@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Livewire;
 
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Arr;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -131,13 +132,13 @@ class SectionIndex extends Component
     private function activeSort(SectionSpec $spec): ?SortField
     {
         $requested = SortField::tryFrom($this->sort);
-        $sortable = array_filter(array_map(static fn ($c): ?SortField => $c->sort, $spec->columns));
+        $sortable = collect(Arr::map($spec->columns, static fn ($c): ?SortField => $c->sort))->filter()->all();
 
-        if ($requested !== null && in_array($requested, $sortable, true)) {
+        if ($requested !== null && collect($sortable)->containsStrict($requested)) {
             return $requested;
         }
 
-        return in_array(SortField::NAME, $sortable, true) ? SortField::NAME : null;
+        return collect($sortable)->containsStrict(SortField::NAME) ? SortField::NAME : null;
     }
 
     private function totalRows(UiContext $ui, Sections $section): int

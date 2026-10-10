@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui;
 
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Query\ChainDepth;
 
 /**
@@ -26,7 +27,7 @@ final class LoomConfig
     {
         $environments = $this->config->get('loom.ui.environments', ['local']);
 
-        return is_array($environments) ? array_values(array_filter($environments, is_string(...))) : ['local'];
+        return is_array($environments) ? array_values(Arr::where($environments, static fn (mixed $v): bool => is_string($v))) : ['local'];
     }
 
     public function allowInProduction(): bool
@@ -38,7 +39,7 @@ final class LoomConfig
     public function servesIn(string $environment): bool
     {
         return $this->enabled()
-            && in_array($environment, $this->environments(), true)
+            && collect($this->environments())->containsStrict($environment)
             && ($environment !== 'production' || $this->allowInProduction());
     }
 
@@ -47,7 +48,7 @@ final class LoomConfig
     {
         return $this->enabled()
             && $environment === 'production'
-            && in_array($environment, $this->environments(), true)
+            && collect($this->environments())->containsStrict($environment)
             && ! $this->allowInProduction();
     }
 
@@ -71,7 +72,7 @@ final class LoomConfig
     {
         $middleware = $this->config->get('loom.ui.middleware', ['web']);
 
-        return is_array($middleware) ? array_values(array_filter($middleware, is_string(...))) : ['web'];
+        return is_array($middleware) ? array_values(Arr::where($middleware, static fn (mixed $v): bool => is_string($v))) : ['web'];
     }
 
     public function indexPath(): ?string

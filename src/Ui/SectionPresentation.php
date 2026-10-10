@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\ClosureListener;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Job;
@@ -56,7 +57,7 @@ final class SectionPresentation
                     self::name(),
                     self::text('handles', 'Handles', static fn (Listener $l): string => $l->handles === []
                         ? 'unresolved'
-                        : implode(', ', array_map(static fn ($h): string => $h->event.'::'.$h->method, $l->handles))),
+                        : Arr::join(Arr::map($l->handles, static fn ($h): string => $h->event.'::'.$h->method), ', ')),
                     self::text('registration', 'Registration', static fn (Listener $l): string => $l->registration->value),
                     self::number('dispatches', 'Dispatches', static fn (Listener $l): int => count($l->dispatches), SortField::DISPATCH_COUNT),
                     self::file(),
@@ -74,7 +75,7 @@ final class SectionPresentation
                 [
                     self::name(),
                     self::text('model', 'Model', static fn (Observer $o): string => $o->observes),
-                    self::text('hooks', 'Hooks', static fn (Observer $o): string => implode(', ', $o->hooks)),
+                    self::text('hooks', 'Hooks', static fn (Observer $o): string => Arr::join($o->hooks, ', ')),
                     self::text('registration', 'Registration', static fn (Observer $o): string => $o->registration->value),
                     self::file(),
                 ],
@@ -91,7 +92,7 @@ final class SectionPresentation
                     new ColumnSpec('id', 'Model event', static fn (ModelEvent $m): string => $m->id, ColumnRole::NAME, SortField::NAME),
                     self::text('model', 'Model', static fn (ModelEvent $m): string => $m->model),
                     self::text('event', 'Event', static fn (ModelEvent $m): string => $m->event),
-                    self::text('handled_by', 'Handled by', static fn (ModelEvent $m): string => implode(', ', array_map(static fn (ModelEventHandler $h): string => $h->handler.'::'.$h->method, $m->handledBy))),
+                    self::text('handled_by', 'Handled by', static fn (ModelEvent $m): string => Arr::join(Arr::map($m->handledBy, static fn (ModelEventHandler $h): string => $h->handler.'::'.$h->method), ', ')),
                 ],
             ),
             Sections::JOBS => new SectionSpec(
@@ -172,7 +173,7 @@ final class SectionPresentation
                 'Loom found no notification classes in app/.',
                 [
                     self::name(),
-                    self::text('channels', 'Channels', static fn (Notification $n): string => $n->channelsDynamic ? 'dynamic' : implode(', ', $n->channels)),
+                    self::text('channels', 'Channels', static fn (Notification $n): string => $n->channelsDynamic ? 'dynamic' : Arr::join($n->channels, ', ')),
                     self::number('sites', 'Send sites', static fn (Notification $n): int => count($n->notifiedFrom)),
                     self::file(),
                 ],
@@ -191,7 +192,7 @@ final class SectionPresentation
                     self::text('action', 'Action', static fn (Route $r): string => $r->controllerFqcn === null
                         ? 'closure'
                         : $r->controllerFqcn.'::'.($r->controllerMethod ?? '__invoke')),
-                    self::text('middleware', 'Middleware', static fn (Route $r): string => implode(', ', $r->middleware)),
+                    self::text('middleware', 'Middleware', static fn (Route $r): string => Arr::join($r->middleware, ', ')),
                     self::file(),
                 ],
                 null,
@@ -204,7 +205,7 @@ final class SectionPresentation
     /** @return list<SectionSpec> */
     public static function all(): array
     {
-        return array_map(self::for(...), Sections::cases());
+        return array_values(Arr::map(Sections::cases(), self::for(...)));
     }
 
     private static function name(): ColumnSpec

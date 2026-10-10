@@ -59,9 +59,9 @@ class ChainPage extends Component
 
     public function toggle(string $key): void
     {
-        $this->collapsed = in_array($key, $this->collapsed, true)
-            ? array_values(array_diff($this->collapsed, [$key]))
-            : array_slice([...$this->collapsed, $key], -self::MAX_COLLAPSED);
+        $this->collapsed = collect($this->collapsed)->containsStrict($key)
+            ? array_values(collect($this->collapsed)->diff([$key])->all())
+            : array_values(collect([...$this->collapsed, $key])->slice(-self::MAX_COLLAPSED)->all());
     }
 
     public function render(UiContext $ui, LoomConfig $config): View
@@ -71,7 +71,7 @@ class ChainPage extends Component
         }
 
         $depth = is_numeric($this->depth) ? LoomConfig::clampDepth((int) $this->depth) : $config->chainDepth();
-        $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), array_slice(array_values(array_filter($this->collapsed, is_string(...))), 0, self::MAX_COLLAPSED), $this->node);
+        $graph = ChainGraph::build($ui->query->eventChain($this->root, $depth), array_values(collect(array_filter($this->collapsed, is_string(...)))->take(self::MAX_COLLAPSED)->all()), $this->node);
 
         $panel = null;
         $found = false;

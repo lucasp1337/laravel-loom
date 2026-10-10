@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Ui\Support;
 
+use Illuminate\Support\Str;
+
 /**
  * FQCN helpers. URL slugs use dots for namespace separators, which class names
  * never contain, so the mapping is lossless and avoids `%5C` in links.
@@ -14,12 +16,12 @@ final class Fqcn
 {
     public static function toSlug(string $fqcn): string
     {
-        return str_replace('\\', '.', $fqcn);
+        return Str::replace('\\', '.', $fqcn);
     }
 
     public static function fromSlug(string $slug): string
     {
-        return str_replace('.', '\\', $slug);
+        return Str::replace('.', '\\', $slug);
     }
 
     public static function short(string $fqcn): string
