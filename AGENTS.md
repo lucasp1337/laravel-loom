@@ -60,10 +60,12 @@ src/
     RouteScanner.php
     DispatchScanner.php
     Discovery/                      # ClassPrimitiveDiscovery + one ClassSpec per class-based primitive (event, job, mailable, notification)
+    Schedule/                       # CronHelper / ScheduleModifier / ScheduleConstraint enums: the schedule chain-method tables
     Dispatch/                       # DispatchRules (the table of recognised dispatch forms), DispatchRule, DispatchRuleMatcher
     Visitors/                       # CollectingVisitor subclasses (state reset is built in)
   Support/
-    AstWalker.php                   # parser + NameResolver wrapper
+    AstWalker.php                   # parser + NameResolver wrapper; walkSource() for snippets and tests
+    AppPath.php                     # app root + relative path joins/relativising (never rtrim/DIRECTORY_SEPARATOR by hand)
     Ast/                            # facade over php-parser nodes: Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
     ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
     ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
@@ -74,7 +76,7 @@ schema/
   loom-index.schema.json           # the contract for every index Loom emits
 
 tests/
-  Unit/                             # visitor-level tests, heredoc snippets
+  Unit/                             # visitor-level tests, heredoc snippets run through runVisitor() (tests/Pest.php) -> AstWalker::walkSource()
   Feature/                          # scanner + IndexBuilder tests, fixture-driven
   Fixtures/                         # minimal app trees per scenario
 
