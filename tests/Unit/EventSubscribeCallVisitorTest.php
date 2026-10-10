@@ -3,25 +3,13 @@
 declare(strict_types=1);
 
 use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * @return array<int, string>
  */
 function runEventSubscribeCallVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new EventSubscribeCallVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new EventSubscribeCallVisitor, $source);
 
     return $visitor->getSubscribers();
 }

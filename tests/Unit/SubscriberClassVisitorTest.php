@@ -5,25 +5,13 @@ declare(strict_types=1);
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * @return array<int, array{fqcn: string, line: int, queued: bool, handles: array<int, array{event: string, method: string}>, closureHandles: array<int, array{event: string, line: int}>, foreignPairs: array<int, array{event: string, listener: string, method: string}>}>
  */
 function runSubscriberClassVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new SubscriberClassVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new SubscriberClassVisitor, $source);
 
     return $visitor->getClasses();
 }

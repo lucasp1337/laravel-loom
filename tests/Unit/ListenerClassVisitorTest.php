@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Dto\ListenerClassRecord;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Parse a PHP source string and run ListenerClassVisitor (after NameResolver) over it.
@@ -15,16 +12,7 @@ use PhpParser\ParserFactory;
  */
 function runListenerClassVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new ListenerClassVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new ListenerClassVisitor, $source);
 
     return $visitor->getClasses();
 }

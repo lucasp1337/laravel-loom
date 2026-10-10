@@ -6,9 +6,6 @@ use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Parse a PHP source string and run DispatchSiteVisitor (after NameResolver) over it.
@@ -17,16 +14,7 @@ use PhpParser\ParserFactory;
  */
 function runDispatchSiteVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new DispatchSiteVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new DispatchSiteVisitor, $source);
 
     return [$visitor->getSites(), $visitor->getUnresolved()];
 }

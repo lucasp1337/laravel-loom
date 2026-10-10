@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Ast\CallSite;
+use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use PhpParser\Node;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * Parse an expression snippet and return its fluent `->method()` chain links in
@@ -22,15 +20,8 @@ use PhpParser\ParserFactory;
  */
 function chainLinks(string $expression): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse("<?php {$expression};");
-
-    expect($ast)->not->toBeNull();
-
-    // Resolve names so `new App\Foo` etc. behave like the visitor sees them.
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $ast = $traverser->traverse($ast);
+    // Names are resolved so `new App\Foo` etc. behave like the visitor sees them.
+    $ast = AstWalker::walkSource("<?php {$expression};");
 
     $stmt = $ast[0];
     expect($stmt)->toBeInstanceOf(Node\Stmt\Expression::class);
