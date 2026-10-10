@@ -18,7 +18,9 @@ use Lucasp\Loom\Support\PrimitiveDirectory;
 /**
  * Events: every class under Events/, plus targets of event dispatch forms and
  * `$dispatchesEvents` maps. The Dispatchable form is ambiguous with jobs, so
- * it must resolve to a class under Events/.
+ * it must resolve to a class under Events/. The `helper` and `facade` forms
+ * (`event()`, `broadcast()`, `Event::dispatch()`) are unambiguous and need no
+ * such filter, so an event outside Events/ is found through them.
  *
  * @implements ClassSpec<ClassRecord, SourceLocation, EventEntry>
  *

@@ -14,7 +14,21 @@ use Lucasp\Loom\Support\ScanScope;
 
 /**
  * Discovers notification classes under app/Notifications/ plus
- * dispatch-site targets that resolve via PSR-4.
+ * dispatch-site targets that resolve via PSR-4. See {@see NotificationClassSpec}.
+ *
+ * Matches every concrete class under Notifications/ and the notification
+ * argument of `$any->notify(...)`, `$any->notifyNow(...)` (the receiver is not
+ * type-resolved), `Notification::send/sendNow($to, $n, $channels)` and
+ * `Notification::route(...)->notify(...)`. The argument may carry its own
+ * chain (`$user->notify((new X)->locale('es'))`); modifiers on the facade
+ * before `send` are not read.
+ *
+ * `channels[]` comes from a `via()` whose body is a single `return [...]` of
+ * literal strings (lowercased) and `Class::class` constants (FQCN), in source
+ * order. Any other `via()` body (conditional, property, variable or keyed
+ * items) gives `channels: []` and `channels_dynamic: true`; a class that
+ * declares no `via()`, or inherits one, gives `channels: []` and
+ * `channels_dynamic: false`.
  *
  * @internal
  */

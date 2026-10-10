@@ -26,6 +26,12 @@ use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 /**
  * Collects statically resolvable dispatch sites in a parsed file.
  *
+ * Shapes are matched by {@see DispatchRuleMatcher} over {@see DispatchRules};
+ * this visitor owns the scope: it keeps a class and method stack and a closure
+ * depth, so a site inside any closure carries `inClosure`, and it decides
+ * between a resolved site and an unresolved dispatch. Reads on `leaveNode`, so
+ * the inner class reference is already resolved.
+ *
  * @internal
  */
 final class DispatchSiteVisitor extends CollectingVisitor

@@ -1,17 +1,10 @@
 # Index PHP API
 
-The typed, in-memory counterpart to the [JSON schema](schema.md). Where the schema
-describes the bytes on disk, this page describes the PHP objects you get when you
-load those bytes back into a program. Use it from library code or custom
-tooling that wants to walk a Loom index without reaching into raw arrays.
-
-Everything here lives in `Lucasp\Loom\Index\` (loader + `Index`) and
-`Lucasp\Loom\Index\Model\` (the value objects).
+The typed, in-memory counterpart to the [JSON schema](schema.md): the PHP objects you get when you load a written index, for library code and custom tooling. Everything lives in `Lucasp\Loom\Index\` (loader and `Index`) and `Lucasp\Loom\Index\Model\` (value objects).
 
 ## Loading an index
 
-`IndexLoader` hydrates an `Index` from a written `index.json` — the inverse of
-`Index::toArray()`. Three entry points, depending on what you already hold:
+`IndexLoader` hydrates an `Index` from a written `index.json`, the inverse of `Index::toArray()`:
 
 ```php
 use Lucasp\Loom\Index\IndexLoader;
@@ -23,53 +16,13 @@ $index = $loader->fromJson($jsonString);               // decode a JSON string
 $index = $loader->fromArray($decodedArray);            // wrap an already-decoded array
 ```
 
-`fromFile()` and `fromJson()` ultimately delegate to `fromArray()`, so all three
-produce the same `Index`.
-
 ### Errors
 
-Every failure throws `Lucasp\Loom\Index\IndexLoadException` (a `RuntimeException`):
-
-| Cause | Entry point | Message shape |
-|---|---|---|
-| File unreadable / missing | `fromFile` | `Unable to read Loom index file: …` |
-| Invalid JSON | `fromJson` | `Loom index is not valid JSON: …` |
-| JSON not an object | `fromJson` | `Loom index must decode to a JSON object.` |
-| Missing envelope field | `fromArray` | `Loom index is missing the required `…` envelope field.` |
-
-The required envelope fields are `loom_version`, `scanned_at`, and
-`laravel_version`. The loader does **not** run schema validation — it trusts that
-a file Loom wrote conforms. Absent sections default to an empty list, so an index
-that predates a section (e.g. one written before `routes[]` existed) hydrates
-cleanly with `routes()` returning `[]` rather than throwing.
-
-The envelope scalars are plain public properties on the result:
-
-```php
-$index->loomVersion;     // "0.4.0"
-$index->scannedAt;       // "2026-05-16T19:25:54Z"
-$index->laravelVersion;  // "13.7"
-```
+Every failure throws `Lucasp\Loom\Index\IndexLoadException` (a `RuntimeException`): an unreadable file (`fromFile`), invalid JSON or JSON that isn't an object (`fromJson`), or a missing `loom_version`, `scanned_at` or `laravel_version` envelope field (`fromArray`). The loader does not run schema validation, and an absent section hydrates as an empty list. The envelope scalars are public properties: `$index->loomVersion`, `->scannedAt`, `->laravelVersion`.
 
 ## Typed access
 
-Each section has a getter on `Index` that returns a `list<X>` of read-model value
-objects. The lists are hydrated lazily on first call and memoized, so repeated
-calls are cheap and you can call as many getters as you need.
-
-| Getter | Returns |
-|---|---|
-| `events()` | `list<Model\Event>` |
-| `modelEvents()` | `list<Model\ModelEvent>` |
-| `listeners()` | `list<Model\Listener>` |
-| `closureListeners()` | `list<Model\ClosureListener>` |
-| `observers()` | `list<Model\Observer>` |
-| `jobs()` | `list<Model\Job>` |
-| `mailables()` | `list<Model\Mailable>` |
-| `notifications()` | `list<Model\Notification>` |
-| `scheduledTasks()` | `list<Model\ScheduledTask>` |
-| `routes()` | `list<Model\Route>` |
-| `unresolvedDispatches()` | `list<Model\UnresolvedDispatch>` |
+Each section has a getter on `Index` returning a `list<X>` of value objects, hydrated lazily and memoized: `events()`, `modelEvents()`, `listeners()`, `closureListeners()`, `observers()`, `jobs()`, `mailables()`, `notifications()`, `scheduledTasks()`, `routes()` and `unresolvedDispatches()`, returning the matching `Model\` class.
 
 ### Lookups
 
@@ -87,99 +40,28 @@ $index->dispatchersOf('App\\Events\\OrderShipped'); // list<Model\DispatchSite>
 $index->handlersOf('App\\Events\\OrderShipped');    // list<Model\Handler>
 ```
 
-Each `find*` returns `null` when the FQCN is unknown. `dispatchersOf()` and
-`handlersOf()` return an empty list for an unknown or unconnected event — they are
-convenience wrappers over `findEvent($fqcn)?->dispatchedFrom` and
-`?->handledBy`, so they never throw.
-
-### Worked example — walking the graph
-
-Load an index, then trace an event back to the code that dispatches it and forward
-to the listeners that handle it:
-
-```php
-use Lucasp\Loom\Index\IndexLoader;
-
-$index = (new IndexLoader())->fromFile('storage/loom/index.json');
-
-foreach ($index->events() as $event) {
-    echo "{$event->fqcn} ({$event->file}:{$event->line})\n";
-
-    foreach ($index->dispatchersOf($event->fqcn) as $site) {
-        echo "  dispatched from {$site->method} at {$site->file}:{$site->line}\n";
-    }
-
-    foreach ($index->handlersOf($event->fqcn) as $handler) {
-        echo "  handled by {$handler->listener}::{$handler->method}\n";
-    }
-}
-```
-
-Because the read model is fully typed, your IDE and PHPStan see every field — no
-array-key guessing, no `@var` hints at call sites.
+Each `find*` returns `null` for an unknown FQCN. `dispatchersOf()` and `handlersOf()` return an empty list for an unknown or unconnected event and never throw.
 
 ## Value objects
 
-Every value object in `Lucasp\Loom\Index\Model\` is `final readonly` with public
-properties and a `fromArray()` factory. Fields mirror the JSON schema 1:1, but the
-property names are **camelCase** — `dispatched_from` becomes `->dispatchedFrom`,
-`queue_config` becomes `->queueConfig`, and so on. Enum-valued fields hydrate into
-typed enums (listed below the tables).
+Every class in `Lucasp\Loom\Index\Model\` is `final readonly` with public properties and a `fromArray()` factory. Fields mirror the [schema](schema.md) one to one with camelCase names (`dispatched_from` is `->dispatchedFrom`, `queue_config` is `->queueConfig`), and nullability matches it exactly: `DispatchSite::$overrides` is `null` when no modifier was applied, `DispatchSite::$channels` is `null` except on notification entries with a static channel filter, and `$queueConfig` is `null` when `$queued` is `false`.
 
-### Section models
-
-| Model | Fields |
-|---|---|
-| `Event` | `string $id`, `string $fqcn`, `string $kind`, `string $file`, `int $line`, `list<DispatchSite> $dispatchedFrom`, `list<Handler> $handledBy` |
-| `ModelEvent` | `string $id`, `string $model`, `string $event`, `list<ModelEventHandler> $handledBy` |
-| `Listener` | `string $fqcn`, `string $file`, `int $line`, `list<Handle> $handles`, `ListenerRegistration $registration`, `bool $queued`, `list<Dispatch> $dispatches` |
-| `ClosureListener` | `string $event`, `string $file`, `int $line`, `int $endLine`, `ListenerRegistration $registration`, `bool $queued`, `list<Dispatch> $dispatches` |
-| `Observer` | `string $fqcn`, `string $file`, `int $line`, `string $observes`, `ObserverRegistration $registration`, `list<string> $hooks`, `list<Dispatch> $dispatches` |
-| `Job` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $dispatchedFrom`, `list<Dispatch> $dispatches` |
-| `Mailable` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $sentFrom` |
-| `Notification` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $notifiedFrom`, `list<string> $channels`, `bool $channelsDynamic` |
-| `ScheduledTask` | `ScheduleKind $kind`, `?string $name`, `?string $target`, `list<string> $arguments`, `?string $queue`, `?string $connection`, `?string $cron`, `?Frequency $frequency`, `?string $timezone`, `bool $withoutOverlapping`, `?int $withoutOverlappingExpiresAt`, `bool $onOneServer`, `bool $runInBackground`, `bool $evenInMaintenanceMode`, `list<string> $constraints`, `string $file`, `int $line` |
-| `Route` | `string $method`, `string $uri`, `?string $name`, `?string $controllerFqcn`, `?string $controllerMethod`, `list<string> $middleware`, `string $file`, `int $line`, `list<Dispatch> $dispatches`, `?int $endLine` |
-| `UnresolvedDispatch` | `string $file`, `int $line`, `string $expression`, `string $reason` |
-
-### Shared models
+The section models are `Event`, `ModelEvent`, `Listener`, `ClosureListener`, `Observer`, `Job`, `Mailable`, `Notification`, `ScheduledTask`, `Route` and `UnresolvedDispatch`. The shared ones are:
 
 | Model | Fields |
 |---|---|
 | `Dispatch` | `string $target`, `DispatchKinds $kind`, `Confidence $confidence`, `string $file`, `int $line` |
 | `DispatchSite` | `string $file`, `int $line`, `string $method`, `?DispatchOverrides $overrides`, `?list<string> $channels` |
 | `DispatchOverrides` | `?string $locale`, `?string $mailer`, `?string $connection`, `?string $queue`, `?int $delay`, `?bool $afterCommit` |
-| `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff` |
-| `Frequency` | `FrequencyUnit $unit`, `int $every` — a sub-minute schedule frequency (`scheduled_tasks[*].frequency`); present only when `cron` is `null` |
-| `Handle` | `string $event`, `string $method` — a listener's event→method binding (`listeners[*].handles`) |
-| `ModelEventHandler` | `string $handler`, `string $method`, `string $file`, `int $line` — an observer hook or `Event::listen` target on `model_events[*].handled_by` |
-| `Handler` | `string $listener`, `string $method` — an event's listener→method binding (`events[*].handled_by`) |
-
-`DispatchSite::$overrides` is `null` when the call site applied no fluent
-modifiers; `DispatchSite::$channels` is `null` except on notification
-`notifiedFrom` entries that carry a static channel filter. `Job`, `Mailable`, and
-`Notification` carry `$queueConfig === null` when `$queued` is `false`. These
-mirror the optional/nullable rules in the [schema](schema.md) exactly.
+| `QueueConfig` | `connection`, `queue`, `delay`, `tries`, `timeout`, `backoff`, each `string\|int\|null` |
+| `Frequency` | `FrequencyUnit $unit`, `int $every`; present only when `cron` is `null` |
+| `Handle` | `string $event`, `string $method`: a listener's binding (`listeners[].handles`) |
+| `Handler` | `string $listener`, `string $method`: an event's binding (`events[].handled_by`) |
+| `ModelEventHandler` | `string $handler`, `string $method`, `string $file`, `int $line` (`model_events[].handled_by`) |
 
 ### Enums
 
-The schema's string-valued fields hydrate into typed enums (all in
-`Lucasp\Loom\Index\`):
-
-| Field | Enum | Cases |
-|---|---|---|
-| `listeners[*].registration`, `closure_listeners[*].registration` | `ListenerRegistration` | `LISTEN_ARRAY`, `AUTO_DISCOVERED`, `EVENT_LISTEN_CALL`, `SUBSCRIBER` |
-| `observers[*].registration` | `ObserverRegistration` | `OBSERVE_CALL`, `ATTRIBUTE` |
-| `scheduled_tasks[*].kind` | `ScheduleKind` | `COMMAND`, `JOB`, `CLOSURE`, `EXEC` |
-| `scheduled_tasks[*].frequency.unit` | `FrequencyUnit` | `SECONDS` |
-| `dispatches[*].kind` | `DispatchKinds` | `EVENT`, `JOB`, `MAILABLE`, `NOTIFICATION`, `AMBIGUOUS` |
-| `dispatches[*].confidence` | `Confidence` | `HIGH`, `MEDIUM`, `LOW` |
-
-Read an enum's backing string with `->value` (e.g. `$route->dispatches[0]->kind->value`).
-On a cross-linked `Dispatch`, `kind` is always `EVENT` or `JOB` — `AMBIGUOUS` is an
-internal pre-disambiguation marker that never survives into a written index.
-`confidence` is currently always `HIGH`; `MEDIUM`/`LOW` are reserved for future
-runtime-overlay work.
+String-valued schema fields hydrate into typed enums in `Lucasp\Loom\Index\`: `ListenerRegistration`, `ObserverRegistration`, `ScheduleKind`, `FrequencyUnit`, `DispatchKinds` and `Confidence`, with one case per schema value. Read the backing string with `->value`. On a cross-linked `Dispatch`, `kind` is `EVENT` or `JOB`; `AMBIGUOUS` never survives into a written index.
 
 ## What is public
 

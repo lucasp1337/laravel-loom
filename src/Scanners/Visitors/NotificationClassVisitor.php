@@ -12,6 +12,8 @@ use PhpParser\Node;
 /**
  * Collects concrete notification classes and statically resolvable
  * `via()` channels. Non-literal `via()` bodies set channels_dynamic: true.
+ * Only a `via()` declared on the class itself is read, and only a body that is
+ * a single `return [...]` of string literals and `Class::class` constants.
  *
  * @implements ClassRecordVisitor<NotificationClassRecord>
  *

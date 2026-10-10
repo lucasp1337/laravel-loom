@@ -15,6 +15,14 @@ use PhpParser\Node;
 /**
  * Emits model-event entries from `Event::listen('eloquent.{hook}: {Model}', $handler)`.
  *
+ * The first argument is a literal string with or without the space after the
+ * colon, and the hook must be one of the model hooks (booting and booted
+ * included). The handler is `'Class@method'`, `[Class::class, 'method']`, or a
+ * bare `Class::class` whose method defaults to the hook name; closures and
+ * dynamic arguments are skipped. These entries feed `model_events[]` only: a
+ * handler is never promoted to `observers[]`, because it may not be an
+ * observer class.
+ *
  * @internal
  */
 final class EloquentListenStringVisitor extends CollectingVisitor

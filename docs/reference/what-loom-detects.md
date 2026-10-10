@@ -1,29 +1,150 @@
 # What Loom detects
 
-A per-primitive summary of the code shapes Loom reads and the ones it doesn't. For what each field means, see the [schema](schema.md). For symptoms and fixes, see [Why was my code missed](../guides/why-was-my-code-missed.md).
+One line per construct, with the test that pins it. Field meanings are in the [schema](schema.md); symptoms and fixes are in [Why was my code missed](../guides/why-was-my-code-missed.md).
 
-Loom parses source without running your app. It scans `app/`, plus `routes/` and the route files that providers and `bootstrap/app.php` load for routes, and `bootstrap/app.php` for the scheduler. Anything decided at runtime is out of reach.
 
-| Primitive | Detected | Not detected |
-|---|---|---|
-| Events | Classes in `app/Events/`. Any class passed to `event(...)`, `broadcast(...)`, `broadcast_if/unless(...)` or `Event::dispatch(...)`. Classes named in a model's `$dispatchesEvents`, listed as dispatched by the model. `X::dispatch()`, `dispatchIf`, `dispatchUnless` for classes in `app/Events/`. | `X::dispatch()` on an event outside `app/Events/`. Dynamic targets (`event($e)`). Anonymous classes. `$dispatchesEvents` entries without a literal hook name and `Foo::class` value. `ShouldBroadcast` is not reported as a flag. |
-| Listeners | Concrete classes in `app/Listeners/` with a public `handle*` or `__invoke` method that takes a first parameter, as Laravel's discovery does. The method can be declared, inherited from a parent, or provided by a trait (including `as` renames and `insteadof`). The event is the class in the first parameter's type, including nullable and union types; the method name is recorded as written. `$listen` arrays. `Event::listen(...)` (facade imported, fully qualified or the bare `Event` alias) and container-resolved dispatchers (`$this->app['events']`, `app()`, `resolve()`, `make()`, or a variable assigned from them). Event arrays. Subscribers via `$subscribe` or `Event::subscribe(...)` (any of those facade spellings), in return-array and `$events->listen(...)` styles. `[Listener::class, 'method']`, `Closure::fromCallable([...])` and `Listener::method(...)`. | Dispatcher passed as a typed `boot()` parameter or held in a property. Dynamic event names. `$obj->method(...)` and `'Class::method'` strings. Untyped or builtin-typed parameters (the listener is listed with no event). Abstract classes, traits, interfaces, and methods made non-public with `as protected`. Handlers inherited from a vendor class. Registrations inside nested closures in `subscribe()`. |
-| Closure listeners | Arrow functions and closures in `$listen`, `listen()` calls and subscribers. Events keyed by `::class` or string. `Event::listen(function (OrderPlaced $e) {...})` with the event inferred from the first parameter type (union types give one entry per class). Events and jobs dispatched inside the body, including inside closures nested in it. | Inferred closures with an untyped, `object` or otherwise non-class first parameter (skipped). Queue status (always `false`). Back-links from `handled_by` and `dispatched_from`. |
-| Observers | `#[ObservedBy(...)]` (single and array). `Model::observe(...)`, `static::observe(...)`, `self::observe(...)`. `Event::listen('eloquent.{hook}: {Model}', ...)` strings for `model_events`. Hook methods the observer declares, inherits from a parent or gets from a trait, of any visibility, for the events Eloquent lets observers subscribe to (`retrieved` through `forceDeleted`, plus `trashed` on Laravel 12 and later). | `parent::observe(...)`, `$this->observe(...)`, dynamic arguments. `booting` and `booted` methods (Laravel doesn't register them on an observer, though `Event::listen('eloquent.booted: ...')` strings are read). Hooks inherited from a vendor class. Closure handlers in `model_events`. Container-form `eloquent.*` registrations. |
-| Jobs | Classes in `app/Jobs/`. Classes passed to `dispatch(new X)`, `Bus::dispatch(...)` or `X::dispatch()` (including conditional and fluent-chain forms). Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff`. | `queued` through vendor parent classes. `backoff()` and `retryUntil()` methods. Non-literal property values. `ShouldBeUnique`, `Batchable` and similar flags. |
-| Dispatches | `event()`, `broadcast()`, `Event::dispatch()`, `dispatch()`, `Bus::dispatch()`, `dispatch_sync()`, `X::dispatchSync()`, `X::dispatchAfterResponse()`, `Bus::dispatchSync/dispatchNow/dispatchAfterResponse()`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/pushOn/later/laterOn/bulk` (recorded with a `mode`), `Bus::chain([...])` and `Bus::batch([...])` (one dispatch per literal job), `X::dispatch/dispatchIf/dispatchUnless()`, inside class methods, and inside closures and arrow functions within them (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`, closures assigned to a variable), which count for the enclosing method. Closures passed to `Event::listen` and `Route::get` belong to that listener or route instead. Queue, connection, integer delay, `afterCommit`, locale, mailer options. Dynamic targets go to `unresolved_dispatches`. | Closures that are registered with `Queue::before/after/failing` or other registration APIs, and first-class callable syntax (`$this->send(...)`). Script-level code outside a route closure. `Queue::pushRaw`. `ShouldQueue` and the `sync` queue driver are not evaluated against `mode`. Container-resolved dispatchers. Non-literal delays. Modifiers set on a separate statement. |
-| Mailables | Classes in `app/Mail/`. Classes passed to `Mail::send/sendNow/queue/onQueue/later/laterOn`, including `Mail::to(...)->send(...)` chains. Class-level queue properties. | `Mail::raw`, `->html()`/`->text()` sends. Variable targets (listed as unresolved). `queued` through vendor parents. `backoff()` and `retryUntil()`. |
-| Notifications | Classes in `app/Notifications/`. Classes passed to `$x->notify(...)`, `notifyNow`, `Notification::send/sendNow`, `Notification::route(...)->notify(...)`. Channels from a `via()` that returns a literal array. Literal channel filters on `send`. | `via()` inherited from a parent or trait. Conditional or computed `via()`, reported via `channels_dynamic`. `shouldSend()`. Message content. Receiver types. Facade-level modifiers before `send`. |
-| Schedule | `Kernel::schedule()`, `->withSchedule(...)` in `bootstrap/app.php`, `Schedule::` calls in `routes/console.php`, and `Schedule::call/command/job/exec` under `app/`. `->group(...)`. Standard frequency helpers, sub-minute helpers (as `frequency`), and common constraints and flags. | Macros and unknown helpers (cron is null). Variable arguments. `repeatEvery()`, `evenWhenPaused()`, ping and output hooks. Closure bodies. |
-| Routes | `Route::get/post/put/patch/delete/options/any/match` in `routes/*.php` and in route files loaded by `loadRoutesFrom()`, `Route::group()` with a file path, or `withRouting(web:, api:, commands:)` when the path is a literal, `__DIR__`, `base_path()`, `app_path()` or a concatenation of these. `Route::resource` and `apiResource`. Groups with prefix, name, controller and middleware, including the group that loads a route file (`Route::...->group($path)`, `withRouting(web:, api:)` with the `web` and `api` middleware and the `api` prefix). Tuple, invokable, `Class@method` and closure actions. Events and jobs dispatched in the controller method, or in the closure for a closure action. | Middleware group and alias expansion, `withoutMiddleware`. `names()`, `parameters()`, `scoped()`, `shallow()`, nested resource names. `Route::resources([...])`. Variable actions. Attribute routes. Route files loaded by a computed, relative or out-of-root path (listed by `loom:scan -v`). Prefix, name or middleware of a loading group when the value is not a literal (listed by `loom:scan -v`), and the loading group's `domain`, `where` and `namespace`. |
+## Events
 
-## Rules that apply everywhere
+| Construct | Result | Test |
+| --- | --- | --- |
+| Classes in `app/Events/`, abstract included | yes | [EventScannerTest] |
+| Targets of `event()`, `broadcast()`, `broadcast_if/unless()`, `Event::dispatch()` | yes, anywhere | [EventDispatchSiteVisitorTest] |
+| `X::dispatch/dispatchIf/dispatchUnless()` | only for classes in `app/Events/` | [ClassSpecsTest] |
+| Model `$dispatchesEvents` (literal hook, `Foo::class`) | yes, as dispatched by the model | [DispatchesEventsVisitorTest] |
+| Dynamic targets, anonymous classes | no; dynamic ones are `unresolved_dispatches` | [DispatchScannerTest] |
 
-- Targets must be `::class` references, `new X` expressions or string literals. Variables, concatenation and container lookups don't resolve.
-- Loom walks the directories in [`scan.paths`](scan-config.md) (default `app/`) and skips files matching `scan.exclude`. Convention directories such as `Events/` and `Jobs/` resolve inside each scan path.
-- Loom locates classes through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class it can't find on disk, or finds outside the scan paths, is dropped.
-- Files with syntax errors are skipped. `loom:scan` prints their count, and `-v` lists them.
-- Anything inside `vendor/` is treated as opaque, so `queued` and `via()` inherited from a package don't show.
-- Dispatch links from listeners, jobs and observers come from the registered handler method only. Routes attribute by controller method.
-- Handler `dispatches[]` lists only events and jobs. Mail and notification sends inside a handler appear in `mailables[].sent_from` and `notifications[].notified_from` instead.
-- Route middleware follows Laravel's merge rules. Calling `middleware()` twice on a group chain (`Route::middleware('a')->middleware('b')->group(...)`) keeps only `b`. Nested groups add the inner list after the outer one, and `->middleware()` calls on a single route accumulate.
+## Listeners
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| Public `handle*` or `__invoke` with a first parameter in `app/Listeners/`; declared, inherited or from a trait (`as`, `insteadof`) | yes, as Laravel discovers them | [HandlerResolutionTest] |
+| Nullable and union parameter types | one event per class | [ListenerScannerTest] |
+| Untyped or builtin first parameter | listed with `handles: []` | [ListenerScannerTest] |
+| Abstract classes, traits, no parameter, `as protected` | no | [ListenerScannerTest] |
+| `$listen`: bare, tuple, `Closure::fromCallable()`, `Listener::method(...)` | yes | [ListenArrayVisitorTest] |
+| `Event::listen(...)` from any class, facade alias or FQCN, event or array of events | yes | [EventListenCallVisitorTest] |
+| Dispatcher from `$this->app['events']`, `app()`, `resolve()`, `make()`, or a variable assigned from them | yes | [EventListenCallVisitorTest] |
+| Subscribers via `$subscribe` or `Event::subscribe()`, return-array and `$events->listen()` styles | yes, `registration: subscriber` | [SubscriberClassVisitorTest] |
+| Dispatcher typed in `boot()` or held in a property, nested closures in `subscribe()`, `$obj->method`, `Class::method` strings | no | [EventListenCallVisitorTest] |
+
+## Closure listeners
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| Closures and arrow functions in `$listen`, `listen()` and subscribers, keyed by `::class` or string | yes | [ListenerScannerEndToEndTest] |
+| `Event::listen(function (X $e) {...})` | event from the first parameter; untyped, `object`, `mixed` skipped | [EventListenCallVisitorTest] |
+| Dispatches in the body, nested closures included | yes, by source span | [ClosureDispatchAttributionPhaseTest] |
+| Queue status, back-links from `handled_by` | no (`queued` is always `false`) | [ClosureOwnerEndToEndTest] |
+
+## Observers
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| `#[ObservedBy]` single and array; `Model::observe()`, `static::`, `self::` | yes | [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest] |
+| Hook methods of any visibility, inherited or from a trait | yes, `retrieved` to `forceDeleted` plus `trashed` on Laravel 12+ | [ObserverClassVisitorTest] |
+| `Event::listen('eloquent.{hook}: {Model}', ...)` with `Class@method`, tuple or class | yes, `model_events` only | [EloquentListenStringVisitorTest] |
+| `parent::observe()`, `$this->observe()`, `booting`/`booted` methods, closure handlers, container-form `eloquent.*` | no | [ObserverScannerTest] |
+
+## Jobs
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| Classes in `app/Jobs/`; targets of `dispatch()`, `Bus::dispatch()`, `X::dispatch()` incl. conditional and fluent-chain forms | yes | [JobsScannerTest] |
+| Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff` | yes, `null` when absent | [JobsScannerTest] |
+| `queued` via a vendor parent, `backoff()`, `retryUntil()`, `ShouldBeUnique`, `Batchable` | no | [JobsScannerTest] |
+
+## Dispatches
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| `event()`, `broadcast()`, `Event::dispatch()`, `dispatch()`, `dispatch_sync()`, `Bus::dispatch/dispatchSync/dispatchNow/dispatchAfterResponse()` | yes | [DispatchRuleMatcherTest] |
+| `X::dispatch/dispatchIf/dispatchUnless/dispatchSync/dispatchAfterResponse()` | yes; event or job decided at cross-link | [DispatchScannerTest] |
+| `Bus::chain([...])`, `Bus::batch([...])` | one site per literal item | [BusChainBatchEndToEndTest] |
+| `Queue::push/pushOn/later/laterOn/bulk`, `->afterResponse()` | yes, with a `mode` | [DispatchModeEndToEndTest] |
+| Queue, connection, integer delay, `afterCommit`, locale, mailer | yes, as `overrides` | [ChainModifierExtractorTest] |
+| Sites in methods and in closures within them (`DB::transaction`, `each`, `tap`) | owned by the enclosing method | [ClosureOwnershipPhaseTest] |
+| Closures passed to `Event::listen` or `Route::get` | owned by that listener or route | [ClosureOwnershipPhaseTest] |
+| Variable, concatenated, container and conditional targets | `unresolved_dispatches` | [DispatchSiteVisitorTest] |
+| `Queue::pushRaw`, `Queue::before/after/failing`, first-class callables, code outside a class or route closure, non-literal delays, modifiers in a separate statement | no | [DispatchSiteVisitorTest] |
+
+## Mailables and notifications
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| Classes in `app/Mail/`; `Mail::send/sendNow/queue/onQueue/queueOn/later/laterOn`, `Mail::to()/cc()/bcc()` chains | yes | [MailableScannerEndToEndTest] |
+| `Mail::raw()`, `->html()`, `->text()`, variable targets | no; variables are `unresolved_dispatches` | [DispatchRuleMatcherTest] |
+| Classes in `app/Notifications/`; `$x->notify()`, `notifyNow()`, `Notification::send/sendNow()`, `Notification::route(...)->notify()` | yes | [NotificationScannerEndToEndTest] |
+| Literal channel filter on `send` | yes, `channels` on the site | [NotificationScannerEndToEndTest] |
+| `via()` returning a literal array | yes, source order | [NotificationScannerTest] |
+| Conditional or computed `via()` | `channels_dynamic: true` | [NotificationScannerTest] |
+| Inherited `via()`, `shouldSend()`, message content, receiver types, facade modifiers before `send` | no | [NotificationScannerTest] |
+
+## Schedule
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| `Kernel::schedule()`, `withSchedule()`, `routes/console.php`, `Schedule::call/command/job/exec` under `app/` | yes | [ScheduleScannerEndToEndTest] |
+| Frequency helpers, `cron()`, minutes arguments, `daysOfMonth`, `quarterlyOn` | yes, as `cron` | [ScheduleScannerTest] |
+| Sub-minute helpers | `frequency`, `cron: null` | [ScheduleScannerTest] |
+| `->group(...)`, nested, variable or facade form | yes, inner modifiers win | [ScheduleScannerTest] |
+| Day, time-window, `when`, `skip`, `environments`, common flags | `constraints` and booleans | [ScheduleScannerTest] |
+| Macros, unknown helpers, variable arguments | `cron: null` | [ScheduleScannerTest] |
+| `repeatEvery()`, `evenWhenPaused()`, ping and output hooks, closure bodies | no | [ScheduleScannerTest] |
+
+## Routes
+
+| Construct | Result | Test |
+| --- | --- | --- |
+| `Route::get/post/put/patch/delete/options/any/match` in `routes/` and loaded route files | yes; `match` is one route per verb | [RouteScannerTest] |
+| Files from `loadRoutesFrom()`, `Route::group()` with a path, `withRouting(web:, api:, commands:)` | yes, for a resolvable path | [RouteFileDiscoveryTest] |
+| Group prefix, name, controller, middleware, including the loading group | yes | [RouteGroupInheritanceTest] |
+| Tuple, invokable, `Class@method`, closure actions | yes | [RouteScannerTest] |
+| `Route::resource`, `apiResource`, `->only()`, `->except()` | yes | [RouteScannerTest] |
+| Events and jobs dispatched in the controller method or closure | yes, `dispatches` | [RouteScannerEndToEndTest] |
+| Middleware group and alias expansion, `withoutMiddleware` | no | [RouteChainMiddlewareTest] |
+| `names()`, `parameters()`, `scoped()`, `shallow()`, `Route::resources()`, attribute routes, variable actions | no | [RouteScannerTest] |
+| Computed, relative or out-of-root route file paths; non-literal group attributes | no; listed by `loom:scan -v` | [RouteFileDiscoveryTest] |
+
+## Everywhere
+
+- Targets must be `::class` references, `new X` expressions or string literals. Variables, concatenation and container lookups do not resolve.
+- Loom walks [`scan.paths`](scan-config.md) and skips `scan.exclude`; `Events/`, `Jobs/` and the other convention directories resolve inside each scan path.
+- Classes are located through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class that is missing or outside the scan paths is dropped.
+- Files with syntax errors are skipped (`loom:scan -v` lists them), and `vendor/` is opaque: `queued` and `via()` inherited from a package do not show.
+- A handler's `dispatches[]` lists events and jobs from its registered method only. Mail and notification sends appear in `mailables[].sent_from` and `notifications[].notified_from`.
+
+[BusChainBatchEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/BusChainBatchEndToEndTest.php
+[ChainModifierExtractorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/Support/ChainModifierExtractorTest.php
+[ClassSpecsTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/Scanners/ClassSpecsTest.php
+[ClosureDispatchAttributionPhaseTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ClosureDispatchAttributionPhaseTest.php
+[ClosureOwnerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ClosureOwnerEndToEndTest.php
+[ClosureOwnershipPhaseTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ClosureOwnershipPhaseTest.php
+[DispatchModeEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/DispatchModeEndToEndTest.php
+[DispatchRuleMatcherTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/Dispatch/DispatchRuleMatcherTest.php
+[DispatchScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/DispatchScannerTest.php
+[DispatchSiteVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/DispatchSiteVisitorTest.php
+[DispatchesEventsVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/DispatchesEventsVisitorTest.php
+[EloquentListenStringVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/EloquentListenStringVisitorTest.php
+[EventDispatchSiteVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/EventDispatchSiteVisitorTest.php
+[EventListenCallVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/EventListenCallVisitorTest.php
+[EventScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/EventScannerTest.php
+[HandlerResolutionTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/HandlerResolutionTest.php
+[JobsScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/JobsScannerTest.php
+[ListenArrayVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ListenArrayVisitorTest.php
+[ListenerScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ListenerScannerEndToEndTest.php
+[ListenerScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ListenerScannerTest.php
+[MailableScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/MailableScannerEndToEndTest.php
+[NotificationScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/NotificationScannerEndToEndTest.php
+[NotificationScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/NotificationScannerTest.php
+[ObserveCallVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ObserveCallVisitorTest.php
+[ObservedByAttributeVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ObservedByAttributeVisitorTest.php
+[ObserverClassVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ObserverClassVisitorTest.php
+[ObserverScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ObserverScannerTest.php
+[RouteChainMiddlewareTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/RouteChainMiddlewareTest.php
+[RouteFileDiscoveryTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteFileDiscoveryTest.php
+[RouteGroupInheritanceTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteGroupInheritanceTest.php
+[RouteScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteScannerEndToEndTest.php
+[RouteScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteScannerTest.php
+[ScheduleScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ScheduleScannerEndToEndTest.php
+[ScheduleScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ScheduleScannerTest.php
+[SubscriberClassVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/SubscriberClassVisitorTest.php

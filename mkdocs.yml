@@ -98,5 +98,5 @@ nav:
   - Contributing:
       - Architecture: contributing/architecture.md
       - Class hierarchy: contributing/class-hierarchy.md
-      - Scanner internals: contributing/scanners-internals.md
+      - Add a scanner: contributing/add-a-scanner.md
       - Decision records: contributing/adr/README.md
