@@ -19,6 +19,8 @@ use PhpParser\NodeVisitorAbstract;
  */
 final class EventDispatchSiteVisitor extends NodeVisitorAbstract
 {
+    private const DISPATCH_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless'];
+
     /** @var list<EventDispatchTarget> */
     private array $targets = [];
 
@@ -74,13 +76,19 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if ($node->name->toString() !== 'dispatch') {
+        $method = $node->name->toString();
+        if (! in_array($method, self::DISPATCH_METHODS, true)) {
             return;
         }
 
         $className = $node->class->toString();
 
         if (Facades::EVENT->matches($className)) {
+            // The Event facade only has dispatch(); dispatchIf/dispatchUnless belong to Dispatchable classes.
+            if ($method !== 'dispatch') {
+                return;
+            }
+
             $fqcn = $this->resolveFirstArgClass($node->args);
             if ($fqcn !== null) {
                 $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::FACADE);
@@ -89,7 +97,7 @@ final class EventDispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        // X::dispatch(...) — the class itself is the target.
+        // X::dispatch/dispatchIf/dispatchUnless(...) — the class itself is the target.
         $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: DispatchForm::DISPATCHABLE);
     }
 
