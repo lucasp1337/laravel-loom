@@ -9,6 +9,7 @@ use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\Dto\SearchHit;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\IndexQuery;
+use Lucasp\Loom\Support\Fqcn;
 
 /**
  * Builds UI URLs for index entities. One place that knows the route names.

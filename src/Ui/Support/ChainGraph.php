@@ -8,6 +8,7 @@ use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Query\Dto\ChainEdge;
 use Lucasp\Loom\Query\Dto\EventChain;
 use Lucasp\Loom\Query\HandlerKind;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Ui\NodeType;
 
 /**
