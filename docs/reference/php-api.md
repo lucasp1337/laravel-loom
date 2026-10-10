@@ -46,7 +46,7 @@ cleanly with `routes()` returning `[]` rather than throwing.
 The envelope scalars are plain public properties on the result:
 
 ```php
-$index->loomVersion;     // "0.3.0"
+$index->loomVersion;     // "0.4.0"
 $index->scannedAt;       // "2026-05-16T19:25:54Z"
 $index->laravelVersion;  // "13.7"
 ```

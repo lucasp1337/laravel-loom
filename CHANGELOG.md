@@ -4,12 +4,25 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/lucasp1337/laravel-loom/compare/v0.3.0...v0.4.0) - 2026-10-10
+
 ### Added
 
 - Laravel Boost guideline and `loom` skill under `resources/boost/`, and a [Use with Laravel Boost](docs/guides/use-with-boost.md) guide ([#103](https://github.com/lucasp1337/laravel-loom/issues/103)).
+- Routes of a loaded file inherit the prefix, name prefix, middleware and controller of the group that loads it, and `withRouting()` applies the `web` and `api` middleware and the `api` prefix; non-literal values are listed by `loom:scan -v`.
+- `scan.discover_routes` (default on): route files loaded by `loadRoutesFrom()`, `Route::group()` paths and `withRouting()` are read without listing them in `scan.route_paths`; `loom:scan --no-discover-routes` disables it for one run; unresolved paths show under `loom:scan -v` ([#123](https://github.com/lucasp1337/laravel-loom/issues/123)).
+- `routes[].end_line` for closure routes.
+- `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
+- `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
+- `scan.paths`, `scan.route_paths`, `scan.psr4_paths` and `scan.exclude` config: scan modules and custom layouts, locate classes through `composer.json` PSR-4. See [docs/reference/scan-config.md](docs/reference/scan-config.md).
+- `loom:scan --output`, repeatable `--path` and `--route-path`, a summary line, and `-v` to list skipped files with the parse error.
+- Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
+- Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
+- `SECURITY.md` (private vulnerability reporting) and a manually triggered docs-site deploy workflow ([#102](https://github.com/lucasp1337/laravel-loom/issues/102), [#104](https://github.com/lucasp1337/laravel-loom/issues/104)).
 
 ### Changed
 
+- The docs site is built with Zensical and a custom theme, with the Loom logo ([#131](https://github.com/lucasp1337/laravel-loom/issues/131)).
 - `src/` uses `Illuminate\Support` `Arr`/`Str`/`Collection` helpers instead of native array, string and sort functions; output is unchanged ([#133](https://github.com/lucasp1337/laravel-loom/issues/133)).
 - Schema 1.0 and the MCP tool surface are frozen; output is sorted into a total order so two scans of the same source are byte-identical apart from `scanned_at` ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - The `scheduled` section is renamed `scheduled_tasks` (also `stats.scheduled_tasks`, `Index::scheduledTasks()` and the `Model\ScheduledTask` read model) so every section is a plural noun ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
@@ -31,19 +44,6 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - Dispatches inside closure routes are attributed to the route, and the event lists the route as a dispatch site ([#81](https://github.com/lucasp1337/laravel-loom/issues/81)).
 - A model's `$dispatchesEvents` entries are recorded as event dispatch sites ([#80](https://github.com/lucasp1337/laravel-loom/issues/80)).
 - Listener auto-discovery follows Laravel: inherited, trait-provided, `__invoke` and `handle*` methods are found, abstract classes are skipped. Observer hooks include inherited and trait methods, and `booting`/`booted` no longer count ([#98](https://github.com/lucasp1337/laravel-loom/issues/98)).
-
-### Added
-
-- Routes of a loaded file inherit the prefix, name prefix, middleware and controller of the group that loads it, and `withRouting()` applies the `web` and `api` middleware and the `api` prefix; non-literal values are listed by `loom:scan -v`.
-- `scan.discover_routes` (default on): route files loaded by `loadRoutesFrom()`, `Route::group()` paths and `withRouting()` are read without listing them in `scan.route_paths`; `loom:scan --no-discover-routes` disables it for one run; unresolved paths show under `loom:scan -v` ([#123](https://github.com/lucasp1337/laravel-loom/issues/123)).
-- `routes[].end_line` for closure routes.
-- `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
-- `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.
-- `scan.paths`, `scan.route_paths`, `scan.psr4_paths` and `scan.exclude` config: scan modules and custom layouts, locate classes through `composer.json` PSR-4. See [docs/reference/scan-config.md](docs/reference/scan-config.md).
-- `loom:scan --output`, repeatable `--path` and `--route-path`, a summary line, and `-v` to list skipped files with the parse error.
-- Dispatch sites carry an optional `mode` (`sync`, `after_response`, `push`) for `dispatchSync`, `dispatch_sync`, `dispatchAfterResponse`, `->afterResponse()`, `Bus::batch(...)->dispatchAfterResponse()`, `Queue::push/later/bulk`, `Mail::sendNow/queue/later` and `sendNow`/`notifyNow`.
-- Public PHP API defined: `@api` on the read model, `@internal` on everything else, enforced by an arch test. Third-party scanners are not supported ([ADR 0007](docs/contributing/adr/0007-scanners-not-an-extension-point.md)).
-- `SECURITY.md` (private vulnerability reporting) and a manually triggered docs-site deploy workflow ([#102](https://github.com/lucasp1337/laravel-loom/issues/102), [#104](https://github.com/lucasp1337/laravel-loom/issues/104)).
 
 ## [0.3.0](https://github.com/lucasp1337/laravel-loom/compare/v0.2.0...v0.3.0) - 2026-10-08
 
