@@ -11,10 +11,10 @@
           <path d="M430 62C380 60 250 40 140 100"/>
           <path d="M500 190C440 170 360 190 300 230"/>
           <path d="M92 300C150 330 190 350 250 380"/>
-          <path d="M540 300C520 330 480 350 450 370"/>
+          <path d="M520 300C510 330 480 350 450 370"/>
           <path d="M430 62C480 100 500 150 500 190"/>
           <path d="M92 300C90 240 110 160 140 100"/>
-          <path d="M540 300C530 250 510 220 500 190"/>
+          <path d="M520 300C520 250 510 220 500 190"/>
         </g>
         <path d="M140 100C250 80 330 150 300 230S200 350 250 380S400 420 450 370" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
         <g font-family="var(--md-code-font-family)" font-size="11.5" font-weight="500">
@@ -22,13 +22,13 @@
             <rect x="383" y="49" width="94" height="26" rx="13"/>
             <rect x="450" y="177" width="100" height="26" rx="13"/>
             <rect x="58.5" y="287" width="67" height="26" rx="13"/>
-            <rect x="503" y="287" width="74" height="26" rx="13"/>
+            <rect x="483" y="287" width="74" height="26" rx="13"/>
           </g>
           <g fill="var(--md-default-fg-color--light)" text-anchor="middle">
             <text x="430" y="66">SendReceipt</text>
             <text x="500" y="194">ReserveStock</text>
             <text x="92" y="304">SyncCRM</text>
-            <text x="540" y="304">AuditLog</text>
+            <text x="520" y="304">AuditLog</text>
           </g>
           <g fill="currentColor">
             <rect x="93" y="87" width="94" height="26" rx="13"/>
@@ -42,12 +42,19 @@
             <text x="250" y="384">PaymentCaptured</text>
             <text x="450" y="374">ShipmentNotice</text>
           </g>
-          <g fill="currentColor" font-size="9" letter-spacing="1" text-anchor="middle" opacity=".85">
-            <text x="140" y="78">1 · EVENT</text>
-            <text x="300" y="208">2 · JOB</text>
-            <text x="250" y="358">3 · EVENT</text>
-            <text x="450" y="348">4 · NOTIFICATION</text>
+          <g fill="var(--md-default-bg-color)" stroke="currentColor" stroke-width="1.6">
+            <circle cx="85" cy="100" r="9"/>
+            <circle cx="248.5" cy="230" r="9"/>
+            <circle cx="181.5" cy="380" r="9"/>
+            <circle cx="385" cy="370" r="9"/>
           </g>
+          <g fill="currentColor" font-size="10" font-weight="700" text-anchor="middle">
+            <text x="85" y="103.5">1</text>
+            <text x="248.5" y="233.5">2</text>
+            <text x="181.5" y="383.5">3</text>
+            <text x="385" y="373.5">4</text>
+          </g>
+          <text x="48" y="492" fill="var(--md-default-fg-color--lighter)" font-size="10" font-weight="500" letter-spacing="1">1 EVENT · 2 JOB · 3 EVENT · 4 NOTIFICATION</text>
         </g>
       </svg>
       <div class="loom-hero__copy">
