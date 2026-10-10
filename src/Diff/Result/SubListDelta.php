@@ -11,7 +11,7 @@ use Lucasp\Loom\Index\Field;
  *
  * @internal
  */
-final class SubListDelta
+final readonly class SubListDelta
 {
     /**
      * Wrapper key under which a scalar sublist member is normalized for
@@ -29,8 +29,8 @@ final class SubListDelta
      * @param  list<mixed>  $removed
      */
     public function __construct(
-        public readonly string $field,
-        public readonly array $added,
-        public readonly array $removed,
+        public string $field,
+        public array $added,
+        public array $removed,
     ) {}
 }

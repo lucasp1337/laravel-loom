@@ -12,16 +12,16 @@ use Lucasp\Loom\Check\RuleKey;
  *
  * @internal
  */
-final class RuleReport
+final readonly class RuleReport
 {
     /**
      * @param  list<Violation>  $violations
      */
     public function __construct(
-        public readonly RuleKey $key,
-        public readonly string $description,
-        public readonly bool $skipped,
-        public readonly array $violations,
+        public RuleKey $key,
+        public string $description,
+        public bool $skipped,
+        public array $violations,
     ) {}
 
     public function passed(): bool

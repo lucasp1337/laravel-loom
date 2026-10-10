@@ -9,7 +9,7 @@ namespace Lucasp\Loom\Diff\Result;
  *
  * @internal
  */
-final class SectionDiff
+final readonly class SectionDiff
 {
     /**
      * @param  list<array<string,mixed>>  $added
@@ -17,9 +17,9 @@ final class SectionDiff
      * @param  list<ChangedEntry>  $changed
      */
     public function __construct(
-        public readonly array $added,
-        public readonly array $removed,
-        public readonly array $changed,
+        public array $added,
+        public array $removed,
+        public array $changed,
     ) {}
 
     public function isEmpty(): bool

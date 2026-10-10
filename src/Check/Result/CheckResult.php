@@ -10,13 +10,13 @@ namespace Lucasp\Loom\Check\Result;
  *
  * @internal
  */
-final class CheckResult
+final readonly class CheckResult
 {
     /**
      * @param  list<RuleReport>  $reports
      */
     public function __construct(
-        public readonly array $reports,
+        public array $reports,
     ) {}
 
     public function passed(): bool
