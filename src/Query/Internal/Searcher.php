@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Internal;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\Model\ClosureListener;
 use Lucasp\Loom\Index\Model\Route;
@@ -47,7 +48,7 @@ final class Searcher
     /** @return list<SearchHit> */
     public function search(string $term, int $limit): array
     {
-        $needle = mb_strtolower(trim($term));
+        $needle = Str::lower(trim($term));
         if ($needle === '' || $limit < 1) {
             return [];
         }
@@ -62,10 +63,10 @@ final class Searcher
             }
         }
 
-        usort($hits, static fn (SearchHit $a, SearchHit $b): int => [$b->score, $a->label, $a->section->value]
-            <=> [$a->score, $b->label, $b->section->value]);
+        $hits = array_values(collect($hits)->sort(static fn (SearchHit $a, SearchHit $b): int => [$b->score, $a->label, $a->section->value]
+            <=> [$a->score, $b->label, $b->section->value])->all());
 
-        return array_slice($hits, 0, $limit);
+        return array_values(collect($hits)->slice(0, $limit)->all());
     }
 
     private function hit(Sections $section, object $item, string $needle): ?SearchHit
@@ -78,7 +79,7 @@ final class Searcher
             $needle = ltrim($needle, '/') ?: $needle;
         }
 
-        $score = $this->score($needle, mb_strtolower($name), mb_strtolower($short), mb_strtolower($file), $item);
+        $score = $this->score($needle, Str::lower($name), Str::lower($short), Str::lower($file), $item);
         if ($score === 0) {
             return null;
         }
@@ -98,14 +99,14 @@ final class Searcher
     private function score(string $needle, string $name, string $short, string $file, object $item): int
     {
         // A route's name is a second exact-match handle alongside "VERB uri".
-        $routeName = $item instanceof Route && $item->name !== null ? mb_strtolower($item->name) : null;
+        $routeName = $item instanceof Route && $item->name !== null ? Str::lower($item->name) : null;
 
         return match (true) {
             $needle === $name => self::EXACT,
             $needle === $short || $needle === $routeName => self::EXACT_SHORT,
-            str_starts_with($short, $needle) => self::PREFIX,
-            str_contains($name, $needle) || ($routeName !== null && str_contains($routeName, $needle)) => self::CONTAINS,
-            $file !== '' && str_contains($file, $needle) => self::IN_FILE,
+            Str::startsWith($short, $needle) => self::PREFIX,
+            Str::contains($name, $needle) || ($routeName !== null && Str::contains($routeName, $needle)) => self::CONTAINS,
+            $file !== '' && Str::contains($file, $needle) => self::IN_FILE,
             default => 0,
         };
     }

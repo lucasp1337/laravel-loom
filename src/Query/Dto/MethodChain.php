@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
+
 /** @internal */
 final readonly class MethodChain
 {
@@ -22,8 +24,8 @@ final readonly class MethodChain
     {
         return [
             'method_fqcn' => $this->methodFqcn,
-            'dispatches' => array_map(static fn (DispatchRef $d): array => $d->toArray(), $this->dispatches),
-            'chains' => array_map(static fn (EventChain $c): array => $c->toArray(), $this->chains),
+            'dispatches' => Arr::map($this->dispatches, static fn (DispatchRef $d): array => $d->toArray()),
+            'chains' => Arr::map($this->chains, static fn (EventChain $c): array => $c->toArray()),
         ];
     }
 }

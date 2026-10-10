@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Query\Dto;
 
 use Closure;
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\DispatchSite;
 use Lucasp\Loom\Query\ChangeKind;
 use Lucasp\Loom\Query\ImpactEntity;
@@ -46,21 +47,18 @@ final readonly class ImpactReport
      */
     public function toArray(?Closure $renderNote = null): array
     {
-        $notes = array_map(
-            fn (ImpactNote $note): string => $renderNote === null ? $note->value : $renderNote($note, $this),
-            $this->notes,
-        );
+        $notes = Arr::map($this->notes, fn (ImpactNote $note): string => $renderNote === null ? $note->value : $renderNote($note, $this));
 
         $head = ['fqcn' => $this->fqcn, 'change' => $this->change->value, 'kind' => $this->kind->value];
 
         if ($this->kind === ImpactEntity::EVENT || $this->kind === ImpactEntity::UNKNOWN) {
             return $head + [
-                'dispatchers' => array_map(static fn (DispatchSite $s): array => [
+                'dispatchers' => Arr::map($this->dispatchers, static fn (DispatchSite $s): array => [
                     'file' => $s->file,
                     'line' => $s->line,
                     'method' => $s->method,
-                ], $this->dispatchers),
-                'handlers' => array_map(static fn (HandlerRef $h): array => $h->toArray(), $this->handlers),
+                ]),
+                'handlers' => Arr::map($this->handlers, static fn (HandlerRef $h): array => $h->toArray()),
                 'downstream' => $this->downstream?->toArray(),
                 'notes' => $notes,
             ];
@@ -69,7 +67,7 @@ final readonly class ImpactReport
         return $head + [
             'handles' => $this->handles,
             'would_orphan_events' => $this->wouldOrphanEvents,
-            'dispatches' => array_map(static fn (DispatchRef $d): array => $d->toArray(), $this->dispatches),
+            'dispatches' => Arr::map($this->dispatches, static fn (DispatchRef $d): array => $d->toArray()),
             'notes' => $notes,
         ];
     }

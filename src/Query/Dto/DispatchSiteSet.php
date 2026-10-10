@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\DispatchSite;
 
 /** @internal */
@@ -26,11 +27,11 @@ final readonly class DispatchSiteSet
         return [
             'event' => $this->event,
             'count' => $this->count(),
-            'dispatch_sites' => array_map(static fn (DispatchSite $s): array => [
+            'dispatch_sites' => Arr::map($this->sites, static fn (DispatchSite $s): array => [
                 'file' => $s->file,
                 'line' => $s->line,
                 'method' => $s->method,
-            ], $this->sites),
+            ]),
         ];
     }
 }

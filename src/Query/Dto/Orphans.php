@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Listener;
 
@@ -23,17 +24,17 @@ final readonly class Orphans
     public function toArray(): array
     {
         return [
-            'orphan_events' => array_map(static fn (Event $e): array => [
+            'orphan_events' => Arr::map($this->orphanEvents, static fn (Event $e): array => [
                 'fqcn' => $e->fqcn,
                 'kind' => $e->kind,
                 'file' => $e->file,
                 'line' => $e->line,
-            ], $this->orphanEvents),
-            'idle_listeners' => array_map(static fn (Listener $l): array => [
+            ]),
+            'idle_listeners' => Arr::map($this->idleListeners, static fn (Listener $l): array => [
                 'fqcn' => $l->fqcn,
                 'file' => $l->file,
                 'line' => $l->line,
-            ], $this->idleListeners),
+            ]),
         ];
     }
 }

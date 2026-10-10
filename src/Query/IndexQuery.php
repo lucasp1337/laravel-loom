@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Index;
@@ -78,11 +80,11 @@ final class IndexQuery
     {
         $index = $this->index();
 
-        $listeners = array_map(function ($handler) use ($index): ListenerHandler {
+        $listeners = array_values(Arr::map($index->handlersOf($eventFqcn), function ($handler) use ($index): ListenerHandler {
             $listener = $index->findListener($handler->listener);
 
             return new ListenerHandler($handler->listener, $handler->method, $listener !== null && $listener->queued);
-        }, $index->handlersOf($eventFqcn));
+        }));
 
         $closures = [];
         foreach ($index->closureListeners() as $closure) {
@@ -147,7 +149,7 @@ final class IndexQuery
 
         $handles = $listener === null
             ? []
-            : array_map(static fn ($handle): string => $handle->event, $listener->handles);
+            : array_values(Arr::map($listener->handles, static fn ($handle): string => $handle->event));
 
         $closureEvents = [];
         foreach ($index->closureListeners() as $closure) {
@@ -157,17 +159,14 @@ final class IndexQuery
         // An event whose only handler is this class is left unhandled by removing it.
         $orphaned = [];
         foreach ($handles as $eventFqcn) {
-            $others = array_filter(
-                $index->handlersOf($eventFqcn),
-                static fn ($handler): bool => $handler->listener !== $fqcn,
-            );
+            $others = Arr::where($index->handlersOf($eventFqcn), static fn ($handler): bool => $handler->listener !== $fqcn);
             if ($others === [] && ! isset($closureEvents[$eventFqcn])) {
                 $orphaned[] = $eventFqcn;
             }
         }
 
         $matched = $listener ?? $job;
-        $dispatches = array_map(DispatchRef::fromDispatch(...), $matched->dispatches);
+        $dispatches = array_values(Arr::map($matched->dispatches, DispatchRef::fromDispatch(...)));
 
         return new ImpactReport(
             $fqcn,
@@ -228,7 +227,7 @@ final class IndexQuery
             $out[] = new SectionInfo(
                 $section,
                 count($index->sections[$section->value] ?? []),
-                array_key_exists($section->value, $index->sections),
+                Arr::exists($index->sections, $section->value),
                 $descriptor['listed'],
                 EntityKind::forSection($section),
             );
@@ -242,8 +241,8 @@ final class IndexQuery
         $query ??= new SectionQuery;
         $items = SectionReader::items($this->index(), $section);
 
-        $needle = $query->search === null ? '' : mb_strtolower(trim($query->search));
-        $items = array_values(array_filter($items, function (object $item) use ($query, $needle): bool {
+        $needle = $query->search === null ? '' : Str::lower(trim($query->search));
+        $items = array_values(Arr::where($items, function (object $item) use ($query, $needle): bool {
             foreach ($query->filters as $property => $expected) {
                 if (SectionReader::comparable($item, $property) !== SectionReader::normalise($expected)) {
                     return false;
@@ -251,9 +250,9 @@ final class IndexQuery
             }
 
             return $needle === ''
-                || str_contains(mb_strtolower(SectionReader::name($item)), $needle)
-                || str_contains(mb_strtolower(SectionReader::path($item)), $needle)
-                || str_contains(mb_strtolower(SectionReader::file($item)), $needle);
+                || Str::contains(Str::lower(SectionReader::name($item)), $needle)
+                || Str::contains(Str::lower(SectionReader::path($item)), $needle)
+                || Str::contains(Str::lower(SectionReader::file($item)), $needle);
         }));
 
         if ($query->sort !== null) {
@@ -264,7 +263,7 @@ final class IndexQuery
         $lastPage = max(1, (int) ceil(count($items) / $perPage));
         $page = min($lastPage, max(1, $query->page));
 
-        return new Page(array_slice($items, ($page - 1) * $perPage, $perPage), count($items), $page, $perPage);
+        return new Page(array_values(collect($items)->slice(($page - 1) * $perPage, $perPage)->all()), count($items), $page, $perPage);
     }
 
     // Health --------------------------------------------------------------
@@ -274,14 +273,8 @@ final class IndexQuery
         $index = $this->index();
 
         return new Orphans(
-            array_values(array_filter(
-                $index->events(),
-                static fn ($e): bool => $e->handledBy === [] && $e->dispatchedFrom === [],
-            )),
-            array_values(array_filter(
-                $index->listeners(),
-                static fn ($l): bool => $l->handles === [],
-            )),
+            array_values(Arr::where($index->events(), static fn ($e): bool => $e->handledBy === [] && $e->dispatchedFrom === [])),
+            array_values(Arr::where($index->listeners(), static fn ($l): bool => $l->handles === [])),
         );
     }
 
@@ -334,10 +327,7 @@ final class IndexQuery
 
     private function eventImpact(Index $index, string $fqcn, ChangeKind $kind): ImpactReport
     {
-        $handlers = array_map(
-            static fn ($handler): HandlerRef => new HandlerRef($handler->listener.'::'.$handler->method, HandlerKind::LISTENER),
-            $index->handlersOf($fqcn),
-        );
+        $handlers = array_values(Arr::map($index->handlersOf($fqcn), static fn ($handler): HandlerRef => new HandlerRef($handler->listener.'::'.$handler->method, HandlerKind::LISTENER)));
 
         foreach ($index->closureListeners() as $closure) {
             if ($closure->event === $fqcn) {
@@ -379,18 +369,18 @@ final class IndexQuery
             }
         }
 
-        usort($candidates, static fn (array $a, array $b): int => [$b['handlers'], $a['event']->fqcn] <=> [$a['handlers'], $b['event']->fqcn]);
+        $candidates = array_values(collect($candidates)->sort(static fn (array $a, array $b): int => [$b['handlers'], $a['event']->fqcn] <=> [$a['handlers'], $b['event']->fqcn])->all());
 
         $walker = new ChainWalker($index);
         $ranked = [];
-        foreach (array_slice($candidates, 0, $limit) as $candidate) {
+        foreach (collect($candidates)->slice(0, $limit)->all() as $candidate) {
             $event = $candidate['event'];
             $reach = count($walker->chain($event->fqcn, ChainDepth::DEFAULT)->eventsReached) - 1;
             $ranked[] = new FanOut($event->fqcn, $candidate['handlers'], count($event->dispatchedFrom), $reach);
         }
 
-        usort($ranked, static fn (FanOut $a, FanOut $b): int => [$b->handlerCount, $b->downstreamReach, $a->event]
-            <=> [$a->handlerCount, $a->downstreamReach, $b->event]);
+        $ranked = array_values(collect($ranked)->sort(static fn (FanOut $a, FanOut $b): int => [$b->handlerCount, $b->downstreamReach, $a->event]
+            <=> [$a->handlerCount, $a->downstreamReach, $b->event])->all());
 
         return $ranked;
     }
@@ -410,7 +400,7 @@ final class IndexQuery
         };
 
         // Ties fall back to name then file, always ascending, so the order never depends on input order.
-        usort($items, static function (object $a, object $b) use ($key, $dir): int {
+        $items = array_values(collect($items)->sort(static function (object $a, object $b) use ($key, $dir): int {
             $cmp = $key($a) <=> $key($b);
             if ($dir === SortDirection::DESC) {
                 $cmp = -$cmp;
@@ -419,7 +409,7 @@ final class IndexQuery
             return $cmp !== 0
                 ? $cmp
                 : [strtolower(SectionReader::name($a)), SectionReader::file($a)] <=> [strtolower(SectionReader::name($b)), SectionReader::file($b)];
-        });
+        })->all());
 
         return $items;
     }
