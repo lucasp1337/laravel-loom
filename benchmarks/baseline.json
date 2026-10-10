@@ -5,6 +5,7 @@
             "files": 19,
             "sections": {
                 "events": 2,
+                "model_events": 3,
                 "listeners": 2,
                 "observers": 1,
                 "jobs": 2,
@@ -53,6 +54,7 @@
             "files": 201,
             "sections": {
                 "events": 28,
+                "model_events": 42,
                 "listeners": 28,
                 "observers": 14,
                 "jobs": 28,
@@ -101,6 +103,7 @@
             "files": 2035,
             "sections": {
                 "events": 290,
+                "model_events": 435,
                 "listeners": 290,
                 "observers": 145,
                 "jobs": 290,
