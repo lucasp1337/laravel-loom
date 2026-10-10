@@ -6,26 +6,20 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ClassRecord;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects top-level class declarations (FQCN + line).
  *
  * @internal
  */
-final class EventClassVisitor extends NodeVisitorAbstract
+final class EventClassVisitor extends CollectingVisitor
 {
     /** @var list<ClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null

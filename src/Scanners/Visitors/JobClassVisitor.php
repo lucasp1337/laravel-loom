@@ -7,26 +7,20 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\JobClassRecord;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects concrete job classes (skips abstract + anonymous).
  *
  * @internal
  */
-final class JobClassVisitor extends NodeVisitorAbstract
+final class JobClassVisitor extends CollectingVisitor
 {
     /** @var list<JobClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

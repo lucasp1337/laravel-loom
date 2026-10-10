@@ -10,7 +10,6 @@ use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects (event, listener) pairs from Event::listen(...) calls and the
@@ -19,7 +18,7 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class EventListenCallVisitor extends NodeVisitorAbstract
+final class EventListenCallVisitor extends CollectingVisitor
 {
     /** @var list<ListenerPair> */
     private array $pairs = [];
@@ -30,16 +29,11 @@ final class EventListenCallVisitor extends NodeVisitorAbstract
     /** @var array<string, true> Variables proven to hold a Dispatcher in scope. */
     private array $dispatcherVars = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->pairs = [];
         $this->closurePairs = [];
         $this->dispatcherVars = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

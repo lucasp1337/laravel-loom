@@ -7,28 +7,22 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ObserverPair;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Finds `#[ObservedBy(Observer::class)]` (and array form) on model classes.
  *
  * @internal
  */
-final class ObservedByAttributeVisitor extends NodeVisitorAbstract
+final class ObservedByAttributeVisitor extends CollectingVisitor
 {
     private const OBSERVED_BY = 'Illuminate\\Database\\Eloquent\\Attributes\\ObservedBy';
 
     /** @var list<ObserverPair> */
     private array $pairs = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->pairs = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

@@ -7,26 +7,20 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\MailableClassRecord;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects concrete mailable classes with their queue-config properties.
  *
  * @internal
  */
-final class MailableClassVisitor extends NodeVisitorAbstract
+final class MailableClassVisitor extends CollectingVisitor
 {
     /** @var list<MailableClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

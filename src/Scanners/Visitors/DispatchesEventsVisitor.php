@@ -7,7 +7,6 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects `protected $dispatchesEvents = ['created' => Foo::class]` mappings.
@@ -15,21 +14,16 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class DispatchesEventsVisitor extends NodeVisitorAbstract
+final class DispatchesEventsVisitor extends CollectingVisitor
 {
     private const PROPERTY = 'dispatchesEvents';
 
     /** @var list<DispatchesEventsMapping> */
     private array $mappings = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->mappings = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

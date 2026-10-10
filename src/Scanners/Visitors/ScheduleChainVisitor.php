@@ -11,14 +11,13 @@ use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
  *
  * @internal
  */
-final class ScheduleChainVisitor extends NodeVisitorAbstract
+final class ScheduleChainVisitor extends CollectingVisitor
 {
     /** @var array<int, string> */
     private const ROOT_METHODS = ['command', 'job', 'call', 'exec'];
@@ -58,14 +57,12 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     /** @var list<ScheduleChainEntry> */
     private array $entries = [];
 
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->parentStack = [];
         $this->groupFrameStack = [];
         $this->groupOpenerStack = [];
         $this->entries = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null

@@ -12,7 +12,6 @@ use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Extracts events handled by a class's `subscribe()` method — either via the
@@ -20,22 +19,17 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class SubscriberClassVisitor extends NodeVisitorAbstract
+final class SubscriberClassVisitor extends CollectingVisitor
 {
     /** @var list<SubscriberClassRecord> */
     private array $classes = [];
 
     private ?string $currentClassFqcn = null;
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
         $this->currentClassFqcn = null;
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

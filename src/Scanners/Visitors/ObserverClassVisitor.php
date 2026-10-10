@@ -6,7 +6,6 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ClassRecord;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Records the named classes in a file. Which Eloquent hooks an observer
@@ -15,19 +14,14 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ObserverClassVisitor extends NodeVisitorAbstract
+final class ObserverClassVisitor extends CollectingVisitor
 {
     /** @var list<ClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null

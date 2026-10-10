@@ -8,9 +8,7 @@ use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\AstHelpers;
-use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects (event, listener) pairs from `$listen` on EventServiceProvider classes.
@@ -18,7 +16,7 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ListenArrayVisitor extends NodeVisitorAbstract
+final class ListenArrayVisitor extends CollectingVisitor
 {
     use IdentifiesEventServiceProvider;
 
@@ -28,21 +26,15 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
     /** @var list<ClosurePairRecord> */
     private array $closurePairs = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->pairs = [];
         $this->closurePairs = [];
-        $this->resetEventServiceProviderStack();
-
-        return null;
     }
 
     public function enterNode(Node $node): null
     {
-        $this->pushClassNode($node);
+        $this->enterClassScope($node);
 
         return null;
     }
@@ -55,7 +47,7 @@ final class ListenArrayVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->popClassNode($node);
+        $this->leaveClassScope($node);
 
         return null;
     }

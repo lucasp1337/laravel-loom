@@ -7,7 +7,6 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ObserverPair;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Finds `Model::observe(Observer::class)` calls. Tracks enclosing class so
@@ -15,46 +14,30 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ObserveCallVisitor extends NodeVisitorAbstract
+final class ObserveCallVisitor extends CollectingVisitor
 {
-    /** @var list<string> */
-    private array $classStack = [];
+    use TracksClassScope;
 
     /** @var list<ObserverPair> */
     private array $pairs = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
-        $this->classStack = [];
         $this->pairs = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Stmt\Class_) {
-            if ($node->namespacedName !== null) {
-                $this->classStack[] = $node->namespacedName->toString();
-            } else {
-                // Sentinel keeps leaveNode pop balanced for anonymous classes.
-                $this->classStack[] = '';
-            }
-        }
+        $this->enterClassScope($node);
 
         return null;
     }
 
     public function leaveNode(Node $node): null
     {
-        if (! $node instanceof Node\Expr\StaticCall) {
-            if ($node instanceof Node\Stmt\Class_) {
-                array_pop($this->classStack);
-            }
+        $this->leaveClassScope($node);
 
+        if (! $node instanceof Node\Expr\StaticCall) {
             return null;
         }
 
@@ -75,8 +58,9 @@ final class ObserveCallVisitor extends NodeVisitorAbstract
         $lowered = strtolower($rawClass);
 
         if ($lowered === 'static' || $lowered === 'self') {
-            $model = end($this->classStack);
-            if ($model === false || $model === '') {
+            // `static::observe()` only resolves inside a named class (not a trait or anonymous class).
+            $model = $this->currentClassNode() instanceof Node\Stmt\Class_ ? $this->currentClassFqcn() : null;
+            if ($model === null) {
                 return null;
             }
         } elseif ($lowered === 'parent') {

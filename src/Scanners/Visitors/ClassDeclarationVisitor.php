@@ -10,7 +10,6 @@ use Lucasp\Loom\Dto\MethodVisibility;
 use Lucasp\Loom\Dto\TraitAdaptation;
 use PhpParser\Modifiers;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects class/interface/trait declarations for ClassHierarchyResolver.
@@ -18,19 +17,14 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ClassDeclarationVisitor extends NodeVisitorAbstract
+final class ClassDeclarationVisitor extends CollectingVisitor
 {
     /** @var list<ClassDeclaration> */
     private array $declarations = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->declarations = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

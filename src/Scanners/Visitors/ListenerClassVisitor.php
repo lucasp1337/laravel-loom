@@ -8,7 +8,6 @@ use Lucasp\Loom\Dto\ListenerClassRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects the named classes in a file. Which methods handle which events is
@@ -17,19 +16,14 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ListenerClassVisitor extends NodeVisitorAbstract
+final class ListenerClassVisitor extends CollectingVisitor
 {
     /** @var list<ListenerClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

@@ -5,36 +5,28 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Support\AstHelpers;
-use Lucasp\Loom\Support\IdentifiesEventServiceProvider;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects subscriber FQCNs from `$subscribe` on EventServiceProvider classes.
  *
  * @internal
  */
-final class SubscribeArrayVisitor extends NodeVisitorAbstract
+final class SubscribeArrayVisitor extends CollectingVisitor
 {
     use IdentifiesEventServiceProvider;
 
     /** @var array<int, string> */
     private array $subscribers = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->subscribers = [];
-        $this->resetEventServiceProviderStack();
-
-        return null;
     }
 
     public function enterNode(Node $node): null
     {
-        $this->pushClassNode($node);
+        $this->enterClassScope($node);
 
         return null;
     }
@@ -47,7 +39,7 @@ final class SubscribeArrayVisitor extends NodeVisitorAbstract
             return null;
         }
 
-        $this->popClassNode($node);
+        $this->leaveClassScope($node);
 
         return null;
     }
