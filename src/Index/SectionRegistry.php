@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
+use Illuminate\Support\Arr;
+
 /**
  * Single ordered source of truth for top-level index sections.
  *
@@ -43,10 +45,7 @@ final class SectionRegistry
      */
     public static function names(): array
     {
-        return array_map(
-            static fn (array $descriptor): string => $descriptor['section']->value,
-            self::DESCRIPTORS,
-        );
+        return array_values(Arr::map(self::DESCRIPTORS, static fn (array $descriptor): string => $descriptor['section']->value));
     }
 
     /**

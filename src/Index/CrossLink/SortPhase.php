@@ -24,7 +24,7 @@ final class SortPhase implements CrossLinkPhase
     {
         foreach ($this->sectionKeys() as $section => $keys) {
             $entries = array_values($context->sections[$section] ?? []);
-            usort($entries, Sorting::byKeys($keys));
+            $entries = array_values(collect($entries)->sort(Sorting::byKeys($keys))->all());
             $context->sections[$section] = $entries;
         }
 
@@ -33,7 +33,7 @@ final class SortPhase implements CrossLinkPhase
                 foreach ($fields as $field => $keys) {
                     /** @var array<int, array<string, mixed>> $list */
                     $list = $entry[$field] ?? [];
-                    usort($list, Sorting::byKeys($keys));
+                    $list = array_values(collect($list)->sort(Sorting::byKeys($keys))->all());
                     $context->sections[$section][$idx][$field] = $list;
                 }
             }

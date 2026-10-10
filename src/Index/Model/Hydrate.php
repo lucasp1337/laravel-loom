@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\Model;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Model;
 
@@ -65,7 +66,7 @@ final class Hydrate
             return [];
         }
 
-        return array_values(array_filter($value, 'is_string'));
+        return array_values(Arr::where($value, static fn (mixed $v): bool => is_string($v)));
     }
 
     /**
