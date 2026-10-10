@@ -3,57 +3,67 @@
 declare(strict_types=1);
 
 return [
-    // Snapshot written by loom:scan and read by the CLI, MCP server and UI;
-    // null means storage/loom/index.json.
+    // Where loom:scan writes the index and where the CLI, MCP server and UI
+    // read it. null means storage/loom/index.json.
     'index_path' => env('LOOM_INDEX_PATH'),
 
     'scan' => [
-        // Directories loom:scan walks, relative to the project root. `*` globs
-        // are allowed (e.g. 'Modules/*'). Convention directories (Events,
-        // Listeners, Jobs, Mail, Notifications) resolve inside each one.
+        // Directories loom:scan walks, relative to the project root. A `*`
+        // matches within one path segment (`Modules/*`). Paths outside the
+        // project root are rejected. Convention directories (Events, Listeners,
+        // Jobs, Mail, Notifications) resolve inside each one.
         'paths' => ['app'],
 
         // Directories holding route files, relative to the project root. `*`
-        // globs are allowed (e.g. 'Modules/*/routes'). Route files are read
-        // for `routes[]` and for dispatches inside route closures.
+        // globs are allowed (`Modules/*/routes`). Read for `routes[]` and for
+        // dispatches inside route closures; independent of `scan.paths`.
         'route_paths' => ['routes'],
 
-        // Also read route files that providers (`loadRoutesFrom()`), route
-        // groups with a file path and bootstrap/app.php `withRouting()` load by
-        // a statically resolvable path. Unresolvable paths are listed by `-v`.
+        // Also read route files that Laravel loads from a statically resolvable
+        // path: `loadRoutesFrom()`, `Route::group()` with a file path and the
+        // `withRouting()` paths in bootstrap/app.php. `false` reads only
+        // `scan.route_paths`; `loom:scan --no-discover-routes` does the same
+        // for one run.
         'discover_routes' => true,
 
-        // Also scan every directory in composer.json's autoload.psr-4.
+        // Also scan every directory in composer.json's `autoload.psr-4`.
+        // `autoload-dev` is not included.
         'psr4_paths' => false,
 
-        // Globs relative to the project root; matching files and everything
-        // under matching directories are skipped by every scanner.
+        // Globs relative to the project root. A match removes the file, or
+        // everything under the matching directory, from every scanner.
         'exclude' => [],
     ],
 
     'ui' => [
-        // Kill switch. The UI needs livewire/livewire and is also mounted only
-        // in the environments below.
+        // Kill switch. When false, no routes, pages or gate exist in any
+        // environment. The UI is also absent without livewire/livewire.
         'enabled' => env('LOOM_UI_ENABLED', true),
 
-        // App environments that mount the UI. In any other environment no
-        // route, asset, view or gate exists (plain 404).
+        // App environments that mount the UI. Elsewhere nothing is registered
+        // and the path returns 404.
         'environments' => ['local'],
 
-        // Listing `production` above is ignored unless this is true.
+        // Listing `production` in `ui.environments` is ignored unless this is
+        // true. A warning is logged when it is listed but not allowed.
         'allow_in_production' => false,
 
-        // URI prefix and optional domain the UI is served under.
+        // URI prefix the UI is served under. Slashes at either end are
+        // trimmed; an empty value falls back to `loom`.
         'path' => env('LOOM_PATH', 'loom'),
+
+        // Serve the UI only on this domain. null serves every domain.
         'domain' => env('LOOM_DOMAIN'),
 
-        // Applied before the built-in `viewLoom` gate check, which always runs.
+        // Middleware that runs before the `viewLoom` gate check, which always
+        // runs.
         'middleware' => ['web'],
 
-        // Optional UI-only override of the top-level `index_path`.
+        // Overrides `index_path` for the UI only. A non-empty value wins.
         'index_path' => null,
 
-        // Default chain depth on the chain page (clamped to 1-6).
+        // Depth the chain view opens with. Clamped to 1-6; a non-integer
+        // falls back to 3.
         'chain_depth' => 3,
     ],
 
