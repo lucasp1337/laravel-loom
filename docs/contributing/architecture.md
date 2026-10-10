@@ -67,6 +67,17 @@ Find candidate files or classes. Strategies:
 
 Hybrid strategies are common (events come from both `app/Events/` and dispatch-site seeding, for example).
 
+#### Class-based primitives
+
+Events, jobs, mailables and notifications share one skeleton: walk a convention directory, seed more classes from dispatch sites and locate them through PSR-4, merge by FQCN, emit entries sorted by FQCN. `Scanners\Discovery\ClassPrimitiveDiscovery` owns that flow; each primitive supplies a `ClassSpec` (`EventClassSpec`, `JobClassSpec`, `MailableClassSpec`, `NotificationClassSpec`) and its scanner is only construction plus `discover()`. A spec declares:
+
+- the convention directory and the class visitor (a `ClassRecordVisitor`);
+- how a class record becomes a location and an entry (queued state, queue config, channels);
+- which visitors read dispatch sites and which targets they seed, each flagged ambiguous or not;
+- `admitsAmbiguous()`, the guard for targets reached only through the Dispatchable form (`X::dispatch()` is an event or a job).
+
+Seeded targets already found by the directory walk are skipped; the rest must resolve through PSR-4 to an admitted file declaring that FQCN. A target stays ambiguous only while every site that reached it was. A new class-based primitive is a new spec plus a thin scanner; primitives with other discovery (listeners, observers, routes, schedule) keep their own scanners.
+
 ### 2. Parsing
 
 Pure AST work via `nikic/php-parser`. Use `Lucasp\Loom\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.

@@ -59,6 +59,7 @@ src/
     NotificationScanner.php
     RouteScanner.php
     DispatchScanner.php
+    Discovery/                      # ClassPrimitiveDiscovery + one ClassSpec per class-based primitive (event, job, mailable, notification)
     Visitors/                       # CollectingVisitor subclasses (state reset is built in)
   Support/
     AstWalker.php                   # parser + NameResolver wrapper
