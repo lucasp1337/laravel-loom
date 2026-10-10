@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Diff;
 
 use Closure;
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Diff\Result\SubListDelta;
 use Lucasp\Loom\Diff\Spec\SectionDiffSpec;
 use Lucasp\Loom\Diff\Spec\SubListSpec;
@@ -125,7 +126,7 @@ final class DiffSpecRegistry
                 $parts[] = self::scalar($entry[$key->value] ?? null);
             }
 
-            return implode(self::SEP, $parts);
+            return Arr::join($parts, self::SEP);
         };
     }
 
@@ -171,7 +172,7 @@ final class DiffSpecRegistry
                 $parts[] = self::canonical($member[Field::CHANNELS->value] ?? []);
             }
 
-            return implode(self::SEP, $parts);
+            return Arr::join($parts, self::SEP);
         };
     }
 

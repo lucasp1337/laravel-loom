@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Diff\Format;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Diff\Result\ChangedEntry;
 use Lucasp\Loom\Diff\Result\DiffResult;
 use Lucasp\Loom\Diff\Result\SectionDiff;
@@ -35,7 +36,7 @@ final class MarkdownDiffFormatter implements DiffFormatter
             $lines[] = '';
         }
 
-        return rtrim(implode("\n", $lines), "\n");
+        return rtrim(Arr::join($lines, "\n"), "\n");
     }
 
     /**
@@ -85,7 +86,7 @@ final class MarkdownDiffFormatter implements DiffFormatter
 
     private function encode(mixed $value): string
     {
-        if (is_array($value) && array_key_exists(SubListDelta::SCALAR_MEMBER_KEY, $value) && count($value) === 1) {
+        if (is_array($value) && Arr::exists($value, SubListDelta::SCALAR_MEMBER_KEY) && count($value) === 1) {
             $value = $value[SubListDelta::SCALAR_MEMBER_KEY];
         }
         if (is_string($value)) {

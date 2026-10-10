@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
@@ -69,10 +70,10 @@ final class DispatchGraph
         $adjacency = [];
         foreach ($edges as $source => $targets) {
             $list = array_keys($targets);
-            sort($list);
+            $list = array_values(collect($list)->sort()->all());
             $adjacency[$source] = $list;
         }
-        ksort($adjacency);
+        $adjacency = collect($adjacency)->sortKeys()->all();
 
         return new self($adjacency);
     }
@@ -83,7 +84,7 @@ final class DispatchGraph
     public function cycles(): array
     {
         $nodes = array_keys($this->adjacency);
-        sort($nodes);
+        $nodes = array_values(collect($nodes)->sort()->all());
 
         /** @var array<string,int> $color 0=white, 1=gray, 2=black */
         $color = [];
@@ -101,7 +102,7 @@ final class DispatchGraph
         }
 
         $cycles = array_values($found);
-        usort($cycles, static fn (array $a, array $b): int => implode("\x1F", $a) <=> implode("\x1F", $b));
+        $cycles = array_values(collect($cycles)->sort(static fn (array $a, array $b): int => Arr::join($a, "\x1F") <=> Arr::join($b, "\x1F"))->all());
 
         return $cycles;
     }
@@ -124,7 +125,7 @@ final class DispatchGraph
                 $cycle = $this->extractCycle($stack, $next);
                 if ($cycle !== null) {
                     $canonical = $this->canonicalize($cycle);
-                    $found[implode("\x1F", $canonical)] = $canonical;
+                    $found[Arr::join($canonical, "\x1F")] = $canonical;
                 }
             }
         }
@@ -142,12 +143,12 @@ final class DispatchGraph
      */
     private function extractCycle(array $stack, string $target): ?array
     {
-        $start = array_search($target, $stack, true);
+        $start = collect($stack)->search($target, true);
         if ($start === false) {
             return null;
         }
 
-        $path = array_slice($stack, $start);
+        $path = array_values(collect($stack)->slice($start)->all());
         $path[] = $target;
 
         return $path;
@@ -163,7 +164,7 @@ final class DispatchGraph
      */
     private function canonicalize(array $cycle): array
     {
-        $open = array_slice($cycle, 0, -1);
+        $open = array_values(collect($cycle)->slice(0, -1)->all());
         if ($open === []) {
             return $cycle;
         }
@@ -175,7 +176,7 @@ final class DispatchGraph
             }
         }
 
-        $rotated = array_merge(array_slice($open, $pivot), array_slice($open, 0, $pivot));
+        $rotated = array_values(collect($open)->slice($pivot)->merge(collect($open)->slice(0, $pivot))->all());
         $rotated[] = $rotated[0];
 
         return $rotated;

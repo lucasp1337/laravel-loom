@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check\Format;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\Result\CheckResult;
 
 /**
@@ -50,6 +51,6 @@ final class TextCheckFormatter implements CheckFormatter
             $failingRules,
         ).self::RESET;
 
-        return implode("\n", $lines);
+        return Arr::join($lines, "\n");
     }
 }

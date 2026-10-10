@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check\Rules;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\CheckContext;
 use Lucasp\Loom\Check\Contracts\CheckRule;
 use Lucasp\Loom\Check\Result\Violation;
@@ -72,10 +73,7 @@ final class UnresolvedDispatchesRule implements CheckRule
             );
         }
 
-        usort(
-            $violations,
-            static fn (Violation $a, Violation $b): int => $a->message <=> $b->message,
-        );
+        $violations = array_values(collect($violations)->sort(static fn (Violation $a, Violation $b): int => $a->message <=> $b->message)->all());
 
         return $violations;
     }
@@ -99,11 +97,11 @@ final class UnresolvedDispatchesRule implements CheckRule
      */
     private function identity(array $entry): string
     {
-        return implode(self::SEP, [
+        return Arr::join([
             $this->string($entry[Field::FILE->value] ?? null),
             $this->string($entry[Field::LINE->value] ?? null),
             $this->string($entry[Field::EXPRESSION->value] ?? null),
-        ]);
+        ], self::SEP);
     }
 
     private function string(mixed $value): string

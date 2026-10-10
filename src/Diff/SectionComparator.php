@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Diff;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Diff\Result\ChangedEntry;
 use Lucasp\Loom\Diff\Result\FieldChange;
 use Lucasp\Loom\Diff\Result\SectionDiff;
@@ -35,17 +36,17 @@ final class SectionComparator
         $changed = [];
 
         foreach ($newMap as $identity => $entry) {
-            if (! array_key_exists($identity, $oldMap)) {
+            if (! Arr::exists($oldMap, $identity)) {
                 $added[$identity] = $entry;
             }
         }
         foreach ($oldMap as $identity => $entry) {
-            if (! array_key_exists($identity, $newMap)) {
+            if (! Arr::exists($newMap, $identity)) {
                 $removed[$identity] = $entry;
             }
         }
         foreach ($oldMap as $identity => $oldEntry) {
-            if (! array_key_exists($identity, $newMap)) {
+            if (! Arr::exists($newMap, $identity)) {
                 continue;
             }
             $entry = $this->compareEntry($spec, (string) $identity, $oldEntry, $newMap[$identity]);
@@ -54,9 +55,9 @@ final class SectionComparator
             }
         }
 
-        ksort($added);
-        ksort($removed);
-        usort($changed, static fn (ChangedEntry $a, ChangedEntry $b): int => strcmp($a->identity, $b->identity));
+        $added = collect($added)->sortKeys()->all();
+        $removed = collect($removed)->sortKeys()->all();
+        $changed = array_values(collect($changed)->sort(static fn (ChangedEntry $a, ChangedEntry $b): int => strcmp($a->identity, $b->identity))->all());
 
         return new SectionDiff(array_values($added), array_values($removed), $changed);
     }
@@ -95,7 +96,7 @@ final class SectionComparator
                 $changes[] = new FieldChange($field->value, $oldValue, $newValue);
             }
         }
-        usort($changes, static fn (FieldChange $a, FieldChange $b): int => strcmp($a->field, $b->field));
+        $changes = array_values(collect($changes)->sort(static fn (FieldChange $a, FieldChange $b): int => strcmp($a->field, $b->field))->all());
 
         return $changes;
     }
@@ -126,12 +127,12 @@ final class SectionComparator
         $added = [];
         $removed = [];
         foreach ($newMap as $key => $member) {
-            if (! array_key_exists($key, $oldMap)) {
+            if (! Arr::exists($oldMap, $key)) {
                 $added[$key] = $member;
             }
         }
         foreach ($oldMap as $key => $member) {
-            if (! array_key_exists($key, $newMap)) {
+            if (! Arr::exists($newMap, $key)) {
                 $removed[$key] = $member;
             }
         }
@@ -140,8 +141,8 @@ final class SectionComparator
             return null;
         }
 
-        ksort($added);
-        ksort($removed);
+        $added = collect($added)->sortKeys()->all();
+        $removed = collect($removed)->sortKeys()->all();
 
         return new SubListDelta($subList->field->value, array_values($added), array_values($removed));
     }
