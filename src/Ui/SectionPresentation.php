@@ -138,7 +138,7 @@ final class SectionPresentation
             ),
             Sections::SCHEDULED_TASKS => new SectionSpec(
                 $section,
-                'Scheduled',
+                'Scheduled tasks',
                 'No scheduled tasks in this index',
                 'Loom found no tasks in routes/console.php or the Kernel schedule.',
                 [

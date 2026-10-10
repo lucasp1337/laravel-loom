@@ -55,15 +55,6 @@ final class RouteToEventsTool extends Tool
             return Response::error("No route found for {$verb} {$uri}.");
         }
 
-        // Closure or unresolved-controller route: nothing to follow statically.
-        if ($result->chain === null) {
-            return Response::text((string) json_encode([
-                'route' => $result->routeArray(),
-                'note' => 'Route has no resolved controller (closure or unresolved action); no event chain available.',
-                'chain' => null,
-            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        }
-
         return Response::text((string) json_encode(
             $result->toArray(),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,

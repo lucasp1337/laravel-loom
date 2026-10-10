@@ -24,7 +24,7 @@ function checkValidIndex(array $overrides = []): array
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => [
-            'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
+            'events' => 1, 'model_events' => 0, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,

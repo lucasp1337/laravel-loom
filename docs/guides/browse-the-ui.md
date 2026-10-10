@@ -66,7 +66,7 @@ Every sidebar section is a table. Type in the filter box to narrow it by class n
 The address bar keeps the whole view, so this link is a saved search:
 
 ```text
-http://localhost:8000/loom/listeners?q=Order&sort=dispatches&dir=desc&page=1
+http://localhost:8000/loom/listeners?q=Order&sort=dispatch_count&dir=desc&page=1
 ```
 
 It shows listeners matching `Order`, busiest dispatchers first. A row marked `orphan` is unconnected: an event nobody handles or dispatches, or a listener that handles no event.

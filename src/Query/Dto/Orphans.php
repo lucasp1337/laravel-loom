@@ -11,11 +11,11 @@ use Lucasp\Loom\Index\Model\Listener;
 final readonly class Orphans
 {
     /**
-     * @param  list<Event>  $events  neither dispatched nor handled
+     * @param  list<Event>  $orphanEvents  neither dispatched nor handled
      * @param  list<Listener>  $idleListeners  handling no events
      */
     public function __construct(
-        public array $events,
+        public array $orphanEvents,
         public array $idleListeners,
     ) {}
 
@@ -28,7 +28,7 @@ final readonly class Orphans
                 'kind' => $e->kind,
                 'file' => $e->file,
                 'line' => $e->line,
-            ], $this->events),
+            ], $this->orphanEvents),
             'idle_listeners' => array_map(static fn (Listener $l): array => [
                 'fqcn' => $l->fqcn,
                 'file' => $l->file,

@@ -26,11 +26,11 @@ class Dashboard extends Component
         $orphans = $ui->query->orphans();
 
         $stats = [];
-        foreach (SectionRegistry::statsNames() as $name) {
+        foreach (SectionRegistry::listedNames() as $name) {
             $section = Sections::from($name);
             $stats[] = [
                 'label' => SectionPresentation::for($section)->label,
-                'count' => $dashboard->counts[$name] ?? 0,
+                'count' => $dashboard->stats[$name] ?? 0,
                 'url' => $ui->links->section($section),
             ];
         }
@@ -38,7 +38,7 @@ class Dashboard extends Component
         return $this->renderPage('loom::livewire.dashboard', [
             'dashboard' => $dashboard,
             'stats' => $stats,
-            'orphanEvents' => array_slice($orphans->events, 0, self::LIST_LIMIT),
+            'orphanEvents' => array_slice($orphans->orphanEvents, 0, self::LIST_LIMIT),
             'idleListeners' => array_slice($orphans->idleListeners, 0, self::LIST_LIMIT),
             'unresolved' => array_slice($ui->query->unresolvedDispatches(), 0, self::LIST_LIMIT),
             'links' => $ui->links,

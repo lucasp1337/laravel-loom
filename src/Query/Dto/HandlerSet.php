@@ -17,7 +17,7 @@ final readonly class HandlerSet
         public array $closureListeners,
     ) {}
 
-    public function total(): int
+    public function count(): int
     {
         return count($this->listeners) + count($this->closureListeners);
     }
@@ -27,6 +27,7 @@ final readonly class HandlerSet
     {
         return [
             'event' => $this->event,
+            'count' => $this->count(),
             'listeners' => array_map(static fn (ListenerHandler $h): array => $h->toArray(), $this->listeners),
             'closure_listeners' => array_map(static fn (ClosureHandler $h): array => $h->toArray(), $this->closureListeners),
         ];

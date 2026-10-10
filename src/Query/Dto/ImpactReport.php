@@ -12,7 +12,7 @@ use Lucasp\Loom\Query\ImpactNote;
 
 /**
  * Blast radius of removing or renaming a class. Which fields are populated
- * depends on `entity`: events carry dispatchers/handlers/downstream, listeners
+ * depends on `kind`: events carry dispatchers/handlers/downstream, listeners
  * and jobs carry handles/wouldOrphanEvents/dispatches.
  *
  * @internal
@@ -29,8 +29,8 @@ final readonly class ImpactReport
      */
     public function __construct(
         public string $fqcn,
-        public ChangeKind $kind,
-        public ImpactEntity $entity,
+        public ChangeKind $change,
+        public ImpactEntity $kind,
         public array $dispatchers = [],
         public array $handlers = [],
         public ?EventChain $downstream = null,
@@ -51,9 +51,9 @@ final readonly class ImpactReport
             $this->notes,
         );
 
-        $head = ['fqcn' => $this->fqcn, 'change' => $this->kind->value, 'entity' => $this->entity->value];
+        $head = ['fqcn' => $this->fqcn, 'change' => $this->change->value, 'kind' => $this->kind->value];
 
-        if ($this->entity === ImpactEntity::EVENT || $this->entity === ImpactEntity::UNKNOWN) {
+        if ($this->kind === ImpactEntity::EVENT || $this->kind === ImpactEntity::UNKNOWN) {
             return $head + [
                 'dispatchers' => array_map(static fn (DispatchSite $s): array => [
                     'file' => $s->file,

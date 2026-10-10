@@ -125,12 +125,13 @@ An event nothing fires returns `"count": 0` and an empty list. An empty `event_f
 ```json
 {
   "event": "App\\Events\\ReceiptSent",
+  "count": 2,
   "listeners": [{ "listener": "App\\Listeners\\ArchiveReceipt", "method": "handle", "queued": false }],
   "closure_listeners": [{ "file": "app/Providers/EventServiceProvider.php", "line": 30, "queued": true }]
 }
 ```
 
-Closure listeners have no class name, so they're identified by file and line.
+`count` is listeners plus closure listeners. Closure listeners have no class name, so they're identified by file and line.
 
 ### `dispatches-from`
 
@@ -140,7 +141,7 @@ Closure listeners have no class name, so they're identified by file and line.
 
 ```json
 {
-  "method": "App\\Http\\Controllers\\OrderController::store",
+  "method_fqcn": "App\\Http\\Controllers\\OrderController::store",
   "count": 2,
   "dispatches": [
     { "target": "App\\Events\\OrderPlaced", "kind": "event", "confidence": "high", "file": "app/Http/Controllers/OrderController.php", "line": 20 },
@@ -194,7 +195,7 @@ Starts from a method: what it dispatches, then the chain following each dispatch
 | `method_fqcn` | string | yes | none | `Class::method`, `Class@method`, or a bare `Class` |
 | `depth` | integer | no | `3` | Clamped to `1`-`6`, applied per chain |
 
-The response is `{ "method", "dispatches", "chains" }`. `dispatches` is what [`dispatches-from`](#dispatches-from) returns, and `chains` holds one `events-following` result per dispatched event. An unknown method returns empty `dispatches` and `chains`.
+The response is `{ "method_fqcn", "dispatches", "chains" }`. `dispatches` is what [`dispatches-from`](#dispatches-from) returns, and `chains` holds one `events-following` result per dispatched event. An unknown method returns empty `dispatches` and `chains`.
 
 ### `route-to-events`
 
@@ -218,15 +219,16 @@ Resolves an HTTP route to its controller method, then behaves like `events-from-
     "file": "routes/web.php",
     "line": 12
   },
+  "note": null,
   "chain": {
-    "method": "App\\Http\\Controllers\\OrderController::store",
+    "method_fqcn": "App\\Http\\Controllers\\OrderController::store",
     "dispatches": ["..."],
     "chains": ["..."]
   }
 }
 ```
 
-`chain` holds what `events-from-method` returns. A route whose action is a closure returns the route with `"chain": null` and a `note`. A verb and URI with no match returns `No route found for GET orders.` and an error.
+`chain` holds what `events-from-method` returns. `note` is always present: `null` when `chain` resolved, and a sentence when it did not. A route whose action is a closure returns the route with `"chain": null` and that note. A verb and URI with no match returns `No route found for GET orders.` and an error.
 
 ## Analysis
 
@@ -245,7 +247,7 @@ For a listener, the response says which events it handles and which would be lef
 {
   "fqcn": "App\\Listeners\\ArchiveReceipt",
   "change": "remove",
-  "entity": "listener",
+  "kind": "listener",
   "handles": ["App\\Events\\ReceiptSent"],
   "would_orphan_events": [],
   "dispatches": [],
@@ -256,7 +258,7 @@ For a listener, the response says which events it handles and which would be lef
 }
 ```
 
-For an event (`"entity": "event"`), the response has `dispatchers`, `handlers`, and a `downstream` chain instead; each `handlers` entry is `{ listener, method, handler_kind }`, and a closure handler is named `file:line` with method `closure`. A class Loom doesn't know returns `"entity": "unknown"` and a note. An unrecognized `change` returns `Unknown change [explode]; expected one of: remove, rename.`
+For an event (`"kind": "event"`), the response has `dispatchers`, `handlers`, and a `downstream` chain instead; each `handlers` entry is `{ handler, handler_kind }`, named the same way as a chain edge: `Class::method` for a listener and `file:line` for a closure. A class Loom doesn't know returns `"kind": "unknown"`, the event-shaped keys with `"downstream": null`, and a note. An unrecognized `change` returns `Unknown change [explode]; expected one of: remove, rename.`
 
 ### `find-orphans`
 

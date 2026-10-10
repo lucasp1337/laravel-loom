@@ -16,7 +16,7 @@ final readonly class SearchHit
      */
     public function __construct(
         public Sections $section,
-        public ?EntityKind $kind,
+        public ?EntityKind $detailKind,
         public string $label,
         public string $subtitle,
         public int $score,

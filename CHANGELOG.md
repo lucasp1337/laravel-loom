@@ -10,6 +10,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - The `scheduled` section is renamed `scheduled_tasks` (also `stats.scheduled_tasks`, `Index::scheduledTasks()` and the `Model\ScheduledTask` read model) so every section is a plural noun ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - `impact-of-change` takes `change` (was `kind`) and returns `change`; impact `handlers[]` use `handler_kind` (was `kind`) ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
 - Schema: `scanned_at` must end in `Z`, `observers[].hooks[]` is an enum, `get-entity` and `list-entities` errors list the accepted values ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
+- `stats` counts every section: `stats.model_events` is added, and the UI keeps hiding `model_events` from its sidebar and dashboard ([#127](https://github.com/lucasp1337/laravel-loom/issues/127)).
+- MCP output: `impact-of-change` returns `kind` (was `entity`) and event `handlers[]` as `{handler, handler_kind}` (was `{listener, method, handler_kind}`); `dispatches-from` and `events-from-method` return `method_fqcn` (was `method`); `handlers-for` adds `count`; `route-to-events` always carries `note` ([#128](https://github.com/lucasp1337/laravel-loom/issues/128)).
+- UI: `?sort=` takes `handler_count` and `dispatch_count`, the chain payload uses `method`, `has_children`, `source` and `target`, and the scheduled section is labelled "Scheduled tasks" ([#128](https://github.com/lucasp1337/laravel-loom/issues/128)).
+- Query results: ties sort by name then file, and a chain reports each cycle once ([#128](https://github.com/lucasp1337/laravel-loom/issues/128)).
 - Laravel 11 is no longer supported; Loom requires Laravel 12.41.1+ or 13.
 - `livewire/livewire` and `laravel/mcp` are optional (`suggest`). The UI needs Livewire ^3.8 or ^4.0; `loom:mcp` needs `laravel/mcp` and exits 1 with an install hint without it.
 

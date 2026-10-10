@@ -9,7 +9,7 @@
     </div>
 
     <div class="loom-cols">
-        <x-loom::card title="Orphans" :sub="$dashboard->orphanEventCount.' events · '.$dashboard->idleListenerCount.' listeners · '.$dashboard->unresolvedCount.' unresolved'">
+        <x-loom::card title="Orphans" :sub="$dashboard->orphanEventCount.' events · '.$dashboard->idleListenerCount.' listeners · '.$dashboard->unresolvedDispatchCount.' unresolved'">
             @if ($orphanEvents === [] && $idleListeners === [] && $unresolved === [])
                 <div class="loom-card__empty">Nothing unconnected. Every event has a handler or a dispatch site.</div>
             @else

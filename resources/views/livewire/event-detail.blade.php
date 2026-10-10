@@ -8,7 +8,7 @@
     <div class="loom-meta">
         <span class="loom-mono">{{ $event->file }}:{{ $event->line }}</span>
         <span>dispatched from {{ $sites->count() }} {{ $sites->count() === 1 ? 'site' : 'sites' }}</span>
-        <span>{{ $handlers->total() }} {{ $handlers->total() === 1 ? 'handler' : 'handlers' }}</span>
+        <span>{{ $handlers->count() }} {{ $handlers->count() === 1 ? 'handler' : 'handlers' }}</span>
     </div>
 
     <x-loom::card title="Dispatch sites" :sub="(string) $sites->count()">
@@ -26,8 +26,8 @@
         @endif
     </x-loom::card>
 
-    <x-loom::card title="Handlers" :sub="(string) $handlers->total()">
-        @if ($handlers->total() === 0)
+    <x-loom::card title="Handlers" :sub="(string) $handlers->count()">
+        @if ($handlers->count() === 0)
             <div class="loom-card__empty">No handlers registered for this event.</div>
         @else
             <ul class="loom-list">

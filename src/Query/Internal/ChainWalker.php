@@ -79,11 +79,11 @@ final class ChainWalker
         $cycles = [];
         foreach ($revisits as [$ref, $event, $target]) {
             if ($this->reaches($successors, $target, $event)) {
-                $cycles[] = new ChainCycle($ref, $target);
+                $cycles[$ref.'|'.$target] = new ChainCycle($ref, $target);
             }
         }
 
-        return new EventChain($eventFqcn, $depth, $edges, $reached, $cycles, $truncated);
+        return new EventChain($eventFqcn, $depth, $edges, $reached, array_values($cycles), $truncated);
     }
 
     /** @param  array<string, array<string, true>>  $successors */

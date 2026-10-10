@@ -24,7 +24,7 @@ final class ChainGraph
     /** @var list<array<string, mixed>> */
     private array $nodes = [];
 
-    /** @var list<array{s: string, t: string}> */
+    /** @var list<array{source: string, target: string}> */
     private array $edges = [];
 
     /** @var array<string, true> */
@@ -51,7 +51,7 @@ final class ChainGraph
 
     /**
      * @param  list<string>  $collapsed
-     * @return array{root: string, depth: int, truncated: bool, nodes: list<array<string, mixed>>, edges: list<array{s: string, t: string}>}
+     * @return array{root: string, depth: int, truncated: bool, nodes: list<array<string, mixed>>, edges: list<array{source: string, target: string}>}
      */
     public static function build(EventChain $chain, array $collapsed = [], ?string $selected = null): array
     {
@@ -151,7 +151,7 @@ final class ChainGraph
         NodeType $type,
         int $depth,
         string $label,
-        ?string $sub,
+        ?string $method,
         bool $hasChildren,
         bool $collapsed,
     ): void {
@@ -161,14 +161,14 @@ final class ChainGraph
             'type' => $type->value,
             'depth' => $depth,
             'label' => $label,
-            'sub' => $sub,
-            'hasChildren' => $hasChildren,
+            'method' => $method,
+            'has_children' => $hasChildren,
             'collapsed' => $collapsed,
             'selected' => $key === $this->selected,
         ];
 
         if ($parentKey !== null) {
-            $this->edges[] = ['s' => $parentKey, 't' => $key];
+            $this->edges[] = ['source' => $parentKey, 'target' => $key];
         }
     }
 

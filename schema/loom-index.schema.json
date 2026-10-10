@@ -30,10 +30,11 @@
         "laravel_version": { "type": "string" },
         "stats": {
             "type": "object",
-            "required": ["events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled_tasks", "routes", "mailables", "notifications"],
+            "required": ["events", "model_events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled_tasks", "routes", "mailables", "notifications"],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
+                "model_events": { "type": "integer", "minimum": 0 },
                 "listeners": { "type": "integer", "minimum": 0 },
                 "observers": { "type": "integer", "minimum": 0 },
                 "jobs": { "type": "integer", "minimum": 0 },

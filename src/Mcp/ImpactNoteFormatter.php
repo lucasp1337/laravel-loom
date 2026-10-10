@@ -24,7 +24,7 @@ final class ImpactNoteFormatter
             ImpactNote::RENAME_TOUCHES_ALL => "Renaming this event requires updating all {$sites} and {$handlers} below.",
             ImpactNote::REMOVE_ORPHANS_HANDLERS => "Removing this event orphans its {$handlers}; its {$sites} would dispatch a missing class.",
             ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT => 'Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.',
-            ImpactNote::WOULD_ORPHAN_EVENTS => ($report->kind === ChangeKind::REMOVE ? 'Removing' : 'Renaming')
+            ImpactNote::WOULD_ORPHAN_EVENTS => ($report->change === ChangeKind::REMOVE ? 'Removing' : 'Renaming')
                 .' this class would leave '.self::plural(count($report->wouldOrphanEvents), 'event')
                 .' with no remaining handler: '.implode(', ', $report->wouldOrphanEvents).'.',
             ImpactNote::NO_ORPHANS => 'No handled event would be left without a handler by this change.',

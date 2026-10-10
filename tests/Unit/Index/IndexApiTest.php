@@ -444,7 +444,7 @@ it('round-trips the section payloads through toArray, recomputing the envelope',
     expect($out['stats']['events'])->toBe(1);
     expect($out['stats']['listeners'])->toBe(1);
     expect($out['stats']['jobs'])->toBe(1);
-    expect($out['stats'])->not->toHaveKey('model_events');
+    expect($out['stats']['model_events'])->toBe(count($source['model_events']));
 });
 
 it('hydrates a dispatch site with overrides and channels', function () {

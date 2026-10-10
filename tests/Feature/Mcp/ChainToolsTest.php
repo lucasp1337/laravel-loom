@@ -182,7 +182,7 @@ it('errors when no route matches', function () {
 it('reports the blast radius of removing an event', function () {
     LoomMcpServer::tool(ImpactOfChangeTool::class, ['fqcn' => 'App\\Events\\OrderPlaced'])
         ->assertOk()
-        ->assertSee('"entity":"event"')
+        ->assertSee('"kind":"event"')
         ->assertSee('App\\\\Listeners\\\\SendReceipt')
         ->assertSee('app/Http/Controllers/OrderController.php');
 });
@@ -190,14 +190,14 @@ it('reports the blast radius of removing an event', function () {
 it('flags an event orphaned by removing its only listener', function () {
     LoomMcpServer::tool(ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\ArchiveReceipt'])
         ->assertOk()
-        ->assertSee('"entity":"listener"')
+        ->assertSee('"kind":"listener"')
         ->assertSee('App\\\\Events\\\\ReceiptSent');
 });
 
 it('notes when an FQCN is unknown to the index', function () {
     LoomMcpServer::tool(ImpactOfChangeTool::class, ['fqcn' => 'App\\Events\\DoesNotExist'])
         ->assertOk()
-        ->assertSee('"entity":"unknown"');
+        ->assertSee('"kind":"unknown"');
 });
 
 // find-orphans ----------------------------------------------------------------

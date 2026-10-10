@@ -1,5 +1,5 @@
 <div>
-    <input data-palette-input type="text" wire:model.live.debounce.120ms="term" x-on:input="cursor = 0"
+    <input data-palette-input type="text" wire:model.live.debounce.120ms="search" x-on:input="cursor = 0"
            placeholder="Search events, listeners, jobs, routes…" autocomplete="off" spellcheck="false" aria-label="Search">
     <div class="loom-palette__list">
         @forelse ($groups as $group)
@@ -13,10 +13,10 @@
             @endforeach
         @empty
             <div class="loom-palette__empty">
-                @if ($term === '')
+                @if ($search === '')
                     Type to search classes, routes and closure listeners.
                 @else
-                    No class or method matches "{{ $term }}".
+                    No class or method matches "{{ $search }}".
                 @endif
             </div>
         @endforelse
