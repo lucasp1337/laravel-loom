@@ -26,7 +26,8 @@
         "orchestra/testbench": "^10.0|^11.0",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-arch": "^3.0",
-        "phpstan/extension-installer": "^1.4"
+        "phpstan/extension-installer": "^1.4",
+        "rector/rector": "^2.7"
     },
     "suggest": {
         "laravel/mcp": "Required for the loom:mcp server (^1.0).",
@@ -40,7 +41,8 @@
     "autoload-dev": {
         "psr-4": {
             "Lucasp\\Loom\\Tests\\": "tests/",
-            "Lucasp\\Loom\\Benchmarks\\": "benchmarks/src/"
+            "Lucasp\\Loom\\Benchmarks\\": "benchmarks/src/",
+            "Lucasp\\Loom\\Rector\\": "tools/rector/"
         }
     },
     "scripts": {
@@ -50,7 +52,9 @@
         "format": "vendor/bin/pint",
         "bench": "php benchmarks/bench.php",
         "bench:assert": "php benchmarks/bench.php --assert",
-        "bench:baseline": "php benchmarks/bench.php --baseline"
+        "bench:baseline": "php benchmarks/bench.php --baseline",
+        "rector": "vendor/bin/rector process --dry-run --ansi",
+        "rector:fix": "vendor/bin/rector process --ansi"
     },
     "config": {
         "sort-packages": true,

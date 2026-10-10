@@ -171,6 +171,7 @@ Slash commands wire chains together:
 - Pest 3 + Orchestra Testbench
 - Prefer `Illuminate\Support` helpers (`Arr`, `Str`, `Collection`) over native array/string/sort functions where behaviour is identical (native calls are forbidden in `src/` by `tests/Unit/Support/NativeFunctionsTest.php` unless allowlisted with a reason)
 - No `elseif` / `else if` in `src/`: use `match`, a typed enum or guard clauses, and comment each non-obvious branch with the AST shape it handles (`tests/Unit/Support/NoElseifTest.php`)
+- `composer rector` (dry run) / `composer rector:fix` apply the `match` and Illuminate-helper rewrites via `rector.php` and the project rules in `tools/rector/`; run Pint after `rector:fix` (see CONTRIBUTING.md)
 
 Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-loom-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest`.
 
