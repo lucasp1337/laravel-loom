@@ -212,7 +212,7 @@ Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `t
 
 ### A route is missing entirely
 
-Loom reads `*.php` files under `routes/` and looks for `Route::` facade calls. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found.
+Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Routes defined by attributes from a package such as `spatie/laravel-route-attributes` aren't found.
 
 ## When nothing shows up for a file
 
@@ -220,4 +220,4 @@ Two checks apply to every primitive.
 
 **The file doesn't parse.** Loom skips files with syntax errors. `php artisan loom:scan -v` lists them with the line and parser message. Fix the file and scan again.
 
-**The code isn't in a scan path.** Loom scans `scan.paths` (default `app/`), plus `routes/` for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to [`scan.paths`](../reference/scan-config.md); vendor packages are ignored. Check `scan.exclude` too.
+**The code isn't in a scan path.** Loom scans `scan.paths` (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to [`scan.paths`](../reference/scan-config.md); vendor packages are ignored. Check `scan.exclude` too.

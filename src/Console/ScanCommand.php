@@ -9,6 +9,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Lucasp\Loom\Dto\SkippedFile;
+use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\DefaultScanners;
@@ -16,6 +17,7 @@ use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
+use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScanScope;
 
 /** @internal */
@@ -50,7 +52,8 @@ class ScanCommand extends Command
 
         $walker = new AstWalker;
         $builder = new IndexBuilder;
-        DefaultScanners::registerOn($builder, $scope, $walker);
+        $discovery = new RouteFileDiscovery($scope, $walker);
+        DefaultScanners::registerOn($builder, $scope, $walker, $discovery);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();
@@ -81,6 +84,14 @@ class ScanCommand extends Command
 
         if ($skipped !== [] && $this->output->isVerbose()) {
             $this->listSkipped($skipped, $appRoot);
+        }
+
+        $unresolvedRoutes = $discovery->unresolved($appRoot);
+        if ($unresolvedRoutes !== []) {
+            $this->line('unresolved route paths: '.count($unresolvedRoutes).(! $this->output->isVerbose() ? ' (-v lists them)' : ''));
+        }
+        if ($unresolvedRoutes !== [] && $this->output->isVerbose()) {
+            $this->listUnresolvedRoutes($unresolvedRoutes, $appRoot);
         }
 
         return self::SUCCESS;
@@ -149,6 +160,20 @@ class ScanCommand extends Command
             $path = Str::startsWith($file->file, $prefix) ? Str::chopStart($file->file, $prefix) : $file->file;
             $location = Str::replace(DIRECTORY_SEPARATOR, '/', $path).($file->line !== null ? ':'.$file->line : '');
             $this->line("  {$location}  {$file->message}");
+        }
+    }
+
+    /**
+     * @param  list<UnresolvedRoutePath>  $unresolved
+     */
+    private function listUnresolvedRoutes(array $unresolved, string $appRoot): void
+    {
+        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        $this->line('Route paths not followed:');
+        foreach ($unresolved as $path) {
+            $file = Str::startsWith($path->file, $prefix) ? Str::chopStart($path->file, $prefix) : $path->file;
+            $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$path->line.'  '.$path->message());
         }
     }
 

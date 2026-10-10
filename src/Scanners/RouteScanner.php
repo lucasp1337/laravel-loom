@@ -13,6 +13,7 @@ use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
@@ -31,8 +32,9 @@ final class RouteScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null, ?RouteFileDiscovery $routeDiscovery = null)
     {
+        $this->routeDiscovery = $routeDiscovery;
         $this->walker = $walker ?? new AstWalker;
         $this->scope = $scope;
     }

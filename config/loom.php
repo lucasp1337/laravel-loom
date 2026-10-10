@@ -18,6 +18,11 @@ return [
         // for `routes[]` and for dispatches inside route closures.
         'route_paths' => ['routes'],
 
+        // Also read route files that providers (`loadRoutesFrom()`), route
+        // groups with a file path and bootstrap/app.php `withRouting()` load by
+        // a statically resolvable path. Unresolvable paths are listed by `-v`.
+        'discover_routes' => true,
+
         // Also scan every directory in composer.json's autoload.psr-4.
         'psr4_paths' => false,
 

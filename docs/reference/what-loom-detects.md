@@ -2,7 +2,7 @@
 
 A per-primitive summary of the code shapes Loom reads and the ones it doesn't. For what each field means, see the [schema](schema.md). For symptoms and fixes, see [Why was my code missed](../guides/why-was-my-code-missed.md).
 
-Loom parses source without running your app. It scans `app/`, plus `routes/` for routes and `bootstrap/app.php` for the scheduler. Anything decided at runtime is out of reach.
+Loom parses source without running your app. It scans `app/`, plus `routes/` and the route files that providers and `bootstrap/app.php` load for routes, and `bootstrap/app.php` for the scheduler. Anything decided at runtime is out of reach.
 
 | Primitive | Detected | Not detected |
 |---|---|---|
@@ -15,7 +15,7 @@ Loom parses source without running your app. It scans `app/`, plus `routes/` for
 | Mailables | Classes in `app/Mail/`. Classes passed to `Mail::send/sendNow/queue/onQueue/later/laterOn`, including `Mail::to(...)->send(...)` chains. Class-level queue properties. | `Mail::raw`, `->html()`/`->text()` sends. Variable targets (listed as unresolved). `queued` through vendor parents. `backoff()` and `retryUntil()`. |
 | Notifications | Classes in `app/Notifications/`. Classes passed to `$x->notify(...)`, `notifyNow`, `Notification::send/sendNow`, `Notification::route(...)->notify(...)`. Channels from a `via()` that returns a literal array. Literal channel filters on `send`. | `via()` inherited from a parent or trait. Conditional or computed `via()`, reported via `channels_dynamic`. `shouldSend()`. Message content. Receiver types. Facade-level modifiers before `send`. |
 | Schedule | `Kernel::schedule()`, `->withSchedule(...)` in `bootstrap/app.php`, `Schedule::` calls in `routes/console.php`, and `Schedule::call/command/job/exec` under `app/`. `->group(...)`. Standard frequency helpers, sub-minute helpers (as `frequency`), and common constraints and flags. | Macros and unknown helpers (cron is null). Variable arguments. `repeatEvery()`, `evenWhenPaused()`, ping and output hooks. Closure bodies. |
-| Routes | `Route::get/post/put/patch/delete/options/any/match` in `routes/*.php`. `Route::resource` and `apiResource`. Groups with prefix, name, controller and middleware. Tuple, invokable, `Class@method` and closure actions. Events and jobs dispatched in the controller method, or in the closure for a closure action. | Middleware group and alias expansion, `withoutMiddleware`. `names()`, `parameters()`, `scoped()`, `shallow()`, nested resource names. `Route::resources([...])`. Variable actions. Attribute routes. |
+| Routes | `Route::get/post/put/patch/delete/options/any/match` in `routes/*.php` and in route files loaded by `loadRoutesFrom()`, `Route::group()` with a file path, or `withRouting(web:, api:, commands:)` when the path is a literal, `__DIR__`, `base_path()`, `app_path()` or a concatenation of these. `Route::resource` and `apiResource`. Groups with prefix, name, controller and middleware. Tuple, invokable, `Class@method` and closure actions. Events and jobs dispatched in the controller method, or in the closure for a closure action. | Middleware group and alias expansion, `withoutMiddleware`. `names()`, `parameters()`, `scoped()`, `shallow()`, nested resource names. `Route::resources([...])`. Variable actions. Attribute routes. Route files loaded by a computed, relative or out-of-root path (listed by `loom:scan -v`), and the prefix or middleware of the group that loads a file. |
 
 ## Rules that apply everywhere
 
