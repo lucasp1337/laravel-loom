@@ -49,6 +49,7 @@
         "test-coverage": "vendor/bin/pest --coverage",
         "analyse": "vendor/bin/phpstan analyse",
         "format": "vendor/bin/pint",
+        "docs:generate": "php tools/generate-reference.php",
         "bench": "php benchmarks/bench.php",
         "bench:assert": "php benchmarks/bench.php --assert",
         "bench:baseline": "php benchmarks/bench.php --baseline"

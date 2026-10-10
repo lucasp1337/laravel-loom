@@ -24,13 +24,41 @@
     ],
     "additionalProperties": false,
     "properties": {
-        "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
-        "loom_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
-        "scanned_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
-        "laravel_version": { "type": "string" },
+        "schema_version": {
+            "type": "string",
+            "pattern": "^1\\.[0-9]+$",
+            "description": "Version of this document shape, `MAJOR.MINOR`. Consumers key on this."
+        },
+        "loom_version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+",
+            "description": "Semver of the Loom package that wrote the file. Informational."
+        },
+        "scanned_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$",
+            "description": "ISO 8601 UTC timestamp ending in `Z`. The only field that differs between two scans of identical source."
+        },
+        "laravel_version": {
+            "type": "string",
+            "description": "Laravel version detected in the scanned app."
+        },
         "stats": {
             "type": "object",
-            "required": ["events", "model_events", "listeners", "observers", "jobs", "unresolved_dispatches", "closure_listeners", "scheduled_tasks", "routes", "mailables", "notifications"],
+            "required": [
+                "events",
+                "model_events",
+                "listeners",
+                "observers",
+                "jobs",
+                "unresolved_dispatches",
+                "closure_listeners",
+                "scheduled_tasks",
+                "routes",
+                "mailables",
+                "notifications"
+            ],
             "additionalProperties": false,
             "properties": {
                 "events": { "type": "integer", "minimum": 0 },
@@ -44,73 +72,58 @@
                 "routes": { "type": "integer", "minimum": 0 },
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
-            }
+            },
+            "description": "Count of entries per section; always mirrors the array sizes."
         },
-        "events": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/event" }
-        },
-        "model_events": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/modelEvent" }
-        },
-        "listeners": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/listener" }
-        },
-        "observers": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/observer" }
-        },
-        "jobs": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/job" }
-        },
-        "unresolved_dispatches": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/unresolvedDispatch" }
-        },
-        "closure_listeners": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/closureListener" }
-        },
-        "scheduled_tasks": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/scheduleEntry" }
-        },
-        "routes": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/route" }
-        },
-        "mailables": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/mailable" }
-        },
-        "notifications": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/notification" }
-        }
+        "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+        "model_events": { "type": "array", "items": { "$ref": "#/$defs/modelEvent" } },
+        "listeners": { "type": "array", "items": { "$ref": "#/$defs/listener" } },
+        "observers": { "type": "array", "items": { "$ref": "#/$defs/observer" } },
+        "jobs": { "type": "array", "items": { "$ref": "#/$defs/job" } },
+        "unresolved_dispatches": { "type": "array", "items": { "$ref": "#/$defs/unresolvedDispatch" } },
+        "closure_listeners": { "type": "array", "items": { "$ref": "#/$defs/closureListener" } },
+        "scheduled_tasks": { "type": "array", "items": { "$ref": "#/$defs/scheduleEntry" } },
+        "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+        "mailables": { "type": "array", "items": { "$ref": "#/$defs/mailable" } },
+        "notifications": { "type": "array", "items": { "$ref": "#/$defs/notification" } }
     },
     "$defs": {
         "relativePath": {
             "type": "string",
             "minLength": 1,
             "pattern": "^(?![/\\\\]|[A-Za-z]:)",
-            "description": "Path relative to the app root, forward-slashed. Never absolute."
+            "description": "Path relative to the app root, forward-slashed. Never absolute: a leading `/`, `\\` or drive letter is rejected."
         },
         "event": {
             "type": "object",
             "required": ["id", "fqcn", "kind", "file", "line", "dispatched_from", "handled_by"],
             "additionalProperties": false,
             "properties": {
-                "id": { "type": "string" },
-                "fqcn": { "type": "string" },
-                "kind": { "enum": ["class"] },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "id": {
+                    "type": "string",
+                    "description": "Canonical identifier; the FQCN for class events."
+                },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
+                "kind": {
+                    "enum": ["class"],
+                    "description": "Only `class` today."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "dispatched_from": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatchSite" }
+                    "items": { "$ref": "#/$defs/dispatchSite" },
+                    "description": "Dispatch sites that fire this event. Filled by the cross-link pass."
                 },
                 "handled_by": {
                     "type": "array",
@@ -119,28 +132,59 @@
                         "required": ["listener", "method"],
                         "additionalProperties": false,
                         "properties": {
-                            "listener": { "type": "string" },
-                            "method": { "type": "string" }
+                            "listener": {
+                                "type": "string",
+                                "description": "Listener FQCN."
+                            },
+                            "method": {
+                                "type": "string",
+                                "description": "Handler method on the listener."
+                            }
                         }
-                    }
+                    },
+                    "description": "Listeners that handle this event, one entry per listener and method, sorted by `listener`, `method`. Filled by the cross-link pass from `listeners[].handles`; closure listeners are not included."
                 }
-            }
+            },
+            "description": "Event classes."
         },
         "modelEvent": {
             "type": "object",
             "required": ["id", "kind", "model", "event", "handled_by"],
             "additionalProperties": false,
             "properties": {
-                "id": { "type": "string" },
-                "kind": { "enum": ["model_event"] },
-                "model": { "type": "string" },
+                "id": {
+                    "type": "string",
+                    "description": "`eloquent.{event}: {model FQCN}`."
+                },
+                "kind": {
+                    "enum": ["model_event"],
+                    "description": "Always `model_event`."
+                },
+                "model": {
+                    "type": "string",
+                    "description": "FQCN of the model."
+                },
                 "event": {
                     "enum": [
-                        "retrieved", "creating", "created", "updating", "updated",
-                        "saving", "saved", "deleting", "deleted", "restoring", "restored",
-                        "replicating", "trashed", "forceDeleting", "forceDeleted",
-                        "booting", "booted"
-                    ]
+                        "retrieved",
+                        "creating",
+                        "created",
+                        "updating",
+                        "updated",
+                        "saving",
+                        "saved",
+                        "deleting",
+                        "deleted",
+                        "restoring",
+                        "restored",
+                        "replicating",
+                        "trashed",
+                        "forceDeleting",
+                        "forceDeleted",
+                        "booting",
+                        "booted"
+                    ],
+                    "description": "Eloquent hook name. `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings; observer methods match the other values."
                 },
                 "handled_by": {
                     "type": "array",
@@ -149,21 +193,39 @@
                         "required": ["handler", "method", "file", "line"],
                         "additionalProperties": false,
                         "properties": {
-                            "handler": { "type": "string" },
-                            "method": { "type": "string" },
-                            "file": { "$ref": "#/$defs/relativePath" },
-                            "line": { "type": "integer", "minimum": 1 }
+                            "handler": {
+                                "type": "string",
+                                "description": "FQCN of the observer or `Event::listen` target."
+                            },
+                            "method": {
+                                "type": "string",
+                                "description": "Observer hook or listener method."
+                            },
+                            "file": {
+                                "$ref": "#/$defs/relativePath",
+                                "description": "Observer class file, or the file holding the `Event::listen` call."
+                            },
+                            "line": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Observer class line, or the `Event::listen` call line."
+                            }
                         }
-                    }
+                    },
+                    "description": "Observers and `Event::listen` targets, sorted by handler and method, deduplicated. The shape differs from `events[].handled_by` because observers are not listeners."
                 }
-            }
+            },
+            "description": "Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent.*')` strings. Emitted directly by the observer scanner; the cross-link pass does not regenerate them."
         },
         "listener": {
             "type": "object",
             "required": ["fqcn", "file", "line", "handles", "registration", "queued", "dispatches"],
             "additionalProperties": false,
             "properties": {
-                "fqcn": { "type": "string" },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
                 "handles": {
@@ -173,20 +235,33 @@
                         "required": ["event", "method"],
                         "additionalProperties": false,
                         "properties": {
-                            "event": { "type": "string" },
-                            "method": { "type": "string" }
+                            "event": {
+                                "type": "string",
+                                "description": "FQCN of the event class."
+                            },
+                            "method": {
+                                "type": "string",
+                                "description": "Handler method. `handle` when the registration names none (auto-discovery, a bare `Listener::class`); a `[Listener::class, 'foo']` tuple keeps its method."
+                            }
                         }
-                    }
+                    },
+                    "description": "Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`."
                 },
                 "registration": {
-                    "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"]
+                    "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"],
+                    "description": "How the listener was found: `subscriber` (a subscriber's `subscribe()` method, return-array or imperative form), `listen_array` (`$listen` in an `EventServiceProvider`), `event_listen_call` (`Event::listen()` in a provider), `auto_discovered` (typed `handle()` parameter). When several paths find the same listener the order is `subscriber`, `listen_array`, `event_listen_call`, `auto_discovered`."
                 },
-                "queued": { "type": "boolean" },
+                "queued": {
+                    "type": "boolean",
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. A trait cannot confer it."
+                },
                 "dispatches": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatch" }
+                    "items": { "$ref": "#/$defs/dispatch" },
+                    "description": "Events and jobs dispatched from the listener's handler methods. Filled by the cross-link pass."
                 }
-            }
+            },
+            "description": "Listener classes. Handler methods include inherited ones."
         },
         "observer": {
             "type": "object",
@@ -196,23 +271,44 @@
                 "fqcn": { "type": "string" },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "observes": { "type": "string" },
-                "registration": { "enum": ["observe_call", "attribute"] },
+                "observes": {
+                    "type": "string",
+                    "description": "FQCN of the observed model."
+                },
+                "registration": {
+                    "enum": ["observe_call", "attribute"],
+                    "description": "`observe_call` for `Model::observe(Observer::class)`, including `static::observe()` in `booted()`; `attribute` for `#[ObservedBy]`."
+                },
                 "hooks": {
                     "type": "array",
                     "items": {
                         "enum": [
-                            "retrieved", "creating", "created", "updating", "updated",
-                            "saving", "saved", "deleting", "deleted", "restoring", "restored",
-                            "replicating", "trashed", "forceDeleting", "forceDeleted"
+                            "retrieved",
+                            "creating",
+                            "created",
+                            "updating",
+                            "updated",
+                            "saving",
+                            "saved",
+                            "deleting",
+                            "deleted",
+                            "restoring",
+                            "restored",
+                            "replicating",
+                            "trashed",
+                            "forceDeleting",
+                            "forceDeleted"
                         ]
-                    }
+                    },
+                    "description": "Observable model events the observer has a method for, sorted."
                 },
                 "dispatches": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatch" }
+                    "items": { "$ref": "#/$defs/dispatch" },
+                    "description": "Dispatches made from the observer's hook methods. Filled by the cross-link pass."
                 }
-            }
+            },
+            "description": "Observer classes. One observer registered against N models gives N entries; when a pair is found through both paths, `attribute` wins over `observe_call`."
         },
         "job": {
             "type": "object",
@@ -222,22 +318,26 @@
                 "fqcn": { "type": "string" },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "queued": { "type": "boolean" },
+                "queued": {
+                    "type": "boolean",
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. A trait cannot confer it."
+                },
                 "queue_config": {
-                    "oneOf": [
-                        { "type": "null" },
-                        { "$ref": "#/$defs/queueConfig" }
-                    ]
+                    "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/queueConfig" }],
+                    "description": "`null` when `queued` is `false`."
                 },
                 "dispatched_from": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatchSite" }
+                    "items": { "$ref": "#/$defs/dispatchSite" },
+                    "description": "Dispatch sites whose resolved kind is `job` and whose target is this class. Filled by the cross-link pass."
                 },
                 "dispatches": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatch" }
+                    "items": { "$ref": "#/$defs/dispatch" },
+                    "description": "Dispatches made from the job's `handle` method. Filled by the cross-link pass."
                 }
-            }
+            },
+            "description": "Job classes."
         },
         "queueConfig": {
             "type": "object",
@@ -250,7 +350,8 @@
                 "tries": { "type": ["string", "integer", "null"] },
                 "timeout": { "type": ["string", "integer", "null"] },
                 "backoff": { "type": ["string", "integer", "null"] }
-            }
+            },
+            "description": "Queue properties read from class property literals. A key is `null` when the class declares no such property (the framework default applies at runtime). The literal keeps its own type."
         },
         "dispatchSite": {
             "type": "object",
@@ -259,58 +360,119 @@
             "properties": {
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "method": { "type": "string" },
-                "mode": { "enum": ["sync", "after_response", "push"] },
-                "overrides": { "$ref": "#/$defs/dispatchOverrides" },
+                "method": {
+                    "type": "string",
+                    "description": "Origin of the dispatch: `Class::method` for code in a class method (a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB /uri` for a route closure, `Class::$dispatchesEvents[hook]` for a model's `$dispatchesEvents` entry."
+                },
+                "mode": {
+                    "enum": ["sync", "after_response", "push"],
+                    "description": "How the call form executes, omitted for plain forms whose outcome follows the target's `queued` flag. `sync`: `dispatchSync`, `dispatch_sync`, `dispatchNow`, `sendNow`, `notifyNow`. `after_response`: `dispatchAfterResponse`, `->afterResponse()` on a chain. `push`: `Queue::push/pushOn/later/laterOn/bulk`, `Mail::queue/onQueue/queueOn/later/laterOn`. The `ShouldQueue` flag and the `sync` driver are not evaluated."
+                },
+                "overrides": {
+                    "$ref": "#/$defs/dispatchOverrides",
+                    "description": "Dispatch-time modifiers found at the call site. Omitted when none."
+                },
                 "channels": {
                     "type": "array",
                     "minItems": 1,
-                    "items": { "type": "string" }
+                    "items": { "type": "string" },
+                    "description": "Notification-only. The literal channel filter of `Notification::send($users, $n, $channels)` or `sendNow(...)`, which overrides the notification's `via()`. Lowercased names or channel-class FQCNs. Omitted when absent, empty or non-literal."
                 }
-            }
+            },
+            "description": "One place where a class is dispatched, sent or notified from. Shared by every `dispatched_from`, `sent_from` and `notified_from` list."
         },
         "dispatchOverrides": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "locale": { "type": "string" },
-                "mailer": { "type": "string" },
-                "connection": { "type": "string" },
-                "queue": { "type": "string" },
-                "delay": { "type": "integer", "minimum": 0 },
-                "after_commit": { "type": "boolean" }
-            }
+                "locale": {
+                    "type": "string",
+                    "description": "From `->locale('es')`."
+                },
+                "mailer": {
+                    "type": "string",
+                    "description": "From `->mailer('ses')`."
+                },
+                "connection": {
+                    "type": "string",
+                    "description": "From `->onConnection('redis')`."
+                },
+                "queue": {
+                    "type": "string",
+                    "description": "From `->onQueue('high')`."
+                },
+                "delay": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "From `->delay(60)`, integer seconds only; `now()->addMinutes(5)` and variables leave it absent."
+                },
+                "after_commit": {
+                    "type": "boolean",
+                    "description": "From `->afterCommit()`; only ever `true`."
+                }
+            },
+            "description": "Fluent modifiers resolved statically at the call site. Only keys that were found are present, and the object is omitted when none were. A non-literal argument leaves its key absent."
         },
         "dispatch": {
             "type": "object",
             "required": ["target", "kind", "confidence", "file", "line"],
             "additionalProperties": false,
             "properties": {
-                "target": { "type": "string" },
-                "kind": { "enum": ["event", "job"] },
-                "confidence": { "enum": ["high", "medium", "low"] },
+                "target": {
+                    "type": "string",
+                    "description": "FQCN of the dispatched event or job."
+                },
+                "kind": {
+                    "enum": ["event", "job"],
+                    "description": "Whether the target is an event or a job."
+                },
+                "confidence": {
+                    "enum": ["high", "medium", "low"],
+                    "description": "Always `high` for statically resolved targets; `medium` and `low` are reserved."
+                },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 }
-            }
+            },
+            "description": "A resolved dispatch made from a class method or closure."
         },
         "closureListener": {
             "type": "object",
             "required": ["event", "file", "line", "end_line", "registration", "queued", "dispatches"],
             "additionalProperties": false,
             "properties": {
-                "event": { "type": "string" },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
-                "end_line": { "type": "integer", "minimum": 1 },
-                "registration": {
-                    "enum": ["listen_array", "event_listen_call", "subscriber"]
+                "event": {
+                    "type": "string",
+                    "description": "FQCN for `::class` registrations, the raw string for string-keyed ones."
                 },
-                "queued": { "type": "boolean" },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File holding the closure, not the registration call."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed first line of the closure."
+                },
+                "end_line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed last line of the closure; equals `line` for a one-line closure."
+                },
+                "registration": {
+                    "enum": ["listen_array", "event_listen_call", "subscriber"],
+                    "description": "`listen_array` (closure in `$listen`), `event_listen_call` (second argument of `Event::listen()`), `subscriber` (inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`)."
+                },
+                "queued": {
+                    "type": "boolean",
+                    "description": "Always `false`; closure queue detection is not done."
+                },
                 "dispatches": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatch" }
+                    "items": { "$ref": "#/$defs/dispatch" },
+                    "description": "Dispatches attributed to the closure by source span. Filled by the cross-link pass."
                 }
-            }
+            },
+            "description": "Closure and arrow-function listener registrations. They have no class name, so each site is one entry and none is joined into `events[].handled_by`. Not deduplicated. Dispatch sites inside `[line, end_line]` of the same file belong to it, including sites in nested closures."
         },
         "scheduleEntry": {
             "type": "object",
@@ -335,16 +497,35 @@
             ],
             "additionalProperties": false,
             "properties": {
-                "kind": { "enum": ["command", "job", "closure", "exec"] },
-                "name": { "type": ["string", "null"] },
-                "target": { "type": ["string", "null"] },
+                "kind": {
+                    "enum": ["command", "job", "closure", "exec"],
+                    "description": "Decided by the root call. `command`: `->command()`, target is the signature string verbatim or the FQCN for a `::class` argument. `job`: `->job()`, target is the FQCN. `closure`: `->call()`, target is `null` for an inline closure and `Class::method` for a tuple or `Class@method` callable. `exec`: `->exec()`, target is the shell command."
+                },
+                "name": {
+                    "type": ["string", "null"],
+                    "description": "The `->name()` label verbatim, or `null`."
+                },
+                "target": {
+                    "type": ["string", "null"],
+                    "description": "Depends on `kind`; `null` for an inline closure."
+                },
                 "arguments": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": { "type": "string" },
+                    "description": "`command` kind only, else `[]`. The literal parameters of `->command(Class::class, [...])`: plain items as the stringified value, keyed items as `key=value`, booleans as `true`/`false`; unresolvable items are skipped."
                 },
-                "queue": { "type": ["string", "null"] },
-                "connection": { "type": ["string", "null"] },
-                "cron": { "type": ["string", "null"] },
+                "queue": {
+                    "type": ["string", "null"],
+                    "description": "`job` kind only: the second argument of `->job($job, $queue)`."
+                },
+                "connection": {
+                    "type": ["string", "null"],
+                    "description": "`job` kind only: the third argument of `->job($job, $queue, $connection)`."
+                },
+                "cron": {
+                    "type": ["string", "null"],
+                    "description": "Canonical five-field expression for every recognised frequency helper (`daily` is `0 0 * * *`; `cron()` is passed through verbatim). `null` when no recognised helper appears, its argument is a variable, or the last helper is unrecognised. The last frequency helper in a chain wins, as at runtime."
+                },
                 "frequency": {
                     "oneOf": [
                         { "type": "null" },
@@ -353,55 +534,112 @@
                             "required": ["unit", "every"],
                             "additionalProperties": false,
                             "properties": {
-                                "unit": { "enum": ["seconds"] },
-                                "every": { "type": "integer", "minimum": 1 }
+                                "unit": {
+                                    "enum": ["seconds"],
+                                    "description": "Only `seconds` today."
+                                },
+                                "every": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Interval length in `unit`."
+                                }
                             }
                         }
-                    ]
+                    ],
+                    "description": "Sub-minute interval for `everySecond` and its six siblings, whose cron is `null`. `null` for every other entry. At most one of `cron` and `frequency` is set; the last helper wins."
                 },
-                "timezone": { "type": ["string", "null"] },
-                "without_overlapping": { "type": "boolean" },
-                "without_overlapping_expires_at": { "type": ["integer", "null"] },
-                "on_one_server": { "type": "boolean" },
-                "run_in_background": { "type": "boolean" },
-                "even_in_maintenance_mode": { "type": "boolean" },
+                "timezone": {
+                    "type": ["string", "null"],
+                    "description": "From `->timezone()`."
+                },
+                "without_overlapping": {
+                    "type": "boolean",
+                    "description": "`->withoutOverlapping()` appears in the chain."
+                },
+                "without_overlapping_expires_at": {
+                    "type": ["integer", "null"],
+                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; the framework default of 1440 is not invented."
+                },
+                "on_one_server": {
+                    "type": "boolean",
+                    "description": "`->onOneServer()` appears in the chain."
+                },
+                "run_in_background": {
+                    "type": "boolean",
+                    "description": "`->runInBackground()` appears in the chain."
+                },
+                "even_in_maintenance_mode": {
+                    "type": "boolean",
+                    "description": "`->evenInMaintenanceMode()` appears in the chain."
+                },
                 "constraints": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": { "type": "string" },
+                    "description": "Opaque labels for non-cron restrictions, sorted ascending: day of week (`weekdays`, `sundays`), time window (`between(8:00,17:00)`), conditions (`when(closure)`, `skip(closure)`), environments (`environments(production,staging)`). They sit beside `cron`, not inside it."
                 },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 }
-            }
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File of the root call (`->command`, `->job`, `->call`, `->exec`)."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Line of the root call, not the trailing modifier."
+                }
+            },
+            "description": "Task scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `target`; kernel and bootstrap forms win over the facade form. A `job` target can be joined to `jobs[].fqcn` client-side; there is no back-pointer."
         },
         "route": {
             "type": "object",
-            "required": [
-                "method",
-                "uri",
-                "name",
-                "controller_fqcn",
-                "controller_method",
-                "middleware",
-                "file",
-                "line",
-                "dispatches"
-            ],
+            "required": ["method", "uri", "name", "controller_fqcn", "controller_method", "middleware", "file", "line", "dispatches"],
             "additionalProperties": false,
             "properties": {
-                "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "ANY"] },
-                "uri": { "type": "string" },
-                "name": { "type": ["string", "null"] },
-                "controller_fqcn": { "type": ["string", "null"] },
-                "controller_method": { "type": ["string", "null"] },
-                "middleware": { "type": "array", "items": { "type": "string" } },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
-                "end_line": { "type": "integer", "minimum": 1 },
+                "method": {
+                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "ANY"],
+                    "description": "HTTP verb, uppercase."
+                },
+                "uri": {
+                    "type": "string",
+                    "description": "Route URI with enclosing group prefixes applied; always starts with `/`, the root is `/`."
+                },
+                "name": {
+                    "type": ["string", "null"],
+                    "description": "Group name prefix concatenated as-is with the route's own `->name()`; `null` when unnamed."
+                },
+                "controller_fqcn": {
+                    "type": ["string", "null"],
+                    "description": "`null` for closure and non-controller routes."
+                },
+                "controller_method": {
+                    "type": ["string", "null"],
+                    "description": "`null` for closure and non-controller routes."
+                },
+                "middleware": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Names as written, including those inherited from enclosing groups. Aliases and groups are not expanded. Source order."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File of the route definition."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line of the route definition."
+                },
+                "end_line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Last line of a closure action. Present only for closure actions."
+                },
                 "dispatches": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatch" }
+                    "items": { "$ref": "#/$defs/dispatch" },
+                    "description": "Dispatches from the controller method, or for a closure route those within `[line, end_line]` of the file (each such event lists the route in `dispatched_from`). Filled by the cross-link pass; empty when the controller cannot be resolved."
                 }
-            }
+            },
+            "description": "HTTP routes, one per route. A route registered against several verbs is reported as `ANY`."
         },
         "mailable": {
             "type": "object",
@@ -411,18 +649,21 @@
                 "fqcn": { "type": "string" },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "queued": { "type": "boolean" },
+                "queued": {
+                    "type": "boolean",
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface."
+                },
                 "queue_config": {
-                    "oneOf": [
-                        { "type": "null" },
-                        { "$ref": "#/$defs/queueConfig" }
-                    ]
+                    "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/queueConfig" }],
+                    "description": "`null` when `queued` is `false`."
                 },
                 "sent_from": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatchSite" }
+                    "items": { "$ref": "#/$defs/dispatchSite" },
+                    "description": "Dispatch sites whose resolved kind is `mailable` and whose target is this class, sorted by `file`, `line`. Filled by the cross-link pass."
                 }
-            }
+            },
+            "description": "Mailable classes."
         },
         "notification": {
             "type": "object",
@@ -432,23 +673,30 @@
                 "fqcn": { "type": "string" },
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "queued": { "type": "boolean" },
+                "queued": {
+                    "type": "boolean",
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface."
+                },
                 "queue_config": {
-                    "oneOf": [
-                        { "type": "null" },
-                        { "$ref": "#/$defs/queueConfig" }
-                    ]
+                    "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/queueConfig" }],
+                    "description": "`null` when `queued` is `false`."
                 },
                 "notified_from": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/dispatchSite" }
+                    "items": { "$ref": "#/$defs/dispatchSite" },
+                    "description": "Dispatch sites whose resolved kind is `notification` and whose target is this class, sorted by `file`, `line`. The only list whose entries may carry `channels`."
                 },
                 "channels": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": { "type": "string" },
+                    "description": "From a `via()` whose body is a single `return [...]` of literal strings (lowercased: `mail`, `database`, `slack`, ...) or `Class::class` constants (FQCN). Source order. `[]` when `via()` is dynamic or not declared; an inherited `via()` reads as not declared."
                 },
-                "channels_dynamic": { "type": "boolean" }
-            }
+                "channels_dynamic": {
+                    "type": "boolean",
+                    "description": "`true` only when `via()` exists but is not a single literal-array return (conditional, property access, variable or keyed items). Channels then exist at runtime but are invisible to static analysis."
+                }
+            },
+            "description": "Notification classes."
         },
         "unresolvedDispatch": {
             "type": "object",
@@ -457,16 +705,16 @@
             "properties": {
                 "file": { "$ref": "#/$defs/relativePath" },
                 "line": { "type": "integer", "minimum": 1 },
-                "expression": { "type": "string" },
+                "expression": {
+                    "type": "string",
+                    "description": "Pretty-printed source of the unresolvable expression."
+                },
                 "reason": {
-                    "enum": [
-                        "dynamic_class_name",
-                        "container_resolution",
-                        "string_concatenation",
-                        "conditional_dispatch"
-                    ]
+                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
+                    "description": "`dynamic_class_name`: `event($variable)` and similar. `container_resolution`: class fetched from the container (`app()`, `resolve()`, `->make()`). `string_concatenation`: name built by concatenation or interpolation. `conditional_dispatch`: a ternary or conditional whose branches cannot be evaluated."
                 }
-            }
+            },
+            "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."
         }
     }
 }
