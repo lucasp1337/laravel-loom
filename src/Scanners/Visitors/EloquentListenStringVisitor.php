@@ -6,7 +6,8 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\EloquentListenRecord;
 use Lucasp\Loom\Index\ModelHook;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -42,21 +43,22 @@ final class EloquentListenStringVisitor extends CollectingVisitor
         if ($node->name->toString() !== 'listen') {
             return null;
         }
-        if (count($node->args) < 2) {
+        $args = Args::of($node->args);
+        if ($args->count() < 2) {
             return null;
         }
 
-        $eventArg = $node->args[0];
-        $handlerArg = $node->args[1];
-        if (! $eventArg instanceof Node\Arg || ! $handlerArg instanceof Node\Arg) {
+        $eventValue = $args->valueAt(0);
+        $handlerValue = $args->valueAt(1);
+        if ($eventValue === null || $handlerValue === null) {
             return null;
         }
 
-        if (! $eventArg->value instanceof Node\Scalar\String_) {
+        if (! $eventValue instanceof Node\Scalar\String_) {
             return null;
         }
 
-        $raw = $eventArg->value->value;
+        $raw = $eventValue->value;
         if (! preg_match('/^eloquent\.([a-zA-Z]+):\s*(.+)$/', $raw, $matches)) {
             return null;
         }
@@ -70,7 +72,7 @@ final class EloquentListenStringVisitor extends CollectingVisitor
             return null;
         }
 
-        $resolved = $this->resolveHandler($handlerArg->value, $hook);
+        $resolved = $this->resolveHandler($handlerValue, $hook);
         if ($resolved === null) {
             return null;
         }
@@ -107,7 +109,7 @@ final class EloquentListenStringVisitor extends CollectingVisitor
             return ['handler' => $handler, 'method' => $method];
         }
 
-        $fqcn = AstHelpers::classConstFqcn($value);
+        $fqcn = ClassRef::fromClassConstant($value);
         if ($fqcn !== null) {
             return ['handler' => $fqcn, 'method' => $defaultMethod];
         }
@@ -116,7 +118,7 @@ final class EloquentListenStringVisitor extends CollectingVisitor
             if (count($value->items) < 2) {
                 return null;
             }
-            $handler = AstHelpers::classConstFqcn($value->items[0]->value);
+            $handler = ClassRef::fromClassConstant($value->items[0]->value);
             if ($handler === null) {
                 return null;
             }

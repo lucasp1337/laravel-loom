@@ -9,6 +9,9 @@ use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduleChainLink;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
+use Lucasp\Loom\Support\Ast\Arg;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -101,16 +104,18 @@ final class ScheduleChainVisitor extends CollectingVisitor
             return null;
         }
 
-        $links = $this->collectChain($node);
-        if ($links === null) {
+        $callChain = CallChain::from($node);
+        if ($callChain === null) {
             return null;
         }
 
-        $root = $links[0];
-        if (! in_array($root['method'], self::ROOT_METHODS, true)) {
+        $root = $callChain->root();
+        $rootMethod = (string) $root->name();
+        if (! in_array($rootMethod, self::ROOT_METHODS, true)) {
             return null;
         }
-        if (! $this->isScheduleReceiver($root['receiver'])) {
+        $receiver = $root->receiver();
+        if ($receiver === null || ! $this->isScheduleReceiver($receiver)) {
             return null;
         }
 
@@ -118,11 +123,11 @@ final class ScheduleChainVisitor extends CollectingVisitor
             return null;
         }
 
-        $kind = $this->kindFromRootMethod($root['method']);
+        $kind = $this->kindFromRootMethod($rootMethod);
 
         $chain = [];
-        foreach ($links as $link) {
-            $chain[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
+        foreach ($callChain->links() as $link) {
+            $chain[] = new ScheduleChainLink(method: (string) $link->name(), args: $link->args());
         }
 
         // Splice inherited group attributes between the inner root and the
@@ -138,63 +143,13 @@ final class ScheduleChainVisitor extends CollectingVisitor
 
         $this->entries[] = new ScheduleChainEntry(
             kind: $kind,
-            rootMethod: $root['method'],
-            rootArgs: $root['args'],
+            rootMethod: $rootMethod,
+            rootArgs: $root->args(),
             chain: $chain,
-            line: $root['line'],
+            line: $root->line(),
         );
 
         return null;
-    }
-
-    /**
-     * Returns links root-first, or null if malformed.
-     *
-     * @return list<array{method: string, args: array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
-     */
-    private function collectChain(Node\Expr $outer): ?array
-    {
-        $links = [];
-        $current = $outer;
-
-        while (true) {
-            if ($current instanceof Node\Expr\MethodCall) {
-                if (! $current->name instanceof Node\Identifier) {
-                    return null;
-                }
-                array_unshift($links, [
-                    'method' => $current->name->toString(),
-                    'args' => $current->args,
-                    'receiver' => $current->var,
-                    'line' => $current->getStartLine(),
-                ]);
-                $current = $current->var;
-
-                continue;
-            }
-
-            if ($current instanceof Node\Expr\StaticCall) {
-                if (! $current->name instanceof Node\Identifier) {
-                    return null;
-                }
-                if (! $current->class instanceof Node\Name) {
-                    return null;
-                }
-                array_unshift($links, [
-                    'method' => $current->name->toString(),
-                    'args' => $current->args,
-                    'receiver' => $current->class,
-                    'line' => $current->getStartLine(),
-                ]);
-                // StaticCall is always a chain root.
-                break;
-            }
-
-            // Non-call receiver (Variable, etc.) — done.
-            break;
-        }
-
-        return $links === [] ? null : $links;
     }
 
     private function isScheduleReceiver(Node $receiver): bool
@@ -236,7 +191,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
                 continue;
             }
             $parent = $this->parentStack[$i - 1];
-            if (! $parent instanceof Node\Arg) {
+            if (! Arg::isNode($parent)) {
                 continue;
             }
             $grand = $this->parentStack[$i - 2];
@@ -307,22 +262,21 @@ final class ScheduleChainVisitor extends CollectingVisitor
         if (! $node->name instanceof Node\Identifier || $node->name->toString() !== 'group') {
             return null;
         }
-        if (count($node->args) !== 1) {
+        $args = Args::of($node->args);
+        if ($args->count() !== 1) {
             return null;
         }
-        $arg = $node->args[0];
-        if (! $arg instanceof Node\Arg) {
-            return null;
-        }
-        if (! $arg->value instanceof Node\Expr\Closure && ! $arg->value instanceof Node\Expr\ArrowFunction) {
+        $callback = $args->valueAt(0);
+        if (! $callback instanceof Node\Expr\Closure && ! $callback instanceof Node\Expr\ArrowFunction) {
             return null;
         }
 
-        $links = $this->collectChain($node);
-        if ($links === null) {
+        $callChain = CallChain::from($node);
+        if ($callChain === null) {
             return null;
         }
-        if (! $this->isScheduleReceiver($links[0]['receiver'])) {
+        $receiver = $callChain->root()->receiver();
+        if ($receiver === null || ! $this->isScheduleReceiver($receiver)) {
             return null;
         }
         if (! $this->inTrustedScope()) {
@@ -331,8 +285,8 @@ final class ScheduleChainVisitor extends CollectingVisitor
 
         // Drop the terminal `group` link; the rest are the inherited modifiers.
         $frame = [];
-        foreach (array_slice($links, 0, -1) as $link) {
-            $frame[] = new ScheduleChainLink(method: $link['method'], args: $link['args']);
+        foreach ($callChain->withoutLast() as $link) {
+            $frame[] = new ScheduleChainLink(method: (string) $link->name(), args: $link->args());
         }
 
         return $frame;

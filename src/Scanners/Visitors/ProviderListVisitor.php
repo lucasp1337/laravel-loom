@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 use PhpParser\NodeFinder;
 
@@ -63,7 +64,7 @@ final class ProviderListVisitor extends CollectingVisitor
     {
         if ($returned instanceof Node\Expr\Array_) {
             foreach ($returned->items as $item) {
-                if (AstHelpers::scalarString($item->key) === 'providers') {
+                if (Literal::string($item->key) === 'providers') {
                     return $item->value;
                 }
             }
@@ -75,7 +76,7 @@ final class ProviderListVisitor extends CollectingVisitor
     private function collect(Node\Expr $expression): void
     {
         foreach ((new NodeFinder)->findInstanceOf($expression, Node\Expr\ClassConstFetch::class) as $fetch) {
-            $fqcn = AstHelpers::classConstFqcn($fetch);
+            $fqcn = ClassRef::fromClassConstant($fetch);
             if ($fqcn !== null) {
                 $this->providers[] = $fqcn;
             }

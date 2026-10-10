@@ -8,7 +8,8 @@ use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteChainLink;
 use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\RouterMethod;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\CallChain;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\RouteGroupAttribute;
 use Lucasp\Loom\Support\RouteGroupTracker;
 use PhpParser\Node;
@@ -70,25 +71,27 @@ final class RouteChainVisitor extends CollectingVisitor
             return null;
         }
 
-        $links = $this->collectChain($node);
+        $callChain = CallChain::from($node);
         // a dynamic method or class name, so the chain cannot be read
-        if ($links === null) {
+        if ($callChain === null) {
             return null;
         }
 
-        $root = $links[0];
+        $root = $callChain->root();
+        $rootMethod = (string) $root->name();
         // the chain does not start with a route-declaring method (get, match, resource, ...)
-        if (! in_array($root['method'], RouterMethod::routeRoots(), true)) {
+        if (! in_array($rootMethod, RouterMethod::routeRoots(), true)) {
             return null;
         }
         // a verb call on something other than the Route facade (e.g. a collection's ->get())
-        if (! RouteGroupTracker::isRouteReceiver($root['receiver'])) {
+        $receiver = $root->receiver();
+        if ($receiver === null || ! RouteGroupTracker::isRouteReceiver($receiver)) {
             return null;
         }
 
         $chain = [];
-        foreach ($links as $link) {
-            $chain[] = new RouteChainLink(method: $link['method'], args: $link['args']);
+        foreach ($callChain->links() as $link) {
+            $chain[] = new RouteChainLink(method: (string) $link->name(), args: $link->args());
         }
 
         $context = $this->groups->current();
@@ -103,14 +106,14 @@ final class RouteChainVisitor extends CollectingVisitor
         // Group middleware (outermost-first) precedes route-level middleware.
         $middleware = $this->dedupe([
             ...$context->middleware(),
-            ...AstHelpers::middlewareList($this->routeLevelMiddleware($chain)),
+            ...ValueLists::middleware($this->routeLevelMiddleware($chain)),
         ]);
 
         $this->entries[] = new RouteChainEntry(
-            rootMethod: $root['method'],
-            rootArgs: $root['args'],
+            rootMethod: $rootMethod,
+            rootArgs: $root->args(),
             chain: $chain,
-            line: $root['line'],
+            line: $root->line(),
             groupPrefix: $context->prefixSegments,
             groupNamePrefix: $context->namePrefix,
             groupController: $groupController,
@@ -135,10 +138,8 @@ final class RouteChainVisitor extends CollectingVisitor
             if ($chain[$i]->method !== RouteGroupAttribute::MIDDLEWARE->value) {
                 continue;
             }
-            foreach ($chain[$i]->args as $arg) {
-                if ($arg instanceof Node\Arg) {
-                    $nodes[] = $arg->value;
-                }
+            foreach ($chain[$i]->args->values() as $value) {
+                $nodes[] = $value;
             }
         }
 
@@ -164,57 +165,6 @@ final class RouteChainVisitor extends CollectingVisitor
         }
 
         return $out;
-    }
-
-    /**
-     * Returns links root-first, or null if malformed. The root link's receiver
-     * is the static class; intermediate links chain via `->var`.
-     *
-     * @return list<array{method: string, args: array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>, receiver: Node\Expr|Node\Name, line: int}>|null
-     */
-    private function collectChain(Node\Expr $outer): ?array
-    {
-        $links = [];
-        $current = $outer;
-
-        while (true) {
-            if ($current instanceof Node\Expr\MethodCall) {
-                if (! $current->name instanceof Node\Identifier) {
-                    return null;
-                }
-                array_unshift($links, [
-                    'method' => $current->name->toString(),
-                    'args' => $current->args,
-                    'receiver' => $current->var,
-                    'line' => $current->getStartLine(),
-                ]);
-                $current = $current->var;
-
-                continue;
-            }
-
-            if ($current instanceof Node\Expr\StaticCall) {
-                if (! $current->name instanceof Node\Identifier) {
-                    return null;
-                }
-                if (! $current->class instanceof Node\Name) {
-                    return null;
-                }
-                array_unshift($links, [
-                    'method' => $current->name->toString(),
-                    'args' => $current->args,
-                    'receiver' => $current->class,
-                    'line' => $current->getStartLine(),
-                ]);
-                // StaticCall is always a chain root.
-                break;
-            }
-
-            // Non-call receiver (Variable, etc.) — done.
-            break;
-        }
-
-        return $links === [] ? null : $links;
     }
 
     private function currentParent(): ?Node

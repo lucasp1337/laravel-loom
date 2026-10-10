@@ -6,7 +6,8 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\EventDispatchTarget;
 use Lucasp\Loom\Index\DispatchForm;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -54,7 +55,7 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $fqcn = $this->resolveFirstArgClass($node->args);
+        $fqcn = $this->resolveFirstArgClass(Args::of($node->args));
         if ($fqcn !== null) {
             $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::HELPER);
         }
@@ -83,7 +84,7 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
                 return;
             }
 
-            $fqcn = $this->resolveFirstArgClass($node->args);
+            $fqcn = $this->resolveFirstArgClass(Args::of($node->args));
             if ($fqcn !== null) {
                 $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::FACADE);
             }
@@ -95,17 +96,9 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
         $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: DispatchForm::DISPATCHABLE);
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function resolveFirstArgClass(array $args): ?string
+    private function resolveFirstArgClass(Args $args): ?string
     {
-        $first = $args[0] ?? null;
-        if (! $first instanceof Node\Arg) {
-            return null;
-        }
-
-        return AstHelpers::resolveStaticClass($first->value);
+        return ClassRef::fromInstanceOrConstant($args->valueAt(0));
     }
 
     /**

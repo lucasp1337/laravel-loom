@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\NotificationClassRecord;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 
@@ -87,7 +87,7 @@ final class NotificationClassVisitor extends CollectingVisitor
             return [[], true];
         }
 
-        $channels = AstHelpers::channelList($expr);
+        $channels = ValueLists::channels($expr);
         if ($channels === null) {
             return [[], true];
         }

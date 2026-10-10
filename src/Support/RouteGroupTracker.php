@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\RouteGroupAttributes;
 use Lucasp\Loom\Dto\RouteGroupContext;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 
 /**
@@ -126,17 +128,17 @@ final class RouteGroupTracker
     private function staticAttributes(Node\Expr\StaticCall $call): RouteGroupAttributes
     {
         $builder = new RouteGroupAttributesBuilder;
-        $config = $call->args[0] ?? null;
+        $config = Args::of($call->args)->valueAt(0);
 
         // a variable or call as config: nothing in it can be read
-        if (! $config instanceof Node\Arg || ! $config->value instanceof Node\Expr\Array_) {
+        if (! $config instanceof Node\Expr\Array_) {
             $builder->markAttributesUnresolved();
 
             return $builder->build();
         }
 
-        foreach ($config->value->items as $item) {
-            $attribute = RouteGroupAttribute::fromConfigKey(AstHelpers::scalarString($item->key));
+        foreach ($config->items as $item) {
+            $attribute = RouteGroupAttribute::fromConfigKey(Literal::string($item->key));
 
             // a key Loom does not apply (domain, where, ...) or a spread
             if ($attribute === null) {
@@ -185,28 +187,12 @@ final class RouteGroupTracker
 
             // a call that is not an attribute setter (->where(), ->domain(), ...)
             if ($attribute !== null) {
-                $setters[] = [$attribute, $this->argumentNodes($current->args)];
+                $setters[] = [$attribute, Args::of($current->args)->values()];
             }
 
             $current = $current instanceof Node\Expr\MethodCall ? $current->var : null;
         }
 
         return array_values(collect($setters)->reverse()->all());
-    }
-
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     * @return list<Node\Expr>
-     */
-    private function argumentNodes(array $args): array
-    {
-        $nodes = [];
-        foreach ($args as $arg) {
-            if ($arg instanceof Node\Arg) {
-                $nodes[] = $arg->value;
-            }
-        }
-
-        return $nodes;
     }
 }

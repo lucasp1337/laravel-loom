@@ -7,7 +7,8 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Callables;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use PhpParser\Node;
 
 /**
@@ -130,7 +131,7 @@ final class ListenArrayVisitor extends CollectingVisitor
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = AstHelpers::classConstFqcn($expr);
+        $direct = ClassRef::fromClassConstant($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -143,20 +144,20 @@ final class ListenArrayVisitor extends CollectingVisitor
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = AstHelpers::classConstFqcn($value);
+        $direct = ClassRef::fromClassConstant($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
             // [ListenerClass::class, 'method'] tuple.
-            $tuple = AstHelpers::tupleCallable($value);
+            $tuple = Callables::tuple($value);
             if ($tuple !== null) {
                 return ['listener' => $tuple['class'], 'method' => $tuple['method']];
             }
 
             // Single-element array acts like a bare ::class.
-            $first = AstHelpers::classConstFqcn($value->items[0]->value);
+            $first = ClassRef::fromClassConstant($value->items[0]->value);
             if ($first !== null) {
                 return ['listener' => $first, 'method' => 'handle'];
             }
@@ -165,7 +166,7 @@ final class ListenArrayVisitor extends CollectingVisitor
         }
 
         // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
-        return AstHelpers::callableListener($value);
+        return Callables::listener($value);
     }
 
     /** @return list<ListenerPair> */

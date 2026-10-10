@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\QueueConfigData;
+use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 
 /**
@@ -37,7 +38,7 @@ final class QueueConfig
                 if ($prop->default === null) {
                     continue;
                 }
-                $values[$name] = AstHelpers::scalarLiteral($prop->default);
+                $values[$name] = Literal::scalar($prop->default);
             }
         }
 

@@ -122,6 +122,7 @@ src/                        # production code
   Check/  Diff/  Query/  Mcp/  Ui/
   Scanners/                 # one file per primitive + Visitors/ subdir
   Support/AstWalker.php     # parser + NameResolver wrapper
+  Support/Ast/              # call-argument, call-chain and literal readers over php-parser nodes
 
 schema/loom-index.schema.json   # the contract for every emitted index
 

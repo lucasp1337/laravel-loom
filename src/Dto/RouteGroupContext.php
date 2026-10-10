@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\RouteGroupAttribute;
 use PhpParser\Node;
 
@@ -106,7 +107,7 @@ final class RouteGroupContext
     public function controller(): ?string
     {
         return $this->controllerNode !== null
-            ? AstHelpers::classConstFqcn($this->controllerNode)
+            ? ClassRef::fromClassConstant($this->controllerNode)
             : $this->inheritedController;
     }
 
@@ -118,7 +119,7 @@ final class RouteGroupContext
      */
     public function middleware(): array
     {
-        return [...$this->inheritedMiddleware, ...AstHelpers::middlewareList($this->middlewareNodes)];
+        return [...$this->inheritedMiddleware, ...ValueLists::middleware($this->middlewareNodes)];
     }
 
     /** Stable identity of the applied attributes, for deduplicating contexts. */

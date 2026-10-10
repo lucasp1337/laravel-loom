@@ -7,7 +7,10 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Callables;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\EventsDispatcher;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -75,7 +78,7 @@ final class EventListenCallVisitor extends CollectingVisitor
             return;
         }
 
-        $this->handleListenArgs($node->args);
+        $this->handleListenArgs(Args::of($node->args));
     }
 
     private function handleMethodCall(Node\Expr\MethodCall $node): void
@@ -89,11 +92,11 @@ final class EventListenCallVisitor extends CollectingVisitor
         if (count($node->args) < 1) {
             return;
         }
-        if (! AstHelpers::resolvesToEventsDispatcher($node->var, $this->dispatcherVars)) {
+        if (! EventsDispatcher::isReceiver($node->var, $this->dispatcherVars)) {
             return;
         }
 
-        $this->handleListenArgs($node->args);
+        $this->handleListenArgs(Args::of($node->args));
     }
 
     private function handleAssign(Node\Expr\Assign $node): void
@@ -102,7 +105,7 @@ final class EventListenCallVisitor extends CollectingVisitor
             return;
         }
 
-        if (AstHelpers::resolvesToEventsDispatcher($node->expr, $this->dispatcherVars)) {
+        if (EventsDispatcher::isReceiver($node->expr, $this->dispatcherVars)) {
             $this->dispatcherVars[$node->var->name] = true;
 
             return;
@@ -115,58 +118,56 @@ final class EventListenCallVisitor extends CollectingVisitor
     /**
      * Extract the (event, listener) pair from a `listen(event, listener)`
      * arg list, shared by the facade and container receiver forms.
-     *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
-    private function handleListenArgs(array $args): void
+    private function handleListenArgs(Args $args): void
     {
-        $first = $args[0];
-        if (! $first instanceof Node\Arg) {
+        $first = $args->valueAt(0);
+        if ($first === null) {
             return;
         }
 
         // Inferred form: the event comes from the closure's first parameter type.
-        if ($first->value instanceof Node\Expr\Closure || $first->value instanceof Node\Expr\ArrowFunction) {
-            foreach ($this->eventsFromClosureType($first->value) as $event) {
-                $this->recordClosurePair($event, $first->value);
+        if ($first instanceof Node\Expr\Closure || $first instanceof Node\Expr\ArrowFunction) {
+            foreach ($this->eventsFromClosureType($first) as $event) {
+                $this->recordClosurePair($event, $first);
             }
 
             return;
         }
 
-        $second = $args[1] ?? null;
-        if (! $second instanceof Node\Arg) {
+        $second = $args->valueAt(1);
+        if ($second === null) {
             return;
         }
 
         // Array first arg: one listener bound to several class-string events.
-        if ($first->value instanceof Node\Expr\Array_) {
-            foreach (AstHelpers::classConstList($first->value) as $event) {
-                $this->recordListen($event, $second->value);
+        if ($first instanceof Node\Expr\Array_) {
+            foreach (ClassRef::listFrom($first) as $event) {
+                $this->recordListen($event, $second);
             }
 
             return;
         }
 
-        $event = $this->eventFromValue($first->value);
+        $event = $this->eventFromValue($first);
         if ($event === null) {
             return;
         }
 
-        if ($second->value instanceof Node\Expr\Closure
-            || $second->value instanceof Node\Expr\ArrowFunction
+        if ($second instanceof Node\Expr\Closure
+            || $second instanceof Node\Expr\ArrowFunction
         ) {
-            $this->recordClosurePair($event, $second->value);
+            $this->recordClosurePair($event, $second);
 
             return;
         }
 
         // String events (e.g. 'eloquent.*') belong to ObserverScanner.
-        if (! $first->value instanceof Node\Expr\ClassConstFetch) {
+        if (! $first instanceof Node\Expr\ClassConstFetch) {
             return;
         }
 
-        $resolved = $this->listenerFromValue($second->value);
+        $resolved = $this->listenerFromValue($second);
         if ($resolved === null) {
             return;
         }
@@ -235,7 +236,7 @@ final class EventListenCallVisitor extends CollectingVisitor
 
     private function eventFromValue(Node\Expr $expr): ?string
     {
-        $direct = AstHelpers::classConstFqcn($expr);
+        $direct = ClassRef::fromClassConstant($expr);
         if ($direct !== null) {
             return $direct;
         }
@@ -252,13 +253,13 @@ final class EventListenCallVisitor extends CollectingVisitor
      */
     private function listenerFromValue(Node\Expr $value): ?array
     {
-        $direct = AstHelpers::classConstFqcn($value);
+        $direct = ClassRef::fromClassConstant($value);
         if ($direct !== null) {
             return ['listener' => $direct, 'method' => 'handle'];
         }
 
         if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
+            $listener = ClassRef::fromClassConstant($value->items[0]->value);
             if ($listener === null) {
                 return null;
             }
@@ -271,7 +272,7 @@ final class EventListenCallVisitor extends CollectingVisitor
         }
 
         if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = AstHelpers::classConstFqcn($value->items[0]->value);
+            $listener = ClassRef::fromClassConstant($value->items[0]->value);
             if ($listener !== null) {
                 return ['listener' => $listener, 'method' => 'handle'];
             }
@@ -280,7 +281,7 @@ final class EventListenCallVisitor extends CollectingVisitor
         }
 
         // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
-        return AstHelpers::callableListener($value);
+        return Callables::listener($value);
     }
 
     /** @return list<ListenerPair> */

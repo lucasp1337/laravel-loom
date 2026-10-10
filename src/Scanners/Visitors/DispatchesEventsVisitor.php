@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 
 /**
@@ -50,8 +51,8 @@ final class DispatchesEventsVisitor extends CollectingVisitor
     private function collect(string $modelFqcn, Node\Expr\Array_ $array): void
     {
         foreach ($array->items as $item) {
-            $hook = AstHelpers::scalarString($item->key);
-            $event = AstHelpers::classConstFqcn($item->value);
+            $hook = Literal::string($item->key);
+            $event = ClassRef::fromClassConstant($item->value);
 
             if ($hook === null || $event === null) {
                 continue;

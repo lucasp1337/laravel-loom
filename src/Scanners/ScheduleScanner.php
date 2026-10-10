@@ -14,7 +14,9 @@ use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
@@ -212,10 +214,10 @@ final class ScheduleScanner implements Scanner
                 ? $this->resolveCommandArguments($raw->rootArgs)
                 : [];
             $queue = $raw->kind === ScheduleKind::JOB
-                ? AstHelpers::scalarString($raw->rootArgs[1] ?? null)
+                ? Literal::string($raw->rootArgs->valueAt(1))
                 : null;
             $connection = $raw->kind === ScheduleKind::JOB
-                ? AstHelpers::scalarString($raw->rootArgs[2] ?? null)
+                ? Literal::string($raw->rootArgs->valueAt(2))
                 : null;
 
             $cron = null;
@@ -261,7 +263,7 @@ final class ScheduleScanner implements Scanner
                 }
 
                 if ($method === 'name') {
-                    $label = AstHelpers::scalarString($args[0] ?? null);
+                    $label = Literal::string($args->valueAt(0));
                     if ($label !== null) {
                         $name = $label;
                     }
@@ -270,7 +272,7 @@ final class ScheduleScanner implements Scanner
                 }
 
                 if ($method === 'timezone') {
-                    $tz = AstHelpers::scalarString($args[0] ?? null);
+                    $tz = Literal::string($args->valueAt(0));
                     if ($tz !== null) {
                         $timezone = $tz;
                     }
@@ -280,7 +282,7 @@ final class ScheduleScanner implements Scanner
 
                 if ($method === 'withoutOverlapping') {
                     $withoutOverlapping = true;
-                    $withoutOverlappingExpiresAt = AstHelpers::scalarInt($args[0] ?? null);
+                    $withoutOverlappingExpiresAt = Literal::int($args->valueAt(0));
 
                     continue;
                 }
@@ -335,34 +337,29 @@ final class ScheduleScanner implements Scanner
         return $out;
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
-     */
-    private function resolveTarget(ScheduleKind $kind, array $rootArgs): ?string
+    private function resolveTarget(ScheduleKind $kind, Args $rootArgs): ?string
     {
-        $first = $rootArgs[0] ?? null;
-        if (! $first instanceof Node\Arg) {
+        $value = $rootArgs->valueAt(0);
+        if ($value === null) {
             return null;
         }
 
-        $value = $first->value;
-
         if ($kind === ScheduleKind::COMMAND) {
-            $string = AstHelpers::scalarString($first);
+            $string = Literal::string($value);
             if ($string !== null) {
                 return $string;
             }
-            $fqcn = AstHelpers::resolveStaticClass($value);
+            $fqcn = ClassRef::fromInstanceOrConstant($value);
 
             return $fqcn;
         }
 
         if ($kind === ScheduleKind::JOB) {
-            return AstHelpers::resolveStaticClass($value);
+            return ClassRef::fromInstanceOrConstant($value);
         }
 
         if ($kind === ScheduleKind::EXEC) {
-            return AstHelpers::scalarString($first);
+            return Literal::string($value);
         }
 
         // closure: [Class::class, 'method'] tuple or 'App\\Cls@method' string.
@@ -370,7 +367,7 @@ final class ScheduleScanner implements Scanner
             return $this->tupleCallableTarget($value);
         }
 
-        $string = AstHelpers::scalarString($first);
+        $string = Literal::string($value);
         if ($string !== null) {
             return $this->normaliseAtCallable($string);
         }
@@ -383,18 +380,17 @@ final class ScheduleScanner implements Scanner
      * list. Plain items emit their literal value; keyed items emit "key=value".
      * Unresolvable items are skipped rather than fabricated.
      *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $rootArgs
      * @return list<string>
      */
-    private function resolveCommandArguments(array $rootArgs): array
+    private function resolveCommandArguments(Args $rootArgs): array
     {
-        $arg = $rootArgs[1] ?? null;
-        if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
+        $array = $rootArgs->valueAt(1);
+        if (! $array instanceof Node\Expr\Array_) {
             return [];
         }
 
         $out = [];
-        foreach ($arg->value->items as $item) {
+        foreach ($array->items as $item) {
             $value = $this->scalarToString($item->value);
             if ($value === null) {
                 continue;
@@ -418,12 +414,12 @@ final class ScheduleScanner implements Scanner
     /** Stringify a scalar literal node (string, int, or bool) or null if unresolvable. */
     private function scalarToString(Node\Expr $node): ?string
     {
-        $string = AstHelpers::scalarString($node);
+        $string = Literal::string($node);
         if ($string !== null) {
             return $string;
         }
 
-        $int = AstHelpers::scalarInt($node);
+        $int = Literal::int($node);
         if ($int !== null) {
             return (string) $int;
         }
@@ -446,7 +442,7 @@ final class ScheduleScanner implements Scanner
         $classItem = $array->items[0];
         $methodItem = $array->items[1];
 
-        $fqcn = AstHelpers::resolveStaticClass($classItem->value);
+        $fqcn = ClassRef::fromInstanceOrConstant($classItem->value);
         $method = null;
         if ($methodItem->value instanceof Node\Scalar\String_) {
             $method = $methodItem->value->value;
@@ -473,17 +469,14 @@ final class ScheduleScanner implements Scanner
     /**
      * @return list<int>|null
      */
-    private function scalarIntArray(?Node $node): ?array
+    private function scalarIntArray(?Node\Expr $node): ?array
     {
-        if ($node instanceof Node\Arg) {
-            $node = $node->value;
-        }
         if (! $node instanceof Node\Expr\Array_) {
             return null;
         }
         $values = [];
         foreach ($node->items as $item) {
-            $int = AstHelpers::scalarInt($item->value);
+            $int = Literal::int($item->value);
             if ($int === null) {
                 return null;
             }
@@ -499,14 +492,12 @@ final class ScheduleScanner implements Scanner
     /**
      * Mirrors `Illuminate\Console\Scheduling\ManagesFrequencies`. Returns
      * null when an arg can't be resolved statically.
-     *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
-    private function cronFromHelper(string $method, array $args): ?string
+    private function cronFromHelper(string $method, Args $args): ?string
     {
         switch ($method) {
             case 'cron':
-                return AstHelpers::scalarString($args[0] ?? null);
+                return Literal::string($args->valueAt(0));
 
             case 'everyMinute':
                 return '* * * * *';
@@ -528,26 +519,26 @@ final class ScheduleScanner implements Scanner
             case 'hourly':
                 return '0 * * * *';
             case 'hourlyAt':
-                $minute = AstHelpers::scalarInt($args[0] ?? null);
+                $minute = Literal::int($args->valueAt(0));
 
                 return $minute === null ? null : $minute.' * * * *';
 
             case 'everyOddHour':
-                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' 1-23/2 * * *';
+                return (Literal::int($args->valueAt(0)) ?? 0).' 1-23/2 * * *';
 
             case 'everyTwoHours':
-                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */2 * * *';
+                return (Literal::int($args->valueAt(0)) ?? 0).' */2 * * *';
             case 'everyThreeHours':
-                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */3 * * *';
+                return (Literal::int($args->valueAt(0)) ?? 0).' */3 * * *';
             case 'everyFourHours':
-                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */4 * * *';
+                return (Literal::int($args->valueAt(0)) ?? 0).' */4 * * *';
             case 'everySixHours':
-                return (AstHelpers::scalarInt($args[0] ?? null) ?? 0).' */6 * * *';
+                return (Literal::int($args->valueAt(0)) ?? 0).' */6 * * *';
 
             case 'daily':
                 return '0 0 * * *';
             case 'dailyAt':
-                $time = AstHelpers::scalarString($args[0] ?? null);
+                $time = Literal::string($args->valueAt(0));
                 if ($time === null) {
                     return null;
                 }
@@ -559,15 +550,15 @@ final class ScheduleScanner implements Scanner
                 return $minute.' '.$hour.' * * *';
 
             case 'twiceDaily':
-                $first = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
-                $second = AstHelpers::scalarInt($args[1] ?? null) ?? 13;
+                $first = Literal::int($args->valueAt(0)) ?? 1;
+                $second = Literal::int($args->valueAt(1)) ?? 13;
 
                 return '0 '.$first.','.$second.' * * *';
 
             case 'twiceDailyAt':
-                $first = AstHelpers::scalarInt($args[0] ?? null);
-                $second = AstHelpers::scalarInt($args[1] ?? null);
-                $minute = AstHelpers::scalarInt($args[2] ?? null) ?? 0;
+                $first = Literal::int($args->valueAt(0));
+                $second = Literal::int($args->valueAt(1));
+                $minute = Literal::int($args->valueAt(2)) ?? 0;
                 if ($first === null || $second === null) {
                     return null;
                 }
@@ -577,17 +568,17 @@ final class ScheduleScanner implements Scanner
             case 'weekly':
                 return '0 0 * * 0';
             case 'weeklyOn':
-                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
+                $time = Literal::string($args->valueAt(1)) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
                 }
-                $day = AstHelpers::scalarInt($args[0] ?? null);
+                $day = Literal::int($args->valueAt(0));
                 if ($day !== null) {
                     return $minute.' '.$hour.' * * '.$day;
                 }
                 // weeklyOn([1, 3, 5], '08:00') form.
-                $days = $this->scalarIntArray($args[0] ?? null);
+                $days = $this->scalarIntArray($args->valueAt(0));
                 if ($days === null) {
                     return null;
                 }
@@ -597,8 +588,8 @@ final class ScheduleScanner implements Scanner
             case 'monthly':
                 return '0 0 1 * *';
             case 'monthlyOn':
-                $day = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
-                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
+                $day = Literal::int($args->valueAt(0)) ?? 1;
+                $time = Literal::string($args->valueAt(1)) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -607,9 +598,9 @@ final class ScheduleScanner implements Scanner
                 return $minute.' '.$hour.' '.$day.' * *';
 
             case 'twiceMonthly':
-                $first = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
-                $second = AstHelpers::scalarInt($args[1] ?? null) ?? 16;
-                $time = AstHelpers::scalarString($args[2] ?? null) ?? '0:00';
+                $first = Literal::int($args->valueAt(0)) ?? 1;
+                $second = Literal::int($args->valueAt(1)) ?? 16;
+                $time = Literal::string($args->valueAt(2)) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -625,7 +616,7 @@ final class ScheduleScanner implements Scanner
                 return $days === [] ? null : '0 0 '.Arr::join($days, ',').' * *';
 
             case 'lastDayOfMonth':
-                $time = AstHelpers::scalarString($args[0] ?? null) ?? '0:00';
+                $time = Literal::string($args->valueAt(0)) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -637,8 +628,8 @@ final class ScheduleScanner implements Scanner
             case 'quarterly':
                 return '0 0 1 1-12/3 *';
             case 'quarterlyOn':
-                $day = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
-                $time = AstHelpers::scalarString($args[1] ?? null) ?? '0:00';
+                $day = Literal::int($args->valueAt(0)) ?? 1;
+                $time = Literal::string($args->valueAt(1)) ?? '0:00';
                 [$hour, $minute] = $this->splitTime($time);
                 if ($hour === null) {
                     return null;
@@ -648,10 +639,10 @@ final class ScheduleScanner implements Scanner
             case 'yearly':
                 return '0 0 1 1 *';
             case 'yearlyOn':
-                $month = AstHelpers::scalarInt($args[0] ?? null) ?? 1;
-                $day = $args[1] ?? null;
-                $time = AstHelpers::scalarString($args[2] ?? null) ?? '0:00';
-                $dayInt = AstHelpers::scalarInt($day);
+                $month = Literal::int($args->valueAt(0)) ?? 1;
+                $day = $args->valueAt(1);
+                $time = Literal::string($args->valueAt(2)) ?? '0:00';
+                $dayInt = Literal::int($day);
                 if ($dayInt === null) {
                     $dayInt = 1;
                 }
@@ -678,18 +669,15 @@ final class ScheduleScanner implements Scanner
         return [(int) $m[1], (int) $m[2]];
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function constraintFor(string $method, array $args): ?string
+    private function constraintFor(string $method, Args $args): ?string
     {
         if (collect(self::DAY_CONSTRAINTS)->containsStrict($method)) {
             return $method;
         }
 
         if ($method === 'between' || $method === 'unlessBetween') {
-            $a = AstHelpers::scalarString($args[0] ?? null);
-            $b = AstHelpers::scalarString($args[1] ?? null);
+            $a = Literal::string($args->valueAt(0));
+            $b = Literal::string($args->valueAt(1));
             if ($a !== null && $b !== null) {
                 return $method.'('.$a.','.$b.')';
             }
@@ -703,18 +691,15 @@ final class ScheduleScanner implements Scanner
 
         if ($method === 'environments') {
             $values = [];
-            foreach ($args as $arg) {
-                if (! $arg instanceof Node\Arg) {
-                    continue;
-                }
-                $s = AstHelpers::scalarString($arg);
+            foreach ($args->values() as $value) {
+                $s = Literal::string($value);
                 if ($s !== null) {
                     $values[] = $s;
 
                     continue;
                 }
-                if ($arg->value instanceof Node\Expr\Array_) {
-                    foreach ($arg->value->items as $item) {
+                if ($value instanceof Node\Expr\Array_) {
+                    foreach ($value->items as $item) {
                         if ($item->value instanceof Node\Scalar\String_) {
                             $values[] = $item->value->value;
                         }
@@ -739,25 +724,21 @@ final class ScheduleScanner implements Scanner
      * Collects statically-resolvable day integers from a variadic int list
      * (days(0, 3)) or a single array argument (days([0, 3])).
      *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<int>
      */
-    private function collectDayArgs(array $args): array
+    private function collectDayArgs(Args $args): array
     {
         $values = [];
-        foreach ($args as $arg) {
-            if (! $arg instanceof Node\Arg) {
-                continue;
-            }
-            $int = AstHelpers::scalarInt($arg);
+        foreach ($args->values() as $value) {
+            $int = Literal::int($value);
             if ($int !== null) {
                 $values[] = $int;
 
                 continue;
             }
-            if ($arg->value instanceof Node\Expr\Array_) {
-                foreach ($arg->value->items as $item) {
-                    $itemInt = AstHelpers::scalarInt($item->value);
+            if ($value instanceof Node\Expr\Array_) {
+                foreach ($value->items as $item) {
+                    $itemInt = Literal::int($item->value);
                     if ($itemInt !== null) {
                         $values[] = $itemInt;
                     }

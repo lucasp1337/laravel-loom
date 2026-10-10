@@ -6,6 +6,9 @@ namespace Lucasp\Loom\Support;
 
 use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\RouteGroupAttributes;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\Literal;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use PhpParser\Node;
 
 /**
@@ -74,9 +77,9 @@ final class RouteGroupAttributesBuilder
     }
 
     /** The literal string of a prefix or name; a non-literal is recorded as unresolved, never guessed. */
-    private function literal(RouteGroupAttribute $attribute, ?Node $node): ?string
+    private function literal(RouteGroupAttribute $attribute, ?Node\Expr $node): ?string
     {
-        $literal = AstHelpers::scalarString($node);
+        $literal = Literal::string($node);
         $this->unresolved[$attribute->value] = $literal === null;
 
         return $literal;
@@ -86,7 +89,7 @@ final class RouteGroupAttributesBuilder
     {
         $this->controllerNode = $node;
         // Anything but `Class::class` has no FQCN to apply.
-        $this->unresolved[RouteGroupAttribute::CONTROLLER->value] = AstHelpers::classConstFqcn($node) === null;
+        $this->unresolved[RouteGroupAttribute::CONTROLLER->value] = ClassRef::fromClassConstant($node) === null;
     }
 
     /** @param  list<Node\Expr>  $nodes */
@@ -99,11 +102,11 @@ final class RouteGroupAttributesBuilder
         $this->middlewareNodes = $accumulate ? [...$this->middlewareNodes, ...$nodes] : $nodes;
     }
 
-    /** True when {@see AstHelpers::middlewareList()} can read every name in the node. */
+    /** True when {@see ValueLists::middleware()} can read every name in the node. */
     private function isStaticMiddleware(Node\Expr $node): bool
     {
         // 'auth' or Foo::class
-        if ($node instanceof Node\Scalar\String_ || AstHelpers::classConstFqcn($node) !== null) {
+        if ($node instanceof Node\Scalar\String_ || ClassRef::fromClassConstant($node) !== null) {
             return true;
         }
         // a variable, call or concatenation
@@ -117,7 +120,7 @@ final class RouteGroupAttributesBuilder
                 return false;
             }
             // an item that is neither a string nor Foo::class
-            if (! $item->value instanceof Node\Scalar\String_ && AstHelpers::classConstFqcn($item->value) === null) {
+            if (! $item->value instanceof Node\Scalar\String_ && ClassRef::fromClassConstant($item->value) === null) {
                 return false;
             }
         }

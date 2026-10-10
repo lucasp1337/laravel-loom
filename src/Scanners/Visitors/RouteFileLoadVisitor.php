@@ -6,7 +6,9 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\RouteFileReference;
 use Lucasp\Loom\Dto\RouteGroupContext;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Arg;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\RouteFileLoader;
 use Lucasp\Loom\Support\RouteGroupAttribute;
 use Lucasp\Loom\Support\RouteGroupTracker;
@@ -82,7 +84,7 @@ final class RouteFileLoadVisitor extends CollectingVisitor
         }
 
         // Router::group(array $attributes, Closure|array|string $routes)
-        $this->collect(RouteFileLoader::ROUTE_GROUP, $call->args[1] ?? null);
+        $this->collect(RouteFileLoader::ROUTE_GROUP, Args::of($call->args)->at(1));
     }
 
     private function methodCall(Node\Expr\MethodCall $call): void
@@ -100,7 +102,7 @@ final class RouteFileLoadVisitor extends CollectingVisitor
             // Application::configure()->withRouting(web:, api:, commands:)
             'withRouting' => $this->withRouting($call),
             // ->withCommands([...]): command files or directories
-            'withCommands' => $this->collect(RouteFileLoader::WITH_COMMANDS, $call->args[0] ?? null, allowsDirectory: true),
+            'withCommands' => $this->collect(RouteFileLoader::WITH_COMMANDS, Args::of($call->args)->at(0), allowsDirectory: true),
             default => null,
         };
     }
@@ -109,7 +111,7 @@ final class RouteFileLoadVisitor extends CollectingVisitor
     {
         // only the provider's own loadRoutesFrom() counts, not `$other->loadRoutesFrom()`
         if ($call->var instanceof Node\Expr\Variable && $call->var->name === 'this') {
-            $this->collect(RouteFileLoader::LOAD_ROUTES_FROM, $call->args[0] ?? null);
+            $this->collect(RouteFileLoader::LOAD_ROUTES_FROM, Args::of($call->args)->at(0));
         }
     }
 
@@ -117,19 +119,19 @@ final class RouteFileLoadVisitor extends CollectingVisitor
     private function fluentGroup(Node\Expr\MethodCall $call): void
     {
         if (RouteGroupTracker::isOpener($call)) {
-            $this->collect(RouteFileLoader::ROUTE_GROUP, $call->args[0] ?? null);
+            $this->collect(RouteFileLoader::ROUTE_GROUP, Args::of($call->args)->at(0));
         }
     }
 
     private function withRouting(Node\Expr\MethodCall $call): void
     {
-        foreach ($call->args as $position => $arg) {
+        foreach (Args::of($call->args)->all() as $arg) {
             // withRouting(...$args) cannot be mapped to parameters
-            if (! $arg instanceof Node\Arg || $arg->unpack) {
+            if ($arg->unpacked) {
                 continue;
             }
 
-            match (RoutingParameter::forArgument($arg->name?->toString(), $position)) {
+            match (RoutingParameter::forArgument($arg->name, $arg->position)) {
                 // web: Route::middleware('web')->group($path)
                 RoutingParameter::WEB => $this->collect(RouteFileLoader::WITH_ROUTING, $arg, context: $this->routingContext(RoutingMiddlewareGroup::WEB, $call)),
                 // api: Route::middleware('api')->prefix($apiPrefix)->group($path)
@@ -167,27 +169,27 @@ final class RouteFileLoadVisitor extends CollectingVisitor
     /** The literal `apiPrefix` of the call, its default when omitted, or null when not a literal. */
     private function apiPrefix(Node\Expr\MethodCall $call): ?string
     {
-        foreach ($call->args as $position => $arg) {
-            if (! $arg instanceof Node\Arg || $arg->unpack) {
+        foreach (Args::of($call->args)->all() as $arg) {
+            if ($arg->unpacked) {
                 continue;
             }
 
             // some other withRouting() argument
-            if (RoutingParameter::forArgument($arg->name?->toString(), $position) !== RoutingParameter::API_PREFIX) {
+            if (RoutingParameter::forArgument($arg->name, $arg->position) !== RoutingParameter::API_PREFIX) {
                 continue;
             }
 
-            return AstHelpers::scalarString($arg->value);
+            return Literal::string($arg->value);
         }
 
         // apiPrefix omitted: Laravel's default
         return RoutingMiddlewareGroup::DEFAULT_API_PREFIX;
     }
 
-    private function collect(RouteFileLoader $loader, Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, bool $allowsDirectory = false, ?RouteGroupContext $context = null): void
+    private function collect(RouteFileLoader $loader, ?Arg $arg, bool $allowsDirectory = false, ?RouteGroupContext $context = null): void
     {
         // argument omitted
-        if (! $arg instanceof Node\Arg) {
+        if ($arg === null) {
             return;
         }
 
