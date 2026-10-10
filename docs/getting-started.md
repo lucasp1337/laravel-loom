@@ -75,6 +75,6 @@ If a dispatch you expected is missing, it may be in `unresolved_dispatches`: cal
 
 ## Where to next
 
-- Keep the file out of git with a `.gitignore` entry, or commit it if you want to [diff it between branches and gate on it](guides/gate-your-ci.md).
-- [What Loom sees](concepts/what-loom-sees.md) lists every primitive and what's recorded for each.
+- Keep the file out of git, or commit it to [diff it between branches and gate on it](guides/gate-your-ci.md).
+- [What Loom sees](concepts/what-loom-sees.md) lists every primitive and what is recorded for it.
 - [Ask an agent](guides/ask-an-agent.md) points an AI assistant at the index instead of your source tree.

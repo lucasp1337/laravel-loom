@@ -4,8 +4,7 @@ The typed, in-memory counterpart to the [JSON schema](schema.md): the PHP object
 
 ## Loading an index
 
-`IndexLoader` hydrates an `Index` from a written `index.json` — the inverse of
-`Index::toArray()`. Three entry points, depending on what you already hold:
+`IndexLoader` hydrates an `Index` from a written `index.json`, the inverse of `Index::toArray()`:
 
 ```php
 use Lucasp\Loom\Index\IndexLoader;
@@ -19,42 +18,11 @@ $index = $loader->fromArray($decodedArray);            // wrap an already-decode
 
 ### Errors
 
-Every failure throws `Lucasp\Loom\Index\IndexLoadException` (a `RuntimeException`):
-
-| Cause | Entry point | Message shape |
-|---|---|---|
-| File unreadable / missing | `fromFile` | `Unable to read Loom index file: …` |
-| Invalid JSON | `fromJson` | `Loom index is not valid JSON: …` |
-| JSON not an object | `fromJson` | `Loom index must decode to a JSON object.` |
-| Missing envelope field | `fromArray` | `Loom index is missing the required `…` envelope field.` |
-
-The required envelope fields are `loom_version`, `scanned_at` and `laravel_version`. The loader does not run schema validation, and an absent section hydrates as an empty list.
-
-The envelope scalars are plain public properties on the result:
-
-```php
-$index->loomVersion;     // "0.4.0"
-$index->scannedAt;       // "2026-05-16T19:25:54Z"
-$index->laravelVersion;  // "13.7"
-```
+Every failure throws `Lucasp\Loom\Index\IndexLoadException` (a `RuntimeException`): an unreadable file (`fromFile`), invalid JSON or JSON that isn't an object (`fromJson`), or a missing `loom_version`, `scanned_at` or `laravel_version` envelope field (`fromArray`). The loader does not run schema validation, and an absent section hydrates as an empty list. The envelope scalars are public properties: `$index->loomVersion`, `->scannedAt`, `->laravelVersion`.
 
 ## Typed access
 
-Each section has a getter on `Index` returning a `list<X>` of value objects, hydrated lazily and memoized.
-
-| Getter | Returns |
-|---|---|
-| `events()` | `list<Model\Event>` |
-| `modelEvents()` | `list<Model\ModelEvent>` |
-| `listeners()` | `list<Model\Listener>` |
-| `closureListeners()` | `list<Model\ClosureListener>` |
-| `observers()` | `list<Model\Observer>` |
-| `jobs()` | `list<Model\Job>` |
-| `mailables()` | `list<Model\Mailable>` |
-| `notifications()` | `list<Model\Notification>` |
-| `scheduledTasks()` | `list<Model\ScheduledTask>` |
-| `routes()` | `list<Model\Route>` |
-| `unresolvedDispatches()` | `list<Model\UnresolvedDispatch>` |
+Each section has a getter on `Index` returning a `list<X>` of value objects, hydrated lazily and memoized: `events()`, `modelEvents()`, `listeners()`, `closureListeners()`, `observers()`, `jobs()`, `mailables()`, `notifications()`, `scheduledTasks()`, `routes()` and `unresolvedDispatches()`, returning the matching `Model\` class.
 
 ### Lookups
 
@@ -73,21 +41,6 @@ $index->handlersOf('App\\Events\\OrderShipped');    // list<Model\Handler>
 ```
 
 Each `find*` returns `null` for an unknown FQCN. `dispatchersOf()` and `handlersOf()` return an empty list for an unknown or unconnected event and never throw.
-
-### Walking the graph
-
-```php
-$index = (new IndexLoader())->fromFile('storage/loom/index.json');
-
-foreach ($index->events() as $event) {
-    foreach ($index->dispatchersOf($event->fqcn) as $site) {
-        echo "{$event->fqcn} dispatched from {$site->method} at {$site->file}:{$site->line}\n";
-    }
-    foreach ($index->handlersOf($event->fqcn) as $handler) {
-        echo "{$event->fqcn} handled by {$handler->listener}::{$handler->method}\n";
-    }
-}
-```
 
 ## Value objects
 
@@ -108,19 +61,7 @@ The section models are `Event`, `ModelEvent`, `Listener`, `ClosureListener`, `Ob
 
 ### Enums
 
-The schema's string-valued fields hydrate into typed enums (all in
-`Lucasp\Loom\Index\`):
-
-| Field | Enum | Cases |
-|---|---|---|
-| `listeners[*].registration`, `closure_listeners[*].registration` | `ListenerRegistration` | `LISTEN_ARRAY`, `AUTO_DISCOVERED`, `EVENT_LISTEN_CALL`, `SUBSCRIBER` |
-| `observers[*].registration` | `ObserverRegistration` | `OBSERVE_CALL`, `ATTRIBUTE` |
-| `scheduled_tasks[*].kind` | `ScheduleKind` | `COMMAND`, `JOB`, `CLOSURE`, `EXEC` |
-| `scheduled_tasks[*].frequency.unit` | `FrequencyUnit` | `SECONDS` |
-| `dispatches[*].kind` | `DispatchKinds` | `EVENT`, `JOB`, `MAILABLE`, `NOTIFICATION`, `AMBIGUOUS` |
-| `dispatches[*].confidence` | `Confidence` | `HIGH`, `MEDIUM`, `LOW` |
-
-Read the backing string with `->value`. On a cross-linked `Dispatch`, `kind` is `EVENT` or `JOB`; `AMBIGUOUS` never survives into a written index. `confidence` is always `HIGH` today.
+String-valued schema fields hydrate into typed enums in `Lucasp\Loom\Index\`: `ListenerRegistration`, `ObserverRegistration`, `ScheduleKind`, `FrequencyUnit`, `DispatchKinds` and `Confidence`, with one case per schema value. Read the backing string with `->value`. On a cross-linked `Dispatch`, `kind` is `EVENT` or `JOB`; `AMBIGUOUS` never survives into a written index.
 
 ## What is public
 
