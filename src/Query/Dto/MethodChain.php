@@ -12,7 +12,7 @@ final readonly class MethodChain
      * @param  list<EventChain>  $chains
      */
     public function __construct(
-        public string $method,
+        public string $methodFqcn,
         public array $dispatches,
         public array $chains,
     ) {}
@@ -21,7 +21,7 @@ final readonly class MethodChain
     public function toArray(): array
     {
         return [
-            'method' => $this->method,
+            'method_fqcn' => $this->methodFqcn,
             'dispatches' => array_map(static fn (DispatchRef $d): array => $d->toArray(), $this->dispatches),
             'chains' => array_map(static fn (EventChain $c): array => $c->toArray(), $this->chains),
         ];

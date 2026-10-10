@@ -12,6 +12,7 @@ use Lucasp\Loom\Ui\Livewire\EntityDetail;
 use Lucasp\Loom\Ui\Livewire\EventDetail;
 use Lucasp\Loom\Ui\Livewire\Palette;
 use Lucasp\Loom\Ui\Livewire\SectionIndex;
+use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\Support\AppChangeClock;
 use Lucasp\Loom\Ui\UiContext;
 
@@ -37,6 +38,29 @@ it('renders the sidebar with counts and hides model_events', function () {
         ->assertSee('Listeners')
         ->assertSee('href="'.route('loom.section', 'closure_listeners').'"', false)
         ->assertDontSee('Model events');
+});
+
+it('hides model_events from the sidebar and dashboard cards although stats counts it', function () {
+    $dashboard = app(UiContext::class)->query->dashboard();
+
+    // The fixture carries one model event, so the hiding is not an artefact of an empty section.
+    expect($dashboard->stats['model_events'])->toBe(1);
+
+    Livewire::test(Dashboard::class)->assertDontSee('Model events');
+    $this->get('/loom')->assertDontSee('loom/model_events', false);
+    $this->get('/loom/model_events')->assertOk();
+});
+
+it('pins the chain graph payload keys', function () {
+    $graph = Livewire::test(ChainPage::class, ['fqcn' => ORDER])->viewData('graph');
+
+    expect(array_keys($graph))->toBe(['root', 'depth', 'truncated', 'nodes', 'edges'])
+        ->and(array_keys($graph['nodes'][0]))->toBe(['key', 'id', 'type', 'depth', 'label', 'method', 'has_children', 'collapsed', 'selected'])
+        ->and(array_keys($graph['edges'][0]))->toBe(['source', 'target']);
+});
+
+it('labels the scheduled section after its slug', function () {
+    expect(SectionPresentation::for(Sections::SCHEDULED_TASKS)->label)->toBe('Scheduled tasks');
 });
 
 it('filters rows by search', function () {
@@ -65,7 +89,7 @@ it('sorts rows and toggles direction', function () {
     $test->call('sortBy', 'name')->assertSet('dir', 'desc');
     expect($order($test)[0])->toBe('ReceiptSent');
 
-    $test->call('sortBy', 'handlers')->assertSet('sort', 'handlers')->assertSet('dir', 'asc');
+    $test->call('sortBy', 'handler_count')->assertSet('sort', 'handler_count')->assertSet('dir', 'asc');
 });
 
 it('ignores an unknown sort field', function () {
@@ -196,10 +220,10 @@ it('captions an event without handlers', function () {
 it('searches across entities from the palette', function () {
     Livewire::test(Palette::class)
         ->assertSee('Type to search')
-        ->set('term', 'receipt')
+        ->set('search', 'receipt')
         ->assertSee('SendReceipt')
         ->assertSee('Receipt')
-        ->set('term', 'zzzz')
+        ->set('search', 'zzzz')
         ->assertSee('No class or method matches "zzzz".', false);
 });
 

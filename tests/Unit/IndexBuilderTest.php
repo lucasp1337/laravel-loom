@@ -23,6 +23,7 @@ it('produces an empty index that validates against the schema', function () {
         ->and($payload['routes'])->toBe([])
         ->and($payload['stats'])->toBe([
             'events' => 0,
+            'model_events' => 0,
             'listeners' => 0,
             'observers' => 0,
             'jobs' => 0,

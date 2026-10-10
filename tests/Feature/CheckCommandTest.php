@@ -15,7 +15,7 @@ use Lucasp\Loom\Check\RuleKey;
 function checkCommandStats(array $overrides = []): array
 {
     return array_replace([
-        'events' => 0, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
+        'events' => 0, 'model_events' => 0, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
         'unresolved_dispatches' => 0, 'closure_listeners' => 0,
         'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
         'routes' => 0,
@@ -36,7 +36,7 @@ function checkCommandIndex(array $overrides = []): array
         'laravel_version' => '12.x',
         'scanned_at' => '2026-01-01T00:00:00Z',
         'stats' => [
-            'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
+            'events' => 1, 'model_events' => 0, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
@@ -131,7 +131,7 @@ it('exits 1 when an event is orphaned', function () {
         ]],
         'listeners' => [],
         'stats' => [
-            'events' => 1, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
+            'events' => 1, 'model_events' => 0, 'listeners' => 0, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
@@ -149,7 +149,7 @@ it('exits 1 in strict mode with an unresolved dispatch', function () {
             ['file' => 'app/A.php', 'line' => 10, 'expression' => 'event($a)', 'reason' => 'dynamic_class_name'],
         ],
         'stats' => [
-            'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
+            'events' => 1, 'model_events' => 0, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
@@ -167,7 +167,7 @@ it('does not fail on the same unresolved dispatch without strict mode', function
             ['file' => 'app/A.php', 'line' => 10, 'expression' => 'event($a)', 'reason' => 'dynamic_class_name'],
         ],
         'stats' => [
-            'events' => 1, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
+            'events' => 1, 'model_events' => 0, 'listeners' => 1, 'observers' => 0, 'jobs' => 0,
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,

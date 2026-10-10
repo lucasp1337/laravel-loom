@@ -8,12 +8,14 @@ use Lucasp\Loom\Index\Model\Route;
 
 /**
  * A route and the event chain its controller action triggers. `chain` is null
- * for closure or unresolved-controller routes.
+ * for closure or unresolved-controller routes, and `note` then says why.
  *
  * @internal
  */
 final readonly class RouteChain
 {
+    public const NO_CHAIN_NOTE = 'Route has no resolved controller (closure or unresolved action); no event chain available.';
+
     public function __construct(
         public Route $route,
         public ?MethodChain $chain,
@@ -39,6 +41,7 @@ final readonly class RouteChain
     {
         return [
             'route' => $this->routeArray(),
+            'note' => $this->chain === null ? self::NO_CHAIN_NOTE : null,
             'chain' => $this->chain?->toArray(),
         ];
     }

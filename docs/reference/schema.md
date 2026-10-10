@@ -463,6 +463,7 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
 ```
 {
   "events": integer,
+  "model_events": integer,
   "listeners": integer,
   "observers": integer,
   "jobs": integer,
@@ -475,7 +476,7 @@ See [notifications scanner](../guides/why-was-my-code-missed.md) for discovery p
 }
 ```
 
-Counts mirror the sizes of the corresponding arrays. `model_events` is intentionally not in `stats` — it's derived data, not a primary discovery output.
+Counts mirror the sizes of the corresponding arrays, and there is one for every section. All eleven keys are always present.
 
 ## Paths
 

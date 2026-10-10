@@ -213,7 +213,7 @@ final class Index
     public function toArray(): array
     {
         $stats = [];
-        foreach (SectionRegistry::statsNames() as $name) {
+        foreach (SectionRegistry::names() as $name) {
             $stats[$name] = count($this->sections[$name] ?? []);
         }
 

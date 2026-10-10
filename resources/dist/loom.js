@@ -223,12 +223,12 @@
                             group: 'nodes',
                             data: {
                                 id: n.key, gid: n.id, type: n.type, label: n.label + (n.collapsed ? ' ⊕' : ''),
-                                collapsed: n.collapsed ? 1 : 0, hasChildren: n.hasChildren ? 1 : 0, sel: n.selected ? 1 : 0
+                                collapsed: n.collapsed ? 1 : 0, hasChildren: n.has_children ? 1 : 0, sel: n.selected ? 1 : 0
                             },
                             position: { x: n.depth * 210, y: (n.row - (col.length - 1) / 2) * 74 }
                         };
                     }).concat(g.edges.map(function (e) {
-                        return { group: 'edges', data: { id: e.s + '=>' + e.t, source: e.s, target: e.t } };
+                        return { group: 'edges', data: { id: e.source + '=>' + e.target, source: e.source, target: e.target } };
                     }));
 
                     var style = [

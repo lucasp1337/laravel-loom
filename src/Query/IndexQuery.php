@@ -229,7 +229,7 @@ final class IndexQuery
                 $section,
                 count($index->sections[$section->value] ?? []),
                 array_key_exists($section->value, $index->sections),
-                $descriptor['inStats'],
+                $descriptor['listed'],
                 EntityKind::forSection($section),
             );
         }
@@ -295,17 +295,17 @@ final class IndexQuery
     {
         $index = $this->index();
 
-        $counts = [];
-        foreach (SectionRegistry::statsNames() as $name) {
-            $counts[$name] = count($index->sections[$name] ?? []);
+        $stats = [];
+        foreach (SectionRegistry::names() as $name) {
+            $stats[$name] = count($index->sections[$name] ?? []);
         }
 
         $orphans = $this->orphans();
 
         return new Dashboard(
             $this->meta(),
-            $counts,
-            count($orphans->events),
+            $stats,
+            count($orphans->orphanEvents),
             count($orphans->idleListeners),
             count($index->unresolvedDispatches()),
             $this->fanOut($index, $topFanOut),
@@ -335,13 +335,13 @@ final class IndexQuery
     private function eventImpact(Index $index, string $fqcn, ChangeKind $kind): ImpactReport
     {
         $handlers = array_map(
-            static fn ($handler): HandlerRef => new HandlerRef($handler->listener, $handler->method, HandlerKind::LISTENER),
+            static fn ($handler): HandlerRef => new HandlerRef($handler->listener.'::'.$handler->method, HandlerKind::LISTENER),
             $index->handlersOf($fqcn),
         );
 
         foreach ($index->closureListeners() as $closure) {
             if ($closure->event === $fqcn) {
-                $handlers[] = new HandlerRef($closure->file.':'.$closure->line, 'closure', HandlerKind::CLOSURE);
+                $handlers[] = new HandlerRef($closure->file.':'.$closure->line, HandlerKind::CLOSURE);
             }
         }
 
@@ -409,10 +409,16 @@ final class IndexQuery
             SortField::DISPATCH_COUNT => SectionReader::dispatchCount($item),
         };
 
+        // Ties fall back to name then file, always ascending, so the order never depends on input order.
         usort($items, static function (object $a, object $b) use ($key, $dir): int {
             $cmp = $key($a) <=> $key($b);
+            if ($dir === SortDirection::DESC) {
+                $cmp = -$cmp;
+            }
 
-            return $dir === SortDirection::DESC ? -$cmp : $cmp;
+            return $cmp !== 0
+                ? $cmp
+                : [strtolower(SectionReader::name($a)), SectionReader::file($a)] <=> [strtolower(SectionReader::name($b)), SectionReader::file($b)];
         });
 
         return $items;

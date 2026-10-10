@@ -45,8 +45,8 @@ final class Links
 
     public function hit(SearchHit $hit): string
     {
-        if ($hit->kind !== null) {
-            return $this->entity($hit->kind, $hit->detailRef);
+        if ($hit->detailKind !== null) {
+            return $this->entity($hit->detailKind, $hit->detailRef);
         }
 
         // Closure refs are `file:line`; the index filter matches the file alone.

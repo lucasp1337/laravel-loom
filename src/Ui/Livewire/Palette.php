@@ -21,13 +21,13 @@ class Palette extends Component
 {
     private const LIMIT = 20;
 
-    public string $term = '';
+    public string $search = '';
 
     public function render(UiContext $ui): View
     {
         $byGroup = [];
         $count = 0;
-        foreach ($ui->query->search($this->term, self::LIMIT) as $hit) {
+        foreach ($ui->query->search($this->search, self::LIMIT) as $hit) {
             $byGroup[SectionPresentation::for($hit->section)->label][] = new PaletteItem(
                 NodeType::forSection($hit->section) ?? NodeType::EVENT,
                 $hit->label,
@@ -42,6 +42,6 @@ class Palette extends Component
             $groups[] = new PaletteGroup((string) $label, $items);
         }
 
-        return app('view')->make('loom::livewire.palette', ['term' => trim($this->term), 'groups' => $groups, 'count' => $count]);
+        return app('view')->make('loom::livewire.palette', ['search' => trim($this->search), 'groups' => $groups, 'count' => $count]);
     }
 }

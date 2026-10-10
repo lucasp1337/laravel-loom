@@ -45,7 +45,7 @@ final class DispatchesFromTool extends Tool
         );
 
         return Response::text((string) json_encode([
-            'method' => $methodFqcn,
+            'method_fqcn' => $methodFqcn,
             'count' => count($dispatches),
             'dispatches' => $dispatches,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

@@ -8,9 +8,10 @@ namespace Lucasp\Loom\Index;
  * Single ordered source of truth for top-level index sections.
  *
  * The descriptor order below IS the output body order emitted by
- * {@see Index::toArray()}. The `stats` block is derived from the same list,
- * filtered to descriptors flagged `inStats`. Adding a section requires only a
- * new {@see Sections} case plus one entry here.
+ * {@see Index::toArray()}, and the `stats` block carries one count per section.
+ * Descriptors flagged `listed` are the ones the UI shows in its sidebar and
+ * dashboard. Adding a section requires only a new {@see Sections} case plus
+ * one entry here.
  *
  * @internal
  */
@@ -19,20 +20,20 @@ final class SectionRegistry
     /**
      * Ordered section descriptors, in output body order.
      *
-     * @var list<array{section: Sections, inStats: bool}>
+     * @var list<array{section: Sections, listed: bool}>
      */
     public const DESCRIPTORS = [
-        ['section' => Sections::EVENTS, 'inStats' => true],
-        ['section' => Sections::MODEL_EVENTS, 'inStats' => false],
-        ['section' => Sections::LISTENERS, 'inStats' => true],
-        ['section' => Sections::OBSERVERS, 'inStats' => true],
-        ['section' => Sections::JOBS, 'inStats' => true],
-        ['section' => Sections::UNRESOLVED_DISPATCHES, 'inStats' => true],
-        ['section' => Sections::CLOSURE_LISTENERS, 'inStats' => true],
-        ['section' => Sections::SCHEDULED_TASKS, 'inStats' => true],
-        ['section' => Sections::ROUTES, 'inStats' => true],
-        ['section' => Sections::MAILABLES, 'inStats' => true],
-        ['section' => Sections::NOTIFICATIONS, 'inStats' => true],
+        ['section' => Sections::EVENTS, 'listed' => true],
+        ['section' => Sections::MODEL_EVENTS, 'listed' => false],
+        ['section' => Sections::LISTENERS, 'listed' => true],
+        ['section' => Sections::OBSERVERS, 'listed' => true],
+        ['section' => Sections::JOBS, 'listed' => true],
+        ['section' => Sections::UNRESOLVED_DISPATCHES, 'listed' => true],
+        ['section' => Sections::CLOSURE_LISTENERS, 'listed' => true],
+        ['section' => Sections::SCHEDULED_TASKS, 'listed' => true],
+        ['section' => Sections::ROUTES, 'listed' => true],
+        ['section' => Sections::MAILABLES, 'listed' => true],
+        ['section' => Sections::NOTIFICATIONS, 'listed' => true],
     ];
 
     /**
@@ -49,15 +50,15 @@ final class SectionRegistry
     }
 
     /**
-     * Section names that contribute to the `stats` block, in order.
+     * Section names shown in the UI sidebar and dashboard, in order.
      *
      * @return list<string>
      */
-    public static function statsNames(): array
+    public static function listedNames(): array
     {
         $names = [];
         foreach (self::DESCRIPTORS as $descriptor) {
-            if ($descriptor['inStats']) {
+            if ($descriptor['listed']) {
                 $names[] = $descriptor['section']->value;
             }
         }

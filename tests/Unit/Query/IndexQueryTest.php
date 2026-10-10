@@ -6,9 +6,19 @@ use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\IndexLoader;
 use Lucasp\Loom\Index\Model\Event;
 use Lucasp\Loom\Index\Model\Route;
+use Lucasp\Loom\Index\SectionRegistry;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\ChangeKind;
+use Lucasp\Loom\Query\Dto\Dashboard;
+use Lucasp\Loom\Query\Dto\FanOut;
+use Lucasp\Loom\Query\Dto\ImpactReport;
+use Lucasp\Loom\Query\Dto\IndexMeta;
+use Lucasp\Loom\Query\Dto\Orphans;
+use Lucasp\Loom\Query\Dto\Page;
+use Lucasp\Loom\Query\Dto\RouteChain;
+use Lucasp\Loom\Query\Dto\SearchHit;
+use Lucasp\Loom\Query\Dto\SectionInfo;
 use Lucasp\Loom\Query\Dto\SectionQuery;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\HandlerKind;
@@ -179,12 +189,12 @@ it('chains only the event dispatches of a method', function () use ($e) {
 it('lists listener and closure handlers with their queued flags', function () use ($e) {
     $set = queryFor()->handlersFor($e('ReceiptSent'));
 
-    expect($set->total())->toBe(2)
+    expect($set->count())->toBe(2)
         ->and($set->listeners[0]->listener)->toBe('App\\Listeners\\ArchiveReceipt')
         ->and($set->listeners[0]->queued)->toBeFalse()
         ->and($set->closureListeners[0]->queued)->toBeTrue()
         ->and(queryFor()->handlersFor($e('Ping'))->listeners[0]->queued)->toBeTrue()
-        ->and(queryFor()->handlersFor('App\\Nope')->total())->toBe(0);
+        ->and(queryFor()->handlersFor('App\\Nope')->count())->toBe(0);
 });
 
 it('lists dispatch sites for an event', function () use ($e) {
@@ -212,12 +222,12 @@ it('builds a route chain, treating a null controller method as __invoke', functi
     $q = queryFor();
 
     $store = $q->routeChain('POST', 'orders');
-    expect($store?->chain?->method)->toBe('App\\Http\\Controllers\\OrderController::store');
+    expect($store?->chain?->methodFqcn)->toBe('App\\Http\\Controllers\\OrderController::store');
 
     $invoke = $q->routeChain('GET', 'ping');
     // Pinned legacy quirk: the route stores a null method, but dispatches are
     // matched on the literal `__invoke`, so an invokable controller yields nothing.
-    expect($invoke?->chain?->method)->toBe('App\\Http\\Controllers\\PingController::__invoke')
+    expect($invoke?->chain?->methodFqcn)->toBe('App\\Http\\Controllers\\PingController::__invoke')
         ->and($invoke?->chain?->dispatches)->toBe([]);
 
     $closure = $q->routeChain('GET', 'health');
@@ -231,7 +241,7 @@ it('builds a route chain, treating a null controller method as __invoke', functi
 it('reports impact for an event', function () use ($e) {
     $report = queryFor()->impactOfChange($e('OrderPlaced'), ChangeKind::RENAME);
 
-    expect($report->entity)->toBe(ImpactEntity::EVENT)
+    expect($report->kind)->toBe(ImpactEntity::EVENT)
         ->and($report->dispatchers)->toHaveCount(1)
         ->and($report->handlers[0]->kind)->toBe(HandlerKind::LISTENER)
         ->and($report->downstream?->depth)->toBe(ChainDepth::DEFAULT)
@@ -241,7 +251,7 @@ it('reports impact for an event', function () use ($e) {
 it('lists closure handlers in an event impact report', function () use ($e) {
     $report = queryFor()->impactOfChange($e('ReceiptSent'));
 
-    expect($report->handlers[1]->method)->toBe('closure')
+    expect($report->handlers[1]->handler)->toBe('app/Providers/EventServiceProvider.php:30')
         ->and($report->handlers[1]->kind)->toBe(HandlerKind::CLOSURE)
         ->and($report->notes[0])->toBe(ImpactNote::REMOVE_ORPHANS_HANDLERS);
 });
@@ -250,7 +260,7 @@ it('flags events a listener removal would orphan', function () use ($e) {
     $q = queryFor();
 
     $ping = $q->impactOfChange('App\\Listeners\\PingListener');
-    expect($ping->entity)->toBe(ImpactEntity::LISTENER)
+    expect($ping->kind)->toBe(ImpactEntity::LISTENER)
         ->and($ping->wouldOrphanEvents)->toBe([$e('Ping')])
         ->and($ping->notes[0])->toBe(ImpactNote::WOULD_ORPHAN_EVENTS);
 
@@ -264,12 +274,12 @@ it('reports impact for a job and for an unknown class', function () {
     $q = queryFor();
 
     $job = $q->impactOfChange('App\\Jobs\\SendMail');
-    expect($job->entity)->toBe(ImpactEntity::JOB)
+    expect($job->kind)->toBe(ImpactEntity::JOB)
         ->and($job->handles)->toBe([])
         ->and($job->dispatches)->toHaveCount(1);
 
     $unknown = $q->impactOfChange('App\\Nope');
-    expect($unknown->entity)->toBe(ImpactEntity::UNKNOWN)
+    expect($unknown->kind)->toBe(ImpactEntity::UNKNOWN)
         ->and($unknown->notes)->toBe([ImpactNote::UNKNOWN_FQCN])
         ->and($unknown->toArray()['downstream'])->toBeNull();
 });
@@ -283,7 +293,7 @@ it('emits note codes when no renderer is given', function () {
 it('finds orphan events and idle listeners', function () {
     $orphans = queryFor()->orphans();
 
-    expect(array_map(static fn (Event $x) => $x->fqcn, $orphans->events))->toBe(['App\\Events\\Lonely'])
+    expect(array_map(static fn (Event $x) => $x->fqcn, $orphans->orphanEvents))->toBe(['App\\Events\\Lonely'])
         ->and(array_map(static fn ($l) => $l->fqcn, $orphans->idleListeners))->toBe(['App\\Listeners\\Idle']);
 });
 
@@ -411,11 +421,11 @@ it('sorts routes by displayed uri and by verb-prefixed name', function () {
 it('builds dashboard counts, health numbers and ranked fan-out', function () use ($e) {
     $dash = queryFor()->dashboard();
 
-    expect($dash->counts['events'])->toBe(5)
-        ->and($dash->counts)->not->toHaveKey('model_events')
+    expect($dash->stats['events'])->toBe(5)
+        ->and($dash->stats)->toHaveKey('model_events')
         ->and($dash->orphanEventCount)->toBe(1)
         ->and($dash->idleListenerCount)->toBe(1)
-        ->and($dash->unresolvedCount)->toBe(1)
+        ->and($dash->unresolvedDispatchCount)->toBe(1)
         ->and($dash->meta->scannedAt)->toBe('2026-01-01T00:00:00Z');
 
     // ReceiptSent has two handlers (listener + closure); the rest have one.
@@ -492,4 +502,153 @@ it('clamps an out-of-range page to the last page', function () {
 it('matches a route by leading-slash search', function () {
     expect(queryFor()->list(Sections::ROUTES, new SectionQuery(search: '/ping'))->total)->toBe(1)
         ->and(queryFor()->search('/ping'))->not->toBeEmpty();
+});
+
+// public result shapes --------------------------------------------------------
+
+/** @return list<string> */
+function propertyNames(string $class): array
+{
+    return array_map(
+        static fn (ReflectionProperty $p): string => $p->getName(),
+        (new ReflectionClass($class))->getProperties(),
+    );
+}
+
+it('pins the property names of the read results', function () {
+    expect(propertyNames(Dashboard::class))->toBe(['meta', 'stats', 'orphanEventCount', 'idleListenerCount', 'unresolvedDispatchCount', 'biggestFanOut'])
+        ->and(propertyNames(FanOut::class))->toBe(['event', 'handlerCount', 'dispatchSiteCount', 'downstreamReach'])
+        ->and(propertyNames(IndexMeta::class))->toBe(['loomVersion', 'scannedAt', 'laravelVersion'])
+        ->and(propertyNames(Orphans::class))->toBe(['orphanEvents', 'idleListeners'])
+        ->and(propertyNames(Page::class))->toBe(['items', 'total', 'page', 'perPage'])
+        ->and(propertyNames(SearchHit::class))->toBe(['section', 'detailKind', 'label', 'subtitle', 'score', 'detailRef'])
+        ->and(propertyNames(SectionInfo::class))->toBe(['section', 'count', 'present', 'listed', 'detailKind'])
+        ->and(propertyNames(SectionQuery::class))->toBe(['search', 'filters', 'sort', 'dir', 'page', 'perPage'])
+        ->and(propertyNames(ImpactReport::class))->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'handlers', 'downstream', 'handles', 'wouldOrphanEvents', 'dispatches', 'notes']);
+});
+
+it('pins the wire keys of every query result', function () use ($e) {
+    $q = queryFor();
+    $edge = $q->eventChain($e('ReceiptSent'))->toArray()['edges'][0];
+    $dispatch = $q->dispatchesFrom('App\\Listeners\\SendReceipt')[0]->toArray();
+
+    expect(array_keys($edge))->toBe(['event', 'handler', 'handler_kind', 'dispatches'])
+        ->and(array_keys($dispatch))->toBe(['target', 'kind', 'confidence', 'file', 'line'])
+        ->and(array_keys($q->handlersFor($e('ReceiptSent'))->toArray()))->toBe(['event', 'count', 'listeners', 'closure_listeners'])
+        ->and(array_keys($q->handlersFor($e('ReceiptSent'))->toArray()['listeners'][0]))->toBe(['listener', 'method', 'queued'])
+        ->and(array_keys($q->handlersFor($e('ReceiptSent'))->toArray()['closure_listeners'][0]))->toBe(['file', 'line', 'queued'])
+        ->and(array_keys($q->dispatchSitesFor($e('OrderPlaced'))->toArray()))->toBe(['event', 'count', 'dispatch_sites'])
+        ->and(array_keys($q->dispatchSitesFor($e('OrderPlaced'))->toArray()['dispatch_sites'][0]))->toBe(['file', 'line', 'method'])
+        ->and(array_keys($q->eventsFromMethod('App\\Listeners\\SendReceipt')->toArray()))->toBe(['method_fqcn', 'dispatches', 'chains'])
+        ->and(array_keys($q->orphans()->toArray()))->toBe(['orphan_events', 'idle_listeners'])
+        ->and(array_keys($q->orphans()->toArray()['orphan_events'][0]))->toBe(['fqcn', 'kind', 'file', 'line'])
+        ->and(array_keys($q->orphans()->toArray()['idle_listeners'][0]))->toBe(['fqcn', 'file', 'line']);
+
+    $cycle = $q->eventChain($e('Ping'), 6)->toArray()['cycles'][0];
+    expect(array_keys($cycle))->toBe(['from_handler', 'back_to_event']);
+});
+
+it('pins the impact report keys for events, listeners and unknown classes', function () use ($e) {
+    $q = queryFor();
+    $event = $q->impactOfChange($e('ReceiptSent'))->toArray();
+
+    expect(array_keys($event))->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'handlers', 'downstream', 'notes'])
+        ->and($event['kind'])->toBe('event')
+        ->and(array_keys($event['handlers'][0]))->toBe(['handler', 'handler_kind'])
+        ->and($event['handlers'][0]['handler'])->toBe('App\\Listeners\\ArchiveReceipt::handle')
+        ->and($event['handlers'][1]['handler_kind'])->toBe('closure')
+        ->and(array_keys($q->impactOfChange('App\\Listeners\\PingListener')->toArray()))
+        ->toBe(['fqcn', 'change', 'kind', 'handles', 'would_orphan_events', 'dispatches', 'notes'])
+        ->and(array_keys($q->impactOfChange('App\\Nope')->toArray()))
+        ->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'handlers', 'downstream', 'notes']);
+});
+
+it('always emits the route note key, null when a chain resolved', function () {
+    $q = queryFor();
+    $resolved = $q->routeChain('POST', 'orders')?->toArray();
+    $closure = $q->routeChain('GET', 'health')?->toArray();
+
+    expect(array_keys($resolved ?? []))->toBe(['route', 'note', 'chain'])
+        ->and($resolved['note'])->toBeNull()
+        ->and(array_keys($closure ?? []))->toBe(['route', 'note', 'chain'])
+        ->and($closure['note'])->toBe(RouteChain::NO_CHAIN_NOTE)
+        ->and($closure['chain'])->toBeNull()
+        ->and(array_keys($resolved['route']))->toBe(['method', 'uri', 'name', 'controller_fqcn', 'controller_method', 'middleware', 'file', 'line']);
+});
+
+it('keys dashboard stats by every index section in body order', function () {
+    $dash = queryFor()->dashboard();
+
+    expect(array_keys($dash->stats))->toBe(SectionRegistry::names())
+        ->and(array_keys($dash->stats))->toContain('model_events')
+        ->and($dash->stats['model_events'])->toBe(1)
+        ->and($dash->stats['scheduled_tasks'])->toBe(count(queryFor()->list(Sections::SCHEDULED_TASKS)->items));
+});
+
+it('lists every section in the registry order and flags only model_events as unlisted', function () {
+    $sections = queryFor()->sections();
+
+    expect(array_map(static fn ($s) => $s->section->value, $sections))->toBe(SectionRegistry::names());
+
+    $unlisted = array_values(array_filter($sections, static fn ($s): bool => ! $s->listed));
+    expect(array_map(static fn ($s) => $s->section, $unlisted))->toBe([Sections::MODEL_EVENTS]);
+});
+
+// deterministic ordering ------------------------------------------------------
+
+it('breaks sort ties by name then file, whatever the input order', function () use ($e) {
+    $names = ['Zed', 'Alpha', 'Mid'];
+    $events = array_map(static fn (string $n): array => [
+        'id' => "App\\Events\\{$n}", 'fqcn' => "App\\Events\\{$n}", 'kind' => 'class',
+        'file' => "app/Events/{$n}.php", 'line' => 1, 'handled_by' => [], 'dispatched_from' => [],
+    ], $names);
+
+    $q = queryFor(['events' => $events]);
+    $fqcns = static fn (Page $p): array => array_map(static fn (Event $x): string => $x->fqcn, $p->items);
+
+    $asc = $q->list(Sections::EVENTS, new SectionQuery(sort: SortField::HANDLER_COUNT));
+    $desc = $q->list(Sections::EVENTS, new SectionQuery(sort: SortField::DISPATCH_COUNT, dir: SortDirection::DESC));
+
+    expect($fqcns($asc))->toBe([$e('Alpha'), $e('Mid'), $e('Zed')])
+        ->and($fqcns($desc))->toBe([$e('Alpha'), $e('Mid'), $e('Zed')]);
+});
+
+it('returns an unsorted list in index order', function () use ($e) {
+    $page = queryFor()->list(Sections::EVENTS);
+
+    expect(array_map(static fn (Event $x): string => $x->fqcn, $page->items))
+        ->toBe([$e('OrderPlaced'), $e('ReceiptSent'), $e('Ping'), $e('Pong'), $e('Lonely')]);
+});
+
+it('orders search hits by score, then label, then section', function () {
+    $hits = queryFor()->search('Receipt');
+    $keys = array_map(static fn (SearchHit $h): array => [-$h->score, $h->label, $h->section->value], $hits);
+    $sorted = $keys;
+    sort($sorted);
+
+    expect($hits)->not->toBe([])
+        ->and($keys)->toBe($sorted);
+});
+
+it('reports each cycle once even when the handler dispatches the target twice', function () {
+    $data = require __DIR__.'/../../Fixtures/query-index.php';
+    foreach ($data['listeners'] as &$listener) {
+        if ($listener['fqcn'] === 'App\\Listeners\\PongListener') {
+            $listener['dispatches'][] = [...$listener['dispatches'][0], 'line' => 9];
+        }
+    }
+    unset($listener);
+
+    $chain = queryFor(['listeners' => $data['listeners']])->eventChain('App\\Events\\Ping', 6);
+
+    expect($chain->cycles)->toHaveCount(1);
+});
+
+it('ranks fan-out by handlers, then downstream reach, then event name', function () {
+    $ranked = queryFor()->dashboard(10)->biggestFanOut;
+    $keys = array_map(static fn (FanOut $f): array => [-$f->handlerCount, -$f->downstreamReach, $f->event], $ranked);
+    $sorted = $keys;
+    sort($sorted);
+
+    expect($keys)->toBe($sorted);
 });

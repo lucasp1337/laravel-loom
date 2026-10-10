@@ -10,6 +10,6 @@ enum SortField: string
     case NAME = 'name';
     case URI = 'uri';
     case FILE = 'file';
-    case HANDLER_COUNT = 'handlers';
-    case DISPATCH_COUNT = 'dispatches';
+    case HANDLER_COUNT = 'handler_count';
+    case DISPATCH_COUNT = 'dispatch_count';
 }
