@@ -145,7 +145,7 @@ The workflow is automated via a chain of specialized agents (see `AGENTS.md`). T
    - Parsing (delegated to one or more `NodeVisitor` classes in `src/Scanners/Visitors/`)
    - Emission (build schema-shaped arrays, sort deterministically)
 
-3. **Visitors.** Subclass `PhpParser\NodeVisitorAbstract`. Read on `leaveNode` (NameResolver child-first ordering — see [architecture](docs/contributing/architecture.md)). Reset state in `beforeTraverse()`. Expose collected data via a getter.
+3. **Visitors.** Extend `CollectingVisitor` and clear per-file state in `reset()`. Read on `leaveNode` (NameResolver child-first ordering — see [architecture](docs/contributing/architecture.md)). Expose collected data via a getter.
 
 4. **Register.** Add the scanner to `Lucasp\Loom\Scanners\DefaultScanners` (the single list used by `ScanCommand`, the Justfile and the benchmarks), and update the consumer docs page listing what Loom detects.
 

@@ -76,7 +76,7 @@ When a scanner needs transitive `extends` / `implements` / `use Trait` informati
 Visitor conventions:
 
 - **Read on `leaveNode`, not `enterNode`.** NameResolver rewrites child Names as it descends; by the time you `leaveNode` on a `FuncCall` or `StaticCall`, every inner `New_->class` / `ClassConstFetch->class` has been resolved. The one exception is reading `$node->namespacedName` on the class itself — that's set on enter.
-- **Reset state in `beforeTraverse()`.** Scanners reuse a single visitor instance across all files in the discovery loop.
+- **Extend `CollectingVisitor` and implement `reset()`.** Scanners reuse a single visitor instance across all files in the discovery loop; the base class calls `reset()` from a final `beforeTraverse()`. Visitors that need the enclosing class or method use the `TracksClassScope` trait.
 - **Expose state via a getter**, not by mutating an external array. Visitors collect into an instance property; the scanner reads it after each `walk()` call.
 
 ### 3. Emission
