@@ -12,11 +12,11 @@ php artisan vendor:publish --tag=loom-config
 | --- | --- | --- |
 | `scan.paths` | `['app']` | Directories to scan, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. |
 | `scan.route_paths` | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures. Independent of `scan.paths`. |
-| `scan.discover_routes` | `true` | Also read route files that Laravel loads from a path: `loadRoutesFrom()`, `Route::group()` with a file path and the `web`, `api` and `commands` paths of `withRouting()` in `bootstrap/app.php`. See [Route files](#route-files). `false` reads only `scan.route_paths`. |
+| `scan.discover_routes` | `true` | Also read route files that Laravel loads from a path: `loadRoutesFrom()`, `Route::group()` with a file path and the `web`, `api` and `commands` paths of `withRouting()` in `bootstrap/app.php`. See [Route files](#route-files). `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. |
 | `scan.psr4_paths` | `false` | When `true`, also scans every directory in `autoload.psr-4` of your `composer.json`. `autoload-dev` is not included. |
 | `scan.exclude` | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. |
 
-`loom:scan --path=DIR` replaces `scan.paths` for one run, and `--route-path=DIR` replaces `scan.route_paths`. `scan.psr4_paths` and `scan.exclude` still apply.
+`loom:scan --path=DIR` replaces `scan.paths` for one run, and `--route-path=DIR` replaces `scan.route_paths`. `scan.psr4_paths` and `scan.exclude` still apply. `--no-discover-routes` turns off route-file discovery for the run.
 
 ## How directories resolve
 

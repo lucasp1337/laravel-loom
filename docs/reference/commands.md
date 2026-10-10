@@ -23,6 +23,7 @@ Statically parses the app (no boot of your routes or queues), validates the resu
 | `--output=PATH` | Write the index here instead of `index_path`. A relative path is resolved from the project root. The MCP server and UI keep reading `index_path`. |
 | `--path=DIR` | Scan this directory instead of `scan.paths`. Repeat it for several. Relative to the project root; `*` globs are allowed. |
 | `--route-path=DIR` | Read routes from this directory instead of `scan.route_paths`. Repeat it for several. Same rules as `--path`. |
+| `--no-discover-routes` | Do not follow route-file loading calls for this run, as if `scan.discover_routes` were `false`. Wins over the config value. |
 | `-v` | List every skipped file with its path, line and the parser's message, and every route-file path that could not be followed with its reason. |
 
 When it finishes it prints the path written and one summary line: the entry count of each section, unresolved dispatches and skipped files.

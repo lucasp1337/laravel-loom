@@ -18,6 +18,7 @@ use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
 use Lucasp\Loom\Support\RouteFileDiscovery;
+use Lucasp\Loom\Support\ScanConfigKey;
 use Lucasp\Loom\Support\ScanScope;
 
 /** @internal */
@@ -26,7 +27,8 @@ class ScanCommand extends Command
     protected $signature = 'loom:scan
         {--output= : Write the index here instead of the configured index_path}
         {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}
-        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}';
+        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}
+        {--no-discover-routes : Do not follow route-file loading calls for this run (overrides scan.discover_routes)}';
 
     protected $description = 'Scan the application and write the index (default storage/loom/index.json)';
 
@@ -113,8 +115,13 @@ class ScanCommand extends Command
         $paths = array_values(array_filter((array) $this->option('path'), 'is_string'));
         $routePaths = array_values(array_filter((array) $this->option('route-path'), 'is_string'));
 
+        $config = is_array($config) ? $config : [];
+        if ((bool) $this->option('no-discover-routes')) {
+            $config[ScanConfigKey::DISCOVER_ROUTES->value] = false;
+        }
+
         return ScanScope::fromConfig(
-            is_array($config) ? $config : [],
+            $config,
             $appRoot,
             $paths === [] ? null : $paths,
             $routePaths === [] ? null : $routePaths,

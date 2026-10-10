@@ -157,3 +157,23 @@ it('prints unresolved route paths under -v only', function () {
         ->and($text)->toContain('app/Providers/AppServiceProvider.php:21  Route::group(): relative path depends on the working directory')
         ->and($text)->toContain('bootstrap/app.php:8  withRouting(): no such file');
 });
+
+it('--no-discover-routes reads only route_paths and wins over config', function () {
+    $out = sys_get_temp_dir().'/loom-discovery-'.bin2hex(random_bytes(6)).'/index.json';
+    app()->setBasePath(discoveryRoot());
+    config()->set('loom.index_path', $out);
+    config()->set('loom.scan.discover_routes', true);
+
+    $output = new BufferedOutput(BufferedOutput::VERBOSITY_NORMAL);
+    expect(Artisan::call('loom:scan', ['--no-discover-routes' => true], $output))->toBe(0);
+
+    $index = json_decode((string) file_get_contents($out), true);
+
+    expect(array_column($index['routes'], 'uri'))->toBe(['/home'])
+        ->and($output->fetch())->not->toContain('unresolved route paths');
+
+    Artisan::call('loom:scan', [], new BufferedOutput);
+    $index = json_decode((string) file_get_contents($out), true);
+
+    expect($index['routes'])->toHaveCount(8);
+});
