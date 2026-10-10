@@ -10,14 +10,13 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('events-from-method')]
 #[Description('Transitive closure starting from a Class::method (or Class@method, or a bare Class for every method): what it dispatches, then the event chain following each dispatched event. Depth bounds the chain (1..6, default 3). Method granularity is exact only for routes; listeners/observers/jobs resolve at class level.')]
-final class EventsFromMethodTool extends Tool
+final class EventsFromMethodTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -43,9 +42,6 @@ final class EventsFromMethodTool extends Tool
 
         $depth = (int) ($validated['depth'] ?? ChainDepth::DEFAULT);
 
-        return Response::text((string) json_encode(
-            $this->query->eventsFromMethod($validated['method_fqcn'], $depth)->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($this->query->eventsFromMethod($validated['method_fqcn'], $depth)->toArray());
     }
 }

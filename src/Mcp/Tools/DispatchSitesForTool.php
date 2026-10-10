@@ -10,13 +10,12 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('dispatch-sites-for')]
 #[Description('Where is this event dispatched? Returns every source location (file, line, method) that dispatches the given event class, from the static index.')]
-final class DispatchSitesForTool extends Tool
+final class DispatchSitesForTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -38,9 +37,6 @@ final class DispatchSitesForTool extends Tool
             return Response::error('event_fqcn is required.');
         }
 
-        return Response::text((string) json_encode(
-            $this->query->dispatchSitesFor($eventFqcn)->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($this->query->dispatchSitesFor($eventFqcn)->toArray());
     }
 }
