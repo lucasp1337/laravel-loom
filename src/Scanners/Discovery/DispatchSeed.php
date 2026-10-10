@@ -11,10 +11,10 @@ namespace Lucasp\Loom\Scanners\Discovery;
  *
  * @internal
  */
-final class DispatchSeed
+final readonly class DispatchSeed
 {
     public function __construct(
-        public readonly string $fqcn,
-        public readonly bool $ambiguous,
+        public string $fqcn,
+        public bool $ambiguous,
     ) {}
 }

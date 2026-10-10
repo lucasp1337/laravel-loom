@@ -9,11 +9,11 @@ namespace Lucasp\Loom\Diff\Result;
  *
  * @internal
  */
-final class FieldChange
+final readonly class FieldChange
 {
     public function __construct(
-        public readonly string $field,
-        public readonly mixed $old,
-        public readonly mixed $new,
+        public string $field,
+        public mixed $old,
+        public mixed $new,
     ) {}
 }

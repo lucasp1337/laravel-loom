@@ -10,13 +10,13 @@ namespace Lucasp\Loom\Diff\Result;
  *
  * @internal
  */
-final class DiffResult
+final readonly class DiffResult
 {
     /**
      * @param  array<string,SectionDiff>  $sections
      */
     public function __construct(
-        public readonly array $sections,
+        public array $sections,
     ) {}
 
     public function hasChanges(): bool
