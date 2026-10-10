@@ -13,6 +13,7 @@ use Lucasp\Loom\Query\Dto\ChainEdge;
 use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\Dto\EventChain;
 use Lucasp\Loom\Query\HandlerKind;
+use Lucasp\Loom\Support\Fqcn;
 
 /** Depth-bounded, cycle-safe walk of the event/dispatch graph. Dispatches are class-level except on routes. */
 /** @internal */
@@ -221,13 +222,6 @@ final class ChainWalker
     /** @return array{0: string, 1: ?string} */
     private function splitMethod(string $methodFqcn): array
     {
-        foreach (['::', '@'] as $sep) {
-            $pos = strrpos($methodFqcn, $sep);
-            if ($pos !== false) {
-                return [substr($methodFqcn, 0, $pos), substr($methodFqcn, $pos + strlen($sep))];
-            }
-        }
-
-        return [$methodFqcn, null];
+        return Fqcn::splitMember($methodFqcn) ?? [$methodFqcn, null];
     }
 }

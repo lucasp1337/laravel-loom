@@ -38,7 +38,7 @@ final readonly class NodeFacts
     public static function for(IndexQuery $query, Links $links, NodeType $type, string $id): self
     {
         $short = Fqcn::short($id);
-        $namespace = Fqcn::namespace($id);
+        $namespace = Fqcn::namespaceOf($id);
         $facts = [];
         $url = null;
 

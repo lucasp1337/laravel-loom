@@ -58,7 +58,7 @@ class EventDetail extends Component
         return $this->renderPage('loom::livewire.event-detail', [
             'event' => $event,
             'short' => Fqcn::short($this->fqcn),
-            'namespace' => Fqcn::namespace($this->fqcn),
+            'namespace' => Fqcn::namespaceOf($this->fqcn),
             'handlers' => $handlers,
             'sites' => $sites,
             'downstream' => $downstream,

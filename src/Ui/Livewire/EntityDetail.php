@@ -53,7 +53,7 @@ class EntityDetail extends Component
             'spec' => $spec,
             'fqcn' => $this->fqcn,
             'short' => Fqcn::short($this->fqcn),
-            'namespace' => Fqcn::namespace($this->fqcn),
+            'namespace' => Fqcn::namespaceOf($this->fqcn),
             'rows' => (new EntityFacts($ui->links))->rows($entity),
         ], [
             'title' => Fqcn::short($this->fqcn),

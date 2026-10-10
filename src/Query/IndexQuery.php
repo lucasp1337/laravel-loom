@@ -34,6 +34,7 @@ use Lucasp\Loom\Query\Dto\SectionQuery;
 use Lucasp\Loom\Query\Internal\ChainWalker;
 use Lucasp\Loom\Query\Internal\Searcher;
 use Lucasp\Loom\Query\Internal\SectionReader;
+use Lucasp\Loom\Support\Fqcn;
 
 /**
  * Transport-agnostic questions over the Loom index, shared by the embedded MCP
@@ -205,10 +206,9 @@ final class IndexQuery
      */
     public function rawEntity(EntityKind $kind, string $fqcn): ?array
     {
-        $needle = ltrim($fqcn, '\\');
         foreach ($this->index()->sections[$kind->section()->value] ?? [] as $entry) {
             $candidate = $entry[Field::FQCN->value] ?? null;
-            if (is_string($candidate) && ltrim($candidate, '\\') === $needle) {
+            if (is_string($candidate) && Fqcn::same($candidate, $fqcn)) {
                 return $entry;
             }
         }

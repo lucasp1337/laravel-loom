@@ -27,9 +27,6 @@ enum Facades: string
             return true;
         }
 
-        $lastBackslash = strrpos($this->value, '\\');
-        $alias = $lastBackslash === false ? $this->value : substr($this->value, $lastBackslash + 1);
-
-        return $className === $alias;
+        return $className === Fqcn::short($this->value);
     }
 }

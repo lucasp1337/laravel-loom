@@ -75,7 +75,7 @@ final class ComposerPsr4Map
      */
     public function locate(string $appRoot, string $fqcn): ?string
     {
-        $fqcn = Str::ltrim($fqcn, '\\');
+        $fqcn = Fqcn::normalize($fqcn);
         if ($fqcn === '') {
             return null;
         }

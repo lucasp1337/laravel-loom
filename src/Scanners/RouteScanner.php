@@ -18,6 +18,7 @@ use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\ResourceFilter;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -445,19 +446,18 @@ final class RouteScanner implements Scanner
      */
     private function resolveStringAction(string $action, ?string $groupController = null): array
     {
-        if (Str::contains($action, '@')) {
-            [$class, $method] = explode('@', $action, 2);
-
-            return ['fqcn' => ltrim($class, '\\'), 'method' => $method];
+        $parts = Fqcn::splitAtMember($action);
+        if ($parts !== null) {
+            return ['fqcn' => Fqcn::normalize($parts[0]), 'method' => $parts[1]];
         }
 
         // Bare method name under a group controller -> Controller::method.
         if ($groupController !== null) {
-            return ['fqcn' => ltrim($groupController, '\\'), 'method' => $action];
+            return ['fqcn' => Fqcn::normalize($groupController), 'method' => $action];
         }
 
         // No '@' and no group controller -> invokable controller string.
-        return ['fqcn' => ltrim($action, '\\'), 'method' => '__invoke'];
+        return ['fqcn' => Fqcn::normalize($action), 'method' => '__invoke'];
     }
 
     /**
