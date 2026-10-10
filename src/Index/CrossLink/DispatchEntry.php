@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
+use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Field;
 
@@ -35,7 +36,7 @@ final class DispatchEntry
         $target = $site[Field::TARGET->value] ?? null;
         $file = $site[Field::FILE->value] ?? null;
         $line = $site[Field::LINE->value] ?? null;
-        $confidence = $site[Field::CONFIDENCE->value] ?? 'high';
+        $confidence = $site[Field::CONFIDENCE->value] ?? Confidence::HIGH->value;
 
         if (! is_string($target) || ! is_string($file) || ! is_int($line)
             || ! is_string($kind) || DispatchKinds::tryFrom($kind) === DispatchKinds::AMBIGUOUS

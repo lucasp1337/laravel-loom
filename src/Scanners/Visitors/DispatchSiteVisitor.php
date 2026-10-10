@@ -8,6 +8,7 @@ use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
+use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
@@ -299,7 +300,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             provisionalKind: $staticMode === null ? DispatchKinds::AMBIGUOUS : DispatchKinds::JOB,
             file: null,
             line: $node->getStartLine(),
-            confidence: 'high',
+            confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($outerLinks),
             mode: $staticMode ?? ChainModifierExtractor::mode($outerLinks),
             inClosure: $this->inClosure(),
@@ -445,7 +446,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 provisionalKind: $kind,
                 file: null,
                 line: $callNode->getStartLine(),
-                confidence: 'high',
+                confidence: Confidence::HIGH->value,
                 overrides: $this->overridesFrom($innerLinks, $receiverLinks),
                 mode: $mode,
                 channels: $channels,
@@ -592,7 +593,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             provisionalKind: $kind,
             file: null,
             line: $callNode->getStartLine(),
-            confidence: 'high',
+            confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($innerLinks, $outerLinks),
             // `->afterResponse()` exists only on PendingDispatch, never on event().
             mode: $mode ?? ($kind === DispatchKinds::EVENT ? null : ChainModifierExtractor::mode($outerLinks)),
