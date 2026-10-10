@@ -74,10 +74,9 @@ The consumer-facing `docs/` tree is published as a [Zensical](https://zensical.o
 ```bash
 just docs-serve      # live-reload preview at http://localhost:8000
 just docs-build      # strict build into ./site (fails on broken links)
-just docs-deploy     # build + publish to the gh-pages branch
 ```
 
-Publishing is **local and deliberate** — no GitHub Actions run on push. `just docs-deploy` builds the site in Docker, stages the `gh-pages` branch, and pushes it with your own git credentials; GitHub Pages then serves that branch. Run it whenever you want the live site refreshed (it does not happen automatically). `nav` and theme live in `mkdocs.yml` at the repo root, which Zensical reads directly.
+The site is published by the `Docs` GitHub Pages workflow only, which runs on `workflow_dispatch` or a published release; nothing publishes from a local machine. The look is `docs/stylesheets/loom.css` plus the home-page template in `overrides/`. `nav` and theme options live in `mkdocs.yml` at the repo root, which Zensical reads directly.
 
 ## Scanning an external Laravel app
 

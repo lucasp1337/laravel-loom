@@ -63,14 +63,6 @@ docs-serve:
 docs-build:
     docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical build --clean --strict"
 
-# Publish the docs to the gh-pages branch. Builds in Docker, stages the branch
-# locally, then pushes with your own git credentials — no GitHub Actions, no
-# CI minutes. Run it whenever you want the published site refreshed.
-docs-deploy:
-    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical build --clean --strict"
-    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "apt-get update -qq && apt-get install -y -qq git && git config --global --add safe.directory /docs && pip install -q ghp-import && ghp-import -n -f -m 'docs: deploy site' -b gh-pages site"
-    git push --force origin gh-pages
-
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
 #   just scan /path/to/laravel/app
 scan target:
