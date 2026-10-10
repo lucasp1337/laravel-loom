@@ -10,13 +10,12 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('handlers-for')]
 #[Description('Who handles this event? Returns the named listeners (class, method, queued) and anonymous closure listeners (file, line, queued) bound to the given event class.')]
-final class HandlersForTool extends Tool
+final class HandlersForTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -38,9 +37,6 @@ final class HandlersForTool extends Tool
             return Response::error('event_fqcn is required.');
         }
 
-        return Response::text((string) json_encode(
-            $this->query->handlersFor($eventFqcn)->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($this->query->handlersFor($eventFqcn)->toArray());
     }
 }
