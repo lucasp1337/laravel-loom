@@ -13,9 +13,11 @@ use PhpParser\Node;
  * Collects concrete notification classes and statically resolvable
  * `via()` channels. Non-literal `via()` bodies set channels_dynamic: true.
  *
+ * @implements ClassRecordVisitor<NotificationClassRecord>
+ *
  * @internal
  */
-final class NotificationClassVisitor extends CollectingVisitor
+final class NotificationClassVisitor extends CollectingVisitor implements ClassRecordVisitor
 {
     /** @var list<NotificationClassRecord> */
     private array $classes = [];

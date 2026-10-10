@@ -11,9 +11,11 @@ use PhpParser\Node;
 /**
  * Collects concrete mailable classes with their queue-config properties.
  *
+ * @implements ClassRecordVisitor<MailableClassRecord>
+ *
  * @internal
  */
-final class MailableClassVisitor extends CollectingVisitor
+final class MailableClassVisitor extends CollectingVisitor implements ClassRecordVisitor
 {
     /** @var list<MailableClassRecord> */
     private array $classes = [];

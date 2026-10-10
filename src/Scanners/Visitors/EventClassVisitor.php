@@ -10,9 +10,11 @@ use PhpParser\Node;
 /**
  * Collects top-level class declarations (FQCN + line).
  *
+ * @implements ClassRecordVisitor<ClassRecord>
+ *
  * @internal
  */
-final class EventClassVisitor extends CollectingVisitor
+final class EventClassVisitor extends CollectingVisitor implements ClassRecordVisitor
 {
     /** @var list<ClassRecord> */
     private array $classes = [];
