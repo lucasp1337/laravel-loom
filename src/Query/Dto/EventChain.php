@@ -24,8 +24,7 @@ final readonly class EventChain
         public array $eventsReached,
         public array $cycles = [],
         public bool $truncated = false,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>

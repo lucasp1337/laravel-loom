@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Gate;
 use Lucasp\Loom\Tests\Feature\Ui\UiSnapshot;
 use Lucasp\Loom\Ui\LoomAbility;
@@ -25,7 +26,7 @@ it('allows the default gate in local and 404s once the environment leaves it', f
     // Drop the test override so the shipped default applies.
     app()->make(Illuminate\Contracts\Auth\Access\Gate::class)->define(
         LoomAbility::VIEW->value,
-        fn (?Illuminate\Contracts\Auth\Authenticatable $user = null): bool => app()->environment('local'),
+        fn (?Authenticatable $user = null): bool => app()->environment('local'),
     );
 
     $this->get('/loom')->assertOk();

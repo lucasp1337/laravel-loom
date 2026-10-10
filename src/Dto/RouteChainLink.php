@@ -19,6 +19,5 @@ final class RouteChainLink
     public function __construct(
         public readonly string $method,
         public readonly array $args,
-    ) {
-    }
+    ) {}
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Diff\Result;
 
+use Lucasp\Loom\Index\Field;
+
 /**
  * Membership change in a single sublist field of a matched entry.
  *
@@ -14,7 +16,7 @@ final class SubListDelta
     /**
      * Wrapper key under which a scalar sublist member is normalized for
      * identity comparison; not a schema field, hence a sentinel rather than a
-     * {@see \Lucasp\Loom\Index\Field} case.
+     * {@see Field} case.
      */
     public const SCALAR_MEMBER_KEY = 'value';
 
@@ -30,6 +32,5 @@ final class SubListDelta
         public readonly string $field,
         public readonly array $added,
         public readonly array $removed,
-    ) {
-    }
+    ) {}
 }

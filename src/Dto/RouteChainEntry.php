@@ -30,6 +30,5 @@ final class RouteChainEntry
         public readonly string $groupNamePrefix,
         public readonly ?string $groupController,
         public readonly array $middleware,
-    ) {
-    }
+    ) {}
 }

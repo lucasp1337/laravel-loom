@@ -13,9 +13,7 @@ namespace Lucasp\Loom\Support;
 final class OptionalPackages
 {
     /** @param  list<OptionalPackage>  $unavailable  Treated as missing even if installed. */
-    public function __construct(private readonly array $unavailable = [])
-    {
-    }
+    public function __construct(private readonly array $unavailable = []) {}
 
     public function has(OptionalPackage $package): bool
     {

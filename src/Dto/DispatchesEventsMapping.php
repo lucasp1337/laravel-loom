@@ -16,6 +16,5 @@ final class DispatchesEventsMapping
         public readonly string $hook,
         public readonly string $eventFqcn,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

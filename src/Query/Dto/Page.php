@@ -13,8 +13,7 @@ final readonly class Page
         public int $total,
         public int $page,
         public int $perPage,
-    ) {
-    }
+    ) {}
 
     public function lastPage(): int
     {

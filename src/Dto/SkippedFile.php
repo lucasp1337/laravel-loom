@@ -15,6 +15,5 @@ final readonly class SkippedFile
         public string $file,
         public ?int $line,
         public string $message,
-    ) {
-    }
+    ) {}
 }

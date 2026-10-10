@@ -6,6 +6,7 @@ use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 
 /**
@@ -36,7 +37,7 @@ function parseListenReceiver(string $useLines, string $body, bool $namespaced = 
 
     expect($ast)->not->toBeNull();
 
-    $collector = new class extends PhpParser\NodeVisitorAbstract
+    $collector = new class extends NodeVisitorAbstract
     {
         public ?Node\Expr $receiver = null;
 

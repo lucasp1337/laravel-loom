@@ -42,9 +42,7 @@ use Lucasp\Loom\Query\Internal\SectionReader;
  */
 final class IndexQuery
 {
-    public function __construct(private readonly IndexSource $source)
-    {
-    }
+    public function __construct(private readonly IndexSource $source) {}
 
     // Graph -------------------------------------------------------------
 

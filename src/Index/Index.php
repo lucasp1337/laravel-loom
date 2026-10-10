@@ -47,8 +47,7 @@ final class Index
         public readonly string $laravelVersion,
         public readonly array $sections = [],
         public readonly string $schemaVersion = IndexSchema::VERSION,
-    ) {
-    }
+    ) {}
 
     /** @return list<Event> */
     public function events(): array

@@ -10,6 +10,5 @@ final readonly class FactCell
     public function __construct(
         public string $text,
         public ?string $url,
-    ) {
-    }
+    ) {}
 }

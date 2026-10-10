@@ -30,8 +30,7 @@ final readonly class SectionSpec
         public ?NodeType $type = null,
         public ?Closure $orphan = null,
         public ?string $shortcut = null,
-    ) {
-    }
+    ) {}
 
     public function isOrphan(object $item): bool
     {

@@ -24,8 +24,7 @@ final readonly class DispatchSite
         public ?DispatchMode $mode,
         public ?DispatchOverrides $overrides,
         public ?array $channels,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

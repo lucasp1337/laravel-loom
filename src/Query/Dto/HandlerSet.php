@@ -15,8 +15,7 @@ final readonly class HandlerSet
         public string $event,
         public array $listeners,
         public array $closureListeners,
-    ) {
-    }
+    ) {}
 
     public function total(): int
     {

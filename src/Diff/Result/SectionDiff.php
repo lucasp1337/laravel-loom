@@ -20,8 +20,7 @@ final class SectionDiff
         public readonly array $added,
         public readonly array $removed,
         public readonly array $changed,
-    ) {
-    }
+    ) {}
 
     public function isEmpty(): bool
     {

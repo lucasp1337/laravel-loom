@@ -12,6 +12,5 @@ final readonly class FanOut
         public int $handlerCount,
         public int $dispatchSiteCount,
         public int $downstreamReach,
-    ) {
-    }
+    ) {}
 }

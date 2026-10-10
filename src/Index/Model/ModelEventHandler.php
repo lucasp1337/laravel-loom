@@ -19,8 +19,7 @@ final readonly class ModelEventHandler
         public string $method,
         public string $file,
         public int $line,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

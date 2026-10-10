@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Console\Kernel;
+use Laravel\Mcp\Server\Registrar;
 use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Mcp\Tools\FindUnresolvedDispatchesTool;
@@ -60,9 +62,9 @@ it('lists the tool with its description', function () {
 });
 
 it('registers the loom local server and the loom:mcp command', function () {
-    $server = app(\Laravel\Mcp\Server\Registrar::class)->getLocalServer('loom');
+    $server = app(Registrar::class)->getLocalServer('loom');
     expect($server)->not->toBeNull();
 
-    expect(array_keys(app(\Illuminate\Contracts\Console\Kernel::class)->all()))
+    expect(array_keys(app(Kernel::class)->all()))
         ->toContain('loom:mcp');
 });

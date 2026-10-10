@@ -24,6 +24,5 @@ final class ScheduleChainEntry
         public readonly array $rootArgs,
         public readonly array $chain,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

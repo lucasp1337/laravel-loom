@@ -18,6 +18,5 @@ final readonly class Dashboard
         public int $idleListenerCount,
         public int $unresolvedCount,
         public array $biggestFanOut,
-    ) {
-    }
+    ) {}
 }

@@ -17,8 +17,7 @@ final readonly class ColumnSpec
         public Closure $value,
         public ColumnRole $role = ColumnRole::TEXT,
         public ?SortField $sort = null,
-    ) {
-    }
+    ) {}
 
     public function cell(object $item): string
     {

@@ -17,9 +17,7 @@ use Lucasp\Loom\Query\HandlerKind;
 /** @internal */
 final class ChainWalker
 {
-    public function __construct(private readonly Index $index)
-    {
-    }
+    public function __construct(private readonly Index $index) {}
 
     /** @param  int  $depth  already clamped by the caller */
     public function chain(string $eventFqcn, int $depth): EventChain

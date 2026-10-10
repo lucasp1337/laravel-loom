@@ -22,6 +22,5 @@ final class SubListSpec
     public function __construct(
         public readonly Field $field,
         public readonly Closure $memberIdentity,
-    ) {
-    }
+    ) {}
 }

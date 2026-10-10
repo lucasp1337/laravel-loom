@@ -17,8 +17,7 @@ final readonly class Orphans
     public function __construct(
         public array $events,
         public array $idleListeners,
-    ) {
-    }
+    ) {}
 
     /** @return array<string, mixed> */
     public function toArray(): array

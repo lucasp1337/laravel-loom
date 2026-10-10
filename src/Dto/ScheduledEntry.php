@@ -31,6 +31,5 @@ final class ScheduledEntry
         public readonly array $constraints,
         public readonly string $file,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

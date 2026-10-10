@@ -19,8 +19,7 @@ final readonly class Frequency
     public function __construct(
         public FrequencyUnit $unit,
         public int $every,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

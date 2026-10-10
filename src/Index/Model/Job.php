@@ -27,8 +27,7 @@ final readonly class Job
         public ?QueueConfig $queueConfig,
         public array $dispatchedFrom,
         public array $dispatches,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

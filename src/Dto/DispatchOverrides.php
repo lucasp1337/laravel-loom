@@ -27,8 +27,7 @@ final readonly class DispatchOverrides
         public ?string $queue = null,
         public ?int $delay = null,
         public ?bool $afterCommit = null,
-    ) {
-    }
+    ) {}
 
     public function isEmpty(): bool
     {

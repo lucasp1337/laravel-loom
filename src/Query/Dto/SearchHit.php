@@ -21,6 +21,5 @@ final readonly class SearchHit
         public string $subtitle,
         public int $score,
         public string $detailRef,
-    ) {
-    }
+    ) {}
 }

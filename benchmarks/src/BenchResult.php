@@ -25,8 +25,7 @@ final readonly class BenchResult
         public int $peakMemoryBytes,
         public array $scanners,
         public array $sections,
-    ) {
-    }
+    ) {}
 
     /**
      * The deterministic fingerprint a baseline assertion compares: total files,

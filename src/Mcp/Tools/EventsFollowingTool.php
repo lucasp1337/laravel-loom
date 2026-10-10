@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -18,11 +19,9 @@ use Lucasp\Loom\Query\IndexQuery;
 #[Description('Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3).')]
 final class EventsFollowingTool extends Tool
 {
-    public function __construct(private readonly IndexQuery $query)
-    {
-    }
+    public function __construct(private readonly IndexQuery $query) {}
 
-    /** @return array<string, \Illuminate\JsonSchema\Types\Type> */
+    /** @return array<string, Type> */
     public function schema(JsonSchema $schema): array
     {
         return [

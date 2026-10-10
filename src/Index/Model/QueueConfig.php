@@ -22,8 +22,7 @@ final readonly class QueueConfig
         public string|int|null $tries,
         public string|int|null $timeout,
         public string|int|null $backoff,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

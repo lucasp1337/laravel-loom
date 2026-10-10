@@ -18,6 +18,5 @@ final class ClosurePairRecord
         public readonly int $line,
         public readonly int $endLine,
         public readonly ListenerRegistration $registration,
-    ) {
-    }
+    ) {}
 }

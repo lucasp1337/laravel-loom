@@ -20,6 +20,5 @@ final class MethodDeclaration
         public readonly bool $isAbstract,
         public readonly bool $hasParameters,
         public readonly array $firstParameterClasses,
-    ) {
-    }
+    ) {}
 }

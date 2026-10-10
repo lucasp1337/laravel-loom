@@ -20,8 +20,7 @@ final readonly class UnresolvedDispatch
         public int $line,
         public string $expression,
         public string $reason,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

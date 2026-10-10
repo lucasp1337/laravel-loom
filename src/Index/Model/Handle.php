@@ -17,8 +17,7 @@ final readonly class Handle
     public function __construct(
         public string $event,
         public string $method,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

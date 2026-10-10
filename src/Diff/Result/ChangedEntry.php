@@ -19,6 +19,5 @@ final class ChangedEntry
         public readonly string $identity,
         public readonly array $fieldChanges,
         public readonly array $subListDeltas,
-    ) {
-    }
+    ) {}
 }

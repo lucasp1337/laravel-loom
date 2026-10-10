@@ -39,8 +39,7 @@ final readonly class BenchProfile
     private function __construct(
         public string $name,
         public array $counts,
-    ) {
-    }
+    ) {}
 
     public static function tiny(): self
     {

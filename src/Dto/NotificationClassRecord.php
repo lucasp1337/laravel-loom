@@ -20,6 +20,5 @@ final class NotificationClassRecord
         public readonly QueueConfigData $queueConfig,
         public readonly array $channels,
         public readonly bool $channelsDynamic,
-    ) {
-    }
+    ) {}
 }

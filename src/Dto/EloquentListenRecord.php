@@ -17,6 +17,5 @@ final class EloquentListenRecord
         public readonly string $handler,
         public readonly string $method,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

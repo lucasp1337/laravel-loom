@@ -16,8 +16,7 @@ final class IndexPath
     public function __construct(
         private readonly Repository $config,
         private readonly string $default,
-    ) {
-    }
+    ) {}
 
     public function resolve(): string
     {

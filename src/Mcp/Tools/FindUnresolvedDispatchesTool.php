@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -18,11 +19,9 @@ use Lucasp\Loom\Query\IndexQuery;
 #[Description('List dispatch sites the scanner could not statically resolve to a target, with the raw expression, reason, file and line. Surfaces what static analysis could not pin down.')]
 final class FindUnresolvedDispatchesTool extends Tool
 {
-    public function __construct(private readonly IndexQuery $query)
-    {
-    }
+    public function __construct(private readonly IndexQuery $query) {}
 
-    /** @return array<string, \Illuminate\JsonSchema\Types\Type> */
+    /** @return array<string, Type> */
     public function schema(JsonSchema $schema): array
     {
         return [];

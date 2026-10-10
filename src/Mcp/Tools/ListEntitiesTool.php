@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -19,11 +20,9 @@ use ValueError;
 #[Description('List every entity in one index section (events, listeners, observers, jobs, routes, ...) verbatim from the index, with a count. Use this to enumerate what the scanner found before drilling into a single entity with get-entity.')]
 final class ListEntitiesTool extends Tool
 {
-    public function __construct(private readonly IndexRepository $repository)
-    {
-    }
+    public function __construct(private readonly IndexRepository $repository) {}
 
-    /** @return array<string, \Illuminate\JsonSchema\Types\Type> */
+    /** @return array<string, Type> */
     public function schema(JsonSchema $schema): array
     {
         return [

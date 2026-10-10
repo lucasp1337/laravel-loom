@@ -20,6 +20,5 @@ final readonly class RouteFileReference
         public int $line,
         /** True when a directory is a legitimate value (command paths), so a non-file is not an error. */
         public bool $allowsDirectory = false,
-    ) {
-    }
+    ) {}
 }

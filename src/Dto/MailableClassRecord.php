@@ -15,6 +15,5 @@ final class MailableClassRecord
         public readonly string $fqcn,
         public readonly int $line,
         public readonly QueueConfigData $queueConfig,
-    ) {
-    }
+    ) {}
 }

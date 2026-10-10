@@ -30,6 +30,5 @@ final class ClassDeclaration
         public readonly bool $isAbstract = false,
         public readonly array $methods = [],
         public readonly array $adaptations = [],
-    ) {
-    }
+    ) {}
 }

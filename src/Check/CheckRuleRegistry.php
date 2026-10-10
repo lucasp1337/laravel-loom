@@ -22,8 +22,7 @@ final class CheckRuleRegistry
 {
     public function __construct(
         private readonly SchemaValidator $validator = new SchemaValidator,
-    ) {
-    }
+    ) {}
 
     /**
      * @return list<CheckRule>

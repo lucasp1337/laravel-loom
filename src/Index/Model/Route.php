@@ -29,8 +29,7 @@ final readonly class Route
         public int $line,
         public array $dispatches,
         public ?int $endLine = null,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

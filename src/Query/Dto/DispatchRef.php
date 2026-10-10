@@ -17,8 +17,7 @@ final readonly class DispatchRef
         public Confidence $confidence,
         public string $file,
         public int $line,
-    ) {
-    }
+    ) {}
 
     public static function fromDispatch(Dispatch $dispatch): self
     {

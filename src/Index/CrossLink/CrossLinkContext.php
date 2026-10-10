@@ -31,8 +31,7 @@ final class CrossLinkContext
         public readonly array $singleIndexes,
         public readonly array $observerIndex,
         public array $listenerMethods = [],
-    ) {
-    }
+    ) {}
 
     /**
      * FQCN→entry index for a single-entry-per-FQCN section.

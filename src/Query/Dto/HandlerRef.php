@@ -14,8 +14,7 @@ final readonly class HandlerRef
         public string $listener,
         public string $method,
         public HandlerKind $kind,
-    ) {
-    }
+    ) {}
 
     /** @return array{listener: string, method: string, handler_kind: string} */
     public function toArray(): array

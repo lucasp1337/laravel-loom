@@ -17,6 +17,5 @@ final readonly class WalkedHandler
         public ?string $file,
         public ?int $line,
         public array $dispatches,
-    ) {
-    }
+    ) {}
 }

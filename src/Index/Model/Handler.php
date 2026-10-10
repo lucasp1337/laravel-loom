@@ -17,8 +17,7 @@ final readonly class Handler
     public function __construct(
         public string $listener,
         public string $method,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

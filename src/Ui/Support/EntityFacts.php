@@ -24,9 +24,7 @@ final class EntityFacts
     /** Header data, not repeated as rows. */
     private const HIDDEN = ['fqcn', 'id'];
 
-    public function __construct(private readonly Links $links)
-    {
-    }
+    public function __construct(private readonly Links $links) {}
 
     /** @return list<FactRow> */
     public function rows(object $entity): array

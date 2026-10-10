@@ -17,8 +17,7 @@ final readonly class RouteChain
     public function __construct(
         public Route $route,
         public ?MethodChain $chain,
-    ) {
-    }
+    ) {}
 
     /** @return array<string, mixed> */
     public function routeArray(): array

@@ -11,6 +11,5 @@ final readonly class PaletteGroup
     public function __construct(
         public string $label,
         public array $items,
-    ) {
-    }
+    ) {}
 }

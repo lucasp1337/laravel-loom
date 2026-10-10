@@ -17,9 +17,7 @@ use Lucasp\Loom\Query\IndexQuery;
  */
 final class Links
 {
-    public function __construct(private readonly IndexQuery $query)
-    {
-    }
+    public function __construct(private readonly IndexQuery $query) {}
 
     public function dashboard(): string
     {

@@ -14,6 +14,5 @@ final class SourceLocation
     public function __construct(
         public readonly string $file,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

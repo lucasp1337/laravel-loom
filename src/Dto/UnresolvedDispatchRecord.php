@@ -20,6 +20,5 @@ final class UnresolvedDispatchRecord
         public readonly int $line,
         public readonly string $expression,
         public readonly string $reason,
-    ) {
-    }
+    ) {}
 }

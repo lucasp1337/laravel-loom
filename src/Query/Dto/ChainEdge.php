@@ -23,8 +23,7 @@ final readonly class ChainEdge
         public int $level,
         public ?string $file = null,
         public ?int $line = null,
-    ) {
-    }
+    ) {}
 
     /** @return array<string, mixed> */
     public function toArray(): array

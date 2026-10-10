@@ -17,6 +17,5 @@ final readonly class ScheduleFrequency
     public function __construct(
         public FrequencyUnit $unit,
         public int $every,
-    ) {
-    }
+    ) {}
 }

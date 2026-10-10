@@ -21,6 +21,5 @@ final readonly class SectionQuery
         public SortDirection $dir = SortDirection::ASC,
         public int $page = 1,
         public int $perPage = 25,
-    ) {
-    }
+    ) {}
 }

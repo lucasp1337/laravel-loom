@@ -11,8 +11,7 @@ final readonly class ClosureHandler
         public string $file,
         public int $line,
         public bool $queued,
-    ) {
-    }
+    ) {}
 
     /** @return array{file: string, line: int, queued: bool} */
     public function toArray(): array

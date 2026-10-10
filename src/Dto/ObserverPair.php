@@ -18,6 +18,5 @@ final class ObserverPair
         public readonly string $model,
         public readonly array $observers,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

@@ -26,8 +26,7 @@ final readonly class Event
         public int $line,
         public array $dispatchedFrom,
         public array $handledBy,
-    ) {
-    }
+    ) {}
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self

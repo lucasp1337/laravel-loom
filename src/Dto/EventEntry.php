@@ -12,6 +12,5 @@ final class EventEntry
         public readonly string $fqcn,
         public readonly string $file,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

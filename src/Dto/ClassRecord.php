@@ -14,6 +14,5 @@ final class ClassRecord
     public function __construct(
         public readonly string $fqcn,
         public readonly int $line,
-    ) {
-    }
+    ) {}
 }

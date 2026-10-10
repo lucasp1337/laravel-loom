@@ -18,6 +18,5 @@ final class NotificationEntry
         public readonly ?QueueConfigData $queueConfig,
         public readonly array $channels,
         public readonly bool $channelsDynamic,
-    ) {
-    }
+    ) {}
 }

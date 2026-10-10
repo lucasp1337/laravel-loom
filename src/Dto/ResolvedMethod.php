@@ -25,8 +25,7 @@ final class ResolvedMethod
         public readonly array $firstParameterClasses,
         public readonly string $declaredIn,
         public readonly string $definedIn,
-    ) {
-    }
+    ) {}
 
     public function isPublic(): bool
     {

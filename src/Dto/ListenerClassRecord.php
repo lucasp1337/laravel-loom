@@ -11,6 +11,5 @@ final class ListenerClassRecord
         public readonly string $fqcn,
         public readonly int $line,
         public readonly bool $queued,
-    ) {
-    }
+    ) {}
 }

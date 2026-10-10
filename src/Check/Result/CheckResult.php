@@ -17,8 +17,7 @@ final class CheckResult
      */
     public function __construct(
         public readonly array $reports,
-    ) {
-    }
+    ) {}
 
     public function passed(): bool
     {

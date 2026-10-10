@@ -15,8 +15,7 @@ final readonly class MethodChain
         public string $method,
         public array $dispatches,
         public array $chains,
-    ) {
-    }
+    ) {}
 
     /** @return array<string, mixed> */
     public function toArray(): array

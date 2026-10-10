@@ -15,9 +15,7 @@ use Throwable;
  */
 final class StaleIndex
 {
-    public function __construct(private readonly AppChangeClock $clock)
-    {
-    }
+    public function __construct(private readonly AppChangeClock $clock) {}
 
     /** Human duration ("6 days") when stale, otherwise null. */
     public function olderBy(string $scannedAt): ?string

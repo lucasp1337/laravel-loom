@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\Model;
 
 use Lucasp\Loom\Index\Field;
+use Lucasp\Loom\Index\Model;
 
 /**
  * Internal typed accessors for hydrating read-model value objects from the
  * decoded index array. Centralises the `mixed` → typed coercion so each
  * `fromArray()` stays declarative and PHPStan-clean.
  *
- * @internal consumed only by {@see \Lucasp\Loom\Index\Model} value objects.
+ * @internal consumed only by {@see Model} value objects.
  */
 final class Hydrate
 {

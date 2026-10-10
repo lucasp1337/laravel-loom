@@ -31,8 +31,7 @@ final readonly class NodeFacts
         public string $namespace,
         public array $facts,
         public ?string $url,
-    ) {
-    }
+    ) {}
 
     public static function for(IndexQuery $query, Links $links, NodeType $type, string $id): self
     {

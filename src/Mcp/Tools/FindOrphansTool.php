@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -17,11 +18,9 @@ use Lucasp\Loom\Query\IndexQuery;
 #[Description('List dead-weight in the event graph: orphan events (dispatched from nowhere AND handled by nothing) and idle listeners (registered but handling no events). A review aid — dynamically dispatched or reflection-registered cases may not surface statically.')]
 final class FindOrphansTool extends Tool
 {
-    public function __construct(private readonly IndexQuery $query)
-    {
-    }
+    public function __construct(private readonly IndexQuery $query) {}
 
-    /** @return array<string, \Illuminate\JsonSchema\Types\Type> */
+    /** @return array<string, Type> */
     public function schema(JsonSchema $schema): array
     {
         return [];
