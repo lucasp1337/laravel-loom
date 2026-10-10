@@ -146,7 +146,7 @@ final class RouteGroupTracker
             }
 
             // array config: a repeated key replaces the earlier value
-            $builder->set($attribute, [$item->value], accumulate: false);
+            $builder->set($attribute, [$item->value]);
         }
 
         return $builder->build();
@@ -161,8 +161,8 @@ final class RouteGroupTracker
         $builder = new RouteGroupAttributesBuilder;
 
         foreach ($this->setters($chain) as [$attribute, $nodes]) {
-            // fluent setters: a repeated prefix, name or controller overwrites, middleware accumulates
-            $builder->set($attribute, $nodes, accumulate: true);
+            // registrar setters: a repeated prefix, name, controller or middleware overwrites
+            $builder->set($attribute, $nodes);
         }
 
         return $builder->build();

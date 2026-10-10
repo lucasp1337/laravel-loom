@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Support;
 
 use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\RouteGroupAttributes;
+use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\Ast\ValueLists;
@@ -13,9 +14,10 @@ use PhpParser\Node;
 
 /**
  * Collects one group's attributes from its array config or fluent setters,
- * applied in source order the way Laravel's `RouteRegistrar` does: a repeated
- * prefix, name or controller overwrites the earlier one, middleware either
- * accumulates (fluent setters) or is replaced (array config).
+ * applied in source order the way Laravel's `RouteRegistrar::attribute()`
+ * does: a repeated prefix, name, controller or middleware overwrites the
+ * earlier one. Accumulation happens elsewhere: nested groups
+ * ({@see RouteGroupContext::merge()}) and a route's own `->middleware()`.
  *
  * A value that is not a static literal is never guessed: the attribute is
  * left unset and recorded as unresolved.
@@ -38,9 +40,8 @@ final class RouteGroupAttributesBuilder
 
     /**
      * @param  list<Node\Expr>  $nodes  the setter's argument nodes; single-valued attributes read the first
-     * @param  bool  $accumulate  middleware appends to earlier setters instead of replacing them
      */
-    public function set(RouteGroupAttribute $attribute, array $nodes, bool $accumulate): void
+    public function set(RouteGroupAttribute $attribute, array $nodes): void
     {
         $first = $nodes[0] ?? null;
 
@@ -52,7 +53,7 @@ final class RouteGroupAttributesBuilder
             // ->controller(Ctrl::class): resolved to an FQCN later, once NameResolver has rewritten the name
             RouteGroupAttribute::CONTROLLER => $this->setController($first),
             // ->middleware(...) / ['middleware' => ...]: names resolved later, like the controller
-            RouteGroupAttribute::MIDDLEWARE => $this->setMiddleware($nodes, $accumulate),
+            RouteGroupAttribute::MIDDLEWARE => $this->setMiddleware($nodes),
             // only ever produced for a non-array Route::group() config, never set here
             RouteGroupAttribute::ATTRIBUTES => null,
         };
@@ -93,13 +94,11 @@ final class RouteGroupAttributesBuilder
     }
 
     /** @param  list<Node\Expr>  $nodes */
-    private function setMiddleware(array $nodes, bool $accumulate): void
+    private function setMiddleware(array $nodes): void
     {
-        $key = RouteGroupAttribute::MIDDLEWARE->value;
-        $unreadable = Arr::where($nodes, fn (Node\Expr $node): bool => ! $this->isStaticMiddleware($node)) !== [];
-
-        $this->unresolved[$key] = $unreadable || ($accumulate && ($this->unresolved[$key] ?? false));
-        $this->middlewareNodes = $accumulate ? [...$this->middlewareNodes, ...$nodes] : $nodes;
+        // the latest assignment replaces the earlier list and its unresolved flag
+        $this->unresolved[RouteGroupAttribute::MIDDLEWARE->value] = Arr::where($nodes, fn (Node\Expr $node): bool => ! $this->isStaticMiddleware($node)) !== [];
+        $this->middlewareNodes = $nodes;
     }
 
     /** True when {@see ValueLists::middleware()} can read every name in the node. */

@@ -26,3 +26,4 @@ Loom parses source without running your app. It scans `app/`, plus `routes/` and
 - Anything inside `vendor/` is treated as opaque, so `queued` and `via()` inherited from a package don't show.
 - Dispatch links from listeners, jobs and observers come from the registered handler method only. Routes attribute by controller method.
 - Handler `dispatches[]` lists only events and jobs. Mail and notification sends inside a handler appear in `mailables[].sent_from` and `notifications[].notified_from` instead.
+- Route middleware follows Laravel's merge rules. Calling `middleware()` twice on a group chain (`Route::middleware('a')->middleware('b')->group(...)`) keeps only `b`. Nested groups add the inner list after the outer one, and `->middleware()` calls on a single route accumulate.
