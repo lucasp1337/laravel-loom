@@ -13,7 +13,7 @@ use Lucasp\Loom\Tools\WordCount;
  * The generated reference pages carry their own budgets in
  * GeneratedPageBudgetTest; they still count toward the total.
  */
-const DOCS_TOTAL_BUDGET = 20000;
+const DOCS_TOTAL_BUDGET = 19300;
 
 /**
  * @return array<string, int|null> page => budget, null when budgeted elsewhere
@@ -21,35 +21,35 @@ const DOCS_TOTAL_BUDGET = 20000;
 function docsPageBudgets(): array
 {
     return [
-        'index.md' => 100,
-        'getting-started.md' => 520,
-        'concepts/what-loom-sees.md' => 700,
+        'index.md' => 70,
+        'getting-started.md' => 500,
+        'concepts/what-loom-sees.md' => 690,
         'concepts/the-index.md' => 450,
-        'guides/browse-the-ui.md' => 1050,
-        'guides/ask-an-agent.md' => 1200,
+        'guides/browse-the-ui.md' => 1020,
+        'guides/ask-an-agent.md' => 1170,
         'guides/use-with-boost.md' => 280,
-        'guides/gate-your-ci.md' => 640,
-        'guides/why-was-my-code-missed.md' => 1380,
+        'guides/gate-your-ci.md' => 630,
+        'guides/why-was-my-code-missed.md' => 1310,
         'reference/commands.md' => 610,
-        'reference/check-rules-and-formats.md' => 730,
-        'reference/action.md' => 580,
-        'reference/php-api.md' => 730,
-        'reference/what-loom-detects.md' => 940,
+        'reference/check-rules-and-formats.md' => 720,
+        'reference/action.md' => 530,
+        'reference/php-api.md' => 600,
+        'reference/what-loom-detects.md' => 930,
         'reference/schema.md' => null,
         'reference/mcp-tools.md' => null,
         'reference/scan-config.md' => null,
         'reference/ui-config.md' => null,
-        'contributing/architecture.md' => 780,
-        'contributing/add-a-scanner.md' => 280,
+        'contributing/architecture.md' => 760,
+        'contributing/add-a-scanner.md' => 270,
         'contributing/class-hierarchy.md' => 310,
-        'contributing/adr/README.md' => 220,
+        'contributing/adr/README.md' => 190,
         'contributing/adr/0001-class-hierarchy-resolver.md' => 320,
         'contributing/adr/0002-schedule-scanner.md' => 440,
-        'contributing/adr/0003-mailables-notifications.md' => 470,
-        'contributing/adr/0004-sub-minute-frequencies.md' => 240,
-        'contributing/adr/0005-index-read-model.md' => 300,
-        'contributing/adr/0006-benchmark-suite.md' => 200,
-        'contributing/adr/0007-scanners-not-an-extension-point.md' => 310,
+        'contributing/adr/0003-mailables-notifications.md' => 460,
+        'contributing/adr/0004-sub-minute-frequencies.md' => 230,
+        'contributing/adr/0005-index-read-model.md' => 290,
+        'contributing/adr/0006-benchmark-suite.md' => 190,
+        'contributing/adr/0007-scanners-not-an-extension-point.md' => 300,
     ];
 }
 

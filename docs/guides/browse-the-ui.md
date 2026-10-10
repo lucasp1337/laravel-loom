@@ -67,7 +67,7 @@ Counters link to each section. The Orphans card lists up to eight events with no
 | 404 on a class | It isn't in the index; check the spelling or scan again. |
 | `Index is 6 days older than your last commit to app/` | Run `php artisan loom:scan`. |
 
-The stale banner compares the scan time with the newest git commit touching `app/`. It needs a git checkout with `git` on the path, is cached for 30 seconds, and ignores uncommitted changes. Silence is not proof the index is fresh.
+The stale banner compares the scan time with the newest git commit touching `app/`. It needs a git checkout with `git` on the path and ignores uncommitted changes, so silence is not proof the index is fresh.
 
 ## Open it on staging
 
@@ -102,6 +102,4 @@ These serve the UI at `/architecture`, restrict it to one domain, and remove it 
 
 ## What the UI doesn't do
 
-- It is read-only: nothing you click changes code, the index or your app.
-- It shows what the scan found. A dispatch Loom couldn't resolve is in `unresolved_dispatches`, not the chain; see [Why was my code missed?](why-was-my-code-missed.md).
-- It is a development tool. Install with `--dev` and don't expose it in production.
+It is read-only and shows only what the scan found: a dispatch Loom couldn't resolve is in `unresolved_dispatches`, not the chain ([Why was my code missed?](why-was-my-code-missed.md)). It is a development tool: install with `--dev` and don't expose it in production.

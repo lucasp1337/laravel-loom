@@ -58,8 +58,7 @@ The agent picks the tool from your question and each tool's description. Inputs 
 | "What breaks if I delete `SendReceipt`?" | `impact-of-change` |
 | "Is there dead code in our events?" | `find-orphans` |
 | "What can't Loom trace?" | `find-unresolved-dispatches` |
-| "Show me everything Loom found for jobs" | `list-entities` |
-| "Give me the full record for `SendReceipt`" | `get-entity` |
+| "List the jobs", "show `SendReceipt`" | `list-entities`, `get-entity` |
 
 When you know the exact class name, say so: the tools match fully qualified names exactly, and an agent guessing `App\Events\OrderPlaced` from "the order event" may call `list-entities` first.
 
@@ -100,7 +99,7 @@ Client and server talk JSON-RPC over stdout, so `--scan` and the auto-scan run s
 
 `events-following`, `events-from-method` and `route-to-events` take `depth`, the number of handler-to-dispatch hops. It defaults to 3 and is clamped to 1 through 6. At depth 1 an event's handlers and what they fire are returned, but not the handlers of those events. The response carries `truncated` (`true` when `depth` cut a chain short), `cycles` (events revisited on a path) and `events_reached` (events whose handlers were expanded; a target missing from it was left unexpanded). A cycle does not loop: each event is expanded once. For true dispatch cycles use `loom:check` ([Gate your CI](gate-your-ci.md)).
 
-A route resolves to its controller method exactly. Listeners, observers and jobs resolve to the whole class. A closure route returns `"chain": null` with a note.
+A route resolves to its controller method exactly; listeners, observers and jobs resolve to the whole class.
 
 ## What Loom couldn't resolve
 

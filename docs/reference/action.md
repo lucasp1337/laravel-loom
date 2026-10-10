@@ -11,14 +11,14 @@ The workflow is in [Gate your CI](../guides/gate-your-ci.md#run-both-on-every-pu
 
 ## Inputs
 
-| Input | Default | Effect | Consequence |
-| --- | --- | --- | --- |
-| `php-version` | `8.3` | PHP version installed, with `dom`, `mbstring` and `xml`. | Must satisfy your app's `composer.json`, or `composer install` fails. |
-| `laravel-version` | empty | Laravel version to report. Empty reads it from `composer.lock`. | Informational. It doesn't change what gets installed. |
-| `strict` | `false` | Runs `loom:check --strict`. | Any unresolved dispatch fails the build. Left off, unresolved dispatches are never checked. |
-| `comment-on-pr` | `true` | Posts or updates a sticky PR comment with the check result and diff. | Needs `pull-requests: write`. Does nothing outside `pull_request` events. |
-| `fail-on-diff` | `false` | Fails the build when the diff reports changes. | Every PR that touches architecture goes red. Use it to force review, not as a policy gate. |
-| `working-directory` | `.` | Directory holding `artisan` and `composer.json`. | The base-branch diff assumes the app is at the repository root, so in a subdirectory it is skipped. |
+| Input | Default | Effect |
+| --- | --- | --- |
+| `php-version` | `8.3` | PHP installed, with `dom`, `mbstring` and `xml`. Must satisfy your `composer.json`. |
+| `laravel-version` | empty | Laravel version to report; empty reads `composer.lock`. Informational. |
+| `strict` | `false` | Runs `loom:check --strict`: any unresolved dispatch fails. Off, they are never checked. |
+| `comment-on-pr` | `true` | Posts or updates a sticky PR comment. Needs `pull-requests: write`; only on `pull_request` events. |
+| `fail-on-diff` | `false` | Fails the build when the diff reports changes, so every architectural PR goes red. |
+| `working-directory` | `.` | Directory holding `artisan` and `composer.json`. The base-branch diff assumes the repository root, so in a subdirectory it is skipped. |
 
 ## Outputs
 

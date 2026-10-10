@@ -22,13 +22,7 @@ jq '.unresolved_dispatches' storage/loom/index.json
 
 ### A closure listener has no back-link
 
-`handled_by` holds a class and method, which a closure lacks, so closures live in `closure_listeners` keyed by event:
-
-```bash
-jq '.closure_listeners[] | select(.event == "App\\Events\\OrderPlaced")' storage/loom/index.json
-```
-
-Dispatches made inside a closure listener show in its `dispatches`, but the target's `dispatched_from` does not list the closure. Move the body into a listener class to get both links. Closure listeners always show `queued: false`. A closure that is not a registration (`DB::transaction(fn () => ...)`, `each`, `tap`) counts for the enclosing method.
+`handled_by` holds a class and method, which a closure lacks, so closures live in `closure_listeners` keyed by event. Dispatches inside one show in its `dispatches`, but the target's `dispatched_from` does not list the closure, and `queued` is always `false`. Move the body into a listener class to get both links.
 
 ### An event is missing from the events list
 
@@ -36,7 +30,7 @@ Events come from `app/Events/` and from classes passed to `event()`, `broadcast(
 
 ### A model event handler is missing
 
-A closure registered with `Event::listen('eloquent.created: App\Models\Order', ...)` appears in `closure_listeners`, not `model_events[].handled_by`, which holds `Observer::method` names. An observer registered only through that string form is not in `observers`; use `#[ObservedBy]` or `Order::observe()`. Hook methods declared, inherited or from a trait are read; `booting()` and `booted()` are not observable and are ignored.
+A closure registered with `Event::listen('eloquent.created: App\Models\Order', ...)` is in `closure_listeners`, not `model_events[].handled_by`. An observer registered only through that string form is not in `observers`; use `#[ObservedBy]` or `Order::observe()`. `booting()` and `booted()` are not observable and are ignored.
 
 ## Dispatches
 
@@ -96,14 +90,7 @@ Loom reads `app/Console/Kernel.php`, `->withSchedule()` in `bootstrap/app.php`, 
 
 ### The cron value is null
 
-In order:
-
-1. A sub-minute helper (`everyFiveSeconds()`): the interval is in `frequency` and `cron: null` is correct.
-2. A variable argument (`->dailyAt($time)`): use a literal or `->cron('0 3 * * *')`.
-3. A macro or unknown helper, or an unrecognised method after a frequency helper (it might change the schedule): use a standard helper or `->cron()`.
-4. Several frequency helpers: the last wins, and if it is unrecognised the value is `null`.
-
-`->repeatEvery()` and `->evenWhenPaused()` are not captured.
+A sub-minute helper (`everyFiveSeconds()`) puts the interval in `frequency` and `cron: null` is correct. Otherwise: a variable argument (`->dailyAt($time)`), a macro or unknown helper, or an unrecognised method after a frequency helper (it might change the schedule). Use a literal, a standard helper or `->cron('0 3 * * *')`. The last frequency helper wins. `->repeatEvery()` and `->evenWhenPaused()` are not captured.
 
 ### A scheduled task has a null target
 
