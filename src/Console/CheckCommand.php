@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\CheckContext;
 use Lucasp\Loom\Check\CheckRunner;
 use Lucasp\Loom\Check\Format\CheckFormatterFactory;
@@ -86,7 +87,7 @@ class CheckCommand extends Command
         foreach ($raw as $value) {
             $value = is_string($value) ? $value : '';
             if (RuleKey::tryFrom($value) === null) {
-                $valid = implode(', ', array_map(static fn (RuleKey $key): string => $key->value, RuleKey::cases()));
+                $valid = Arr::join(Arr::map(RuleKey::cases(), static fn (RuleKey $key): string => $key->value), ', ');
                 $this->error("Unknown rule key '{$value}'. Valid keys: {$valid}.");
 
                 return null;

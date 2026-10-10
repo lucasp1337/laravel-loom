@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Support\IndexPath;
 
 /** @internal */
@@ -57,10 +58,7 @@ class ShowCommand extends Command
             if (! isset($data[$section]) || ! is_array($data[$section])) {
                 continue;
             }
-            $data[$section] = array_values(array_filter(
-                $data[$section],
-                fn ($entry) => is_array($entry) && str_contains(json_encode($entry) ?: '', $needle),
-            ));
+            $data[$section] = array_values(Arr::where($data[$section], fn ($entry) => is_array($entry) && str_contains(json_encode($entry) ?: '', $needle)));
         }
 
         return $data;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Mcp;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Query\ChangeKind;
 use Lucasp\Loom\Query\Dto\ImpactReport;
 use Lucasp\Loom\Query\ImpactNote;
@@ -26,7 +27,7 @@ final class ImpactNoteFormatter
             ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT => 'Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.',
             ImpactNote::WOULD_ORPHAN_EVENTS => ($report->change === ChangeKind::REMOVE ? 'Removing' : 'Renaming')
                 .' this class would leave '.self::plural(count($report->wouldOrphanEvents), 'event')
-                .' with no remaining handler: '.implode(', ', $report->wouldOrphanEvents).'.',
+                .' with no remaining handler: '.Arr::join($report->wouldOrphanEvents, ', ').'.',
             ImpactNote::NO_ORPHANS => 'No handled event would be left without a handler by this change.',
             ImpactNote::DOWNSTREAM_NOT_EXPANDED => 'Downstream dispatches from this class are listed; their own chains are not expanded here.',
             ImpactNote::UNKNOWN_FQCN => 'No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.',

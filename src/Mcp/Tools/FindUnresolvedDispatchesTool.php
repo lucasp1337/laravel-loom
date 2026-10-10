@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -29,12 +30,12 @@ final class FindUnresolvedDispatchesTool extends Tool
 
     public function handle(Request $request): Response
     {
-        $unresolved = array_map(static fn (UnresolvedDispatch $u): array => [
+        $unresolved = Arr::map($this->query->unresolvedDispatches(), static fn (UnresolvedDispatch $u): array => [
             'file' => $u->file,
             'line' => $u->line,
             'expression' => $u->expression,
             'reason' => $u->reason,
-        ], $this->query->unresolvedDispatches());
+        ]);
 
         return Response::text((string) json_encode([
             'count' => count($unresolved),

@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -27,7 +28,7 @@ final class ListEntitiesTool extends Tool
     {
         return [
             'section' => $schema->string()
-                ->enum(array_map(static fn (Sections $s): string => $s->value, Sections::cases()))
+                ->enum(Arr::map(Sections::cases(), static fn (Sections $s): string => $s->value))
                 ->description('The index section to list.')
                 ->required(),
         ];
@@ -42,7 +43,7 @@ final class ListEntitiesTool extends Tool
         try {
             $section = Sections::from($validated['section']);
         } catch (ValueError) {
-            $expected = implode(', ', array_map(static fn (Sections $s): string => $s->value, Sections::cases()));
+            $expected = Arr::join(Arr::map(Sections::cases(), static fn (Sections $s): string => $s->value), ', ');
 
             return Response::error("Unknown section [{$validated['section']}]; expected one of: {$expected}.");
         }

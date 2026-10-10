@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -30,7 +31,7 @@ final class ImpactOfChangeTool extends Tool
                 ->description('The fully-qualified class name being changed (event, listener, or job).')
                 ->required(),
             'change' => $schema->string()
-                ->enum(array_map(static fn (ChangeKind $k): string => $k->value, ChangeKind::cases()))
+                ->enum(Arr::map(ChangeKind::cases(), static fn (ChangeKind $k): string => $k->value))
                 ->description('The kind of change being made. Affects the framing of the notes only.')
                 ->default(ChangeKind::REMOVE->value),
         ];
@@ -47,7 +48,7 @@ final class ImpactOfChangeTool extends Tool
         $rawChange = $validated['change'] ?? ChangeKind::REMOVE->value;
         $change = ChangeKind::tryFrom($rawChange);
         if ($change === null) {
-            $expected = implode(', ', array_map(static fn (ChangeKind $k): string => $k->value, ChangeKind::cases()));
+            $expected = Arr::join(Arr::map(ChangeKind::cases(), static fn (ChangeKind $k): string => $k->value), ', ');
 
             return Response::error("Unknown change [{$rawChange}]; expected one of: {$expected}.");
         }
