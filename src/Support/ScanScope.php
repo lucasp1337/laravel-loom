@@ -324,22 +324,35 @@ final class ScanScope
             $char = $glob[$i];
 
             if ($char === '*') {
-                if (($glob[$i + 1] ?? '') === '*') {
-                    $i++;
-                    if (($glob[$i + 1] ?? '') === '/') {
-                        $i++;
-                        $regex .= '(?:.*/)?';
-                    } else {
-                        $regex .= '.*';
-                    }
-                } else {
+                // Single `*`: any run of characters within one segment.
+                if (($glob[$i + 1] ?? '') !== '*') {
                     $regex .= '[^/]*';
+
+                    continue;
                 }
-            } elseif ($char === '?') {
-                $regex .= '[^/]';
-            } else {
-                $regex .= preg_quote($char, '#');
+
+                $i++;
+
+                // `**/`: zero or more whole directories.
+                if (($glob[$i + 1] ?? '') === '/') {
+                    $i++;
+                    $regex .= '(?:.*/)?';
+
+                    continue;
+                }
+
+                // Bare `**`: crosses segments.
+                $regex .= '.*';
+
+                continue;
             }
+
+            $regex .= match ($char) {
+                // `?`: one character within a segment.
+                '?' => '[^/]',
+                // Anything else is literal.
+                default => preg_quote($char, '#'),
+            };
         }
 
         return '#^'.$regex.'$#';

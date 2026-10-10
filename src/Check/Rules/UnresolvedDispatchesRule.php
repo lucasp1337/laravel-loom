@@ -41,19 +41,13 @@ final class UnresolvedDispatchesRule implements CheckRule
     {
         $entries = $context->section(Sections::UNRESOLVED_DISPATCHES);
 
-        if ($context->strict()) {
-            $offending = $entries;
-        } elseif ($context->hasBaseline()) {
-            $baseline = $this->identities($context->baselineSection(Sections::UNRESOLVED_DISPATCHES));
-            $offending = [];
-            foreach ($entries as $entry) {
-                if (! isset($baseline[$this->identity($entry)])) {
-                    $offending[] = $entry;
-                }
-            }
-        } else {
+        // Neither strict nor a baseline: growth cannot be determined, nothing fails.
+        if (! $context->strict() && ! $context->hasBaseline()) {
             return [];
         }
+
+        // Strict: every unresolved dispatch fails. Otherwise only those absent from the baseline.
+        $offending = $context->strict() ? $entries : $this->notInBaseline($entries, $context);
 
         $violations = [];
         foreach ($offending as $entry) {
@@ -76,6 +70,23 @@ final class UnresolvedDispatchesRule implements CheckRule
         $violations = array_values(collect($violations)->sort(static fn (Violation $a, Violation $b): int => $a->message <=> $b->message)->all());
 
         return $violations;
+    }
+
+    /**
+     * @param  list<array<string,mixed>>  $entries
+     * @return list<array<string,mixed>>
+     */
+    private function notInBaseline(array $entries, CheckContext $context): array
+    {
+        $baseline = $this->identities($context->baselineSection(Sections::UNRESOLVED_DISPATCHES));
+        $offending = [];
+        foreach ($entries as $entry) {
+            if (! isset($baseline[$this->identity($entry)])) {
+                $offending[] = $entry;
+            }
+        }
+
+        return $offending;
     }
 
     /**
