@@ -15,6 +15,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Fixed
 
+- Code reformatted to the current Laravel Pint preset; `laravel/pint` requires `^1.32` and a manual `Pint` workflow runs `pint --test` ([#132](https://github.com/lucasp1337/laravel-loom/issues/132)).
 - Dispatches inside pass-through closures (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`) now count for the enclosing method, and unresolved ones reach `unresolved_dispatches` ([#97](https://github.com/lucasp1337/laravel-loom/issues/97)).
 - Dispatches inside closure routes are attributed to the route, and the event lists the route as a dispatch site ([#81](https://github.com/lucasp1337/laravel-loom/issues/81)).
 - A model's `$dispatchesEvents` entries are recorded as event dispatch sites ([#80](https://github.com/lucasp1337/laravel-loom/issues/80)).
