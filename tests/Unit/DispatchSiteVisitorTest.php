@@ -1368,6 +1368,7 @@ it('records unresolved sync and Queue targets without a site', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
+    use Illuminate\Support\Facades\Bus;
     use Illuminate\Support\Facades\Queue;
     class Svc {
         public function go($job): void {
@@ -1382,4 +1383,89 @@ it('records unresolved sync and Queue targets without a site', function () {
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(2);
+});
+
+// -----------------------------------------------------------------------------
+// Rule-table quirks, pinned on purpose
+// -----------------------------------------------------------------------------
+
+/**
+ * @return array{0: list<mixed>, 1: list<mixed>}
+ */
+function runDispatchBody(string $body): array
+{
+    return runDispatchSiteVisitor(<<<PHP
+    <?php
+    namespace App\Services;
+    use App\Jobs\Ship;
+    use App\Notifications\Paid;
+    use Illuminate\Support\Facades\Bus;
+    use Illuminate\Support\Facades\Queue;
+    use Illuminate\Support\Facades\Route;
+    class Svc {
+        public function go(\$u, \$cond): void {
+            {$body}
+        }
+    }
+    PHP);
+}
+
+it('records static:: and self:: dispatch forms with the keyword as target', function (string $call, string $target) {
+    [$sites] = runDispatchBody($call);
+
+    expect($sites)->toHaveCount(1)
+        ->and($sites[0]->target)->toBe($target)
+        ->and($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+})->with([
+    'static' => ['static::dispatch();', 'static'],
+    'self' => ['self::dispatch();', 'self'],
+]);
+
+it('treats a facade outside the rule table as a Dispatchable class', function () {
+    [$sites] = runDispatchBody('Route::dispatch(new Ship);');
+
+    expect($sites)->toHaveCount(1)
+        ->and($sites[0]->target)->toBe('Illuminate\\Support\\Facades\\Route')
+        ->and($sites[0]->provisionalKind)->toBe(DispatchKinds::AMBIGUOUS);
+});
+
+it('does not expand a ternary argument of Queue::push', function () {
+    [$sites, $unresolved] = runDispatchBody('Queue::push($cond ? new Ship : new Ship);');
+
+    expect($sites)->toBe([])
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('conditional_dispatch');
+});
+
+it('expands a ternary argument of Bus::dispatch into both branches', function () {
+    [$sites] = runDispatchBody('Bus::dispatch($cond ? new Ship : new Ship);');
+
+    expect($sites)->toHaveCount(2);
+});
+
+it('lets a fixed static mode win over a later ->afterResponse()', function () {
+    [$sites] = runDispatchBody('Ship::dispatchSync()->afterResponse();');
+
+    expect($sites[0]->mode)->toBe(DispatchMode::SYNC);
+});
+
+it('reads a modifier off any ->notify() receiver chain', function () {
+    [$sites] = runDispatchBody("\$u->locale('fr')->notify(new Paid);");
+
+    expect($sites)->toHaveCount(1)
+        ->and($sites[0]->form)->toBe(DispatchForm::NOTIFY_METHOD)
+        ->and($sites[0]->overrides->locale)->toBe('fr');
+});
+
+it('ignores a nullsafe ->notify()', function () {
+    [$sites] = runDispatchBody('$u?->notify(new Paid);');
+
+    expect($sites)->toBe([]);
+});
+
+it('roots a Mail chain through a dynamic link', function () {
+    [$sites] = runDispatchBody('\Illuminate\Support\Facades\Mail::to($u)->{$cond}()->send(new Paid);');
+
+    expect($sites)->toHaveCount(1)
+        ->and($sites[0]->form)->toBe(DispatchForm::MAIL_CHAIN);
 });
