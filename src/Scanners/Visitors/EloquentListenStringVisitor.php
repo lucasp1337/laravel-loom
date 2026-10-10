@@ -9,6 +9,7 @@ use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Facades;
+use Lucasp\Loom\Support\Fqcn;
 use PhpParser\Node;
 
 /**
@@ -78,7 +79,7 @@ final class EloquentListenStringVisitor extends CollectingVisitor
         }
 
         $this->entries[] = new EloquentListenRecord(
-            model: ltrim($model, '\\'),
+            model: Fqcn::normalize($model),
             hook: $hook,
             handler: $resolved['handler'],
             method: $resolved['method'],
@@ -95,13 +96,13 @@ final class EloquentListenStringVisitor extends CollectingVisitor
     {
         if ($value instanceof Node\Scalar\String_) {
             $raw = $value->value;
-            $atPos = strpos($raw, '@');
-            if ($atPos === false) {
+            $parts = Fqcn::splitAtMember($raw);
+            if ($parts === null) {
                 return null;
             }
 
-            $handler = ltrim(substr($raw, 0, $atPos), '\\');
-            $method = substr($raw, $atPos + 1);
+            [$class, $method] = $parts;
+            $handler = Fqcn::normalize($class);
             if ($handler === '' || $method === '') {
                 return null;
             }

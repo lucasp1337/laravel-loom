@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support\Ast;
 
+use Lucasp\Loom\Support\Fqcn;
 use PhpParser\Node;
 
 /**
@@ -66,7 +67,7 @@ final class Callables
 
         // Shape A: Closure::fromCallable([Foo::class, 'method']) / ([Foo::class]).
         if (! $args->isFirstClassCallable()
-            && ltrim($value->class->toString(), '\\') === 'Closure'
+            && Fqcn::same($value->class->toString(), 'Closure')
             && $value->name->toString() === 'fromCallable'
             && $args->count() === 1
         ) {

@@ -69,7 +69,7 @@ final class RoutePathResolver
             return $right === null ? null : $left.$right;
         }
         if ($expr instanceof Node\Expr\FuncCall && $expr->name instanceof Node\Name) {
-            return $this->call(Str::ltrim($expr->name->toString(), '\\'), Args::of($expr->args), $sourceFile, $root);
+            return $this->call(Fqcn::normalize($expr->name->toString()), Args::of($expr->args), $sourceFile, $root);
         }
 
         return null;

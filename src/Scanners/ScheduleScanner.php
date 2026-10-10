@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
@@ -18,6 +17,7 @@ use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
 use PhpParser\Node;
@@ -369,7 +369,7 @@ final class ScheduleScanner implements Scanner
 
         $string = Literal::string($value);
         if ($string !== null) {
-            return $this->normaliseAtCallable($string);
+            return $this->atCallableToStatic($string);
         }
 
         return null;
@@ -455,15 +455,11 @@ final class ScheduleScanner implements Scanner
         return $fqcn.'::'.$method;
     }
 
-    private function normaliseAtCallable(string $value): string
+    private function atCallableToStatic(string $value): string
     {
-        if (Str::contains($value, '@')) {
-            [$class, $method] = explode('@', $value, 2);
+        $parts = Fqcn::splitAtMember($value);
 
-            return $class.'::'.$method;
-        }
-
-        return $value;
+        return $parts === null ? $value : $parts[0].'::'.$parts[1];
     }
 
     /**

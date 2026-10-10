@@ -80,7 +80,7 @@ final class ClassHierarchyResolver
      */
     public function extendsChain(string $fqcn): array
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         if (Arr::exists($this->extendsChainCache, $fqcn)) {
             return $this->extendsChainCache[$fqcn];
         }
@@ -105,7 +105,7 @@ final class ClassHierarchyResolver
             if ($parent === null) {
                 break;
             }
-            $parent = $this->normalize($parent);
+            $parent = Fqcn::normalize($parent);
 
             if (isset($visited[$parent])) {
                 break; // cycle
@@ -132,7 +132,7 @@ final class ClassHierarchyResolver
      */
     public function implementsAll(string $fqcn): array
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         if (Arr::exists($this->implementsAllCache, $fqcn)) {
             return $this->implementsAllCache[$fqcn];
         }
@@ -161,7 +161,7 @@ final class ClassHierarchyResolver
                     continue;
                 }
                 foreach ($decl['interfaces'] as $iface) {
-                    $this->expandClosure($this->normalize($iface), 'interface', 'parents', $result, $seen);
+                    $this->expandClosure(Fqcn::normalize($iface), 'interface', 'parents', $result, $seen);
                 }
             }
         }
@@ -176,7 +176,7 @@ final class ClassHierarchyResolver
      */
     public function traitsAll(string $fqcn): array
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         if (Arr::exists($this->traitsAllCache, $fqcn)) {
             return $this->traitsAllCache[$fqcn];
         }
@@ -205,7 +205,7 @@ final class ClassHierarchyResolver
                     continue;
                 }
                 foreach ($decl['traits'] as $trait) {
-                    $this->expandClosure($this->normalize($trait), 'trait', 'traits', $result, $seen);
+                    $this->expandClosure(Fqcn::normalize($trait), 'trait', 'traits', $result, $seen);
                 }
             }
         }
@@ -215,8 +215,8 @@ final class ClassHierarchyResolver
 
     public function implementsInterface(string $fqcn, string $interface): bool
     {
-        $fqcn = $this->normalize($fqcn);
-        $interface = $this->normalize($interface);
+        $fqcn = Fqcn::normalize($fqcn);
+        $interface = Fqcn::normalize($interface);
 
         if (isset($this->implementsInterfaceCache[$fqcn][$interface])) {
             return $this->implementsInterfaceCache[$fqcn][$interface];
@@ -229,8 +229,8 @@ final class ClassHierarchyResolver
 
     public function isSubclassOf(string $fqcn, string $ancestor): bool
     {
-        $fqcn = $this->normalize($fqcn);
-        $ancestor = $this->normalize($ancestor);
+        $fqcn = Fqcn::normalize($fqcn);
+        $ancestor = Fqcn::normalize($ancestor);
 
         if (isset($this->isSubclassOfCache[$fqcn][$ancestor])) {
             return $this->isSubclassOfCache[$fqcn][$ancestor];
@@ -252,7 +252,7 @@ final class ClassHierarchyResolver
      */
     public function effectiveMethods(string $fqcn): array
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         if (isset($this->methodsCache[$fqcn])) {
             return $this->methodsCache[$fqcn];
         }
@@ -295,7 +295,7 @@ final class ClassHierarchyResolver
      */
     public function isInstantiable(string $fqcn): bool
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         $this->ensureIndexed();
 
         $decl = $this->index[$fqcn] ?? null;
@@ -313,7 +313,7 @@ final class ClassHierarchyResolver
     {
         $classes = [];
         foreach ($method->firstParameterClasses as $name) {
-            $name = $this->normalize($name);
+            $name = Fqcn::normalize($name);
             $resolved = match (strtolower($name)) {
                 'self' => $method->declaredIn,
                 'parent' => $this->index[$method->declaredIn]['parent'] ?? null,
@@ -330,7 +330,7 @@ final class ClassHierarchyResolver
 
     public function knows(string $fqcn): bool
     {
-        $fqcn = $this->normalize($fqcn);
+        $fqcn = Fqcn::normalize($fqcn);
         $this->ensureIndexed();
 
         return isset($this->index[$fqcn]);
@@ -347,7 +347,7 @@ final class ClassHierarchyResolver
         /** @var array<string, array<string, ResolvedMethod>> $tables */
         $tables = [];
         foreach ($decl['traits'] as $trait) {
-            $trait = $this->normalize($trait);
+            $trait = Fqcn::normalize($trait);
             $tables[$trait] = [];
             foreach ($this->effectiveMethods($trait) as $key => $method) {
                 $tables[$trait][$key] = $method->declaredInto($fqcn);
@@ -412,7 +412,7 @@ final class ClassHierarchyResolver
         $key = strtolower($adaptation->method);
 
         if ($adaptation->trait !== null) {
-            return $tables[$this->normalize($adaptation->trait)][$key] ?? null;
+            return $tables[Fqcn::normalize($adaptation->trait)][$key] ?? null;
         }
 
         foreach ($tables as $table) {
@@ -427,11 +427,11 @@ final class ClassHierarchyResolver
     private function normalizeAdaptation(TraitAdaptation $adaptation): TraitAdaptation
     {
         return new TraitAdaptation(
-            $adaptation->trait !== null ? $this->normalize($adaptation->trait) : null,
+            $adaptation->trait !== null ? Fqcn::normalize($adaptation->trait) : null,
             $adaptation->method,
             $adaptation->alias,
             $adaptation->visibility,
-            array_values(Arr::map($adaptation->insteadof, $this->normalize(...))),
+            array_values(Arr::map($adaptation->insteadof, Fqcn::normalize(...))),
         );
     }
 
@@ -459,7 +459,7 @@ final class ClassHierarchyResolver
         }
 
         foreach ($decl[$edgeField] as $neighbour) {
-            $this->expandClosure($this->normalize($neighbour), $expectKind, $edgeField, $result, $seen);
+            $this->expandClosure(Fqcn::normalize($neighbour), $expectKind, $edgeField, $result, $seen);
         }
     }
 
@@ -484,10 +484,10 @@ final class ClassHierarchyResolver
                 $this->index[$decl->fqcn] = [
                     'fqcn' => $decl->fqcn,
                     'kind' => $decl->kind,
-                    'parent' => $decl->parent !== null ? $this->normalize($decl->parent) : null,
-                    'parents' => array_values(Arr::map($decl->parents, $this->normalize(...))),
-                    'interfaces' => array_values(Arr::map($decl->interfaces, $this->normalize(...))),
-                    'traits' => array_values(Arr::map($decl->traits, $this->normalize(...))),
+                    'parent' => $decl->parent !== null ? Fqcn::normalize($decl->parent) : null,
+                    'parents' => array_values(Arr::map($decl->parents, Fqcn::normalize(...))),
+                    'interfaces' => array_values(Arr::map($decl->interfaces, Fqcn::normalize(...))),
+                    'traits' => array_values(Arr::map($decl->traits, Fqcn::normalize(...))),
                     'file' => $relative,
                     'line' => $decl->line,
                     'isAbstract' => $decl->isAbstract,
@@ -496,10 +496,5 @@ final class ClassHierarchyResolver
                 ];
             }
         }
-    }
-
-    private function normalize(string $fqcn): string
-    {
-        return ltrim($fqcn, '\\');
     }
 }

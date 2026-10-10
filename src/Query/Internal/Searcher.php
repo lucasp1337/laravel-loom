@@ -11,6 +11,7 @@ use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\Dto\SearchHit;
 use Lucasp\Loom\Query\EntityKind;
+use Lucasp\Loom\Support\Fqcn;
 
 /**
  * Case-insensitive scan over the searchable sections.
@@ -73,7 +74,7 @@ final class Searcher
     {
         $name = SectionReader::name($item);
         $file = SectionReader::file($item);
-        $short = $this->shortName($item, $name);
+        $short = $this->searchKey($item, $name);
         // Route short names drop the leading slash, so a "/orders" query must too.
         if ($item instanceof Route) {
             $needle = ltrim($needle, '/') ?: $needle;
@@ -111,14 +112,12 @@ final class Searcher
         };
     }
 
-    private function shortName(object $item, string $name): string
+    private function searchKey(object $item, string $name): string
     {
         if ($item instanceof Route) {
             return ltrim($item->uri, '/');
         }
 
-        $pos = strrpos($name, '\\');
-
-        return $pos === false ? $name : substr($name, $pos + 1);
+        return Fqcn::short($name);
     }
 }

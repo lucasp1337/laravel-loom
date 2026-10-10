@@ -200,8 +200,6 @@ final class ChainGraph
     /** @return array{0: string, 1: ?string} */
     private function splitHandler(string $ref): array
     {
-        $pos = strrpos($ref, '::');
-
-        return $pos === false ? [$ref, null] : [substr($ref, 0, $pos), substr($ref, $pos + 2)];
+        return Fqcn::splitStaticMember($ref) ?? [$ref, null];
     }
 }
