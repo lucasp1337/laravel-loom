@@ -40,7 +40,7 @@ final class ComposerPsr4Map
     /** Only `autoload.psr-4`; `autoload-dev` (tests, factories) is not application code. */
     public static function fromAppRoot(string $appRoot): self
     {
-        $file = Str::rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR.'composer.json';
+        $file = AppPath::join($appRoot, 'composer.json');
         $raw = is_file($file) ? @file_get_contents($file) : false;
         $decoded = $raw === false ? null : json_decode($raw, true);
 
@@ -80,7 +80,7 @@ final class ComposerPsr4Map
             return null;
         }
 
-        $root = Str::rtrim($appRoot, '/\\');
+        $root = AppPath::root($appRoot);
 
         foreach ($this->map as $prefix => $dirs) {
             if ($prefix !== '' && ! Str::startsWith($fqcn, $prefix)) {

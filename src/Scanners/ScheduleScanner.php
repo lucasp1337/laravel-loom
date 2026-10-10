@@ -13,6 +13,7 @@ use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
+use Lucasp\Loom\Support\AppPath;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
@@ -174,7 +175,7 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverBootstrapForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
+        $file = AppPath::join($appRoot, 'bootstrap/app.php');
         if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
@@ -192,7 +193,7 @@ final class ScheduleScanner implements Scanner
      */
     private function discoverConsoleRoutesForm(string $appRoot): array
     {
-        $file = $appRoot.DIRECTORY_SEPARATOR.'routes'.DIRECTORY_SEPARATOR.'console.php';
+        $file = AppPath::join($appRoot, 'routes/console.php');
         if (! is_file($file) || $this->scope()->isExcluded($appRoot, $file)) {
             return [];
         }
