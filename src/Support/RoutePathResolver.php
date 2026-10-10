@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Support;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\RouteFileReference;
+use Lucasp\Loom\Support\Ast\Arg;
+use Lucasp\Loom\Support\Ast\Args;
 use PhpParser\Node;
 
 /**
@@ -67,32 +69,30 @@ final class RoutePathResolver
             return $right === null ? null : $left.$right;
         }
         if ($expr instanceof Node\Expr\FuncCall && $expr->name instanceof Node\Name) {
-            return $this->call(Str::ltrim($expr->name->toString(), '\\'), $expr->args, $sourceFile, $root);
+            return $this->call(Str::ltrim($expr->name->toString(), '\\'), Args::of($expr->args), $sourceFile, $root);
         }
 
         return null;
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function call(string $function, array $args, string $sourceFile, string $root): ?string
+    private function call(string $function, Args $args, string $sourceFile, string $root): ?string
     {
-        $first = $args[0] ?? null;
-        if (count($args) > 2 || ($first !== null && ! $first instanceof Node\Arg)) {
+        // too many arguments, or first-class callable syntax `base_path(...)`
+        if ($args->count() > 2 || $args->isFirstClassCallable()) {
             return null;
         }
+        $first = $args->at(0);
 
         return match ($function) {
             'base_path' => $this->join($root, $first, $sourceFile, $root),
             'app_path' => $this->join($root.'/app', $first, $sourceFile, $root),
-            'dirname' => $this->dirname($first, $args[1] ?? null, $sourceFile, $root),
+            'dirname' => $this->dirname($first, $args->at(1), $sourceFile, $root),
             default => null,
         };
     }
 
     /** Laravel's `join_paths`: the argument loses its leading separators. */
-    private function join(string $base, ?Node\Arg $argument, string $sourceFile, string $root): ?string
+    private function join(string $base, ?Arg $argument, string $sourceFile, string $root): ?string
     {
         if ($argument === null) {
             return $base;
@@ -103,7 +103,7 @@ final class RoutePathResolver
         return $suffix === null ? null : $base.'/'.Str::ltrim(Str::replace('\\', '/', $suffix), '/');
     }
 
-    private function dirname(?Node\Arg $path, Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $levels, string $sourceFile, string $root): ?string
+    private function dirname(?Arg $path, ?Arg $levels, string $sourceFile, string $root): ?string
     {
         if ($path === null) {
             return null;
@@ -111,7 +111,7 @@ final class RoutePathResolver
 
         $count = 1;
         if ($levels !== null) {
-            $count = $levels instanceof Node\Arg && $levels->value instanceof Node\Scalar\Int_ ? $levels->value->value : 0;
+            $count = $levels->value instanceof Node\Scalar\Int_ ? $levels->value->value : 0;
         }
         $value = $this->evaluate($path->value, $sourceFile, $root);
         if ($value === null || $count < 1) {

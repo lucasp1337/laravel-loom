@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Index\DispatchMode;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 
 /**
@@ -14,7 +16,7 @@ use PhpParser\Node;
  * This is the single source of truth for the recognised modifier-method table.
  * It knows nothing about AST traversal direction or dispatch forms — callers
  * hand it a flat, source-order list of {@see Node\Expr\MethodCall} links and it
- * pulls literal argument values via {@see AstHelpers}. Unknown methods, and
+ * pulls literal argument values via {@see Literal}. Unknown methods, and
  * recognised methods whose argument is not a static literal, are ignored.
  *
  * "Last literal wins per key": when the same key appears twice (rare), the
@@ -42,31 +44,29 @@ final class ChainModifierExtractor
                 continue;
             }
 
-            $args = $link->args;
-            $first = $args[0] ?? null;
-            $argValue = $first instanceof Node\Arg ? $first->value : null;
+            $argValue = Args::of($link->args)->valueAt(0);
 
             switch ($link->name->toString()) {
                 case 'locale':
-                    $value = AstHelpers::scalarString($argValue);
+                    $value = Literal::string($argValue);
                     if ($value !== null) {
                         $locale = $value;
                     }
                     break;
                 case 'mailer':
-                    $value = AstHelpers::scalarString($argValue);
+                    $value = Literal::string($argValue);
                     if ($value !== null) {
                         $mailer = $value;
                     }
                     break;
                 case 'onConnection':
-                    $value = AstHelpers::scalarString($argValue);
+                    $value = Literal::string($argValue);
                     if ($value !== null) {
                         $connection = $value;
                     }
                     break;
                 case 'onQueue':
-                    $value = AstHelpers::scalarString($argValue);
+                    $value = Literal::string($argValue);
                     if ($value !== null) {
                         $queue = $value;
                     }
@@ -74,7 +74,7 @@ final class ChainModifierExtractor
                 case 'delay':
                     // Only integer-literal seconds; `now()->addMinutes(...)`,
                     // variables, etc. are intentionally not captured.
-                    $value = AstHelpers::scalarInt($argValue);
+                    $value = Literal::int($argValue);
                     if ($value !== null) {
                         $delay = $value;
                     }
@@ -123,14 +123,14 @@ final class ChainModifierExtractor
                 continue;
             }
 
-            $first = $link->args[0] ?? null;
-            if (! $first instanceof Node\Arg) {
+            $first = Args::of($link->args)->valueAt(0);
+            if ($first === null) {
                 $mode = DispatchMode::AFTER_RESPONSE;
 
                 continue;
             }
 
-            $value = AstHelpers::boolLiteral($first->value);
+            $value = Literal::bool($first);
             if ($value !== null) {
                 $mode = $value ? DispatchMode::AFTER_RESPONSE : null;
             }

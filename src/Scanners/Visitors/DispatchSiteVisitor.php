@@ -13,7 +13,9 @@ use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Index\UnresolvedReason;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
@@ -139,6 +141,8 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private function handleFuncCall(Node\Expr\FuncCall $node): void
     {
+        $args = Args::of($node->args);
+
         if (! $node->name instanceof Node\Name) {
             return;
         }
@@ -146,37 +150,39 @@ final class DispatchSiteVisitor extends CollectingVisitor
         $name = strtolower($node->name->toString());
 
         if ($name === 'event') {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::HELPER, DispatchKinds::EVENT, 'event');
+            $this->recordHelperOrFacade($node, $args, DispatchForm::HELPER, DispatchKinds::EVENT, 'event');
 
             return;
         }
 
         if ($name === 'broadcast') {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::HELPER, DispatchKinds::EVENT, 'broadcast');
+            $this->recordHelperOrFacade($node, $args, DispatchForm::HELPER, DispatchKinds::EVENT, 'broadcast');
 
             return;
         }
 
         if ($name === 'broadcast_if' || $name === 'broadcast_unless') {
             // Conditional forms: $boolean is arg 0, the event is arg 1.
-            $this->recordHelperOrFacade($node, array_slice($node->args, 1), DispatchForm::HELPER, DispatchKinds::EVENT, $name);
+            $this->recordHelperOrFacade($node, $args->skip(1), DispatchForm::HELPER, DispatchKinds::EVENT, $name);
 
             return;
         }
 
         if ($name === 'dispatch') {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch');
+            $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch');
 
             return;
         }
 
         if ($name === 'dispatch_sync') {
-            $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch_sync', DispatchMode::SYNC);
+            $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'dispatch_sync', DispatchMode::SYNC);
         }
     }
 
     private function handleStaticCall(Node\Expr\StaticCall $node): void
     {
+        $args = Args::of($node->args);
+
         if (! $node->class instanceof Node\Name) {
             return;
         }
@@ -190,7 +196,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         if (Facades::MAIL->matches($className)) {
             if (isset(self::MAIL_TERMINALS[$methodName])) {
                 [$argIndex, $mode] = self::MAIL_TERMINALS[$methodName];
-                $this->recordMailableSiteFromArg($node, $node->args, $argIndex, DispatchForm::MAIL_FACADE, 'Mail::'.$methodName, $mode);
+                $this->recordMailableSiteFromArg($node, $args, $argIndex, DispatchForm::MAIL_FACADE, 'Mail::'.$methodName, $mode);
 
                 return;
             }
@@ -201,7 +207,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         if (Facades::NOTIFICATION->matches($className)) {
             if (Arr::exists(self::NOTIFICATION_FACADE_METHODS, $methodName)) {
-                $this->recordNotificationSiteFromArg($node, $node->args, 1, DispatchForm::NOTIFICATION_FACADE, 'Notification::'.$methodName, self::NOTIFICATION_FACADE_METHODS[$methodName]);
+                $this->recordNotificationSiteFromArg($node, $args, 1, DispatchForm::NOTIFICATION_FACADE, 'Notification::'.$methodName, self::NOTIFICATION_FACADE_METHODS[$methodName]);
 
                 return;
             }
@@ -211,9 +217,9 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         if (Facades::BUS->matches($className)) {
             if (in_array($methodName, ['chain', 'batch'], true)) {
-                $this->recordJobList($node, $node->args, 'Bus::'.$methodName);
+                $this->recordJobList($node, $args, 'Bus::'.$methodName);
             } elseif (Arr::exists(self::BUS_METHODS, $methodName)) {
-                $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::'.$methodName, self::BUS_METHODS[$methodName]);
+                $this->recordHelperOrFacade($node, $args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::'.$methodName, self::BUS_METHODS[$methodName]);
             }
 
             return;
@@ -221,9 +227,9 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         if (Facades::QUEUE->matches($className)) {
             if ($methodName === 'bulk') {
-                $this->recordJobList($node, $node->args, 'Queue::bulk', DispatchMode::PUSH);
+                $this->recordJobList($node, $args, 'Queue::bulk', DispatchMode::PUSH);
             } elseif (isset(self::QUEUE_METHODS[$methodName])) {
-                $this->recordSiteFromArg($node, $node->args, self::QUEUE_METHODS[$methodName], DispatchForm::FACADE, DispatchKinds::JOB, 'Queue::'.$methodName, mode: DispatchMode::PUSH);
+                $this->recordSiteFromArg($node, $args, self::QUEUE_METHODS[$methodName], DispatchForm::FACADE, DispatchKinds::JOB, 'Queue::'.$methodName, mode: DispatchMode::PUSH);
             }
 
             return;
@@ -236,7 +242,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         // Facades have no conditional form — only the Dispatchable trait does.
         if (Facades::EVENT->matches($className)) {
             if ($methodName === 'dispatch') {
-                $this->recordHelperOrFacade($node, $node->args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
+                $this->recordHelperOrFacade($node, $args, DispatchForm::FACADE, DispatchKinds::EVENT, 'Event::dispatch');
             }
 
             return;
@@ -274,6 +280,8 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private function handleMethodCall(Node\Expr\MethodCall $node): void
     {
+        $args = Args::of($node->args);
+
         if (! $node->name instanceof Node\Identifier) {
             return;
         }
@@ -283,7 +291,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             && $this->isRootedAtFacadeChainRoot($node->var, Facades::MAIL, self::MAIL_CHAIN_ROOT_METHODS)
         ) {
             [$argIndex, $mode] = self::MAIL_TERMINALS[$methodName];
-            $this->recordMailableSiteFromArg($node, $node->args, $argIndex, DispatchForm::MAIL_CHAIN, 'Mail::...->'.$methodName, $mode);
+            $this->recordMailableSiteFromArg($node, $args, $argIndex, DispatchForm::MAIL_CHAIN, 'Mail::...->'.$methodName, $mode);
 
             return;
         }
@@ -295,7 +303,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
                 ? DispatchForm::NOTIFICATION_CHAIN
                 : DispatchForm::NOTIFY_METHOD;
 
-            $this->recordNotificationSiteFromArg($node, $node->args, 0, $form, '->'.$methodName, self::NOTIFY_METHODS[$methodName]);
+            $this->recordNotificationSiteFromArg($node, $args, 0, $form, '->'.$methodName, self::NOTIFY_METHODS[$methodName]);
         }
     }
 
@@ -325,18 +333,12 @@ final class DispatchSiteVisitor extends CollectingVisitor
         return in_array($current->name->toString(), $rootMethods, true);
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function recordMailableSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordMailableSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
     {
         $this->recordSiteFromArg($callNode, $args, $argIndex, $form, DispatchKinds::MAILABLE, $callLabel, mode: $mode);
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function recordNotificationSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordNotificationSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, string $callLabel, ?DispatchMode $mode = null): void
     {
         // The facade form (Notification::send/sendNow) takes an optional channel
         // filter at $argIndex + 1; the notify-method form has no such argument.
@@ -352,20 +354,16 @@ final class DispatchSiteVisitor extends CollectingVisitor
      * when the argument is missing, not a plain Arg, non-literal, or an empty
      * array literal (treated as "no filter").
      *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<string>|null
      */
-    private function channelFilterFrom(array $args, int $index): ?array
+    private function channelFilterFrom(Args $args, int $index): ?array
     {
-        if (! isset($args[$index])) {
-            return null;
-        }
-        $arg = $args[$index];
-        if (! $arg instanceof Node\Arg) {
+        $value = $args->valueAt($index);
+        if ($value === null) {
             return null;
         }
 
-        $channels = AstHelpers::channelList($arg->value);
+        $channels = ValueLists::channels($value);
         if ($channels === null || $channels === []) {
             return null;
         }
@@ -374,20 +372,16 @@ final class DispatchSiteVisitor extends CollectingVisitor
     }
 
     /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @param  list<string>|null  $channels
      */
-    private function recordSiteFromArg(Node\Expr $callNode, array $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?array $channels = null, ?DispatchMode $mode = null): void
+    private function recordSiteFromArg(Node\Expr $callNode, Args $args, int $argIndex, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?array $channels = null, ?DispatchMode $mode = null): void
     {
-        if (! isset($args[$argIndex])) {
-            return;
-        }
-        $arg = $args[$argIndex];
-        if (! $arg instanceof Node\Arg) {
+        $argValue = $args->valueAt($argIndex);
+        if ($argValue === null) {
             return;
         }
 
-        $resolved = AstHelpers::resolveStaticClass($arg->value);
+        $resolved = ClassRef::fromInstanceOrConstant($argValue);
 
         if ($resolved !== null) {
             if ($this->shouldSkipResolved()) {
@@ -398,7 +392,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             // receiver chain. The receiver chain only contributes links when
             // $callNode is a MethodCall (the `Mail::to(...)->locale(...)->send`
             // form); for a plain StaticCall receiver links resolve to none.
-            $innerLinks = $this->innerChainLinks($arg->value);
+            $innerLinks = $this->innerChainLinks($argValue);
             $receiverLinks = $callNode instanceof Node\Expr\MethodCall
                 ? $this->mailReceiverChainLinks($callNode->var)
                 : [];
@@ -425,7 +419,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $reason = $this->classifyUnresolvedReason($arg->value);
+        $reason = $this->classifyUnresolvedReason($argValue);
         $expression = $this->renderExpression($callNode, $callLabel);
 
         $this->unresolved[] = new UnresolvedDispatchRecord(
@@ -436,31 +430,24 @@ final class DispatchSiteVisitor extends CollectingVisitor
         );
     }
 
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
-    private function recordHelperOrFacade(Node\Expr $callNode, array $args, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordHelperOrFacade(Node\Expr $callNode, Args $args, DispatchForm $form, DispatchKinds $kind, string $callLabel, ?DispatchMode $mode = null): void
     {
-        if ($args === []) {
+        $first = $args->valueAt(0);
+        if ($first === null) {
             return;
         }
 
-        $first = $args[0];
-        if (! $first instanceof Node\Arg) {
-            return;
-        }
-
-        $resolved = AstHelpers::resolveStaticClass($first->value);
+        $resolved = ClassRef::fromInstanceOrConstant($first);
 
         // Ternary with two statically resolvable branches → emit both.
-        if ($resolved === null && $first->value instanceof Node\Expr\Ternary) {
-            $ternary = $first->value;
+        if ($resolved === null && $first instanceof Node\Expr\Ternary) {
+            $ternary = $first;
             $ifBranch = $ternary->if;
             $elseBranch = $ternary->else;
 
             if ($ifBranch !== null) {
-                $ifFqcn = AstHelpers::resolveStaticClass($ifBranch);
-                $elseFqcn = AstHelpers::resolveStaticClass($elseBranch);
+                $ifFqcn = ClassRef::fromInstanceOrConstant($ifBranch);
+                $elseFqcn = ClassRef::fromInstanceOrConstant($elseBranch);
 
                 if ($ifFqcn !== null && $elseFqcn !== null) {
                     $this->emitResolved($callNode, $ifFqcn, $form, $kind, $ifBranch, $mode);
@@ -472,7 +459,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         if ($resolved !== null) {
-            $this->emitResolved($callNode, $resolved, $form, $kind, $first->value, $mode);
+            $this->emitResolved($callNode, $resolved, $form, $kind, $first, $mode);
 
             return;
         }
@@ -481,7 +468,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $reason = $this->classifyUnresolvedReason($first->value);
+        $reason = $this->classifyUnresolvedReason($first);
         $expression = $this->renderExpression($callNode, $callLabel);
 
         $this->unresolved[] = new UnresolvedDispatchRecord(
@@ -495,25 +482,23 @@ final class DispatchSiteVisitor extends CollectingVisitor
     /**
      * Bus::chain([...]) / Bus::batch([...]): one job site per literal item; a
      * non-literal list or item is recorded as unresolved.
-     *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      */
-    private function recordJobList(Node\Expr $callNode, array $args, string $callLabel, ?DispatchMode $mode = null): void
+    private function recordJobList(Node\Expr $callNode, Args $args, string $callLabel, ?DispatchMode $mode = null): void
     {
-        $first = $args[0] ?? null;
-        if (! $first instanceof Node\Arg) {
+        $first = $args->valueAt(0);
+        if ($first === null) {
             return;
         }
 
-        if (! $first->value instanceof Node\Expr\Array_) {
-            $this->recordUnresolvedList($callNode, $first->value, $callLabel);
+        if (! $first instanceof Node\Expr\Array_) {
+            $this->recordUnresolvedList($callNode, $first, $callLabel);
 
             return;
         }
 
-        foreach ($first->value->items as $item) {
+        foreach ($first->items as $item) {
             $value = $item->value;
-            $resolved = AstHelpers::resolveStaticClass($value);
+            $resolved = ClassRef::fromInstanceOrConstant($value);
             if ($resolved !== null && ! $item->unpack) {
                 $this->emitResolved($callNode, $resolved, DispatchForm::JOB_HELPER, DispatchKinds::JOB, $value, $mode);
 

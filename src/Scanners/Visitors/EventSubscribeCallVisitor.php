@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -44,12 +45,7 @@ final class EventSubscribeCallVisitor extends CollectingVisitor
             return null;
         }
 
-        $first = $node->args[0];
-        if (! $first instanceof Node\Arg) {
-            return null;
-        }
-
-        $fqcn = AstHelpers::classConstFqcn($first->value);
+        $fqcn = ClassRef::fromClassConstant(Args::of($node->args)->valueAt(0));
         if ($fqcn === null) {
             return null;
         }

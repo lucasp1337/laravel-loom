@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ObserverPair;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use PhpParser\Node;
 
 /**
@@ -44,8 +45,8 @@ final class ObservedByAttributeVisitor extends CollectingVisitor
                 }
 
                 $observers = [];
-                foreach ($attr->args as $arg) {
-                    foreach (AstHelpers::classConstList($arg->value) as $fqcn) {
+                foreach (Args::of($attr->args)->values() as $value) {
+                    foreach (ClassRef::listFrom($value) as $fqcn) {
                         $observers[] = $fqcn;
                     }
                 }

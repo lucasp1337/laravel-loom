@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use PhpParser\Node;
 
 /**
@@ -59,7 +59,7 @@ final class SubscribeArrayVisitor extends CollectingVisitor
             }
 
             foreach ($prop->default->items as $item) {
-                $fqcn = AstHelpers::classConstFqcn($item->value);
+                $fqcn = ClassRef::fromClassConstant($item->value);
                 if ($fqcn !== null) {
                     $this->subscribers[] = $fqcn;
                 }

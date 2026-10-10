@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ObserverPair;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use PhpParser\Node;
 
 /**
@@ -69,12 +70,12 @@ final class ObserveCallVisitor extends CollectingVisitor
             $model = $rawClass;
         }
 
-        $firstArg = $node->args[0];
-        if (! $firstArg instanceof Node\Arg) {
+        $first = Args::of($node->args)->valueAt(0);
+        if ($first === null) {
             return null;
         }
 
-        $observers = AstHelpers::classConstList($firstArg->value);
+        $observers = ClassRef::listFrom($first);
         if ($observers === []) {
             return null;
         }

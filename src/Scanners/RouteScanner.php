@@ -13,7 +13,10 @@ use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\ResourceAction;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Callables;
+use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ResourceFilter;
 use Lucasp\Loom\Support\RouteFileDiscovery;
@@ -147,13 +150,13 @@ final class RouteScanner implements Scanner
             ? 'ANY'
             : RouterMethod::VERB_MAP[$raw->rootMethod];
 
-        $ownUri = AstHelpers::scalarString($args[0] ?? null);
+        $ownUri = Literal::string($args->valueAt(0));
         if ($ownUri === null) {
             return [];
         }
         $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[1] ?? null, $raw->groupController);
+        $action = $this->resolveAction($args->valueAt(1), $raw->groupController);
 
         return [new RouteEntry(
             method: $method,
@@ -165,7 +168,7 @@ final class RouteScanner implements Scanner
             file: $relativeFile,
             line: $raw->line,
             dispatches: [],
-            endLine: $this->closureEndLine($args[1] ?? null),
+            endLine: $this->closureEndLine($args->valueAt(1)),
         )];
     }
 
@@ -179,14 +182,14 @@ final class RouteScanner implements Scanner
     {
         $args = $raw->rootArgs;
 
-        $verbs = $this->verbList($args[0] ?? null);
-        $ownUri = AstHelpers::scalarString($args[1] ?? null);
+        $verbs = $this->verbList($args->valueAt(0));
+        $ownUri = Literal::string($args->valueAt(1));
         if ($verbs === [] || $ownUri === null) {
             return [];
         }
         $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args[2] ?? null, $raw->groupController);
+        $action = $this->resolveAction($args->valueAt(2), $raw->groupController);
 
         $out = [];
         foreach ($verbs as $verb) {
@@ -200,7 +203,7 @@ final class RouteScanner implements Scanner
                 file: $relativeFile,
                 line: $raw->line,
                 dispatches: [],
-                endLine: $this->closureEndLine($args[2] ?? null),
+                endLine: $this->closureEndLine($args->valueAt(2)),
             );
         }
 
@@ -219,7 +222,7 @@ final class RouteScanner implements Scanner
     {
         $args = $raw->rootArgs;
 
-        $resourceName = AstHelpers::scalarString($args[0] ?? null);
+        $resourceName = Literal::string($args->valueAt(0));
         if ($resourceName === null) {
             return [];
         }
@@ -229,10 +232,7 @@ final class RouteScanner implements Scanner
         }
 
         // Controller may be unresolvable (variable, dynamic) — still expand.
-        $controllerArg = $args[1] ?? null;
-        $controllerFqcn = AstHelpers::classConstFqcn(
-            $controllerArg instanceof Node\Arg ? $controllerArg->value : null,
-        );
+        $controllerFqcn = ClassRef::fromClassConstant($args->valueAt(1));
 
         $actions = $this->filterResourceActions($raw, $this->defaultResourceActions($raw->rootMethod));
 
@@ -310,18 +310,14 @@ final class RouteScanner implements Scanner
      * Collect literal action names from `->only(...)` / `->except(...)` args,
      * accepting both an array argument and variadic string arguments.
      *
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
      * @return list<string>
      */
-    private function stringArgList(array $args): array
+    private function stringArgList(Args $args): array
     {
         $names = [];
-        foreach ($args as $arg) {
-            if (! $arg instanceof Node\Arg) {
-                continue;
-            }
-            if ($arg->value instanceof Node\Expr\Array_) {
-                foreach ($arg->value->items as $item) {
+        foreach ($args->values() as $value) {
+            if ($value instanceof Node\Expr\Array_) {
+                foreach ($value->items as $item) {
                     if ($item->value instanceof Node\Scalar\String_) {
                         $names[] = $item->value->value;
                     }
@@ -329,7 +325,7 @@ final class RouteScanner implements Scanner
 
                 continue;
             }
-            $string = AstHelpers::scalarString($arg->value);
+            $string = Literal::string($value);
             if ($string !== null) {
                 $names[] = $string;
             }
@@ -356,14 +352,14 @@ final class RouteScanner implements Scanner
      *
      * @return list<string>
      */
-    private function verbList(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): array
+    private function verbList(?Node\Expr $value): array
     {
-        if (! $arg instanceof Node\Arg || ! $arg->value instanceof Node\Expr\Array_) {
+        if (! $value instanceof Node\Expr\Array_) {
             return [];
         }
 
         $verbs = [];
-        foreach ($arg->value->items as $item) {
+        foreach ($value->items as $item) {
             if (! $item->value instanceof Node\Scalar\String_) {
                 return [];
             }
@@ -383,13 +379,12 @@ final class RouteScanner implements Scanner
      *
      * @return array{fqcn: ?string, method: ?string}
      */
-    private function resolveAction(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, ?string $groupController = null): array
+    private function resolveAction(?Node\Expr $value, ?string $groupController = null): array
     {
-        if (! $arg instanceof Node\Arg) {
+        // argument omitted
+        if ($value === null) {
             return ['fqcn' => null, 'method' => null];
         }
-
-        $value = $arg->value;
 
         // Closure / arrow function: no controller.
         if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
@@ -402,13 +397,13 @@ final class RouteScanner implements Scanner
         }
 
         // Bare Ctrl::class -> invokable.
-        $fqcn = AstHelpers::classConstFqcn($value);
+        $fqcn = ClassRef::fromClassConstant($value);
         if ($fqcn !== null) {
             return ['fqcn' => $fqcn, 'method' => '__invoke'];
         }
 
         // 'Class@method' (legacy) or 'Class' (invokable string).
-        $string = AstHelpers::scalarString($value);
+        $string = Literal::string($value);
         if ($string !== null) {
             return $this->resolveStringAction($string, $groupController);
         }
@@ -417,14 +412,8 @@ final class RouteScanner implements Scanner
         return ['fqcn' => null, 'method' => null];
     }
 
-    private function closureEndLine(Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg): ?int
+    private function closureEndLine(?Node\Expr $value): ?int
     {
-        if (! $arg instanceof Node\Arg) {
-            return null;
-        }
-
-        $value = $arg->value;
-
         return $value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction
             ? $value->getEndLine()
             : null;
@@ -435,14 +424,14 @@ final class RouteScanner implements Scanner
      */
     private function resolveArrayAction(Node\Expr\Array_ $array): array
     {
-        $tuple = AstHelpers::tupleCallable($array);
+        $tuple = Callables::tuple($array);
         if ($tuple !== null) {
             return ['fqcn' => $tuple['class'], 'method' => $tuple['method']];
         }
 
         // Single-element [Ctrl::class] -> invokable.
         if (count($array->items) === 1) {
-            $fqcn = AstHelpers::classConstFqcn($array->items[0]->value);
+            $fqcn = ClassRef::fromClassConstant($array->items[0]->value);
             if ($fqcn !== null) {
                 return ['fqcn' => $fqcn, 'method' => '__invoke'];
             }
@@ -485,7 +474,7 @@ final class RouteScanner implements Scanner
             if ($chain[$i]->method !== 'name') {
                 continue;
             }
-            $label = AstHelpers::scalarString($chain[$i]->args[0] ?? null);
+            $label = Literal::string($chain[$i]->args->valueAt(0));
             if ($label !== null) {
                 $name = $label;
             }

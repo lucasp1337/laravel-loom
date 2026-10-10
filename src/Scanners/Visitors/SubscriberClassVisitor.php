@@ -9,7 +9,8 @@ use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Dto\SubscriberClassRecord;
 use Lucasp\Loom\Index\ListenerRegistration;
-use Lucasp\Loom\Support\AstHelpers;
+use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 
@@ -53,7 +54,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return null;
         }
 
-        $queued = AstHelpers::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
+        $queued = ClassRef::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
 
         $this->currentClassFqcn = $node->namespacedName->toString();
         [$handles, $closureHandles, $foreignPairs] = $this->extractMethodBody($subscribeMethod);
@@ -235,23 +236,22 @@ final class SubscriberClassVisitor extends CollectingVisitor
         if ($expr->name->toString() !== 'listen') {
             return;
         }
-        if (count($expr->args) < 2) {
+        $args = Args::of($expr->args);
+        if ($args->count() < 2) {
             return;
         }
 
-        $eventArg = $expr->args[0];
-        $listenerArg = $expr->args[1];
+        $eventValue = $args->valueAt(0);
+        $listenerValue = $args->valueAt(1);
 
-        if (! $eventArg instanceof Node\Arg || ! $listenerArg instanceof Node\Arg) {
+        if ($eventValue === null || $listenerValue === null) {
             return;
         }
 
-        $event = $this->eventFromKey($eventArg->value);
+        $event = $this->eventFromKey($eventValue);
         if ($event === null) {
             return;
         }
-
-        $listenerValue = $listenerArg->value;
 
         if ($listenerValue instanceof Node\Expr\Closure
             || $listenerValue instanceof Node\Expr\ArrowFunction
@@ -269,7 +269,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
             $classItem = $listenerValue->items[0];
             $methodItem = $listenerValue->items[1];
 
-            $classFqcn = AstHelpers::classConstFqcn($classItem->value);
+            $classFqcn = ClassRef::fromClassConstant($classItem->value);
             if ($classFqcn === null) {
                 return;
             }
@@ -296,7 +296,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return;
         }
 
-        $bareFqcn = AstHelpers::classConstFqcn($listenerValue);
+        $bareFqcn = ClassRef::fromClassConstant($listenerValue);
         if ($bareFqcn !== null) {
             if ($this->isOwnClass($bareFqcn)) {
                 $handles[] = new ListenerHandle(event: $event, method: 'handle');
@@ -315,7 +315,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
 
     private function eventFromKey(Node\Expr $expr): ?string
     {
-        $direct = AstHelpers::classConstFqcn($expr);
+        $direct = ClassRef::fromClassConstant($expr);
         if ($direct !== null) {
             return $direct;
         }

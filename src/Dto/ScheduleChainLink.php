@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
-use PhpParser\Node;
+use Lucasp\Loom\Support\Ast\Args;
 
 /**
  * One link in a `Schedule::command(...)->daily()` chain.
@@ -13,11 +13,8 @@ use PhpParser\Node;
  */
 final class ScheduleChainLink
 {
-    /**
-     * @param  array<Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder>  $args
-     */
     public function __construct(
         public readonly string $method,
-        public readonly array $args,
+        public readonly Args $args,
     ) {}
 }
