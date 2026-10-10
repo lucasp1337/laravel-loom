@@ -64,6 +64,7 @@ nav:
   - Guides:
       - Browse the UI: guides/browse-the-ui.md
       - Ask an agent: guides/ask-an-agent.md
+      - Use with Laravel Boost: guides/use-with-boost.md
       - Gate your CI: guides/gate-your-ci.md
       - Why was my code missed?: guides/why-was-my-code-missed.md
   - Reference:

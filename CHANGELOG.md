@@ -4,6 +4,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Added
+
+- Laravel Boost guideline and `loom` skill under `resources/boost/`, and a [Use with Laravel Boost](docs/guides/use-with-boost.md) guide ([#103](https://github.com/lucasp1337/laravel-loom/issues/103)).
+
 ### Changed
 
 - Schema 1.0 and the MCP tool surface are frozen; output is sorted into a total order so two scans of the same source are byte-identical apart from `scanned_at` ([#93](https://github.com/lucasp1337/laravel-loom/issues/93)).
