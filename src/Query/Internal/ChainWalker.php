@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Internal;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\Model\Dispatch;
@@ -195,7 +196,7 @@ final class ChainWalker
      */
     private function refs(array $dispatches): array
     {
-        return array_map(DispatchRef::fromDispatch(...), $dispatches);
+        return array_values(Arr::map($dispatches, DispatchRef::fromDispatch(...)));
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\RouteChainEntry;
@@ -53,10 +54,7 @@ final class RouteScanner implements Scanner
             // so reusing one would leak the previous file's entries. A file
             // loaded under several groups is read once per distinct group.
             $inherited = $this->routeDiscovery?->contexts($appRoot, $file->getPathname()) ?? [];
-            $visitors = array_map(
-                fn (RouteGroupContext $context): RouteChainVisitor => new RouteChainVisitor($context),
-                $inherited === [] ? [RouteGroupContext::empty()] : $inherited,
-            );
+            $visitors = Arr::map($inherited === [] ? [RouteGroupContext::empty()] : $inherited, fn (RouteGroupContext $context): RouteChainVisitor => new RouteChainVisitor($context));
             if ($this->walker->walk($file->getPathname(), $visitors) === null) {
                 continue;
             }
@@ -69,10 +67,7 @@ final class RouteScanner implements Scanner
             }
         }
 
-        usort(
-            $entries,
-            fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method, $a->uri] <=> [$b->file, $b->line, $b->method, $b->uri],
-        );
+        $entries = array_values(collect($entries)->sort(fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method, $a->uri] <=> [$b->file, $b->line, $b->method, $b->uri])->all());
 
         return ['routes' => $entries];
     }
@@ -115,7 +110,7 @@ final class RouteScanner implements Scanner
         if ($own !== '') {
             $segments[] = $own;
         }
-        $joined = implode('/', $segments);
+        $joined = Arr::join($segments, '/');
 
         return $joined === '' ? '/' : '/'.$joined;
     }
@@ -144,7 +139,7 @@ final class RouteScanner implements Scanner
             return $this->expandMatch($raw, $relativeFile, $name);
         }
 
-        if (in_array($raw->rootMethod, RouterMethod::resourceRoots(), true)) {
+        if (collect(RouterMethod::resourceRoots())->containsStrict($raw->rootMethod)) {
             return $this->expandResource($raw, $relativeFile);
         }
 
@@ -242,11 +237,11 @@ final class RouteScanner implements Scanner
         $actions = $this->filterResourceActions($raw, $this->defaultResourceActions($raw->rootMethod));
 
         $param = $this->memberParameter($resourceName);
-        $nameBase = str_replace('/', '.', $resourceName);
+        $nameBase = Str::replace('/', '.', $resourceName);
 
         $out = [];
         foreach ($actions as $action) {
-            $ownUri = $resourceName.str_replace('{param}', '{'.$param.'}', $action->suffix());
+            $ownUri = $resourceName.Str::replace('{param}', '{'.$param.'}', $action->suffix());
 
             $out[] = new RouteEntry(
                 method: $action->method(),
@@ -290,7 +285,7 @@ final class RouteScanner implements Scanner
 
         $chain = $raw->chain;
         // Index 0 is the root call; modifiers start at index 1.
-        foreach (array_slice($chain, 1) as $link) {
+        foreach (collect($chain)->slice(1)->all() as $link) {
             match (ResourceFilter::tryFrom($link->method)) {
                 // ->only(['index', 'show'])
                 ResourceFilter::ONLY => $only = $this->stringArgList($link->args),
@@ -302,16 +297,10 @@ final class RouteScanner implements Scanner
         }
 
         if ($only !== null) {
-            $actions = array_values(array_filter(
-                $actions,
-                fn (ResourceAction $a): bool => in_array($a->value, $only, true),
-            ));
+            $actions = array_values(Arr::where($actions, fn (ResourceAction $a): bool => collect($only)->containsStrict($a->value)));
         }
         if ($except !== []) {
-            $actions = array_values(array_filter(
-                $actions,
-                fn (ResourceAction $a): bool => ! in_array($a->value, $except, true),
-            ));
+            $actions = array_values(Arr::where($actions, fn (ResourceAction $a): bool => ! collect($except)->containsStrict($a->value)));
         }
 
         return $actions;
@@ -379,7 +368,7 @@ final class RouteScanner implements Scanner
                 return [];
             }
             $verb = strtoupper($item->value->value);
-            if (in_array($verb, RouterMethod::EMITTED_VERBS, true)) {
+            if (collect(RouterMethod::EMITTED_VERBS)->containsStrict($verb)) {
                 $verbs[] = $verb;
             }
         }
@@ -467,7 +456,7 @@ final class RouteScanner implements Scanner
      */
     private function resolveStringAction(string $action, ?string $groupController = null): array
     {
-        if (str_contains($action, '@')) {
+        if (Str::contains($action, '@')) {
             [$class, $method] = explode('@', $action, 2);
 
             return ['fqcn' => ltrim($class, '\\'), 'method' => $method];

@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -26,7 +27,7 @@ final class GetEntityTool extends Tool
     {
         return [
             'kind' => $schema->string()
-                ->enum(array_map(static fn (EntityKind $k): string => $k->value, EntityKind::cases()))
+                ->enum(Arr::map(EntityKind::cases(), static fn (EntityKind $k): string => $k->value))
                 ->description('The kind of entity to fetch.')
                 ->required(),
             'fqcn' => $schema->string()
@@ -46,7 +47,7 @@ final class GetEntityTool extends Tool
 
         $kind = EntityKind::tryFrom($validated['kind']);
         if ($kind === null) {
-            $expected = implode(', ', array_map(static fn (EntityKind $k): string => $k->value, EntityKind::cases()));
+            $expected = Arr::join(Arr::map(EntityKind::cases(), static fn (EntityKind $k): string => $k->value), ', ');
 
             return Response::error("Unknown kind [{$validated['kind']}]; expected one of: {$expected}.");
         }

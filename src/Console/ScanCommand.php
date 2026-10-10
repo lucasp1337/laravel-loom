@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Lucasp\Loom\Dto\SkippedFile;
@@ -46,7 +47,7 @@ class ScanCommand extends Command
         }
 
         if ($scope->directories($appRoot) === []) {
-            $this->error('No scan directory exists for: '.implode(', ', $scope->paths()));
+            $this->error('No scan directory exists for: '.Arr::join($scope->paths(), ', '));
 
             return self::FAILURE;
         }
@@ -121,8 +122,8 @@ class ScanCommand extends Command
     private function resolveScope(string $appRoot): ScanScope
     {
         $config = config('loom.scan');
-        $paths = array_values(array_filter((array) $this->option('path'), 'is_string'));
-        $routePaths = array_values(array_filter((array) $this->option('route-path'), 'is_string'));
+        $paths = array_values(Arr::where((array) $this->option('path'), static fn (mixed $v): bool => is_string($v)));
+        $routePaths = array_values(Arr::where((array) $this->option('route-path'), static fn (mixed $v): bool => is_string($v)));
 
         $config = is_array($config) ? $config : [];
         if ((bool) $this->option('no-discover-routes')) {
@@ -161,7 +162,7 @@ class ScanCommand extends Command
         }
         $parts[] = 'skipped files: '.$skipped.($skipped > 0 && ! $this->output->isVerbose() ? ' (-v lists them)' : '');
 
-        return implode(', ', $parts);
+        return Arr::join($parts, ', ');
     }
 
     /**

@@ -19,7 +19,7 @@ final class DispatchAttributionPhase implements CrossLinkPhase
 {
     public function apply(CrossLinkContext $context): void
     {
-        $observerHooks = array_flip(ModelHook::observableValues());
+        $observerHooks = collect(ModelHook::observableValues())->flip()->all();
         $listenerIndex = $context->index(Sections::LISTENERS);
         $jobIndex = $context->index(Sections::JOBS);
 

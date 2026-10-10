@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check\Format;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\Result\CheckResult;
 use Lucasp\Loom\Check\Result\RuleReport;
 use Lucasp\Loom\Check\Result\Violation;
@@ -21,10 +22,7 @@ final class JsonCheckFormatter implements CheckFormatter
         $payload = [
             'passed' => $result->passed(),
             'violation_count' => $result->violationCount(),
-            'rules' => array_map(
-                fn (RuleReport $report): array => $this->rule($report),
-                $result->reports,
-            ),
+            'rules' => Arr::map($result->reports, fn (RuleReport $report): array => $this->rule($report)),
         ];
 
         return (string) json_encode(
@@ -42,13 +40,10 @@ final class JsonCheckFormatter implements CheckFormatter
             'key' => $report->key->value,
             'description' => $report->description,
             'skipped' => $report->skipped,
-            'violations' => array_map(
-                static fn (Violation $violation): array => [
-                    'message' => $violation->message,
-                    'context' => $violation->context,
-                ],
-                $report->violations,
-            ),
+            'violations' => Arr::map($report->violations, static fn (Violation $violation): array => [
+                'message' => $violation->message,
+                'context' => $violation->context,
+            ]),
         ];
     }
 }

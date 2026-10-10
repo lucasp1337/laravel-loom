@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use FilesystemIterator;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
@@ -56,9 +57,9 @@ final class ScanScope
         foreach ($paths as $path) {
             $normalised[] = self::normalisePath($path);
         }
-        $this->paths = array_values(array_unique($normalised));
+        $this->paths = array_values(collect($normalised)->unique(strict: true)->all());
 
-        $this->routePaths = array_values(array_unique(array_map(self::normalisePath(...), $routePaths)));
+        $this->routePaths = array_values(collect(Arr::map($routePaths, self::normalisePath(...)))->unique(strict: true)->all());
 
         foreach ($exclude as $glob) {
             $this->excludes[] = self::compileGlob(self::normaliseGlob($glob));
@@ -80,7 +81,7 @@ final class ScanScope
         $paths = $pathOverride ?? self::stringList($config[ScanConfigKey::PATHS->value] ?? null, [self::DEFAULT_PATH]);
 
         if (($config[ScanConfigKey::PSR4_PATHS->value] ?? false) === true) {
-            $paths = array_merge($paths, ComposerPsr4Map::fromAppRoot($appRoot)->directories());
+            $paths = array_values(collect($paths)->merge(ComposerPsr4Map::fromAppRoot($appRoot)->directories())->all());
         }
 
         $routePaths = $routePathOverride ?? self::stringList($config[ScanConfigKey::ROUTE_PATHS->value] ?? null, [self::DEFAULT_ROUTE_PATH]);
@@ -134,7 +135,7 @@ final class ScanScope
         }
 
         $directories = array_keys($found);
-        sort($directories);
+        $directories = array_values(collect($directories)->sort()->all());
 
         return $directories;
     }
@@ -189,7 +190,7 @@ final class ScanScope
                 $paths[$entry->getPathname()] = $entry;
             }
 
-            ksort($paths, SORT_STRING);
+            $paths = collect($paths)->sortKeys(SORT_STRING)->all();
 
             foreach ($paths as $absolute => $entry) {
                 if (isset($seen[$absolute]) || $this->isExcluded($appRoot, $absolute)) {
@@ -282,7 +283,7 @@ final class ScanScope
             return $default;
         }
 
-        return array_values(array_filter($value, 'is_string'));
+        return array_values(Arr::where($value, static fn (mixed $v): bool => is_string($v)));
     }
 
     private static function normalisePath(string $path): string
@@ -298,7 +299,7 @@ final class ScanScope
         if ($path === '' || $path === '.') {
             throw new InvalidArgumentException('Scan path must not be empty.');
         }
-        if (in_array('..', explode('/', $path), true)) {
+        if (collect(explode('/', $path))->containsStrict('..')) {
             throw new InvalidArgumentException("Scan path must stay inside the project root: {$path}");
         }
 

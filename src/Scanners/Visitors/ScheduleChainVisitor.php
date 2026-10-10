@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduleChainLink;
 use Lucasp\Loom\Index\ScheduleKind;
@@ -283,7 +284,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         $resolved = $type->getAttribute('resolvedName');
         $name = $resolved instanceof Node\Name ? $resolved->toString() : $type->toString();
 
-        return str_ends_with($name, 'Schedule');
+        return Str::endsWith($name, 'Schedule');
     }
 
     private function kindFromRootMethod(string $method): ScheduleKind

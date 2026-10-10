@@ -184,7 +184,7 @@ final class ObserverScanner implements Scanner
                 $hooks[] = $hook;
             }
         }
-        sort($hooks);
+        $hooks = array_values(collect($hooks)->sort()->all());
 
         return $hooks;
     }
@@ -249,7 +249,7 @@ final class ObserverScanner implements Scanner
                 continue;
             }
             $handlers = $data['handled_by'];
-            ksort($handlers);
+            $handlers = collect($handlers)->sortKeys()->all();
             $handlers = array_values($handlers);
             $out[$key] = [
                 'model' => $data['model'],
@@ -268,12 +268,12 @@ final class ObserverScanner implements Scanner
     private function emitObservers(array $observers): array
     {
         $values = array_values($observers);
-        usort($values, Sorting::byKeys(['fqcn', 'observes']));
+        $values = array_values(collect($values)->sort(Sorting::byKeys(['fqcn', 'observes']))->all());
 
         $entries = [];
         foreach ($values as $observer) {
             $hooks = $observer['hooks'];
-            sort($hooks);
+            $hooks = array_values(collect($hooks)->sort()->all());
             $entries[] = new ObserverEntry(
                 fqcn: $observer['fqcn'],
                 file: $observer['file'],
@@ -303,7 +303,7 @@ final class ObserverScanner implements Scanner
             );
         }
 
-        usort($entries, fn (ModelEventEntry $a, ModelEventEntry $b): int => $a->id <=> $b->id);
+        $entries = array_values(collect($entries)->sort(fn (ModelEventEntry $a, ModelEventEntry $b): int => $a->id <=> $b->id)->all());
 
         return $entries;
     }

@@ -47,7 +47,7 @@ final class OrphanEventsRule implements CheckRule
             );
         }
 
-        usort($violations, static fn (Violation $a, Violation $b): int => $a->message <=> $b->message);
+        $violations = array_values(collect($violations)->sort(static fn (Violation $a, Violation $b): int => $a->message <=> $b->message)->all());
 
         return $violations;
     }

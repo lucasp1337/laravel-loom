@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Ui\Support;
 
 use BackedEnum;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Ui\Dto\FactCell;
 use Lucasp\Loom\Ui\Dto\FactRow;
@@ -32,7 +33,7 @@ final class EntityFacts
         $rows = [];
 
         foreach (get_object_vars($entity) as $property => $value) {
-            if (in_array($property, self::HIDDEN, true)) {
+            if (collect(self::HIDDEN)->containsStrict($property)) {
                 continue;
             }
 
@@ -47,10 +48,10 @@ final class EntityFacts
         $label = Str::headline($property);
 
         if (is_array($value) && $value !== [] && is_object(reset($value))) {
-            $columns = array_map(Str::headline(...), array_keys(get_object_vars((object) reset($value))));
+            $columns = array_values(collect(get_object_vars((object) reset($value)))->keys()->map(Str::headline(...))->all());
             $table = [];
             foreach ($value as $item) {
-                $table[] = array_map(fn (mixed $v): FactCell => $this->cell($v), array_values(is_object($item) ? get_object_vars($item) : []));
+                $table[] = array_values(Arr::map(array_values(is_object($item) ? get_object_vars($item) : []), fn (mixed $v): FactCell => $this->cell($v)));
             }
 
             return new FactRow($label, columns: $columns, table: $table);
@@ -58,7 +59,7 @@ final class EntityFacts
 
         $items = is_array($value) ? $value : [$value];
 
-        return new FactRow($label, cells: array_map(fn (mixed $v): FactCell => $this->cell($v), array_values($items)));
+        return new FactRow($label, cells: array_values(Arr::map(array_values($items), fn (mixed $v): FactCell => $this->cell($v))));
     }
 
     private function cell(mixed $value): FactCell
@@ -83,6 +84,6 @@ final class EntityFacts
             $value = get_object_vars($value);
         }
 
-        return is_array($value) ? array_map($this->flatten(...), $value) : $value;
+        return is_array($value) ? Arr::map($value, $this->flatten(...)) : $value;
     }
 }

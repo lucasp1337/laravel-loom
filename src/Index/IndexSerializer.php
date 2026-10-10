@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\ClosureListenerEntry;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\EventEntry;
@@ -136,12 +137,12 @@ final class IndexSerializer
             Field::KIND->value => 'model_event',
             Field::MODEL->value => $e->model,
             Field::EVENT->value => $e->event,
-            Field::HANDLED_BY->value => array_map(fn (ModelEventHandler $h): array => [
+            Field::HANDLED_BY->value => Arr::map($e->handledBy, fn (ModelEventHandler $h): array => [
                 Field::HANDLER->value => $h->handler,
                 Field::METHOD->value => $h->method,
                 Field::FILE->value => $h->file,
                 Field::LINE->value => $h->line,
-            ], $e->handledBy),
+            ]),
         ];
     }
 
@@ -152,10 +153,10 @@ final class IndexSerializer
             Field::FQCN->value => $e->fqcn,
             Field::FILE->value => $e->file,
             Field::LINE->value => $e->line,
-            Field::HANDLES->value => array_map(fn (ListenerHandle $h): array => [
+            Field::HANDLES->value => Arr::map($e->handles, fn (ListenerHandle $h): array => [
                 Field::EVENT->value => $h->event,
                 Field::METHOD->value => $h->method,
-            ], $e->handles),
+            ]),
             Field::REGISTRATION->value => $e->registration->value,
             Field::QUEUED->value => $e->queued,
             Field::DISPATCHES->value => [],

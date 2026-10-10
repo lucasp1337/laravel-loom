@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use FilesystemIterator;
+use Illuminate\Support\Str;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -80,7 +81,7 @@ trait ScannerFilesystem
     {
         return $this->scope()->isUnder(
             $appRoot,
-            rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativeFile),
+            rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.Str::replace('/', DIRECTORY_SEPARATOR, $relativeFile),
             $directory->value,
         );
     }
@@ -92,10 +93,10 @@ trait ScannerFilesystem
     private function relativePath(string $appRoot, string $absolute): string
     {
         $prefix = rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-        if (! str_starts_with($absolute, $prefix)) {
+        if (! Str::startsWith($absolute, $prefix)) {
             throw new \InvalidArgumentException("Path is outside the app root: {$absolute}");
         }
 
-        return str_replace(DIRECTORY_SEPARATOR, '/', substr($absolute, strlen($prefix)));
+        return Str::replace(DIRECTORY_SEPARATOR, '/', substr($absolute, strlen($prefix)));
     }
 }

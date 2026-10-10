@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use RuntimeException;
 
@@ -52,17 +54,17 @@ class IndexBuilder
 
         foreach ($this->scanners as $scanner) {
             foreach ($scanner->scan($appRoot) as $section => $entries) {
-                if (str_starts_with($section, '_')) {
+                if (Str::startsWith($section, '_')) {
                     $sections[$section] ??= [];
-                    $sections[$section] = array_merge($sections[$section], $entries);
+                    $sections[$section] = collect($sections[$section])->merge($entries)->all();
 
                     continue;
                 }
 
-                if (! array_key_exists($section, $sections)) {
+                if (! Arr::exists($sections, $section)) {
                     throw new RuntimeException("Scanner returned unknown section: {$section}");
                 }
-                $sections[$section] = array_merge($sections[$section], $entries);
+                $sections[$section] = collect($sections[$section])->merge($entries)->all();
             }
         }
 
@@ -119,7 +121,7 @@ class IndexBuilder
     private function stripInternalSections(array &$sections): void
     {
         foreach (array_keys($sections) as $key) {
-            if (str_starts_with($key, '_')) {
+            if (Str::startsWith($key, '_')) {
                 unset($sections[$key]);
             }
         }

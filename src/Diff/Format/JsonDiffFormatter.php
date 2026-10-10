@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Diff\Format;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Diff\Result\ChangedEntry;
 use Lucasp\Loom\Diff\Result\DiffResult;
 use Lucasp\Loom\Diff\Result\FieldChange;
@@ -40,10 +41,7 @@ final class JsonDiffFormatter implements DiffFormatter
         return [
             'added' => $diff->added,
             'removed' => $diff->removed,
-            'changed' => array_map(
-                fn (ChangedEntry $entry): array => $this->changed($entry),
-                $diff->changed,
-            ),
+            'changed' => Arr::map($diff->changed, fn (ChangedEntry $entry): array => $this->changed($entry)),
         ];
     }
 
@@ -54,22 +52,16 @@ final class JsonDiffFormatter implements DiffFormatter
     {
         return [
             'identity' => $entry->identity,
-            'field_changes' => array_map(
-                static fn (FieldChange $change): array => [
-                    'field' => $change->field,
-                    'old' => $change->old,
-                    'new' => $change->new,
-                ],
-                $entry->fieldChanges,
-            ),
-            'sublist_changes' => array_map(
-                static fn (SubListDelta $delta): array => [
-                    'field' => $delta->field,
-                    'added' => $delta->added,
-                    'removed' => $delta->removed,
-                ],
-                $entry->subListDeltas,
-            ),
+            'field_changes' => Arr::map($entry->fieldChanges, static fn (FieldChange $change): array => [
+                'field' => $change->field,
+                'old' => $change->old,
+                'new' => $change->new,
+            ]),
+            'sublist_changes' => Arr::map($entry->subListDeltas, static fn (SubListDelta $delta): array => [
+                'field' => $delta->field,
+                'added' => $delta->added,
+                'removed' => $delta->removed,
+            ]),
         ];
     }
 }

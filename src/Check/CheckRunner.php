@@ -26,7 +26,7 @@ final class CheckRunner
     {
         $reports = [];
         foreach ($this->registry->rules() as $rule) {
-            $skipped = in_array($rule->key()->value, $skip, true);
+            $skipped = collect($skip)->containsStrict($rule->key()->value);
             $violations = $skipped ? [] : $rule->check($context);
             $reports[] = new RuleReport($rule->key(), $rule->description(), $skipped, $violations);
         }

@@ -194,6 +194,7 @@ If you fork the repo to build a different Laravel introspection tool, the agents
 - PHPDoc on every public method, especially structured return types
 - Comments only when the WHY isn't obvious from the code — no narration of the WHAT. The exception is branching on AST shapes: put a short comment on each non-obvious branch saying what the shape means
 - No `elseif` / `else if` chains: dispatch with `match` on a typed enum, or use guard clauses. A test fails on new ones in `src/`
+- Prefer `Illuminate\Support` helpers (`Arr`, `Str`, `Collection`) over native array, string and sort functions where behaviour is identical; `tests/Unit/Support/NativeFunctionsTest.php` forbids new native calls unless allowlisted with a reason
 - One scanner per Laravel primitive; resist merging scanners even when they share visitors
 - Cite the relevant schema section in commit messages when changing scanner output: `feat(observers): emit hooks alphabetically (cites $defs/observer)`
 

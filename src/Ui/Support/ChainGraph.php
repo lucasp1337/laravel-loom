@@ -79,7 +79,7 @@ final class ChainGraph
         $this->seen[$event] = true;
 
         $handlers = $this->edgesByEvent[$event] ?? [];
-        $collapsed = in_array($key, $this->collapsed, true);
+        $collapsed = collect($this->collapsed)->containsStrict($key);
         $this->push($key, $parentKey, $event, NodeType::EVENT, $depth, $this->label(NodeType::EVENT, $event), null, $handlers !== [], $collapsed);
 
         if ($collapsed) {
@@ -97,7 +97,7 @@ final class ChainGraph
         [$id, $method] = $closure ? [$edge->handler, null] : $this->splitHandler($edge->handler);
         $type = $closure ? NodeType::CLOSURE : NodeType::LISTENER;
         $key = $this->key($parentKey, $edge->handler);
-        $collapsed = in_array($key, $this->collapsed, true);
+        $collapsed = collect($this->collapsed)->containsStrict($key);
         $dispatches = $edge->dispatches;
 
         $this->push(

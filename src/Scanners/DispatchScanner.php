@@ -78,8 +78,8 @@ final class DispatchScanner implements Scanner
             }
         }
 
-        usort($unresolved, fn (UnresolvedDispatchEntry $a, UnresolvedDispatchEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line]);
-        usort($sites, fn (DispatchSiteRecord $a, DispatchSiteRecord $b): int => [$a->file, $a->line, $a->target] <=> [$b->file, $b->line, $b->target]);
+        $unresolved = array_values(collect($unresolved)->sort(fn (UnresolvedDispatchEntry $a, UnresolvedDispatchEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line])->all());
+        $sites = array_values(collect($sites)->sort(fn (DispatchSiteRecord $a, DispatchSiteRecord $b): int => [$a->file, $a->line, $a->target] <=> [$b->file, $b->line, $b->target])->all());
 
         return [
             'unresolved_dispatches' => $unresolved,

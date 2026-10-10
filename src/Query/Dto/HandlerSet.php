@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
+
 /** @internal */
 final readonly class HandlerSet
 {
@@ -28,8 +30,8 @@ final readonly class HandlerSet
         return [
             'event' => $this->event,
             'count' => $this->count(),
-            'listeners' => array_map(static fn (ListenerHandler $h): array => $h->toArray(), $this->listeners),
-            'closure_listeners' => array_map(static fn (ClosureHandler $h): array => $h->toArray(), $this->closureListeners),
+            'listeners' => Arr::map($this->listeners, static fn (ListenerHandler $h): array => $h->toArray()),
+            'closure_listeners' => Arr::map($this->closureListeners, static fn (ClosureHandler $h): array => $h->toArray()),
         ];
     }
 }

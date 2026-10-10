@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Query\HandlerKind;
 
 /**
@@ -32,7 +33,7 @@ final readonly class ChainEdge
             'event' => $this->event,
             'handler' => $this->handler,
             'handler_kind' => $this->handlerKind->value,
-            'dispatches' => array_map(static fn (DispatchRef $d): array => $d->toArray(), $this->dispatches),
+            'dispatches' => Arr::map($this->dispatches, static fn (DispatchRef $d): array => $d->toArray()),
         ];
     }
 }

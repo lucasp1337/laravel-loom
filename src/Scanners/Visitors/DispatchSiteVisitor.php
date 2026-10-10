@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
@@ -233,7 +234,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         }
 
         if (Facades::NOTIFICATION->matches($className)) {
-            if (array_key_exists($methodName, self::NOTIFICATION_FACADE_METHODS)) {
+            if (Arr::exists(self::NOTIFICATION_FACADE_METHODS, $methodName)) {
                 $this->recordNotificationSiteFromArg($node, $node->args, 1, DispatchForm::NOTIFICATION_FACADE, 'Notification::'.$methodName, self::NOTIFICATION_FACADE_METHODS[$methodName]);
 
                 return;
@@ -245,7 +246,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         if (Facades::BUS->matches($className)) {
             if (in_array($methodName, ['chain', 'batch'], true)) {
                 $this->recordJobList($node, $node->args, 'Bus::'.$methodName);
-            } elseif (array_key_exists($methodName, self::BUS_METHODS)) {
+            } elseif (Arr::exists(self::BUS_METHODS, $methodName)) {
                 $this->recordHelperOrFacade($node, $node->args, DispatchForm::JOB_HELPER, DispatchKinds::JOB, 'Bus::'.$methodName, self::BUS_METHODS[$methodName]);
             }
 
@@ -321,7 +322,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             return;
         }
 
-        if (array_key_exists($methodName, self::NOTIFY_METHODS)) {
+        if (Arr::exists(self::NOTIFY_METHODS, $methodName)) {
             // Opaque-receiver ->notify(...) is accepted; the chain-root walk
             // only changes the `form` label when rooted at Notification::route.
             $form = $this->isRootedAtFacadeChainRoot($node->var, Facades::NOTIFICATION, ['route'])
@@ -789,7 +790,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
      */
     private function overridesFrom(array ...$linkLists): DispatchOverrides
     {
-        return ChainModifierExtractor::extract(array_merge(...$linkLists));
+        return ChainModifierExtractor::extract(array_values(Arr::collapse($linkLists)));
     }
 
     /** @return list<DispatchSiteRecord> */

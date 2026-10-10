@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Model\ClosureListener;
 use Lucasp\Loom\Index\Model\DispatchSite;
 use Lucasp\Loom\Index\Model\Event;
@@ -243,7 +244,7 @@ final class Index
     private function hydrate(Sections $section, callable $factory): array
     {
         $key = $section->value;
-        if (! array_key_exists($key, $this->models)) {
+        if (! Arr::exists($this->models, $key)) {
             $this->models[$key] = array_map($factory, array_values($this->sections[$key] ?? []));
         }
 

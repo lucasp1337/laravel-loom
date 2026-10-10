@@ -27,7 +27,7 @@ final class ComposerPsr4Map
      */
     public function __construct(array $map)
     {
-        uksort($map, fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $map = collect($map)->sortKeysUsing(fn (string $a, string $b): int => strlen($b) <=> strlen($a))->all();
         $this->map = $map;
     }
 

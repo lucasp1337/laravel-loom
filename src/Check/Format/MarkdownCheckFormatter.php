@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check\Format;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\Result\CheckResult;
 
 /**
@@ -32,6 +33,6 @@ final class MarkdownCheckFormatter implements CheckFormatter
             $lines[] = '';
         }
 
-        return rtrim(implode("\n", $lines), "\n");
+        return rtrim(Arr::join($lines, "\n"), "\n");
     }
 }

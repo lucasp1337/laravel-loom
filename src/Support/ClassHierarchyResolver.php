@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\MethodDeclaration;
 use Lucasp\Loom\Dto\MethodVisibility;
 use Lucasp\Loom\Dto\ResolvedMethod;
@@ -80,7 +81,7 @@ final class ClassHierarchyResolver
     public function extendsChain(string $fqcn): array
     {
         $fqcn = $this->normalize($fqcn);
-        if (array_key_exists($fqcn, $this->extendsChainCache)) {
+        if (Arr::exists($this->extendsChainCache, $fqcn)) {
             return $this->extendsChainCache[$fqcn];
         }
 
@@ -132,7 +133,7 @@ final class ClassHierarchyResolver
     public function implementsAll(string $fqcn): array
     {
         $fqcn = $this->normalize($fqcn);
-        if (array_key_exists($fqcn, $this->implementsAllCache)) {
+        if (Arr::exists($this->implementsAllCache, $fqcn)) {
             return $this->implementsAllCache[$fqcn];
         }
 
@@ -176,7 +177,7 @@ final class ClassHierarchyResolver
     public function traitsAll(string $fqcn): array
     {
         $fqcn = $this->normalize($fqcn);
-        if (array_key_exists($fqcn, $this->traitsAllCache)) {
+        if (Arr::exists($this->traitsAllCache, $fqcn)) {
             return $this->traitsAllCache[$fqcn];
         }
 
@@ -430,7 +431,7 @@ final class ClassHierarchyResolver
             $adaptation->method,
             $adaptation->alias,
             $adaptation->visibility,
-            array_map($this->normalize(...), $adaptation->insteadof),
+            array_values(Arr::map($adaptation->insteadof, $this->normalize(...))),
         );
     }
 
@@ -484,14 +485,14 @@ final class ClassHierarchyResolver
                     'fqcn' => $decl->fqcn,
                     'kind' => $decl->kind,
                     'parent' => $decl->parent !== null ? $this->normalize($decl->parent) : null,
-                    'parents' => array_map([$this, 'normalize'], $decl->parents),
-                    'interfaces' => array_map([$this, 'normalize'], $decl->interfaces),
-                    'traits' => array_map([$this, 'normalize'], $decl->traits),
+                    'parents' => array_values(Arr::map($decl->parents, $this->normalize(...))),
+                    'interfaces' => array_values(Arr::map($decl->interfaces, $this->normalize(...))),
+                    'traits' => array_values(Arr::map($decl->traits, $this->normalize(...))),
                     'file' => $relative,
                     'line' => $decl->line,
                     'isAbstract' => $decl->isAbstract,
                     'methods' => $decl->methods,
-                    'adaptations' => array_map($this->normalizeAdaptation(...), $decl->adaptations),
+                    'adaptations' => array_values(Arr::map($decl->adaptations, $this->normalizeAdaptation(...))),
                 ];
             }
         }

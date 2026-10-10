@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\RouteGroupAttributes;
 use PhpParser\Node;
 
@@ -92,7 +93,7 @@ final class RouteGroupAttributesBuilder
     private function setMiddleware(array $nodes, bool $accumulate): void
     {
         $key = RouteGroupAttribute::MIDDLEWARE->value;
-        $unreadable = array_filter($nodes, fn (Node\Expr $node): bool => ! $this->isStaticMiddleware($node)) !== [];
+        $unreadable = Arr::where($nodes, fn (Node\Expr $node): bool => ! $this->isStaticMiddleware($node)) !== [];
 
         $this->unresolved[$key] = $unreadable || ($accumulate && ($this->unresolved[$key] ?? false));
         $this->middlewareNodes = $accumulate ? [...$this->middlewareNodes, ...$nodes] : $nodes;

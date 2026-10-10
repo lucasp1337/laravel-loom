@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Query\Dto;
 
+use Illuminate\Support\Arr;
+
 /**
  * Transitive handler/dispatch chain rooted at an event, bounded by depth.
  *
@@ -34,9 +36,9 @@ final readonly class EventChain
         return [
             'root' => $this->root,
             'depth' => $this->depth,
-            'edges' => array_map(static fn (ChainEdge $e): array => $e->toArray(), $this->edges),
+            'edges' => Arr::map($this->edges, static fn (ChainEdge $e): array => $e->toArray()),
             'events_reached' => $this->eventsReached,
-            'cycles' => array_map(static fn (ChainCycle $c): array => $c->toArray(), $this->cycles),
+            'cycles' => Arr::map($this->cycles, static fn (ChainCycle $c): array => $c->toArray()),
             'truncated' => $this->truncated,
         ];
     }

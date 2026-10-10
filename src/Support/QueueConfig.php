@@ -22,8 +22,8 @@ final class QueueConfig
     public static function extractFrom(Node\Stmt\Class_ $node): QueueConfigData
     {
         /** @var array<string, string|int|null> $values */
-        $values = array_fill_keys(self::PROPERTIES, null);
-        $names = array_flip(self::PROPERTIES);
+        $values = collect(self::PROPERTIES)->mapWithKeys(static fn ($key): array => [$key => null])->all();
+        $names = collect(self::PROPERTIES)->flip()->all();
 
         foreach ($node->stmts as $stmt) {
             if (! $stmt instanceof Node\Stmt\Property) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Check\Rules;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Check\CheckContext;
 use Lucasp\Loom\Check\Contracts\CheckRule;
 use Lucasp\Loom\Check\DispatchGraph;
@@ -38,7 +39,7 @@ final class CyclicDispatchRule implements CheckRule
         $violations = [];
         foreach (DispatchGraph::fromContext($context)->cycles() as $cycle) {
             $violations[] = new Violation(
-                'Cyclic dispatch: '.implode(self::ARROW, $cycle),
+                'Cyclic dispatch: '.Arr::join($cycle, self::ARROW),
                 ['cycle' => $cycle],
             );
         }

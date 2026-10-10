@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -39,10 +40,7 @@ final class DispatchesFromTool extends Tool
             return Response::error('method_fqcn is required.');
         }
 
-        $dispatches = array_map(
-            static fn (DispatchRef $d): array => $d->toArray(),
-            $this->query->dispatchesFrom($methodFqcn),
-        );
+        $dispatches = Arr::map($this->query->dispatchesFrom($methodFqcn), static fn (DispatchRef $d): array => $d->toArray());
 
         return Response::text((string) json_encode([
             'method_fqcn' => $methodFqcn,
