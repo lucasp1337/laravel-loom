@@ -209,12 +209,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         }
 
         if ($receiver instanceof Node\Name) {
-            $resolved = $receiver->getAttribute('resolvedName');
-            if ($resolved instanceof Node\Name) {
-                return $resolved->toString() === Facades::SCHEDULE->value;
-            }
-
-            // Fallback when NameResolver didn't attach a resolved name.
+            // NameResolver has already rewritten the name to its FQCN.
             return Facades::SCHEDULE->matches($receiver->toString());
         }
 
@@ -281,10 +276,8 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         if (! $type instanceof Node\Name) {
             return false;
         }
-        $resolved = $type->getAttribute('resolvedName');
-        $name = $resolved instanceof Node\Name ? $resolved->toString() : $type->toString();
 
-        return Str::endsWith($name, 'Schedule');
+        return Str::endsWith($type->toString(), 'Schedule');
     }
 
     private function kindFromRootMethod(string $method): ScheduleKind

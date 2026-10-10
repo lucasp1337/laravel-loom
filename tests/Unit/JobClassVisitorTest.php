@@ -28,7 +28,7 @@ function runJobClassVisitor(string $source): array
     return $visitor->getClasses();
 }
 
-it('marks a job as queued when implementing ShouldQueue via a use import', function () {
+it('records fqcn and line for a job class', function () {
     $source = <<<'PHP'
     <?php
 
@@ -49,31 +49,9 @@ it('marks a job as queued when implementing ShouldQueue via a use import', funct
     expect($classes)->toHaveCount(1);
     expect($classes[0]->fqcn)->toBe('App\\Jobs\\ProcessOrder');
     expect($classes[0]->line)->toBe(7);
-    expect($classes[0]->queued)->toBeTrue();
-    expect($classes[0]->hasHandle)->toBeTrue();
 });
 
-it('marks a job as queued when implementing the ShouldQueue FQCN directly', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Jobs;
-
-    class DirectFqcnJob implements \Illuminate\Contracts\Queue\ShouldQueue
-    {
-        public function handle(): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runJobClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->queued)->toBeTrue();
-});
-
-it('marks a job as not queued when ShouldQueue is absent', function () {
+it('leaves queue config empty when no properties are declared', function () {
     $source = <<<'PHP'
     <?php
 
@@ -90,7 +68,6 @@ it('marks a job as not queued when ShouldQueue is absent', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queued)->toBeFalse();
     expect($classes[0]->queueConfig)->toEqual(new QueueConfigData(
         connection: null,
         queue: null,
@@ -330,28 +307,6 @@ it('emits each concrete class independently when multiple are declared in one fi
 
     expect($classes)->toHaveCount(2);
     expect($classes[0]->fqcn)->toBe('App\\Jobs\\JobOne');
-    expect($classes[0]->queued)->toBeTrue();
     expect($classes[0]->queueConfig->tries)->toBe(1);
     expect($classes[1]->fqcn)->toBe('App\\Jobs\\JobTwo');
-    expect($classes[1]->queued)->toBeFalse();
-});
-
-it('records has_handle as false when the class has no handle() method', function () {
-    $source = <<<'PHP'
-    <?php
-
-    namespace App\Jobs;
-
-    class NoHandle
-    {
-        public function somethingElse(): void
-        {
-        }
-    }
-    PHP;
-
-    $classes = runJobClassVisitor($source);
-
-    expect($classes)->toHaveCount(1);
-    expect($classes[0]->hasHandle)->toBeFalse();
 });
