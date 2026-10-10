@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Illuminate\Support\Str;
+use Lucasp\Loom\Dto\ChainLink;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
-use Lucasp\Loom\Dto\ScheduleChainLink;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Support\Ast\Arg;
@@ -33,7 +33,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
      * chain's modifier links (frequency + modifiers, excluding the terminal
      * `group` link) that inner tasks inherit. Outermost frame is index 0.
      *
-     * @var list<list<ScheduleChainLink>>
+     * @var list<list<ChainLink>>
      */
     private array $groupFrameStack = [];
 
@@ -127,7 +127,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
 
         $chain = [];
         foreach ($callChain->links() as $link) {
-            $chain[] = new ScheduleChainLink(method: (string) $link->name(), args: $link->args());
+            $chain[] = ChainLink::fromSite($link);
         }
 
         // Splice inherited group attributes between the inner root and the
@@ -252,7 +252,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
      * KERNEL/BOOTSTRAP where any in-scope receiver is trusted) are harmless:
      * the scanner's translate() silently ignores chain methods it doesn't know.
      *
-     * @return list<ScheduleChainLink>|null
+     * @return list<ChainLink>|null
      */
     private function groupFrameFor(Node $node): ?array
     {
@@ -286,7 +286,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
         // Drop the terminal `group` link; the rest are the inherited modifiers.
         $frame = [];
         foreach ($callChain->withoutLast() as $link) {
-            $frame[] = new ScheduleChainLink(method: (string) $link->name(), args: $link->args());
+            $frame[] = ChainLink::fromSite($link);
         }
 
         return $frame;
