@@ -1,61 +1,30 @@
 # What Loom sees
 
-Someone who knows Laravel events, has scanned an app, and now wants to know what ended up in the index and what didn't.
+For someone who knows Laravel events, has scanned an app, and wants to know what ended up in the index and what didn't.
 
 ## The wiring problem
 
-Take one event in a checkout app. `OrderController::store` fires it:
+One event in a checkout app. `OrderController::store` fires it with `event(new OrderPlaced($order->id))`. `SendOrderConfirmation` reacts to it, and nothing registers that listener: Laravel discovers it from the type hint on `handle(OrderPlaced $event)`. A provider adds a second reaction as a closure with `Event::listen(OrderPlaced::class, function (...) {...})`.
 
-```php
-event(new OrderPlaced($order->id));
-```
-
-`SendOrderConfirmation` reacts to it. Nothing registers that listener; Laravel discovers it from the type hint:
-
-```php
-public function handle(OrderPlaced $event): void
-{
-    SendReceipt::dispatch($event->orderId);
-}
-```
-
-A provider adds a second reaction as a closure:
-
-```php
-Event::listen(OrderPlaced::class, function (OrderPlaced $event) {
-    logger('order placed');
-});
-```
-
-Three files, three registration styles, and no place that says "these are the reactions to `OrderPlaced`". Grepping finds the `event()` call and the closure, but not the listener, because its only link to the event is a type hint. That works fine until the app has a few hundred events.
-
-Loom reads the source, follows each of those links, and writes them into one index. It never boots your app, so it records what your code says, not what a particular request did.
+Three files, three registration styles, and no place that says "these are the reactions to `OrderPlaced`". Grepping finds the `event()` call and the closure, but not the listener, whose only link is a type hint. Loom reads the source, follows each link and writes them into one index. It never boots your app, so it records what your code says, not what a request did.
 
 ## What Loom records
 
-Each primitive gets its own section in the index, and every entry carries at least a file and a line. The [schema](../reference/schema.md) has the exact fields; this page covers what each section means and where the edges are.
+Each primitive gets its own section, and every entry carries a file and a line. The [schema](../reference/schema.md) has the fields; the exact code shapes are in [What Loom detects](../reference/what-loom-detects.md).
 
-**Events.** A class Loom finds under `app/Events/`, any class you dispatch with `event()`, `Event::dispatch()` or `OrderPlaced::dispatch()`, or any class a model names in `$dispatchesEvents`. Each event lists the listeners that handle it and the sites that dispatch it.
-
-**Listeners.** A class that reacts to an event. Loom finds them four ways: auto-discovery of public `handle*` and `__invoke` methods (declared, inherited or from a trait), the `$listen` array on a provider, `Event::listen()` calls (including a dispatcher resolved from the container), and subscribers. In `$listen` and `Event::listen()` a listener can be written as `SendReceipt::class`, `[SendReceipt::class, 'handle']`, `Closure::fromCallable([...])` or the first-class callable `SendReceipt::handle(...)`. They all link the same way.
-
-**Closure listeners.** A closure or arrow function passed to `Event::listen()` has no class name, so it lives in its own `closure_listeners` section, with the event it handles and where the closure starts and ends.
-
-**Observers and model events.** Loom finds observers through `Model::observe()`, the `#[ObservedBy]` attribute and `eloquent.*` listeners. It records the model and the lifecycle hooks the observer implements. The lifecycle events themselves show up as `model_events` entries that link a model and an event such as `created` back to its handlers.
-
-**Jobs.** A class under `app/Jobs/`, or any class you dispatch with `dispatch()`, `Bus::dispatch()` or `SendReceipt::dispatch()`. Loom locates dispatched classes through your PSR-4 autoload map, so domain-driven layouts work. It records whether the job is queued and the queue settings the class declares.
-
-**Mailables and notifications.** Classes under `app/Mail/` and `app/Notifications/`, plus anything sent with `Mail::to()->send()`, `notify()` or `Notification::send()`. Notifications also record their delivery channels when `via()` returns a literal array.
-
-**Scheduled tasks.** Entries from `Kernel::schedule()`, `withSchedule()` in `bootstrap/app.php` and `Schedule::*` chains. Frequencies are normalized to a five-field cron expression.
-
-**Routes.** Every registration in `routes/*.php`: `Route::get()` and the other verbs, `Route::match()`, `Route::any()`, and the routes a `Route::resource()` expands into. Each route records its method, URI, name, controller action and middleware, and the events and jobs its controller method dispatches. That last link is what lets you start from a URL and end at an event.
-
-**Dispatch sites.** Every call that fires an event, job, mailable or notification. They aren't a section of their own. Each one appears on the thing it fires, as `dispatched_from`, `sent_from` or `notified_from`, and on the class or route that contains the call, as `dispatches`.
+- **Events**: classes under `app/Events/`, classes you dispatch with `event()`, `Event::dispatch()` or `OrderPlaced::dispatch()`, and classes a model names in `$dispatchesEvents`. Each lists its handlers and dispatch sites.
+- **Listeners**: found by auto-discovery of `handle*` and `__invoke` methods, the `$listen` array, `Event::listen()` calls (including a container-resolved dispatcher) and subscribers.
+- **Closure listeners**: a closure or arrow function has no class name, so it has its own section with the event and its start and end lines.
+- **Observers and model events**: through `Model::observe()`, `#[ObservedBy]` and `eloquent.*` listeners. Lifecycle events appear as `model_events` linking a model and an event such as `created` to its handlers.
+- **Jobs**: classes under `app/Jobs/` and classes you dispatch, located through your PSR-4 map so domain layouts work, with `queued` and the declared queue settings.
+- **Mailables and notifications**: classes under `app/Mail/` and `app/Notifications/` and anything sent with `Mail::to()->send()`, `notify()` or `Notification::send()`; notifications also record literal `via()` channels.
+- **Scheduled tasks**: `Kernel::schedule()`, `withSchedule()` and `Schedule::*` chains, with frequencies normalised to a five-field cron.
+- **Routes**: `routes/*.php` registrations and expanded resources, with controller action, middleware and the events and jobs the controller method dispatches, so you can start from a URL and end at an event.
+- **Dispatch sites**: not a section. Each appears on the thing it fires (`dispatched_from`, `sent_from`, `notified_from`) and on the class or route that contains the call (`dispatches`).
 
 ## How the sections connect
 
-Loom finishes reading every file before it links anything, so a listener can point at an event that was scanned after it. Each relationship is stored on one side only, and [the index](the-index.md) shows how to read it from both directions.
+Loom reads every file before it links anything, and each relationship is stored on one side only ([the index](the-index.md) shows how to read both directions).
 
 ```mermaid
 flowchart LR
@@ -69,32 +38,19 @@ flowchart LR
     Notification -.->|notified_from| Site
 ```
 
-Solid edges are stored on the source (a route, listener or job lists what it dispatches). Dashed edges are the reverse, stored on the target so you can ask "who fires this?" without scanning every entry.
+Solid edges are stored on the source; dashed edges are the reverse, stored on the target so "who fires this?" needs no full scan.
 
 ## What Loom can't see
 
-Some dispatches can't be resolved from source. `event($class)` could fire anything, a container lookup returns whatever is bound at runtime, and a class name built by string interpolation or picked in a conditional isn't a name yet.
-
-Loom doesn't drop these. Each goes into `unresolved_dispatches` with the expression, a file and line, and a reason: `dynamic_class_name`, `container_resolution`, `string_concatenation` or `conditional_dispatch`.
-
-```json
-{
-  "file": "app/Services/Notifier.php",
-  "line": 42,
-  "expression": "event($eventClass)",
-  "reason": "dynamic_class_name"
-}
-```
-
-Read that as "an event fires here and I can't tell which". A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
+`event($class)` could fire anything, a container lookup returns whatever is bound at runtime, and a class name built by interpolation isn't a name yet. Loom doesn't drop these: each goes into `unresolved_dispatches` with the expression, file, line and a reason (`dynamic_class_name`, `container_resolution`, `string_concatenation` or `conditional_dispatch`). Read an entry as "an event fires here and I can't tell which". [`loom:check`](../guides/gate-your-ci.md) can watch that count.
 
 !!! warning "An empty `handled_by` isn't always a dead event"
-    A closure listener has no class to point at, so the event lists no handler for it. Check `closure_listeners` for the same event before you call it unhandled. The reverse holds too: dispatches inside a closure listener have no back-edge from the target. A route closure is the exception: the event lists the route as a dispatch site.
+    A closure listener has no class to point at. Check `closure_listeners` for the event before calling it unhandled. A dispatch inside a closure listener has no back-edge from its target either; a route closure is the exception, and its event lists the route.
 
 !!! warning "Vendor parents are opaque"
-    Loom doesn't read `vendor/`. A job that gets `ShouldQueue` from a parent class in a package reports `queued: false`, and a notification that inherits `via()` from one reports no channels.
+    Loom doesn't read `vendor/`. A job that gets `ShouldQueue` from a package parent reports `queued: false`, and a notification that inherits `via()` reports no channels.
 
-!!! note "Dispatch attribution is per class"
-    For listeners, jobs and observers, a dispatch is attributed to the whole class, not to the method it sits in. Routes are the exception: they record dispatches per controller method, or per closure.
+!!! note "Dispatches are attributed per class"
+    For listeners, jobs and observers a dispatch belongs to the class, not the method it sits in. Routes record per controller method or closure.
 
-If something you expected is missing or wrong, [Why was my code missed?](../guides/why-was-my-code-missed.md) goes symptom by symptom.
+If something you expected is missing, [Why was my code missed?](../guides/why-was-my-code-missed.md) goes symptom by symptom.

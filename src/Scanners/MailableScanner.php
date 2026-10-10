@@ -14,7 +14,14 @@ use Lucasp\Loom\Support\ScanScope;
 
 /**
  * Discovers mailable classes under app/Mail/ plus dispatch-site targets
- * that resolve via PSR-4.
+ * that resolve via PSR-4. See {@see MailableClassSpec}.
+ *
+ * Matches every concrete class under Mail/ and the mailable argument of
+ * `Mail::send/sendNow/queue/onQueue/queueOn/later/laterOn(...)`, including the
+ * `Mail::to()/cc()/bcc()/locale()/mailer()` receiver chains before the
+ * terminal call. The argument may carry its own fluent chain
+ * (`Mail::send((new X)->onConnection('redis'))`); a variable argument does not
+ * resolve. Queue state and `queue_config` follow the same rules as jobs.
  *
  * @internal
  */

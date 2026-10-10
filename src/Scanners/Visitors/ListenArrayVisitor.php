@@ -15,6 +15,12 @@ use PhpParser\Node;
  * Collects (event, listener) pairs from `$listen` on EventServiceProvider classes.
  * String-keyed entries (e.g. 'eloquent.*') belong to ObserverScanner.
  *
+ * Values may be a bare `Listener::class` (method `handle`), a tuple
+ * `[Listener::class, 'method']`, `Closure::fromCallable([...])` (the one-element
+ * form defaults to `handle`) or `Listener::method(...)`; all resolve to the same
+ * pair. Closures and arrow functions are collected separately as closure
+ * listeners. The property may have any visibility and must be an array.
+ *
  * @internal
  */
 final class ListenArrayVisitor extends CollectingVisitor

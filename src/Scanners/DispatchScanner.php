@@ -21,6 +21,29 @@ use Lucasp\Loom\Support\ScanScope;
  * Collects dispatch sites under the scan paths and routes/ (route closures) and emits `unresolved_dispatches`
  * plus the internal `_dispatch_sites` section.
  *
+ * Which call shapes count is the {@see DispatchRules} table. A site is recorded
+ * inside a class method, or inside a closure within one; under routes/ only
+ * closure bodies yield sites. Top-level code outside any class is skipped. Each
+ * site carries target, kind, form, enclosing class and method, and an
+ * `inClosure` flag the cross-link pass resolves (see ClosureOwnershipPhase).
+ * `X::dispatch()` is `ambiguous` until cross-link finalizes it as an event when
+ * the target is in `events[]`, else a job.
+ *
+ * A target that cannot be resolved is emitted as an unresolved dispatch with a
+ * reason: `dynamic_class_name` (a variable), `string_concatenation` (concat or
+ * interpolation), `container_resolution` (`app()`, `resolve()`, `->make()`) or
+ * `conditional_dispatch` (a ternary whose branches do not both resolve; when
+ * both are concrete `new X` two sites are emitted instead).
+ *
+ * The dispatched value may sit in a fluent chain, which is read for
+ * `overrides` (`locale`, `mailer`, `connection`, `queue`, `delay` as an integer
+ * literal, `after_commit`) both on the argument instance and on the returned
+ * pending dispatch, plus the `Mail::to()->...->send()` receiver chain.
+ * Notifications read only the argument-instance chain. See
+ * {@see ChainModifierExtractor}. A literal-true `->afterResponse()` sets the
+ * `after_response` mode. `Queue::pushRaw` is not recorded, and `ShouldQueue`
+ * and the sync driver are never evaluated against `mode`.
+ *
  * @internal
  */
 final class DispatchScanner implements Scanner

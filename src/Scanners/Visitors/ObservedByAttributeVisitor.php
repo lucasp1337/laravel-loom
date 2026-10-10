@@ -11,6 +11,8 @@ use PhpParser\Node;
 
 /**
  * Finds `#[ObservedBy(Observer::class)]` (and array form) on model classes.
+ * The attributed class is the model, and `#[ObservedBy([A::class, B::class])]`
+ * gives two registrations.
  *
  * @internal
  */

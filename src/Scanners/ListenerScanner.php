@@ -31,6 +31,31 @@ use Lucasp\Loom\Support\ScanScope;
 /**
  * Discovers event listeners from auto-discovery (app/Listeners/),
  * $listen arrays, Event::listen() calls, and $subscribe / Event::subscribe.
+ * Closure and arrow-function registrations go to `closure_listeners[]`.
+ *
+ * Paths, merged by listener FQCN; the winning `registration` is
+ * `subscriber`, then `listen_array`, `event_listen_call`, `auto_discovered`:
+ * 1. Auto-discovery. Mirrors Laravel's DiscoverEvents: an instantiable class
+ *    under Listeners/ with a public `handle*` or `__invoke` method taking a
+ *    first parameter, declared, inherited or trait-provided (`as` renames and
+ *    `insteadof` applied). The events are the class types of that parameter
+ *    (nullable and union types give each class; builtin and intersection
+ *    members give none). A method with no class type still lists the listener
+ *    with `handles: []`; no parameter, an abstract class, or a method made
+ *    non-public gives nothing.
+ * 2. `$listen` on any class named `EventServiceProvider` or extending the
+ *    framework one, anywhere under the scan paths.
+ * 3. `listen(...)` calls on the dispatcher, from any class
+ *    ({@see EventListenCallVisitor}). An array of events expands to one
+ *    registration per event.
+ * 4. Subscribers named in `$subscribe` or `Event::subscribe(...)`
+ *    ({@see SubscriberClassVisitor}).
+ *
+ * `method` is `handle` when a registration names none. A listener named in a
+ * registration but located outside Listeners/ is found through PSR-4; if its
+ * file cannot be located it is dropped, since `file` and `line` are required.
+ * `handles[]` is deduplicated on (event, method), so one listener can handle
+ * different events, or one event, through several methods.
  *
  * @internal
  */
