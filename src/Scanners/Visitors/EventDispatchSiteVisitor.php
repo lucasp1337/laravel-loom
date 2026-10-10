@@ -5,24 +5,31 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\EventDispatchTarget;
-use Lucasp\Loom\Index\DispatchForm;
-use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Scanners\Dispatch\DispatchRuleMatcher;
+use Lucasp\Loom\Scanners\Dispatch\DispatchRules;
+use Lucasp\Loom\Scanners\Dispatch\DispatchTarget;
+use Lucasp\Loom\Support\Ast\CallSite;
 use Lucasp\Loom\Support\Ast\ClassRef;
-use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
 /**
  * Collects statically resolvable event-class targets from dispatch sites.
- * Dynamic forms are handled by DispatchScanner.
+ * Dynamic forms are handled by DispatchScanner. Recognition uses the event
+ * discovery subset of the dispatch rule table.
  *
  * @internal
  */
 final class EventDispatchSiteVisitor extends CollectingVisitor
 {
-    private const DISPATCH_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless'];
-
     /** @var list<EventDispatchTarget> */
     private array $targets = [];
+
+    private DispatchRuleMatcher $matcher;
+
+    public function __construct(?DispatchRuleMatcher $matcher = null)
+    {
+        $this->matcher = $matcher ?? new DispatchRuleMatcher(DispatchRules::eventDiscovery());
+    }
 
     protected function reset(): void
     {
@@ -31,74 +38,25 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
 
     public function leaveNode(Node $node): null
     {
-        if ($node instanceof Node\Expr\FuncCall) {
-            $this->handleFuncCall($node);
-
+        $call = CallSite::of($node);
+        $rule = $call !== null ? $this->matcher->match($call) : null;
+        if ($call === null || $rule === null) {
             return null;
         }
 
-        if ($node instanceof Node\Expr\StaticCall) {
-            $this->handleStaticCall($node);
+        $fqcn = match ($rule->target) {
+            // `event($e)`, `Event::dispatch($e)`: the first argument's class
+            DispatchTarget::PENDING_ARGUMENT => ClassRef::fromInstanceOrConstant($call->args()->valueAt($rule->argIndex)),
+            // `X::dispatch(...)`: the class itself
+            DispatchTarget::STATIC_CLASS => $call->className(),
+            DispatchTarget::ARGUMENT, DispatchTarget::LIST_ITEMS => null,
+        };
+
+        if ($fqcn !== null) {
+            $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $call->line(), form: $rule->form);
         }
 
         return null;
-    }
-
-    private function handleFuncCall(Node\Expr\FuncCall $node): void
-    {
-        if (! $node->name instanceof Node\Name) {
-            return;
-        }
-
-        $fn = strtolower($node->name->toString());
-        if ($fn !== 'event' && $fn !== 'broadcast') {
-            return;
-        }
-
-        $fqcn = $this->resolveFirstArgClass(Args::of($node->args));
-        if ($fqcn !== null) {
-            $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::HELPER);
-        }
-    }
-
-    private function handleStaticCall(Node\Expr\StaticCall $node): void
-    {
-        if (! $node->class instanceof Node\Name) {
-            return;
-        }
-
-        if (! $node->name instanceof Node\Identifier) {
-            return;
-        }
-
-        $method = $node->name->toString();
-        if (! in_array($method, self::DISPATCH_METHODS, true)) {
-            return;
-        }
-
-        $className = $node->class->toString();
-
-        if (Facades::EVENT->matches($className)) {
-            // The Event facade only has dispatch(); dispatchIf/dispatchUnless belong to Dispatchable classes.
-            if ($method !== 'dispatch') {
-                return;
-            }
-
-            $fqcn = $this->resolveFirstArgClass(Args::of($node->args));
-            if ($fqcn !== null) {
-                $this->targets[] = new EventDispatchTarget(fqcn: $fqcn, line: $node->getStartLine(), form: DispatchForm::FACADE);
-            }
-
-            return;
-        }
-
-        // X::dispatch/dispatchIf/dispatchUnless(...) — the class itself is the target.
-        $this->targets[] = new EventDispatchTarget(fqcn: $className, line: $node->getStartLine(), form: DispatchForm::DISPATCHABLE);
-    }
-
-    private function resolveFirstArgClass(Args $args): ?string
-    {
-        return ClassRef::fromInstanceOrConstant($args->valueAt(0));
     }
 
     /**

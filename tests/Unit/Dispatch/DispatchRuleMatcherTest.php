@@ -188,3 +188,26 @@ it('lets a custom table add a dispatch form with one row', function (): void {
     expect(matchDispatchRule('fire($e)', $matcher)?->key())->toBe('global_function::fire')
         ->and(matchDispatchRule('event($e)', $matcher))->toBeNull();
 });
+
+it('derives the event discovery table from the same rows', function (): void {
+    $keys = collect(DispatchRules::eventDiscovery())->map(fn (DispatchRule $r): string => $r->key())->all();
+
+    expect($keys)->toBe([
+        'global_function::event',
+        'global_function::broadcast',
+        'facade_static:Event:dispatch',
+        'class_static::dispatch',
+        'class_static::dispatchIf',
+        'class_static::dispatchUnless',
+    ]);
+});
+
+it('treats every other facade as a plain class under event discovery', function (): void {
+    $matcher = new DispatchRuleMatcher(DispatchRules::eventDiscovery());
+
+    expect(matchDispatchRule('Bus::dispatch($j)', $matcher)?->key())->toBe('class_static::dispatch')
+        ->and(matchDispatchRule('Event::dispatchIf($c, $e)', $matcher))->toBeNull()
+        ->and(matchDispatchRule('Job::dispatchSync()', $matcher))->toBeNull()
+        ->and(matchDispatchRule('dispatch($j)', $matcher))->toBeNull()
+        ->and(matchDispatchRule('broadcast_if($c, $e)', $matcher))->toBeNull();
+});
