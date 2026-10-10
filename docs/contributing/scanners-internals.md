@@ -1435,11 +1435,23 @@ innermost, followed by the route's own `->middleware(...)`, in source
 order. Exact-duplicate names are deduped (first occurrence wins);
 otherwise order is preserved.
 
+Three rules decide how repeated `middleware()` calls combine, mirroring
+Laravel:
+
+- **Registrar chain** (`Route::middleware('a')->middleware('b')->group()`):
+  the last call replaces the earlier ones, so only `b` applies
+  (`RouteRegistrar::attribute()` overwrites the `middleware` key). A repeated
+  `prefix`, `name`, `as` or `controller` on the same chain also overwrites.
+- **Nested groups**: an inner group's middleware is appended after the
+  enclosing group's (`RouteGroup::merge()`).
+- **Route instance** (`Route::get(...)->middleware('a')->middleware('b')`):
+  calls accumulate in source order (`Route::middleware()` merges).
+
 Recognised forms, on both the route and a group:
 
 - Single string — `->middleware('auth')`.
 - Array — `->middleware(['auth', 'verified'])`.
-- Chained — `->middleware('a')->middleware('b')` accumulates `a`, `b`.
+- Chained on a route — `->middleware('a')->middleware('b')` accumulates `a`, `b`; chained on a group registrar it keeps only `b`.
 - Variadic — `->middleware('a', 'b')`.
 - `::class` reference — resolved to the FQCN (e.g.
   `->middleware(EnsureTokenIsValid::class)` →

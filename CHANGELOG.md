@@ -24,6 +24,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Fixed
 
+- A group chain that calls `middleware()` twice keeps only the last list, as Laravel does ([#140](https://github.com/lucasp1337/laravel-loom/issues/140)).
 - `Event::listen`/`Event::subscribe` are found through the bare alias, and `X::dispatchIf/dispatchUnless` seed event discovery ([#143](https://github.com/lucasp1337/laravel-loom/issues/143)).
 - Code reformatted to the current Laravel Pint preset; `laravel/pint` requires `^1.32` and a manual `Pint` workflow runs `pint --test` ([#132](https://github.com/lucasp1337/laravel-loom/issues/132)).
 - Dispatches inside pass-through closures (`DB::transaction(fn () => ...)`, `each`, `tap`, `afterCommit`) now count for the enclosing method, and unresolved ones reach `unresolved_dispatches` ([#97](https://github.com/lucasp1337/laravel-loom/issues/97)).
