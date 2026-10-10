@@ -200,6 +200,22 @@ If you fork the repo to build a different Laravel introspection tool, the agents
 - One scanner per Laravel primitive; resist merging scanners even when they share visitors
 - Cite the relevant schema section in commit messages when changing scanner output: `feat(observers): emit hooks alphabetically (cites $defs/observer)`
 
+## Rector
+
+`rector.php` applies the mechanical style rules to `src/`:
+
+```bash
+composer rector       # dry run, exits non-zero on a diff
+composer rector:fix   # apply, then run Pint to import the new class names
+```
+
+Project rules live in `tools/rector/` (tests in `tests/Rector/`):
+
+- `IfElseifChainToMatchRector`: an `if / elseif / else` chain testing one variable with `===` against literals or class constants becomes a `match`, when every branch returns or assigns the same variable. Loose `==`, missing `else`, side-effecting subjects and multi-statement branches are skipped.
+- `NativeFunctionToLaravelHelperRector`: native string, array and sort calls become `Str`, `Arr` or `collect()` forms, only where the result is exactly equivalent (argument types come from PHPStan, so untyped arguments are left alone). The class docblock lists each mapping and the shapes it skips.
+
+The native-function rule skips the files `NativeFunctionsTest` allowlists. Rector is not part of CI; run it locally before sending a change that touches branching or array code.
+
 ## Data transfer: DTOs, not arrays
 
 Structured data passed between components (visitor → scanner, scanner → cross-link) **must** be a typed DTO, never an associative array. Arrays have no contract: a field rename is silent, a typo crashes at the consumer instead of the producer, and PHPStan can only verify shapes through fragile `array{}` annotations.
