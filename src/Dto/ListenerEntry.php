@@ -7,17 +7,17 @@ namespace Lucasp\Loom\Dto;
 use Lucasp\Loom\Index\ListenerRegistration;
 
 /** @internal */
-final class ListenerEntry
+final readonly class ListenerEntry
 {
     /**
      * @param  list<ListenerHandle>  $handles
      */
     public function __construct(
-        public readonly string $fqcn,
-        public readonly string $file,
-        public readonly int $line,
-        public readonly array $handles,
-        public readonly ListenerRegistration $registration,
-        public readonly bool $queued,
+        public string $fqcn,
+        public string $file,
+        public int $line,
+        public array $handles,
+        public ListenerRegistration $registration,
+        public bool $queued,
     ) {}
 }

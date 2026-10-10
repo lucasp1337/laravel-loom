@@ -11,11 +11,11 @@ use Lucasp\Loom\Index\DispatchForm;
  *
  * @internal
  */
-final class EventDispatchTarget
+final readonly class EventDispatchTarget
 {
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
-        public readonly DispatchForm $form,
+        public string $fqcn,
+        public int $line,
+        public DispatchForm $form,
     ) {}
 }

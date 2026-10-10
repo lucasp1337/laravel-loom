@@ -10,7 +10,7 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class ResolvedMethod
+final readonly class ResolvedMethod
 {
     /**
      * @param  string  $declaredIn  the class `self` means inside the method: the class itself when the method came from a trait
@@ -18,13 +18,13 @@ final class ResolvedMethod
      * @param  list<string>  $firstParameterClasses
      */
     public function __construct(
-        public readonly string $name,
-        public readonly MethodVisibility $visibility,
-        public readonly bool $isAbstract,
-        public readonly bool $hasParameters,
-        public readonly array $firstParameterClasses,
-        public readonly string $declaredIn,
-        public readonly string $definedIn,
+        public string $name,
+        public MethodVisibility $visibility,
+        public bool $isAbstract,
+        public bool $hasParameters,
+        public array $firstParameterClasses,
+        public string $declaredIn,
+        public string $definedIn,
     ) {}
 
     public function isPublic(): bool

@@ -9,14 +9,14 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class QueueConfigData
+final readonly class QueueConfigData
 {
     public function __construct(
-        public readonly string|int|null $connection,
-        public readonly string|int|null $queue,
-        public readonly string|int|null $delay,
-        public readonly string|int|null $tries,
-        public readonly string|int|null $timeout,
-        public readonly string|int|null $backoff,
+        public string|int|null $connection,
+        public string|int|null $queue,
+        public string|int|null $delay,
+        public string|int|null $tries,
+        public string|int|null $timeout,
+        public string|int|null $backoff,
     ) {}
 }

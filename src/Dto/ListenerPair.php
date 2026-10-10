@@ -9,11 +9,11 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class ListenerPair
+final readonly class ListenerPair
 {
     public function __construct(
-        public readonly string $event,
-        public readonly string $listener,
-        public readonly string $method,
+        public string $event,
+        public string $listener,
+        public string $method,
     ) {}
 }

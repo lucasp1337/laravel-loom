@@ -9,17 +9,17 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class NotificationLocation
+final readonly class NotificationLocation
 {
     /**
      * @param  list<string>  $channels
      */
     public function __construct(
-        public readonly string $file,
-        public readonly int $line,
-        public readonly bool $queued,
-        public readonly QueueConfigData $queueConfig,
-        public readonly array $channels,
-        public readonly bool $channelsDynamic,
+        public string $file,
+        public int $line,
+        public bool $queued,
+        public QueueConfigData $queueConfig,
+        public array $channels,
+        public bool $channelsDynamic,
     ) {}
 }
