@@ -9,7 +9,6 @@ use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects statically resolvable event-class targets from dispatch sites.
@@ -17,21 +16,16 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class EventDispatchSiteVisitor extends NodeVisitorAbstract
+final class EventDispatchSiteVisitor extends CollectingVisitor
 {
     private const DISPATCH_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless'];
 
     /** @var list<EventDispatchTarget> */
     private array $targets = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->targets = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

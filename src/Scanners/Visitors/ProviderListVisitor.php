@@ -7,7 +7,6 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Support\AstHelpers;
 use PhpParser\Node;
 use PhpParser\NodeFinder;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Reads the service provider class names a provider list file returns:
@@ -17,19 +16,17 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class ProviderListVisitor extends NodeVisitorAbstract
+final class ProviderListVisitor extends CollectingVisitor
 {
     /** @var list<string> */
     private array $providers = [];
 
     private int $depth = 0;
 
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->providers = [];
         $this->depth = 0;
-
-        return null;
     }
 
     public function enterNode(Node $node): null

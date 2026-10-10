@@ -13,7 +13,6 @@ use Lucasp\Loom\Support\RouteGroupTracker;
 use Lucasp\Loom\Support\RoutingMiddlewareGroup;
 use Lucasp\Loom\Support\RoutingParameter;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects the path arguments of calls that load route files:
@@ -28,7 +27,7 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class RouteFileLoadVisitor extends NodeVisitorAbstract
+final class RouteFileLoadVisitor extends CollectingVisitor
 {
     /** @var list<RouteFileReference> */
     private array $references = [];
@@ -40,12 +39,10 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
         $this->groups = new RouteGroupTracker;
     }
 
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->references = [];
         $this->groups->reset();
-
-        return null;
     }
 
     public function enterNode(Node $node): null

@@ -7,26 +7,20 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects subscriber FQCNs from Event::subscribe(...) static calls.
  *
  * @internal
  */
-final class EventSubscribeCallVisitor extends NodeVisitorAbstract
+final class EventSubscribeCallVisitor extends CollectingVisitor
 {
     /** @var array<int, string> */
     private array $subscribers = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->subscribers = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

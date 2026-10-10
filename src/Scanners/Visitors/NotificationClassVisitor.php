@@ -8,7 +8,6 @@ use Lucasp\Loom\Dto\NotificationClassRecord;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Collects concrete notification classes and statically resolvable
@@ -16,19 +15,14 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class NotificationClassVisitor extends NodeVisitorAbstract
+final class NotificationClassVisitor extends CollectingVisitor
 {
     /** @var list<NotificationClassRecord> */
     private array $classes = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->classes = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

@@ -37,7 +37,7 @@
                 <ul class="loom-list">
                     @foreach ($dashboard->biggestFanOut as $fan)
                         <li>
-                            <a class="name" href="{{ $links->chain($fan->event) }}">{{ \Lucasp\Loom\Ui\Support\Fqcn::short($fan->event) }}</a>
+                            <a class="name" href="{{ $links->chain($fan->event) }}">{{ \Lucasp\Loom\Support\Fqcn::short($fan->event) }}</a>
                             <span class="loc">{{ $fan->handlerCount }} handlers · reaches {{ $fan->downstreamReach }}</span>
                         </li>
                     @endforeach

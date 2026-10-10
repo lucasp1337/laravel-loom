@@ -141,11 +141,6 @@ final class AstHelpers
             return null;
         }
 
-        $resolved = $expr->class->getAttribute('resolvedName');
-        if ($resolved instanceof Node\Name) {
-            return $resolved->toString();
-        }
-
         return $expr->class->toString();
     }
 

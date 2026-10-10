@@ -8,6 +8,7 @@ use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\DispatchOverrides;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
+use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
@@ -16,7 +17,6 @@ use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 /**
@@ -24,8 +24,10 @@ use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
  *
  * @internal
  */
-final class DispatchSiteVisitor extends NodeVisitorAbstract
+final class DispatchSiteVisitor extends CollectingVisitor
 {
+    use TracksClassScope;
+
     /**
      * Mail terminal methods (facade and PendingMail): the mailable argument
      * index and the execution mode. `send` is plain: the mailable's own
@@ -62,9 +64,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     /** Dispatchable static forms whose target is the static class itself. */
     private const DISPATCHABLE_METHODS = ['dispatch', 'dispatchIf', 'dispatchUnless', 'dispatchSync', 'dispatchAfterResponse'];
 
-    /** @var array<int, array{class: ?string, method: ?string}> */
-    private array $classStack = [];
-
     /**
      * Stack of MethodCall nodes currently entered but not yet left. Parents
      * enter before children, so when a dispatch call is recorded on leaveNode
@@ -91,18 +90,12 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
         $this->printer = new PrettyPrinter;
     }
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
-        $this->classStack = [];
         $this->methodCallStack = [];
         $this->closureDepth = 0;
         $this->sites = [];
         $this->unresolved = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null
@@ -111,21 +104,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             $this->methodCallStack[] = $node;
         }
 
-        if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
-            $fqcn = $node->namespacedName?->toString();
-            $this->classStack[] = ['class' => $fqcn, 'method' => null];
-
-            return null;
-        }
-
-        if ($node instanceof Node\Stmt\ClassMethod) {
-            if ($this->classStack !== []) {
-                $top = count($this->classStack) - 1;
-                $this->classStack[$top]['method'] = $node->name->toString();
-            }
-
-            return null;
-        }
+        $this->enterClassScope($node);
 
         if ($node instanceof Node\Expr\Closure || $node instanceof Node\Expr\ArrowFunction) {
             $this->closureDepth++;
@@ -149,20 +128,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             array_pop($this->methodCallStack);
         }
 
-        if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
-            array_pop($this->classStack);
-
-            return null;
-        }
-
-        if ($node instanceof Node\Stmt\ClassMethod) {
-            if ($this->classStack !== []) {
-                $top = count($this->classStack) - 1;
-                $this->classStack[$top]['method'] = null;
-            }
-
-            return null;
-        }
+        $this->leaveClassScope($node);
 
         if ($node instanceof Node\Expr\Closure || $node instanceof Node\Expr\ArrowFunction) {
             $this->closureDepth = max(0, $this->closureDepth - 1);
@@ -299,7 +265,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             provisionalKind: $staticMode === null ? DispatchKinds::AMBIGUOUS : DispatchKinds::JOB,
             file: null,
             line: $node->getStartLine(),
-            confidence: 'high',
+            confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($outerLinks),
             mode: $staticMode ?? ChainModifierExtractor::mode($outerLinks),
             inClosure: $this->inClosure(),
@@ -445,7 +411,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
                 provisionalKind: $kind,
                 file: null,
                 line: $callNode->getStartLine(),
-                confidence: 'high',
+                confidence: Confidence::HIGH->value,
                 overrides: $this->overridesFrom($innerLinks, $receiverLinks),
                 mode: $mode,
                 channels: $channels,
@@ -592,7 +558,7 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
             provisionalKind: $kind,
             file: null,
             line: $callNode->getStartLine(),
-            confidence: 'high',
+            confidence: Confidence::HIGH->value,
             overrides: $this->overridesFrom($innerLinks, $outerLinks),
             // `->afterResponse()` exists only on PendingDispatch, never on event().
             mode: $mode ?? ($kind === DispatchKinds::EVENT ? null : ChainModifierExtractor::mode($outerLinks)),
@@ -619,24 +585,6 @@ final class DispatchSiteVisitor extends NodeVisitorAbstract
     private function shouldSkipUnresolved(): bool
     {
         return $this->currentClassFqcn() === null && ! $this->inClosure();
-    }
-
-    private function currentClassFqcn(): ?string
-    {
-        if ($this->classStack === []) {
-            return null;
-        }
-
-        return $this->classStack[count($this->classStack) - 1]['class'];
-    }
-
-    private function currentMethod(): ?string
-    {
-        if ($this->classStack === []) {
-            return null;
-        }
-
-        return $this->classStack[count($this->classStack) - 1]['method'];
     }
 
     /** @return 'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch' */

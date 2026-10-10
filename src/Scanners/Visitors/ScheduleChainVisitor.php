@@ -11,14 +11,13 @@ use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Captures Laravel task-scheduler chains (variable-rooted and facade-rooted).
  *
  * @internal
  */
-final class ScheduleChainVisitor extends NodeVisitorAbstract
+final class ScheduleChainVisitor extends CollectingVisitor
 {
     /** @var array<int, string> */
     private const ROOT_METHODS = ['command', 'job', 'call', 'exec'];
@@ -58,14 +57,12 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
     /** @var list<ScheduleChainEntry> */
     private array $entries = [];
 
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->parentStack = [];
         $this->groupFrameStack = [];
         $this->groupOpenerStack = [];
         $this->entries = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null
@@ -209,12 +206,7 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         }
 
         if ($receiver instanceof Node\Name) {
-            $resolved = $receiver->getAttribute('resolvedName');
-            if ($resolved instanceof Node\Name) {
-                return $resolved->toString() === Facades::SCHEDULE->value;
-            }
-
-            // Fallback when NameResolver didn't attach a resolved name.
+            // NameResolver has already rewritten the name to its FQCN.
             return Facades::SCHEDULE->matches($receiver->toString());
         }
 
@@ -281,10 +273,8 @@ final class ScheduleChainVisitor extends NodeVisitorAbstract
         if (! $type instanceof Node\Name) {
             return false;
         }
-        $resolved = $type->getAttribute('resolvedName');
-        $name = $resolved instanceof Node\Name ? $resolved->toString() : $type->toString();
 
-        return Str::endsWith($name, 'Schedule');
+        return Str::endsWith($type->toString(), 'Schedule');
     }
 
     private function kindFromRootMethod(string $method): ScheduleKind

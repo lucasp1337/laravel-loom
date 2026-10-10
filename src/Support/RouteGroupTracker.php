@@ -91,13 +91,7 @@ final class RouteGroupTracker
             return false;
         }
 
-        $resolved = $receiver->getAttribute('resolvedName');
-        // NameResolver saw the `use` import: compare the full facade FQCN
-        if ($resolved instanceof Node\Name) {
-            return $resolved->toString() === Facades::ROUTE->value;
-        }
-
-        // Fallback when NameResolver didn't attach a resolved name.
+        // NameResolver has already rewritten the name to its FQCN
         return Facades::ROUTE->matches($receiver->toString());
     }
 

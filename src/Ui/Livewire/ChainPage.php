@@ -12,10 +12,10 @@ use Livewire\Component;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\ChainDepth;
 use Lucasp\Loom\Query\EntityKind;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Ui\LoomConfig;
 use Lucasp\Loom\Ui\NodeType;
 use Lucasp\Loom\Ui\Support\ChainGraph;
-use Lucasp\Loom\Ui\Support\Fqcn;
 use Lucasp\Loom\Ui\Support\NodeFacts;
 use Lucasp\Loom\Ui\UiContext;
 

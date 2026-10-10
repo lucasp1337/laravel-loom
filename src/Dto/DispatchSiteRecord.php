@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\DispatchMode;
@@ -18,7 +19,7 @@ use Lucasp\Loom\Index\DispatchMode;
 final class DispatchSiteRecord
 {
     /**
-     * @param  'high'|'medium'|'low'  $confidence
+     * @param  value-of<Confidence>  $confidence
      */
     public function __construct(
         public readonly ?string $classFqcn,
@@ -28,7 +29,7 @@ final class DispatchSiteRecord
         public DispatchKinds $provisionalKind,
         public ?string $file,
         public readonly int $line,
-        public readonly string $confidence = 'high',
+        public readonly string $confidence = Confidence::HIGH->value,
         public readonly DispatchOverrides $overrides = new DispatchOverrides,
         /** Execution mode; null for the plain dispatch form. */
         public readonly ?DispatchMode $mode = null,

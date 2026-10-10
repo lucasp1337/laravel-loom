@@ -12,7 +12,6 @@ use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\RouteGroupAttribute;
 use Lucasp\Loom\Support\RouteGroupTracker;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Captures `Route` facade route chains (e.g. `Route::get(...)->name(...)`).
@@ -20,7 +19,7 @@ use PhpParser\NodeVisitorAbstract;
  *
  * @internal
  */
-final class RouteChainVisitor extends NodeVisitorAbstract
+final class RouteChainVisitor extends CollectingVisitor
 {
     /** @var array<int, Node> */
     private array $parentStack = [];
@@ -38,13 +37,11 @@ final class RouteChainVisitor extends NodeVisitorAbstract
         $this->groups = new RouteGroupTracker($inherited);
     }
 
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->parentStack = [];
         $this->groups->reset();
         $this->entries = [];
-
-        return null;
     }
 
     public function enterNode(Node $node): null

@@ -13,6 +13,7 @@ use Lucasp\Loom\Index\Model\Notification;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\IndexQuery;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Ui\NodeType;
 
 /**

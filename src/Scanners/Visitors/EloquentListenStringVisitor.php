@@ -9,26 +9,20 @@ use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
-use PhpParser\NodeVisitorAbstract;
 
 /**
  * Emits model-event entries from `Event::listen('eloquent.{hook}: {Model}', $handler)`.
  *
  * @internal
  */
-final class EloquentListenStringVisitor extends NodeVisitorAbstract
+final class EloquentListenStringVisitor extends CollectingVisitor
 {
     /** @var list<EloquentListenRecord> */
     private array $entries = [];
 
-    /**
-     * @param  array<int, Node>  $nodes
-     */
-    public function beforeTraverse(array $nodes): ?array
+    protected function reset(): void
     {
         $this->entries = [];
-
-        return null;
     }
 
     public function leaveNode(Node $node): null

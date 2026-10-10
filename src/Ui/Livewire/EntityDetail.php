@@ -10,9 +10,9 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Ui\SectionPresentation;
 use Lucasp\Loom\Ui\Support\EntityFacts;
-use Lucasp\Loom\Ui\Support\Fqcn;
 use Lucasp\Loom\Ui\UiContext;
 
 /**
