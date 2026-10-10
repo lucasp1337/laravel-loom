@@ -56,7 +56,22 @@ The final set is `scan.route_paths` plus the discovered files, minus `scan.exclu
 | path is outside the project root | The file is not under the project root. |
 | no such file | The path resolves but names no file. |
 
-Routes in a loaded file get no prefix, name or middleware from the group that loads it, since Loom reads each file on its own.
+### Group attributes of the loading call
+
+A loaded file's routes inherit the group around the loading call, as they do in Laravel, which requires the file inside that group:
+
+| Loading call | Applied to the file's routes |
+| --- | --- |
+| `Route::middleware('web')->prefix('shop')->name('shop.')->group($path)` | prefix `shop`, name prefix `shop.`, middleware `web` |
+| `Route::group(['prefix' => 'x', 'as' => 'x.', 'middleware' => 'auth'], $path)` | the same three attributes from the array |
+| `$this->loadRoutesFrom($path)` inside a `Route::...->group(function () {...})` | the attributes of that enclosing group |
+| `withRouting(web: $path)` | middleware `web` |
+| `withRouting(api: $path)` | middleware `api` and prefix `api`, or the literal `apiPrefix:` argument |
+| `Route::controller(C::class)->group($path)` | default controller for bare method-name actions |
+
+`loadRoutesFrom()` on its own adds nothing, because Laravel does not wrap it in a group. Groups declared inside the loaded file nest inside the loading group, and a file that loads another file passes the combined attributes on. A file loaded from two places is read once per loading group, so it can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded. `domain`, `where` and `namespace` of the loading group are not recorded.
+
+An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`, `Route::group($attributes, ...)`) is not guessed: the file is still read and its routes carry the attributes that did resolve. The summary line counts these and `loom:scan -v` lists them under "Group attributes not applied". With `scan.discover_routes` off no loading call is followed, so no group is applied.
 
 ## Locating classes
 

@@ -63,15 +63,23 @@ it('emits routes from discovered files', function () {
     sort($uris);
 
     expect($uris)->toBe([
-        'Modules/Admin/routes/api.php /admin/stats',
+        'Modules/Admin/routes/api.php /api/admin/stats',
         'Modules/Admin/routes/web.php /admin',
-        'Modules/Billing/routes/nested.php /invoices',
+        'Modules/Billing/routes/nested.php /v2/invoices',
         'Modules/Billing/routes/web.php /billing',
-        'Modules/Shop/routes/legacy.php /legacy',
-        'Modules/Shop/routes/shop.php /shop',
-        'Modules/Shop/routes/skipped.php /skipped',
+        'Modules/Shop/routes/legacy.php /legacy/legacy',
+        'Modules/Shop/routes/shop.php /shop/shop',
+        'Modules/Shop/routes/skipped.php /legacy/skipped',
         'routes/web.php /home',
     ]);
+});
+
+it('applies the loading group middleware of withRouting to discovered files', function () {
+    $routes = collect(discoveryScan(new ScanScope)['routes'])->keyBy('file');
+
+    expect($routes['Modules/Admin/routes/web.php']['middleware'])->toBe(['web'])
+        ->and($routes['Modules/Admin/routes/api.php']['middleware'])->toBe(['api'])
+        ->and($routes['Modules/Shop/routes/shop.php']['middleware'])->toBe([]);
 });
 
 it('dispatches inside a discovered route closure are linked to the event', function () {

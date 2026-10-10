@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\RouteFileReference;
-use Lucasp\Loom\Support\Facades;
+use Lucasp\Loom\Dto\RouteGroupContext;
+use Lucasp\Loom\Support\AstHelpers;
 use Lucasp\Loom\Support\RouteFileLoader;
+use Lucasp\Loom\Support\RouteGroupAttribute;
+use Lucasp\Loom\Support\RouteGroupTracker;
+use Lucasp\Loom\Support\RoutingMiddlewareGroup;
+use Lucasp\Loom\Support\RoutingParameter;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 
@@ -17,30 +22,51 @@ use PhpParser\NodeVisitorAbstract;
  * `withCommands([...])` on the application builder. Closures are not paths and
  * are skipped; an array argument yields one reference per element.
  *
+ * Each reference carries the group attributes in force at the call: the
+ * enclosing `Route::...->group()` frames, the call's own group, or the
+ * `web` / `api` wrapper `withRouting()` applies.
+ *
  * @internal
  */
 final class RouteFileLoadVisitor extends NodeVisitorAbstract
 {
-    /** `ApplicationBuilder::withRouting()` parameters by position. */
-    private const ROUTING_PARAMETERS = ['using', 'web', 'api', 'commands', 'channels', 'pages', 'health', 'apiPrefix', 'then'];
-
     /** @var list<RouteFileReference> */
     private array $references = [];
+
+    private RouteGroupTracker $groups;
+
+    public function __construct()
+    {
+        $this->groups = new RouteGroupTracker;
+    }
 
     public function beforeTraverse(array $nodes): ?array
     {
         $this->references = [];
+        $this->groups->reset();
 
         return null;
     }
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Expr\StaticCall) {
-            $this->staticCall($node);
-        } elseif ($node instanceof Node\Expr\MethodCall) {
-            $this->methodCall($node);
-        }
+        // Enter first: a group call that loads a path applies its own attributes to it.
+        $this->groups->enter($node);
+
+        match (true) {
+            // Route::group($attributes, $path)
+            $node instanceof Node\Expr\StaticCall => $this->staticCall($node),
+            // $this->loadRoutesFrom(), Route::...->group(), ->withRouting(), ->withCommands()
+            $node instanceof Node\Expr\MethodCall => $this->methodCall($node),
+            default => null,
+        };
+
+        return null;
+    }
+
+    public function leaveNode(Node $node): null
+    {
+        $this->groups->leave($node);
 
         return null;
     }
@@ -53,10 +79,8 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
 
     private function staticCall(Node\Expr\StaticCall $call): void
     {
-        if (! $call->name instanceof Node\Identifier || $call->name->toString() !== 'group') {
-            return;
-        }
-        if (! $call->class instanceof Node\Name || ! $this->isRouteFacade($call->class)) {
+        // a static call that is not Route::group()
+        if (! RouteGroupTracker::isOpener($call)) {
             return;
         }
 
@@ -66,14 +90,19 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
 
     private function methodCall(Node\Expr\MethodCall $call): void
     {
+        // a dynamic method name: $x->{$name}()
         if (! $call->name instanceof Node\Identifier) {
             return;
         }
 
         match ($call->name->toString()) {
+            // $this->loadRoutesFrom($path) in a service provider
             'loadRoutesFrom' => $this->loadRoutesFrom($call),
+            // Route::...->group($path)
             'group' => $this->fluentGroup($call),
+            // Application::configure()->withRouting(web:, api:, commands:)
             'withRouting' => $this->withRouting($call),
+            // ->withCommands([...]): command files or directories
             'withCommands' => $this->collect(RouteFileLoader::WITH_COMMANDS, $call->args[0] ?? null, allowsDirectory: true),
             default => null,
         };
@@ -81,6 +110,7 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
 
     private function loadRoutesFrom(Node\Expr\MethodCall $call): void
     {
+        // only the provider's own loadRoutesFrom() counts, not `$other->loadRoutesFrom()`
         if ($call->var instanceof Node\Expr\Variable && $call->var->name === 'this') {
             $this->collect(RouteFileLoader::LOAD_ROUTES_FROM, $call->args[0] ?? null);
         }
@@ -89,12 +119,7 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
     /** RouteRegistrar::group(Closure|array|string $callback) behind a `Route::` chain. */
     private function fluentGroup(Node\Expr\MethodCall $call): void
     {
-        $root = $call->var;
-        while ($root instanceof Node\Expr\MethodCall) {
-            $root = $root->var;
-        }
-
-        if ($root instanceof Node\Expr\StaticCall && $root->class instanceof Node\Name && $this->isRouteFacade($root->class)) {
+        if (RouteGroupTracker::isOpener($call)) {
             $this->collect(RouteFileLoader::ROUTE_GROUP, $call->args[0] ?? null);
         }
     }
@@ -102,54 +127,98 @@ final class RouteFileLoadVisitor extends NodeVisitorAbstract
     private function withRouting(Node\Expr\MethodCall $call): void
     {
         foreach ($call->args as $position => $arg) {
+            // withRouting(...$args) cannot be mapped to parameters
             if (! $arg instanceof Node\Arg || $arg->unpack) {
                 continue;
             }
 
-            $parameter = $arg->name?->toString() ?? (self::ROUTING_PARAMETERS[$position] ?? null);
-
-            match ($parameter) {
-                'web', 'api' => $this->collect(RouteFileLoader::WITH_ROUTING, $arg),
-                'commands' => $this->collect(RouteFileLoader::WITH_ROUTING, $arg, allowsDirectory: true),
+            match (RoutingParameter::forArgument($arg->name?->toString(), $position)) {
+                // web: Route::middleware('web')->group($path)
+                RoutingParameter::WEB => $this->collect(RouteFileLoader::WITH_ROUTING, $arg, context: $this->routingContext(RoutingMiddlewareGroup::WEB, $call)),
+                // api: Route::middleware('api')->prefix($apiPrefix)->group($path)
+                RoutingParameter::API => $this->collect(RouteFileLoader::WITH_ROUTING, $arg, context: $this->routingContext(RoutingMiddlewareGroup::API, $call)),
+                // commands: a console routes file or directory, never grouped
+                RoutingParameter::COMMANDS => $this->collect(RouteFileLoader::WITH_ROUTING, $arg, allowsDirectory: true),
+                // using, channels, pages, health, apiPrefix, then: not route files
                 default => null,
             };
         }
     }
 
-    private function collect(RouteFileLoader $loader, Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, bool $allowsDirectory = false): void
+    /**
+     * What `ApplicationBuilder::buildRoutingCallback()` wraps a routing file in:
+     * `Route::middleware('web')->group()` or
+     * `Route::middleware('api')->prefix($apiPrefix)->group()`.
+     */
+    private function routingContext(RoutingMiddlewareGroup $wrapper, Node\Expr\MethodCall $call): RouteGroupContext
     {
+        // web files are not prefixed; api files take `apiPrefix`, null when not a literal
+        $prefix = $wrapper === RoutingMiddlewareGroup::API ? $this->apiPrefix($call) : '';
+        $segment = trim($prefix ?? '', '/');
+
+        return new RouteGroupContext(
+            // an empty prefix (`apiPrefix: ''`) adds no segment
+            prefixSegments: $segment === '' ? [] : [$segment],
+            namePrefix: '',
+            controllerNode: null,
+            middlewareNodes: [new Node\Scalar\String_($wrapper->value)],
+            // literal not resolvable: recorded as unresolved, never guessed
+            unresolved: $prefix === null ? [RouteGroupAttribute::PREFIX] : [],
+        );
+    }
+
+    /** The literal `apiPrefix` of the call, its default when omitted, or null when not a literal. */
+    private function apiPrefix(Node\Expr\MethodCall $call): ?string
+    {
+        foreach ($call->args as $position => $arg) {
+            if (! $arg instanceof Node\Arg || $arg->unpack) {
+                continue;
+            }
+
+            // some other withRouting() argument
+            if (RoutingParameter::forArgument($arg->name?->toString(), $position) !== RoutingParameter::API_PREFIX) {
+                continue;
+            }
+
+            return AstHelpers::scalarString($arg->value);
+        }
+
+        // apiPrefix omitted: Laravel's default
+        return RoutingMiddlewareGroup::DEFAULT_API_PREFIX;
+    }
+
+    private function collect(RouteFileLoader $loader, Node\Arg|Node\ArgPlaceholder|Node\VariadicPlaceholder|null $arg, bool $allowsDirectory = false, ?RouteGroupContext $context = null): void
+    {
+        // argument omitted
         if (! $arg instanceof Node\Arg) {
             return;
         }
 
         $value = $arg->value;
+        // an array of paths: one reference per element
         if ($value instanceof Node\Expr\Array_) {
             foreach ($value->items as $item) {
-                $this->add($loader, $item->value, $allowsDirectory);
+                $this->add($loader, $item->value, $allowsDirectory, $context);
             }
 
             return;
         }
 
-        $this->add($loader, $value, $allowsDirectory);
+        // a single path expression
+        $this->add($loader, $value, $allowsDirectory, $context);
     }
 
-    private function add(RouteFileLoader $loader, Node\Expr $value, bool $allowsDirectory): void
+    private function add(RouteFileLoader $loader, Node\Expr $value, bool $allowsDirectory, ?RouteGroupContext $context): void
     {
+        // an inline closure holds routes itself; it is not a file to follow
         if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
             return;
         }
+        // `web: null` leaves the routing file unset
         if ($value instanceof Node\Expr\ConstFetch && $value->name->toLowerString() === 'null') {
             return;
         }
 
-        $this->references[] = new RouteFileReference($loader, $value, $value->getStartLine(), $allowsDirectory);
-    }
-
-    private function isRouteFacade(Node\Name $name): bool
-    {
-        $resolved = $name->getAttribute('resolvedName');
-
-        return Facades::ROUTE->matches($resolved instanceof Node\Name ? $resolved->toString() : $name->toString());
+        $this->references[] = new RouteFileReference($loader, $value, $value->getStartLine(), $allowsDirectory, $context ?? $this->groups->current());
     }
 }
