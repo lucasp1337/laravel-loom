@@ -1,8 +1,11 @@
+---
+template: home.html
+hide:
+  - navigation
+  - toc
+---
+
 # Laravel Loom
-
-Loom is a static analyzer that maps a Laravel app's events, listeners, jobs, mailables, notifications, schedules and routes into a JSON index, a browser UI and an MCP server. It reads your source, so nothing is booted and nothing is traced at runtime.
-
-New here? [Getting started](getting-started.md) takes a few minutes and ends with you looking at where `OrderPlaced` goes in your own app.
 
 ## Understand it
 
