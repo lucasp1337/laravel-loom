@@ -58,16 +58,16 @@ final class ObserveCallVisitor extends CollectingVisitor
         $rawClass = $node->class->toString();
         $lowered = strtolower($rawClass);
 
-        if ($lowered === 'static' || $lowered === 'self') {
-            // `static::observe()` only resolves inside a named class (not a trait or anonymous class).
-            $model = $this->currentClassNode() instanceof Node\Stmt\Class_ ? $this->currentClassFqcn() : null;
-            if ($model === null) {
-                return null;
-            }
-        } elseif ($lowered === 'parent') {
+        $model = match ($lowered) {
+            // `static::observe()` / `self::observe()` only resolve inside a named class (not a trait or anonymous class).
+            'static', 'self' => $this->currentClassNode() instanceof Node\Stmt\Class_ ? $this->currentClassFqcn() : null,
+            // `parent::observe()` has no statically known model.
+            'parent' => null,
+            // `Model::observe()`: the model is the class as written.
+            default => $rawClass,
+        };
+        if ($model === null) {
             return null;
-        } else {
-            $model = $rawClass;
         }
 
         $first = Args::of($node->args)->valueAt(0);
