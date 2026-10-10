@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Dto\ChainLink;
 use Lucasp\Loom\Dto\RouteChainEntry;
-use Lucasp\Loom\Dto\RouteChainLink;
 use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Support\Ast\CallChain;
@@ -91,7 +91,7 @@ final class RouteChainVisitor extends CollectingVisitor
 
         $chain = [];
         foreach ($callChain->links() as $link) {
-            $chain[] = new RouteChainLink(method: (string) $link->name(), args: $link->args());
+            $chain[] = ChainLink::fromSite($link);
         }
 
         $context = $this->groups->current();
@@ -127,7 +127,7 @@ final class RouteChainVisitor extends CollectingVisitor
      * Collect `->middleware(<args>)` argument nodes from a route's own chain,
      * in source order, flattening variadic args. Index 0 is the root call.
      *
-     * @param  list<RouteChainLink>  $chain
+     * @param  list<ChainLink>  $chain
      * @return list<Node\Expr>
      */
     private function routeLevelMiddleware(array $chain): array

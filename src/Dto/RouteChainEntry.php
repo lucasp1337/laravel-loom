@@ -14,7 +14,7 @@ use Lucasp\Loom\Support\Ast\Args;
 final class RouteChainEntry
 {
     /**
-     * @param  list<RouteChainLink>  $chain
+     * @param  list<ChainLink>  $chain
      * @param  list<string>  $groupPrefix  cumulative enclosing-group prefix segments
      * @param  string  $groupNamePrefix  cumulative enclosing-group name prefix ('' when none)
      * @param  ?string  $groupController  nearest enclosing-group default controller FQCN

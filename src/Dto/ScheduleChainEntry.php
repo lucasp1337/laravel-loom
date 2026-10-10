@@ -15,7 +15,7 @@ use Lucasp\Loom\Support\Ast\Args;
 final class ScheduleChainEntry
 {
     /**
-     * @param  list<ScheduleChainLink>  $chain
+     * @param  list<ChainLink>  $chain
      */
     public function __construct(
         public readonly ScheduleKind $kind,
