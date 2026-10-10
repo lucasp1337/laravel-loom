@@ -190,3 +190,46 @@ it('ignores event with string interpolation', function () {
 
     expect($targets)->toBe([]);
 });
+
+it('seeds X::dispatchIf and X::dispatchUnless like X::dispatch', function () {
+    $source = <<<'PHP'
+    <?php
+
+    namespace App\Services;
+
+    use App\Events\Foo;
+    use App\Events\Bar;
+
+    class S
+    {
+        public function run(bool $b): void
+        {
+            Foo::dispatchIf($b, 1);
+            Bar::dispatchUnless($b, 2);
+        }
+    }
+    PHP;
+
+    $targets = runEventDispatchSiteVisitor($source);
+
+    expect(array_map(fn ($t) => $t->fqcn, $targets))->toBe(['App\\Events\\Foo', 'App\\Events\\Bar']);
+    expect($targets[0]->form)->toBe(DispatchForm::DISPATCHABLE);
+});
+
+it('does not treat Event::dispatchIf as an event facade dispatch', function () {
+    $source = <<<'PHP'
+    <?php
+
+    use App\Events\Foo;
+
+    class S
+    {
+        public function run(): void
+        {
+            Event::dispatchIf(true, Foo::class);
+        }
+    }
+    PHP;
+
+    expect(runEventDispatchSiteVisitor($source))->toBe([]);
+});

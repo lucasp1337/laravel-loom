@@ -217,3 +217,23 @@ it('skips static calls that are not on the Event facade', function () {
 
     expect($entries)->toBe([]);
 });
+
+it('matches Event::listen with the bare alias and a wildcard-free eloquent string', function () {
+    $source = <<<'PHP'
+    <?php
+
+    class Boot
+    {
+        public function boot(): void
+        {
+            Event::listen('eloquent.creating: App\\Models\\User', 'App\\Observers\\UserObserver@creating');
+            Event::listen('model.*', 'App\\Observers\\Other@handle');
+        }
+    }
+    PHP;
+
+    $entries = runEloquentListenStringVisitor($source);
+
+    expect($entries)->toHaveCount(1);
+    expect($entries[0]->model)->toBe('App\\Models\\User');
+});

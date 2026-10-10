@@ -774,3 +774,19 @@ it('does not emit a wildcard string event registered via the container path', fu
     expect($result['pairs'])->toBe([]);
     expect($result['closurePairs'])->toBe([]);
 });
+
+it('matches Event::listen written with the bare alias in the global namespace', function () {
+    $source = <<<'PHP'
+    <?php
+
+    class Boot
+    {
+        public function boot(): void
+        {
+            Event::listen(\App\Events\OrderPlaced::class, [\App\Listeners\SendReceipt::class, 'handle']);
+        }
+    }
+    PHP;
+
+    expect(runEventListenCallVisitor($source))->toHaveCount(1);
+});

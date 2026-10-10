@@ -105,3 +105,19 @@ it('ignores subscribe calls on other facades', function () {
 
     expect(runEventSubscribeCallVisitor($source))->toBe([]);
 });
+
+it('matches Event::subscribe written with the bare alias in the global namespace', function () {
+    $source = <<<'PHP'
+    <?php
+
+    class Boot
+    {
+        public function boot(): void
+        {
+            Event::subscribe(\App\Listeners\AuditSubscriber::class);
+        }
+    }
+    PHP;
+
+    expect(runEventSubscribeCallVisitor($source))->toBe(['App\\Listeners\\AuditSubscriber']);
+});
