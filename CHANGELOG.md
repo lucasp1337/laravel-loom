@@ -22,6 +22,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Added
 
+- `scan.discover_routes` (default on): route files loaded by `loadRoutesFrom()`, `Route::group()` paths and `withRouting()` are read without listing them in `scan.route_paths`; `loom:scan --no-discover-routes` disables it for one run; unresolved paths show under `loom:scan -v` ([#123](https://github.com/lucasp1337/laravel-loom/issues/123)).
 - `routes[].end_line` for closure routes.
 - `loom.mcp.enabled` (`LOOM_MCP_ENABLED`) switches `loom:mcp` off even when `laravel/mcp` is installed.
 - `loom:scan` hints at `livewire/livewire` when the UI is enabled but Livewire is missing.

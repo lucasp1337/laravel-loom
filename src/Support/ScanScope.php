@@ -13,7 +13,7 @@ use SplFileInfo;
 
 /**
  * Which parts of the app a scan covers: the scan directories (relative to
- * the app root, `*` globs allowed), the route directories and the exclude globs. Primitive
+ * the app root, `*` globs allowed), the route directories, whether to follow route-file loading calls, and the exclude globs. Primitive
  * directories (`Jobs`, `Listeners`, ...) resolve inside each scan directory.
  *
  * @internal
@@ -30,6 +30,8 @@ final class ScanScope
     /** @var list<string> */
     private array $routePaths;
 
+    private bool $discoverRoutes;
+
     /** @var array<string, list<string>> */
     private array $resolved = [];
 
@@ -43,11 +45,13 @@ final class ScanScope
      * @param  list<string>  $paths
      * @param  list<string>  $exclude
      * @param  list<string>  $routePaths
+     * @param  bool  $discoverRoutes  also read route files that providers and bootstrap/app.php load
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH])
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true)
     {
+        $this->discoverRoutes = $discoverRoutes;
         $normalised = [];
         foreach ($paths as $path) {
             $normalised[] = self::normalisePath($path);
@@ -81,7 +85,12 @@ final class ScanScope
 
         $routePaths = $routePathOverride ?? self::stringList($config[ScanConfigKey::ROUTE_PATHS->value] ?? null, [self::DEFAULT_ROUTE_PATH]);
 
-        return new self($paths, self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []), $routePaths);
+        return new self(
+            $paths,
+            self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []),
+            $routePaths,
+            ($config[ScanConfigKey::DISCOVER_ROUTES->value] ?? true) !== false,
+        );
     }
 
     /**
@@ -248,6 +257,11 @@ final class ScanScope
         }
 
         return false;
+    }
+
+    public function discoversRoutes(): bool
+    {
+        return $this->discoverRoutes;
     }
 
     /**

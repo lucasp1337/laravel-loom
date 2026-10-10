@@ -13,6 +13,7 @@ use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
 
@@ -28,8 +29,9 @@ final class DispatchScanner implements Scanner
 
     private AstWalker $walker;
 
-    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null)
+    public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null, ?RouteFileDiscovery $routeDiscovery = null)
     {
+        $this->routeDiscovery = $routeDiscovery;
         $this->walker = $walker ?? new AstWalker;
         $this->scope = $scope;
     }

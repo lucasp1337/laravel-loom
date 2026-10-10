@@ -9,6 +9,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Lucasp\Loom\Dto\SkippedFile;
+use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\DefaultScanners;
@@ -16,6 +17,8 @@ use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
+use Lucasp\Loom\Support\RouteFileDiscovery;
+use Lucasp\Loom\Support\ScanConfigKey;
 use Lucasp\Loom\Support\ScanScope;
 
 /** @internal */
@@ -24,7 +27,8 @@ class ScanCommand extends Command
     protected $signature = 'loom:scan
         {--output= : Write the index here instead of the configured index_path}
         {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}
-        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}';
+        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}
+        {--no-discover-routes : Do not follow route-file loading calls for this run (overrides scan.discover_routes)}';
 
     protected $description = 'Scan the application and write the index (default storage/loom/index.json)';
 
@@ -50,7 +54,8 @@ class ScanCommand extends Command
 
         $walker = new AstWalker;
         $builder = new IndexBuilder;
-        DefaultScanners::registerOn($builder, $scope, $walker);
+        $discovery = new RouteFileDiscovery($scope, $walker);
+        DefaultScanners::registerOn($builder, $scope, $walker, $discovery);
 
         $index = $builder->build($appRoot, $this->detectLaravelVersion());
         $payload = $index->toArray();
@@ -83,6 +88,14 @@ class ScanCommand extends Command
             $this->listSkipped($skipped, $appRoot);
         }
 
+        $unresolvedRoutes = $discovery->unresolved($appRoot);
+        if ($unresolvedRoutes !== []) {
+            $this->line('unresolved route paths: '.count($unresolvedRoutes).(! $this->output->isVerbose() ? ' (-v lists them)' : ''));
+        }
+        if ($unresolvedRoutes !== [] && $this->output->isVerbose()) {
+            $this->listUnresolvedRoutes($unresolvedRoutes, $appRoot);
+        }
+
         return self::SUCCESS;
     }
 
@@ -102,8 +115,13 @@ class ScanCommand extends Command
         $paths = array_values(array_filter((array) $this->option('path'), 'is_string'));
         $routePaths = array_values(array_filter((array) $this->option('route-path'), 'is_string'));
 
+        $config = is_array($config) ? $config : [];
+        if ((bool) $this->option('no-discover-routes')) {
+            $config[ScanConfigKey::DISCOVER_ROUTES->value] = false;
+        }
+
         return ScanScope::fromConfig(
-            is_array($config) ? $config : [],
+            $config,
             $appRoot,
             $paths === [] ? null : $paths,
             $routePaths === [] ? null : $routePaths,
@@ -149,6 +167,20 @@ class ScanCommand extends Command
             $path = Str::startsWith($file->file, $prefix) ? Str::chopStart($file->file, $prefix) : $file->file;
             $location = Str::replace(DIRECTORY_SEPARATOR, '/', $path).($file->line !== null ? ':'.$file->line : '');
             $this->line("  {$location}  {$file->message}");
+        }
+    }
+
+    /**
+     * @param  list<UnresolvedRoutePath>  $unresolved
+     */
+    private function listUnresolvedRoutes(array $unresolved, string $appRoot): void
+    {
+        $prefix = Str::rtrim($appRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        $this->line('Route paths not followed:');
+        foreach ($unresolved as $path) {
+            $file = Str::startsWith($path->file, $prefix) ? Str::chopStart($path->file, $prefix) : $path->file;
+            $this->line('  '.Str::replace(DIRECTORY_SEPARATOR, '/', $file).':'.$path->line.'  '.$path->message());
         }
     }
 

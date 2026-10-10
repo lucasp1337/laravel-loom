@@ -20,6 +20,8 @@ trait ScannerFilesystem
 {
     private ?ScanScope $scope = null;
 
+    private ?RouteFileDiscovery $routeDiscovery = null;
+
     protected function scope(): ScanScope
     {
         return $this->scope ??= ScanScope::default();
@@ -37,15 +39,16 @@ trait ScannerFilesystem
     }
 
     /**
-     * PHP files in the route directories (`scan.route_paths`), minus excluded
-     * files. Independent of the scan paths: route closures can dispatch, so the
-     * dispatch scan reads them too.
+     * PHP files in the route directories (`scan.route_paths`) and the route
+     * files discovered from loading calls, minus excluded files. Independent of
+     * the scan paths: route closures can dispatch, so the dispatch scan reads
+     * them too.
      *
      * @return iterable<SplFileInfo>
      */
     protected function routeFiles(string $appRoot): iterable
     {
-        return $this->scope()->routeFiles($appRoot);
+        return $this->routeDiscovery?->files($appRoot) ?? $this->scope()->routeFiles($appRoot);
     }
 
     /**
