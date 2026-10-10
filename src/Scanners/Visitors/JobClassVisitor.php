@@ -11,9 +11,11 @@ use PhpParser\Node;
 /**
  * Collects concrete job classes (skips abstract + anonymous).
  *
+ * @implements ClassRecordVisitor<JobClassRecord>
+ *
  * @internal
  */
-final class JobClassVisitor extends CollectingVisitor
+final class JobClassVisitor extends CollectingVisitor implements ClassRecordVisitor
 {
     /** @var list<JobClassRecord> */
     private array $classes = [];
