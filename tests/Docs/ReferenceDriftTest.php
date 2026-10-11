@@ -13,12 +13,15 @@ use Lucasp\Loom\Scanners\Dispatch\DispatchRules;
 use Lucasp\Loom\Support\RoutePathProblem;
 use Lucasp\Loom\Tools\Pages\DocsFixture;
 use Lucasp\Loom\Tools\Pages\Markdown;
+use Lucasp\Loom\Tools\Reference\McpToolDocs;
+use Lucasp\Loom\Tools\Reference\SchemaSection;
+use Lucasp\Loom\Tools\Reference\ToolDoc;
 use Lucasp\Loom\Tools\ReferencePages;
 
 /**
  * The schema, MCP tool and config reference pages are generated from the JSON
  * schema, the tool classes and config/loom.php. Fails when a committed page
- * differs from a fresh render; fix it with `composer docs:generate`.
+ * differs from a fresh render; fix it with `just docs-generate`.
  */
 it('keeps the generated reference regions in sync with their sources', function (): void {
     $root = dirname(__DIR__, 2);
@@ -30,7 +33,7 @@ it('keeps the generated reference regions in sync with their sources', function 
         }
     }
 
-    expect($stale)->toBe([], 'Run `composer docs:generate` and commit the result.');
+    expect($stale)->toBe([], 'Run `just docs-generate` and commit the result.');
 });
 
 it('lists every config key in a generated config table', function (): void {
@@ -179,24 +182,17 @@ it('gives every schema section and MCP tool a hand-written description', functio
     $root = referenceRoot();
     $schema = json_decode((string) file_get_contents($root.'/schema/loom-index.schema.json'), true);
     $sections = array_keys(array_filter($schema['properties'], static fn (array $p): bool => isset($p['items']['$ref'])));
-    $human = require $root.'/tools/reference/schema.php';
 
-    expect(array_keys($human['sections']))->toEqualCanonicalizing($sections);
+    expect(array_map(static fn (SchemaSection $s): string => $s->value, SchemaSection::cases()))->toEqualCanonicalizing($sections);
 
-    $tools = require $root.'/tools/reference/mcp-tools.php';
-    $registered = [];
-    foreach ((new ReflectionProperty(LoomMcpServer::class, 'tools'))->getDefaultValue() as $class) {
-        $registered[] = (new ReflectionClass($class))->getAttributes(Name::class)[0]->newInstance()->value;
-    }
-    $grouped = array_merge(...array_column($tools['groups'], 'tools'));
+    $registered = (new ReflectionProperty(LoomMcpServer::class, 'tools'))->getDefaultValue();
+    $documented = array_map(static fn (ToolDoc $doc): string => $doc->tool, McpToolDocs::all());
 
-    expect(array_keys($tools['tools']))->toEqualCanonicalizing($registered)
-        ->and($grouped)->toEqualCanonicalizing($registered);
+    expect($documented)->toEqualCanonicalizing($registered);
 });
 
 it('only mentions keys in MCP notes that a real response, input or schema field carries', function (): void {
     $root = referenceRoot();
-    $human = require $root.'/tools/reference/mcp-tools.php';
     $fixture = new DocsFixture($root);
 
     $known = [];
@@ -227,23 +223,18 @@ it('only mentions keys in MCP notes that a real response, input or schema field 
     };
     $walk($schema);
 
-    $classes = (new ReflectionProperty(LoomMcpServer::class, 'tools'))->getDefaultValue();
-    $byName = [];
-    foreach ($classes as $class) {
-        $byName[(new ReflectionClass($class))->getAttributes(Name::class)[0]->newInstance()->value] = $class;
-    }
-
     $unknown = [];
-    foreach ($human['tools'] as $name => $tool) {
-        $calls = [$tool['example'], ...array_column($tool['variants'] ?? [], 'args')];
+    foreach (McpToolDocs::all() as $doc) {
+        $name = (new ReflectionClass($doc->tool))->getAttributes(Name::class)[0]->newInstance()->value;
+        $calls = [$doc->example, ...array_map(static fn ($variant): array => $variant->args, $doc->variants)];
         foreach ($calls as $args) {
-            $collect(json_decode($fixture->call($byName[$name], $args)['text'], true));
+            $collect(json_decode($fixture->call($doc->tool, $args)['text'], true));
             $collect($args);
         }
-        foreach (array_keys($fixture->inputs($byName[$name])) as $input) {
+        foreach (array_keys($fixture->inputs($doc->tool)) as $input) {
             $known[$input] = true;
         }
-        preg_match_all('/`([a-z][a-z0-9_]*)`/', implode(' ', $tool['notes'] ?? []), $tokens);
+        preg_match_all('/`([a-z][a-z0-9_]*)`/', implode(' ', $doc->notes), $tokens);
         foreach ($tokens[1] as $token) {
             if (! isset($known[$token]) && ! in_array($token, ['true', 'false', 'null'], true)) {
                 $unknown[] = "{$name}: {$token}";

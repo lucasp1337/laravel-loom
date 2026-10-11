@@ -4,46 +4,92 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Tools;
 
-use Lucasp\Loom\Tools\Pages\ConfigPages;
-use Lucasp\Loom\Tools\Pages\DocsFixture;
-use Lucasp\Loom\Tools\Pages\McpToolPages;
 use Lucasp\Loom\Tools\Pages\RegionSource;
-use Lucasp\Loom\Tools\Pages\SchemaPages;
+use Lucasp\Loom\Tools\Regions\Markers;
+use Lucasp\Loom\Tools\Regions\RegionName;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 
 /**
- * Builds the generated regions of the reference pages from their sources:
- * the JSON schema, the MCP tool classes and config/loom.php, plus the small
- * hand-written layer in tools/reference. A page holds hand-written prose
- * around any number of `<!-- generated:NAME -->` ... `<!-- /generated:NAME -->`
- * regions; only the text between a pair of markers is ever rewritten.
+ * Fills the generated regions of the docs. Sources produce page-independent
+ * regions; every `docs/**` markdown page that carries a marker pair for a
+ * region gets that region's text between the markers. Only text between a
+ * pair of markers is ever rewritten.
  */
 final class ReferencePages
 {
-    public function __construct(private readonly string $root) {}
+    /** @var list<RegionSource> */
+    private readonly array $sources;
 
     /**
-     * Every page with its regions regenerated, keyed by path relative to the root.
+     * @param  list<RegionSource>|null  $sources  defaults to every discovered source
+     */
+    public function __construct(
+        private readonly string $root,
+        ?array $sources = null,
+        private readonly string $docsDir = 'docs',
+    ) {
+        $this->sources = $sources ?? SourceRegistry::discover(new SourceContext($root));
+    }
+
+    /**
+     * Every page that carries markers, with its regions regenerated, keyed by
+     * path relative to the root.
      *
      * @return array<string, string>
      */
     public function render(): array
     {
+        $regions = $this->regions();
+        $used = [];
         $pages = [];
-        $produced = [];
-        foreach ($this->sources() as $source) {
-            foreach ($source->regions() as $name => $region) {
-                $current = $pages[$region['page']] ?? $this->read($region['page']);
-                $pages[$region['page']] = $this->splice($current, $name, $region['body'], $region['page']);
-                $produced[$region['page']][] = $name;
+
+        foreach ($this->markdownPages() as $page) {
+            $content = $this->read($page);
+            $pairs = Markers::pairs($content, $page);
+            if ($pairs === []) {
+                continue;
             }
+
+            // Splice from the end so earlier offsets stay valid.
+            foreach (array_reverse($pairs) as $pair) {
+                $body = $regions[$pair->name->value] ?? throw new RuntimeException(
+                    "{$page} places region {$pair->name} but no source produces it",
+                );
+                $used[$pair->name->value] = true;
+                $content = substr($content, 0, $pair->bodyStart)
+                    ."\n".Markers::notice()."\n\n".trim($body)."\n"
+                    .substr($content, $pair->bodyEnd);
+            }
+            $pages[$page] = $content;
         }
 
-        foreach ($pages as $page => $content) {
-            $this->assertNoStrayMarkers($content, $produced[$page], $page);
+        $unplaced = array_keys(array_diff_key($regions, $used));
+        if ($unplaced !== []) {
+            $names = array_map(static fn (string $name): string => Markers::open(RegionName::fromString($name)), $unplaced);
+
+            throw new RuntimeException('Regions produced but placed on no page; add a marker pair for each: '.implode(', ', $names));
         }
 
         return $pages;
+    }
+
+    /**
+     * Pages whose committed text differs from a fresh render.
+     *
+     * @return list<string>
+     */
+    public function drifted(): array
+    {
+        $drifted = [];
+        foreach ($this->render() as $page => $content) {
+            if ($content !== $this->read($page)) {
+                $drifted[] = $page;
+            }
+        }
+
+        return $drifted;
     }
 
     /**
@@ -64,52 +110,44 @@ final class ReferencePages
         return $changed;
     }
 
-    /** @return list<RegionSource> */
-    private function sources(): array
+    /** @return array<string, string> region name => markdown */
+    private function regions(): array
     {
-        return [
-            new SchemaPages($this->root),
-            new McpToolPages($this->root, new DocsFixture($this->root)),
-            new ConfigPages($this->root),
-        ];
+        $regions = [];
+        foreach ($this->sources as $source) {
+            foreach ($source->regions() as $region) {
+                if (isset($regions[$region->name->value])) {
+                    throw new RuntimeException('Region '.$region->name.' is produced by more than one source');
+                }
+                $regions[$region->name->value] = $region->body;
+            }
+        }
+
+        return $regions;
+    }
+
+    /** @return list<string> markdown paths under the docs directory, relative to the root */
+    private function markdownPages(): array
+    {
+        $directory = $this->root.'/'.$this->docsDir;
+        if (! is_dir($directory)) {
+            throw new RuntimeException("Missing docs directory {$this->docsDir}");
+        }
+
+        $pages = [];
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS));
+        foreach ($files as $file) {
+            if ($file->getExtension() === 'md') {
+                $pages[] = $this->docsDir.substr($file->getPathname(), strlen($directory));
+            }
+        }
+        sort($pages);
+
+        return $pages;
     }
 
     private function read(string $page): string
     {
-        $path = $this->root.'/'.$page;
-        if (! is_file($path)) {
-            throw new RuntimeException("Missing page {$page}");
-        }
-
-        return (string) file_get_contents($path);
-    }
-
-    private function splice(string $page, string $name, string $body, string $path): string
-    {
-        $start = "<!-- generated:{$name} -->";
-        $end = "<!-- /generated:{$name} -->";
-        $from = strpos($page, $start);
-        $to = strpos($page, $end);
-        if ($from === false || $to === false || $to < $from) {
-            throw new RuntimeException("{$path} lacks the {$name} generated region markers");
-        }
-
-        $notice = '<!-- Generated by `composer docs:generate`; edit the source, not this block. -->';
-
-        return substr($page, 0, $from + strlen($start))."\n".$notice."\n\n".trim($body)."\n".substr($page, $to);
-    }
-
-    /**
-     * A marker pair no source produces would silently go stale.
-     *
-     * @param  list<string>  $produced
-     */
-    private function assertNoStrayMarkers(string $content, array $produced, string $page): void
-    {
-        preg_match_all('/<!-- generated:(\S+) -->/', $content, $found);
-        $stray = array_values(array_diff($found[1], $produced));
-        if ($stray !== []) {
-            throw new RuntimeException("{$page} has generated regions no source produces: ".implode(', ', $stray));
-        }
+        return (string) file_get_contents($this->root.'/'.$page);
     }
 }

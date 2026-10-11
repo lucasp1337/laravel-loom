@@ -6,6 +6,12 @@ namespace Lucasp\Loom\Tools\Pages;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Lucasp\Loom\Tools\Reference\SchemaSection;
+use Lucasp\Loom\Tools\Regions\GeneratedRegion;
+use Lucasp\Loom\Tools\Regions\Region;
+use Lucasp\Loom\Tools\Regions\RegionName;
+use Lucasp\Loom\Tools\Regions\RegionPrefix;
+use Lucasp\Loom\Tools\SourceContext;
 use RuntimeException;
 
 /**
@@ -14,8 +20,6 @@ use RuntimeException;
  */
 final class SchemaPages implements RegionSource
 {
-    private const PAGE = 'docs/reference/schema.md';
-
     /** Enums longer than this move out of the Type column. */
     private const INLINE_ENUM_LIMIT = 5;
 
@@ -25,40 +29,44 @@ final class SchemaPages implements RegionSource
     /** @var array<string, list<string>> field path => long enum values already printed */
     private array $longEnums = [];
 
-    public function __construct(private readonly string $root) {}
+    public function __construct(private readonly SourceContext $context) {}
 
     public function regions(): array
     {
         $schema = $this->load();
-        $human = require $this->root.'/tools/reference/schema.php';
         $defs = $schema['$defs'];
         $this->longEnums = [];
 
-        $regions = [];
-        $regions['schema:top'] = $this->top($schema, $human['sections']);
+        $regions = [new GeneratedRegion(Region::SchemaTop, $this->top($schema))];
 
         foreach ($schema['properties'] as $key => $property) {
             if (! isset($property['items']['$ref'])) {
                 continue;
             }
             $def = $defs[Str::after($property['items']['$ref'], '#/$defs/')];
-            $regions["schema:{$key}"] = $this->defSection(2, "`{$key}[]`", "{$key}[]", $def);
+            $regions[] = new GeneratedRegion(
+                RegionName::keyed(RegionPrefix::SchemaSection, $key),
+                $this->defSection(2, "`{$key}[]`", "{$key}[]", $def),
+            );
         }
 
         foreach ($defs as $name => $def) {
             if (isset($this->sectionKeys[$name])) {
                 continue;
             }
-            $regions["shape:{$name}"] = $this->defSection(3, "`{$name}`", $name, $def);
+            $regions[] = new GeneratedRegion(
+                RegionName::keyed(RegionPrefix::SchemaShape, $name),
+                $this->defSection(3, "`{$name}`", $name, $def),
+            );
         }
 
-        return Arr::map($regions, static fn (string $body): array => ['page' => self::PAGE, 'body' => $body]);
+        return $regions;
     }
 
     /** @return array<string, mixed> */
     private function load(): array
     {
-        $schema = json_decode((string) file_get_contents($this->root.'/schema/loom-index.schema.json'), true, 512, JSON_THROW_ON_ERROR);
+        $schema = json_decode((string) file_get_contents($this->context->root.'/schema/loom-index.schema.json'), true, 512, JSON_THROW_ON_ERROR);
         $this->sectionKeys = [];
         foreach ($schema['properties'] as $key => $property) {
             if (isset($property['items']['$ref'])) {
@@ -71,14 +79,14 @@ final class SchemaPages implements RegionSource
 
     /**
      * @param  array<string, mixed>  $schema
-     * @param  array<string, string>  $sections
      */
-    private function top(array $schema, array $sections): string
+    private function top(array $schema): string
     {
         $rows = [];
         foreach ($schema['properties'] as $key => $property) {
             if (isset($property['items']['$ref'])) {
-                $description = $sections[$key] ?? throw new RuntimeException("tools/reference/schema.php lacks a description for section {$key}");
+                $description = SchemaSection::tryFrom($key)?->description()
+                    ?? throw new RuntimeException("Add a case for section {$key} to ".SchemaSection::class);
                 $rows[] = ["`{$key}`", "array of [`{$key}[]`](#".Markdown::slug("{$key}[]").')', Markdown::cell($description)];
 
                 continue;

@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Tools\Pages;
 
 use Illuminate\Support\Arr;
+use Lucasp\Loom\Tools\Reference\ConfigGroup;
+use Lucasp\Loom\Tools\Reference\ConfigSeeAlso;
+use Lucasp\Loom\Tools\Regions\GeneratedRegion;
+use Lucasp\Loom\Tools\SourceContext;
 
 /**
  * The config key tables, read from config/loom.php: key, environment
@@ -12,40 +16,24 @@ use Illuminate\Support\Arr;
  */
 final class ConfigPages implements RegionSource
 {
-    private const SCAN_PAGE = 'docs/reference/scan-config.md';
-
-    private const UI_PAGE = 'docs/reference/ui-config.md';
-
-    public function __construct(private readonly string $root) {}
+    public function __construct(private readonly SourceContext $context) {}
 
     public function regions(): array
     {
         $entries = $this->entries();
 
-        return [
-            'config:scan' => ['page' => self::SCAN_PAGE, 'body' => $this->table($entries, ['scan.'])],
-            'config:index' => ['page' => self::UI_PAGE, 'body' => $this->table($entries, ['index_path'])],
-            'config:ui' => ['page' => self::UI_PAGE, 'body' => $this->table($entries, ['ui.'])],
-            'config:mcp' => ['page' => self::UI_PAGE, 'body' => $this->table($entries, ['mcp.'])],
-        ];
+        return array_map(
+            fn (ConfigGroup $group): GeneratedRegion => new GeneratedRegion($group->region(), $this->table($entries, $group)),
+            ConfigGroup::cases(),
+        );
     }
 
     /**
      * @param  list<array{key: string, env: string|null, default: string, comment: string}>  $entries
-     * @param  list<string>  $prefixes  dotted keys to include; a trailing dot takes a whole group
      */
-    private function table(array $entries, array $prefixes): string
+    private function table(array $entries, ConfigGroup $group): string
     {
-        $see = (require $this->root.'/tools/reference/config.php')['see'];
-        $chosen = array_values(array_filter($entries, static function (array $entry) use ($prefixes): bool {
-            foreach ($prefixes as $prefix) {
-                if ($prefix === $entry['key'] || (str_ends_with($prefix, '.') && str_starts_with($entry['key'], $prefix))) {
-                    return true;
-                }
-            }
-
-            return false;
-        }));
+        $chosen = array_values(array_filter($entries, static fn (array $entry): bool => $group->includes($entry['key'])));
         $hasEnv = Arr::first($chosen, static fn (array $e): bool => $e['env'] !== null) !== null;
 
         $rows = [];
@@ -55,7 +43,7 @@ final class ConfigPages implements RegionSource
                 $row[] = $entry['env'] === null ? 'none' : "`{$entry['env']}`";
             }
             $row[] = '`'.$entry['default'].'`';
-            $row[] = Markdown::cell(trim($entry['comment'].' '.($see[$entry['key']] ?? '')));
+            $row[] = Markdown::cell(trim($entry['comment'].' '.ConfigSeeAlso::for($entry['key'])));
             $rows[] = $row;
         }
 
@@ -69,7 +57,7 @@ final class ConfigPages implements RegionSource
      */
     private function entries(): array
     {
-        $path = $this->root.'/config/loom.php';
+        $path = $this->context->root.'/config/loom.php';
         $config = require $path;
         $lines = file($path, FILE_IGNORE_NEW_LINES) ?: [];
         $entries = [];

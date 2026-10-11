@@ -10,6 +10,14 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Mcp\LoomMcpServer;
+use Lucasp\Loom\Tools\Reference\McpGroup;
+use Lucasp\Loom\Tools\Reference\McpToolDocs;
+use Lucasp\Loom\Tools\Reference\ToolDoc;
+use Lucasp\Loom\Tools\Regions\GeneratedRegion;
+use Lucasp\Loom\Tools\Regions\Region;
+use Lucasp\Loom\Tools\Regions\RegionName;
+use Lucasp\Loom\Tools\Regions\RegionPrefix;
+use Lucasp\Loom\Tools\SourceContext;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
@@ -20,33 +28,32 @@ use RuntimeException;
  */
 final class McpToolPages implements RegionSource
 {
-    private const PAGE = 'docs/reference/mcp-tools.md';
-
-    public function __construct(
-        private readonly string $root,
-        private readonly DocsFixture $fixture,
-    ) {}
+    public function __construct(private readonly SourceContext $context) {}
 
     public function regions(): array
     {
-        $human = require $this->root.'/tools/reference/mcp-tools.php';
         $tools = $this->tools();
-        $this->assertCovered($tools, $human);
+        $this->assertCovered($tools);
 
-        $regions = ['mcp:overview' => $this->overview($tools, $human)];
-        foreach ($human['groups'] as $key => $group) {
-            $sections = ["## {$group['title']}", $group['blurb']];
-            foreach ($group['tools'] as $name) {
-                $sections[] = $this->toolSection($name, $tools[$name], $human['tools'][$name]);
+        $regions = [new GeneratedRegion(Region::McpOverview, $this->overview($tools))];
+        foreach (McpGroup::cases() as $group) {
+            $sections = ["## {$group->title()}", $group->blurb()];
+            foreach (McpToolDocs::inGroup($group) as $doc) {
+                $sections[] = $this->toolSection($tools[$doc->tool], $doc);
             }
-            $regions["mcp:{$key}"] = implode("\n\n", $sections);
+            $regions[] = new GeneratedRegion(
+                RegionName::keyed(RegionPrefix::McpGroup, $group->value),
+                implode("\n\n", $sections),
+            );
         }
 
-        return Arr::map($regions, static fn (string $body): array => ['page' => self::PAGE, 'body' => $body]);
+        return $regions;
     }
 
     /**
-     * @return array<string, array{class: class-string<Tool>, inputs: array<string, Type>}>
+     * Registered tools keyed by class.
+     *
+     * @return array<class-string<Tool>, array{name: string, inputs: array<string, Type>}>
      */
     private function tools(): array
     {
@@ -56,57 +63,48 @@ final class McpToolPages implements RegionSource
             $reflection = new ReflectionClass($class);
             $name = $reflection->getAttributes(Name::class)[0]->newInstance()->value;
             $reflection->getAttributes(Description::class)[0]->newInstance();
-            $tools[$name] = ['class' => $class, 'inputs' => $this->fixture->inputs($class)];
+            $tools[$class] = ['name' => $name, 'inputs' => $this->context->fixture->inputs($class)];
         }
 
         return $tools;
     }
 
-    /**
-     * @param  array<string, mixed>  $tools
-     * @param  array<string, mixed>  $human
-     */
-    private function assertCovered(array $tools, array $human): void
+    /** @param  array<class-string<Tool>, mixed>  $tools */
+    private function assertCovered(array $tools): void
     {
-        $grouped = Arr::flatten(Arr::pluck($human['groups'], 'tools'));
-        $expected = array_keys($tools);
-        sort($expected);
-        $actualGrouped = $grouped;
-        sort($actualGrouped);
-        $described = array_keys($human['tools']);
-        sort($described);
+        $registered = array_keys($tools);
+        $documented = array_map(static fn (ToolDoc $doc): string => $doc->tool, McpToolDocs::all());
+        sort($registered);
+        sort($documented);
 
-        if ($expected !== $actualGrouped || $expected !== $described) {
-            throw new RuntimeException('tools/reference/mcp-tools.php must group and describe exactly the registered tools: '.implode(', ', $expected));
+        if ($registered !== $documented) {
+            throw new RuntimeException(McpToolDocs::class.' must document exactly the registered tools: '.implode(', ', $registered));
         }
     }
 
-    /**
-     * @param  array<string, array{class: class-string<Tool>, inputs: array<string, Type>}>  $tools
-     * @param  array<string, mixed>  $human
-     */
-    private function overview(array $tools, array $human): string
+    /** @param  array<class-string<Tool>, array{name: string, inputs: array<string, Type>}>  $tools */
+    private function overview(array $tools): string
     {
         $rows = [];
-        foreach (Arr::flatten(Arr::pluck($human['groups'], 'tools')) as $name) {
-            $inputs = array_keys($tools[$name]['inputs']);
-            $rows[] = [
-                "[`{$name}`](#{$name})",
-                Markdown::cell($human['tools'][$name]['answers']),
-                $inputs === [] ? 'none' : Markdown::codeList($inputs),
-            ];
+        foreach (McpGroup::cases() as $group) {
+            foreach (McpToolDocs::inGroup($group) as $doc) {
+                $name = $tools[$doc->tool]['name'];
+                $inputs = array_keys($tools[$doc->tool]['inputs']);
+                $rows[] = [
+                    "[`{$name}`](#{$name})",
+                    Markdown::cell($doc->answers),
+                    $inputs === [] ? 'none' : Markdown::codeList($inputs),
+                ];
+            }
         }
 
         return Markdown::table(['Tool', 'Answers', 'Inputs'], $rows);
     }
 
-    /**
-     * @param  array{class: class-string<Tool>, inputs: array<string, Type>}  $tool
-     * @param  array<string, mixed>  $human
-     */
-    private function toolSection(string $name, array $tool, array $human): string
+    /** @param  array{name: string, inputs: array<string, Type>}  $tool */
+    private function toolSection(array $tool, ToolDoc $doc): string
     {
-        $out = ["### `{$name}`", $human['summary']];
+        $out = ["### `{$tool['name']}`", $doc->summary];
 
         if ($tool['inputs'] === []) {
             $out[] = 'Takes no input.';
@@ -115,21 +113,21 @@ final class McpToolPages implements RegionSource
             $out[] = $this->inputTable($tool['inputs']);
         }
 
-        $out[] = $this->callBlock($tool['class'], $human['example'], 'Called with', 'it returns');
-        foreach ($human['variants'] ?? [] as $variant) {
-            $out[] = $this->callBlock($tool['class'], $variant['args'], $variant['label'].'. Called with', 'it returns');
+        $out[] = $this->callBlock($doc->tool, $doc->example, 'Called with', 'it returns');
+        foreach ($doc->variants as $variant) {
+            $out[] = $this->callBlock($doc->tool, $variant->args, $variant->label.'. Called with', 'it returns');
         }
 
-        $notes = Arr::map($human['notes'] ?? [], static fn (string $note): string => "- {$note}");
+        $notes = Arr::map($doc->notes, static fn (string $note): string => "- {$note}");
         if ($notes !== []) {
             $out[] = implode("\n", $notes);
         }
 
-        if (($human['errors'] ?? []) !== []) {
-            $rows = array_values(Arr::map(
-                $human['errors'],
-                fn (array $args): array => [$this->callPhrase($args), '`'.$this->errorText($tool['class'], $args).'`'],
-            ));
+        if ($doc->errors !== []) {
+            $rows = array_map(
+                fn (array $args): array => [$this->callPhrase($args), '`'.$this->errorText($doc->tool, $args).'`'],
+                $doc->errors,
+            );
             $out[] = "Errors come back as a text message instead of JSON:\n\n".Markdown::table(['Called with', 'Returns'], $rows);
         }
 
@@ -164,7 +162,7 @@ final class McpToolPages implements RegionSource
      */
     private function callBlock(string $class, array $args, string $lead, string $verb): string
     {
-        $result = $this->fixture->call($class, $args);
+        $result = $this->context->fixture->call($class, $args);
         if ($result['error']) {
             throw new RuntimeException("{$class} errored for a documented example: {$result['text']}");
         }
@@ -180,7 +178,7 @@ final class McpToolPages implements RegionSource
      */
     private function errorText(string $class, array $args): string
     {
-        $result = $this->fixture->call($class, $args);
+        $result = $this->context->fixture->call($class, $args);
         if (! $result['error']) {
             throw new RuntimeException("{$class} did not error for a documented failing call");
         }
