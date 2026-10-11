@@ -55,13 +55,21 @@ bench *args:
 shell:
     docker run --rm -it -v $(pwd):/app {{image}} sh
 
+# Regenerate the generated regions of the docs (between <!-- generated:NAME --> markers).
+docs-generate:
+    {{docker_run}} php tools/generate-reference.php
+
+# Fail, writing nothing, when a generated region differs from its source.
+docs-check:
+    {{docker_run}} php tools/generate-reference.php --check
+
 # Serve the docs site locally with live reload at http://localhost:8000.
-docs-serve:
+docs-serve: docs-generate
     docker run --rm -it -p 8000:8000 -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical serve --dev-addr 0.0.0.0:8000"
 
-# Build the docs site into ./site (strict: fails on broken links / nav).
-docs-build:
-    docker run --rm -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical build --clean --strict"
+# Strict site build from a scratch copy of docs/, overrides/, mkdocs.yml; the repo is mounted read-only.
+docs-build: docs-check
+    docker run --rm -v $(pwd):/src:ro python:3.13-slim sh -c "pip install -q zensical==0.0.69 && mkdir /work && cp -r /src/docs /src/overrides /src/mkdocs.yml /work/ && cd /work && zensical build --clean --strict"
 
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
 #   just scan /path/to/laravel/app

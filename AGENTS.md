@@ -110,6 +110,8 @@ These have caused regressions. Don't rediscover them.
 
 If two scanners ever write to the same field, you've drifted from the design — fix the drift, don't merge the writes.
 
+**Generated docs regions.** Blocks between `<!-- generated:NAME -->` markers in `docs/**` are built by `tools/` (`RegionSource` classes in `tools/Pages/`, hand-written prose in `tools/Reference/`). Never edit inside a block; run `just docs-generate`, verify with `just docs-check`, and build the site with `just docs-build`. A region goes on a page by adding its marker pair; see [CONTRIBUTING](CONTRIBUTING.md#generated-regions).
+
 **One scanner list.** The nine-scanner registration set lives once in `Lucasp\Loom\Scanners\DefaultScanners` (`::all()` / `::registerOn($builder)`), consumed by `ScanCommand`, the `just scan`/`scan-json` recipes, and the benchmark runner. Don't re-list scanners anywhere else — add or remove in `DefaultScanners` and every consumer (including `composer bench`) tracks it. The [benchmark suite](benchmarks/README.md) gates on deterministic per-scanner counts, so a list change that moves output is caught by `composer bench:assert`.
 
 **`_dispatch_sites` is internal.** DispatchScanner returns `['unresolved_dispatches' => …, '_dispatch_sites' => …]`. The underscore-prefixed section feeds the cross-link pass and is stripped before the `Index` is constructed. The JSON schema rejects it via `additionalProperties: false` — that's intentional, not a bug.
