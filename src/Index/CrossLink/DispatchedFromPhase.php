@@ -13,6 +13,7 @@ use Lucasp\Loom\Index\Sections;
  * `notified_from` arrays on the target entry (event, job, mailable, or
  * notification) from each finalized dispatch site. Needs resolved kinds and
  * closure ownership, so it runs after the disambiguation and ownership phases.
+ * A site owned by a route closure is recorded with the route as its origin.
  *
  * @internal
  */

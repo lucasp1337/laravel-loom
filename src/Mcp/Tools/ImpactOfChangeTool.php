@@ -6,12 +6,10 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
-use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Mcp\ImpactNoteFormatter;
 use Lucasp\Loom\Query\ChangeKind;
 use Lucasp\Loom\Query\IndexQuery;
@@ -19,7 +17,7 @@ use Lucasp\Loom\Query\IndexQuery;
 /** @internal */
 #[Name('impact-of-change')]
 #[Description('Blast-radius report for removing or renaming a class. For an event: who dispatches it, who handles it (named + closure listeners), and the transitive downstream chain. For a listener/job: which events it handles and whether removing it would orphan an event (an event whose only handler is this class). Notes call out what static analysis cannot determine.')]
-final class ImpactOfChangeTool extends Tool
+final class ImpactOfChangeTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -31,7 +29,7 @@ final class ImpactOfChangeTool extends Tool
                 ->description('The fully-qualified class name being changed (event, listener, or job).')
                 ->required(),
             'change' => $schema->string()
-                ->enum(Arr::map(ChangeKind::cases(), static fn (ChangeKind $k): string => $k->value))
+                ->enum(self::enumValues(ChangeKind::class))
                 ->description('The kind of change being made. Affects the framing of the notes only.')
                 ->default(ChangeKind::REMOVE->value),
         ];
@@ -48,16 +46,11 @@ final class ImpactOfChangeTool extends Tool
         $rawChange = $validated['change'] ?? ChangeKind::REMOVE->value;
         $change = ChangeKind::tryFrom($rawChange);
         if ($change === null) {
-            $expected = Arr::join(Arr::map(ChangeKind::cases(), static fn (ChangeKind $k): string => $k->value), ', ');
-
-            return Response::error("Unknown change [{$rawChange}]; expected one of: {$expected}.");
+            return $this->unknownValue('change', $rawChange, ChangeKind::class);
         }
 
         $report = $this->query->impactOfChange($fqcn, $change);
 
-        return Response::text((string) json_encode(
-            $report->toArray(ImpactNoteFormatter::render(...)),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($report->toArray(ImpactNoteFormatter::render(...)));
     }
 }

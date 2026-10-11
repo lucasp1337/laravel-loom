@@ -11,14 +11,13 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('dispatches-from')]
 #[Description('Given a method, what does it directly dispatch? Returns the events and jobs dispatched from a Class::method (also accepts Class@method or a bare Class), with kind, confidence, file and line.')]
-final class DispatchesFromTool extends Tool
+final class DispatchesFromTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -42,10 +41,10 @@ final class DispatchesFromTool extends Tool
 
         $dispatches = Arr::map($this->query->dispatchesFrom($methodFqcn), static fn (DispatchRef $d): array => $d->toArray());
 
-        return Response::text((string) json_encode([
+        return $this->json([
             'method_fqcn' => $methodFqcn,
             'count' => count($dispatches),
             'dispatches' => $dispatches,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ]);
     }
 }

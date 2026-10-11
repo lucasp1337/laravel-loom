@@ -126,7 +126,7 @@ final class RouteFileDiscovery
         foreach (array_keys($files) as $path) {
             $enqueue($path);
         }
-        $bootstrap = Str::rtrim($appRoot, '/\\').DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
+        $bootstrap = AppPath::join($appRoot, 'bootstrap/app.php');
         if (is_file($bootstrap)) {
             $enqueue($bootstrap);
         }
@@ -279,12 +279,11 @@ final class RouteFileDiscovery
      */
     private function providerFiles(string $appRoot): array
     {
-        $root = Str::rtrim($appRoot, '/\\');
-        $root = $root.DIRECTORY_SEPARATOR;
+        $root = AppPath::prefix($appRoot);
         $found = [];
 
         foreach (['bootstrap/providers.php', 'config/app.php'] as $list) {
-            $file = $root.Str::replace('/', DIRECTORY_SEPARATOR, $list);
+            $file = AppPath::join($appRoot, $list);
             if (! is_file($file) || $this->scope->isExcluded($appRoot, $file)) {
                 continue;
             }

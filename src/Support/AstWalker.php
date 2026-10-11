@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Support;
 
 use Lucasp\Loom\Dto\SkippedFile;
 use PhpParser\Error;
+use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
 use PhpParser\NodeVisitor\NameResolver;
@@ -58,14 +59,43 @@ class AstWalker
             return $source;
         }
 
+        $this->traverse($ast, $visitors);
+
+        return $source;
+    }
+
+    /**
+     * Parse `$source` and run `$visitors` over it behind the production
+     * NameResolver, for callers that already hold the source (tests, snippets).
+     * Unlike walk(), a parse error throws.
+     *
+     * @param  array<int, NodeVisitor>  $visitors
+     * @return array<int, Node\Stmt> the name-resolved statements
+     *
+     * @throws Error when the source does not parse
+     */
+    public static function walkSource(string $source, array $visitors = []): array
+    {
+        $walker = new self;
+
+        return $walker->traverse($walker->parser->parse($source) ?? [], $visitors);
+    }
+
+    /**
+     * @param  array<int, Node\Stmt>  $ast
+     * @param  array<int, NodeVisitor>  $visitors
+     * @return array<int, Node\Stmt>
+     */
+    private function traverse(array $ast, array $visitors): array
+    {
         $traverser = new NodeTraverser;
         $traverser->addVisitor(new NameResolver);
         foreach ($visitors as $visitor) {
             $traverser->addVisitor($visitor);
         }
-        $traverser->traverse($ast);
 
-        return $source;
+        /** @var array<int, Node\Stmt> */
+        return $traverser->traverse($ast);
     }
 
     /**

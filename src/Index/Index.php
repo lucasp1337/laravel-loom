@@ -20,7 +20,10 @@ use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 
 /**
- * Immutable Loom index and the stable, documented consumption surface.
+ * Immutable Loom index and the stable, documented consumption surface. Holds
+ * the section map keyed by section name plus the envelope scalars;
+ * {@see SectionRegistry} supplies the section order, from which
+ * {@see toArray()} rebuilds the bodies and `stats`.
  *
  * Two ways in: built in-process by {@see IndexBuilder}, or hydrated from a
  * written `index.json` by {@see IndexLoader}. Either way the typed getters and

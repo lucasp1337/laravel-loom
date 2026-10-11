@@ -9,11 +9,11 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class MailableClassRecord
+final readonly class MailableClassRecord
 {
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
-        public readonly QueueConfigData $queueConfig,
+        public string $fqcn,
+        public int $line,
+        public QueueConfigData $queueConfig,
     ) {}
 }

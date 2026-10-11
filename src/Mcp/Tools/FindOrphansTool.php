@@ -10,13 +10,12 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('find-orphans')]
 #[Description('List dead-weight in the event graph: orphan events (dispatched from nowhere AND handled by nothing) and idle listeners (registered but handling no events). A review aid — dynamically dispatched or reflection-registered cases may not surface statically.')]
-final class FindOrphansTool extends Tool
+final class FindOrphansTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -28,9 +27,6 @@ final class FindOrphansTool extends Tool
 
     public function handle(Request $request): Response
     {
-        return Response::text((string) json_encode(
-            $this->query->orphans()->toArray(),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        return $this->json($this->query->orphans()->toArray());
     }
 }

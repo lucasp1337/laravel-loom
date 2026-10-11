@@ -6,12 +6,10 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
-use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Mcp\IndexRepository;
 use ValueError;
@@ -19,7 +17,7 @@ use ValueError;
 /** @internal */
 #[Name('list-entities')]
 #[Description('List every entity in one index section (events, listeners, observers, jobs, routes, ...) verbatim from the index, with a count. Use this to enumerate what the scanner found before drilling into a single entity with get-entity.')]
-final class ListEntitiesTool extends Tool
+final class ListEntitiesTool extends LoomTool
 {
     public function __construct(private readonly IndexRepository $repository) {}
 
@@ -28,7 +26,7 @@ final class ListEntitiesTool extends Tool
     {
         return [
             'section' => $schema->string()
-                ->enum(Arr::map(Sections::cases(), static fn (Sections $s): string => $s->value))
+                ->enum(self::enumValues(Sections::class))
                 ->description('The index section to list.')
                 ->required(),
         ];
@@ -43,18 +41,16 @@ final class ListEntitiesTool extends Tool
         try {
             $section = Sections::from($validated['section']);
         } catch (ValueError) {
-            $expected = Arr::join(Arr::map(Sections::cases(), static fn (Sections $s): string => $s->value), ', ');
-
-            return Response::error("Unknown section [{$validated['section']}]; expected one of: {$expected}.");
+            return $this->unknownValue('section', $validated['section'], Sections::class);
         }
 
         $items = $this->repository->payload()[$section->value] ?? [];
         $items = is_array($items) ? $items : [];
 
-        return Response::text((string) json_encode([
+        return $this->json([
             'section' => $section->value,
             'count' => count($items),
             'items' => $items,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ]);
     }
 }

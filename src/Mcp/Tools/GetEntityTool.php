@@ -6,19 +6,17 @@ namespace Lucasp\Loom\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
-use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('get-entity')]
 #[Description('Fetch a single entity by kind (event, listener, observer, job, mailable, notification) and fully-qualified class name, returning the raw index entry (snake_case, exactly as in the index schema).')]
-final class GetEntityTool extends Tool
+final class GetEntityTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
 
@@ -27,7 +25,7 @@ final class GetEntityTool extends Tool
     {
         return [
             'kind' => $schema->string()
-                ->enum(Arr::map(EntityKind::cases(), static fn (EntityKind $k): string => $k->value))
+                ->enum(self::enumValues(EntityKind::class))
                 ->description('The kind of entity to fetch.')
                 ->required(),
             'fqcn' => $schema->string()
@@ -47,9 +45,7 @@ final class GetEntityTool extends Tool
 
         $kind = EntityKind::tryFrom($validated['kind']);
         if ($kind === null) {
-            $expected = Arr::join(Arr::map(EntityKind::cases(), static fn (EntityKind $k): string => $k->value), ', ');
-
-            return Response::error("Unknown kind [{$validated['kind']}]; expected one of: {$expected}.");
+            return $this->unknownValue('kind', $validated['kind'], EntityKind::class);
         }
 
         $entity = $this->query->rawEntity($kind, $fqcn);
@@ -58,11 +54,11 @@ final class GetEntityTool extends Tool
             return Response::error("No {$kind->value} found for {$fqcn}.");
         }
 
-        return Response::text((string) json_encode([
+        return $this->json([
             'kind' => $kind->value,
             'fqcn' => $fqcn,
             'found' => true,
             'entity' => $entity,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ]);
     }
 }

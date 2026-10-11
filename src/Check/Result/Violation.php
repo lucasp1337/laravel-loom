@@ -11,13 +11,13 @@ namespace Lucasp\Loom\Check\Result;
  *
  * @internal
  */
-final class Violation
+final readonly class Violation
 {
     /**
      * @param  array<string,mixed>  $context
      */
     public function __construct(
-        public readonly string $message,
-        public readonly array $context = [],
+        public string $message,
+        public array $context = [],
     ) {}
 }

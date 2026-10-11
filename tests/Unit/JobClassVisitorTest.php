@@ -5,25 +5,13 @@ declare(strict_types=1);
 use Lucasp\Loom\Dto\JobClassRecord;
 use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 /**
  * @return list<JobClassRecord>
  */
 function runJobClassVisitor(string $source): array
 {
-    $parser = (new ParserFactory)->createForNewestSupportedVersion();
-    $ast = $parser->parse($source);
-
-    expect($ast)->not->toBeNull();
-
-    $visitor = new JobClassVisitor;
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    $visitor = runVisitor(new JobClassVisitor, $source);
 
     return $visitor->getClasses();
 }

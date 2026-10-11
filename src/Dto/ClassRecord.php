@@ -9,10 +9,10 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class ClassRecord
+final readonly class ClassRecord
 {
     public function __construct(
-        public readonly string $fqcn,
-        public readonly int $line,
+        public string $fqcn,
+        public int $line,
     ) {}
 }

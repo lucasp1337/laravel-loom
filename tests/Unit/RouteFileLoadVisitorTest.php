@@ -8,20 +8,11 @@ use Lucasp\Loom\Scanners\Visitors\RouteFileLoadVisitor;
 use Lucasp\Loom\Support\RouteFileLoader;
 use Lucasp\Loom\Support\RoutePathProblem;
 use Lucasp\Loom\Support\RoutePathResolver;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitorAbstract;
-use PhpParser\ParserFactory;
 
 function traverseWith(string $source, NodeVisitorAbstract $visitor): void
 {
-    $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse($source);
-    expect($ast)->not->toBeNull();
-
-    $traverser = new NodeTraverser;
-    $traverser->addVisitor(new NameResolver);
-    $traverser->addVisitor($visitor);
-    $traverser->traverse($ast);
+    runVisitor($visitor, $source);
 }
 
 /** @return list<RouteFileReference> */

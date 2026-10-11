@@ -59,7 +59,9 @@ interface ClassSpec
 
     /**
      * Whether a located class reached only through an ambiguous dispatch form
-     * belongs to this primitive.
+     * belongs to this primitive. `X::dispatch()` could name an event or a job,
+     * so each spec says what proves its own: a class under its directory, or
+     * for jobs a queued class.
      *
      * @param  TLocation  $location
      * @param  bool  $underDirectory  the class file sits under {@see directory()}

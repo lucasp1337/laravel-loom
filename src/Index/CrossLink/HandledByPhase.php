@@ -11,6 +11,7 @@ use Lucasp\Loom\Index\Sections;
  * Inverts `listeners[*].handles` `{event, method}` pairs onto the
  * matching `events[*].handled_by` as `{listener, method}` pairs. Records each
  * listener's method set on the context for {@see DispatchAttributionPhase}.
+ * Closure listeners are not joined: a `handled_by` entry needs a class name.
  *
  * @internal
  */

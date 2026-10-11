@@ -20,8 +20,11 @@ use Lucasp\Loom\Index\CrossLink\SortPhase;
  * join the per-scanner sections into the relations the schema exposes
  * (handled_by, dispatches, dispatched_from, …).
  *
- * The default phase order matters — disambiguation must finalize a site's
- * kind before attribution and dispatched_from read it, and sorting runs last.
+ * This is the only place that reads across scanners, and the only writer of
+ * the relation fields. The default phase order matters: each phase's docblock
+ * names what it needs from earlier ones. Disambiguation and closure ownership
+ * run before attribution, and sorting runs last. A new relation is a new phase
+ * in the list below.
  *
  * @internal
  */

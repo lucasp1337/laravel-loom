@@ -9,16 +9,16 @@ namespace Lucasp\Loom\Dto;
  *
  * @internal
  */
-final class MethodDeclaration
+final readonly class MethodDeclaration
 {
     /**
      * @param  list<string>  $firstParameterClasses  class names in the first parameter's type; `self`/`parent` stay literal
      */
     public function __construct(
-        public readonly string $name,
-        public readonly MethodVisibility $visibility,
-        public readonly bool $isAbstract,
-        public readonly bool $hasParameters,
-        public readonly array $firstParameterClasses,
+        public string $name,
+        public MethodVisibility $visibility,
+        public bool $isAbstract,
+        public bool $hasParameters,
+        public array $firstParameterClasses,
     ) {}
 }
