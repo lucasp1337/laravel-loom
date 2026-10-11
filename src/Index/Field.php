@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index;
 
 /**
- * Source of truth for per-entry property names emitted by the index.
+ * Source of truth for per-entry property names emitted by the index. Every
+ * emitted key is a case here and is read via `->value`; only `_*` internal
+ * keys stay raw strings. `FieldSchemaParityTest` fails when this enum and
+ * `schema/loom-index.schema.json` diverge.
  *
  * @internal
  */

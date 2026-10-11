@@ -14,7 +14,21 @@ use Lucasp\Loom\Support\ScanScope;
 
 /**
  * Discovers job classes under app/Jobs/ plus dispatch-site targets that
- * resolve via PSR-4 to a class under app/.
+ * resolve via PSR-4 to a class under app/. See {@see JobClassSpec}.
+ *
+ * Matches every concrete class under Jobs/ and the target of `dispatch(...)`,
+ * `Bus::dispatch(...)`, `Bus::chain/batch([...])` items and the Dispatchable
+ * statics, which is how jobs in DDD-style layouts outside Jobs/ are found. A
+ * target wrapped in a fluent chain resolves through it
+ * (`dispatch((new X)->delay(60))`, `X::dispatch()->onQueue('high')`); only
+ * `new X` and `X::class` receivers resolve, not variables.
+ *
+ * `queued` is true when the class implements `ShouldQueue` directly or through
+ * a parent indexed under app/ (see {@see ClassHierarchyResolver}); a vendor
+ * parent is opaque. `queue_config` carries the class-level scalar
+ * `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`
+ * literals, `null` for a key the class does not declare, and is `null` for a
+ * class that is not queued. Methods such as `backoff()` are not read.
  *
  * @internal
  */

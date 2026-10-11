@@ -1,6 +1,6 @@
 # The index
 
-Someone who has run `loom:scan` and opened the JSON, and now wants to read it without the schema open.
+Someone who has run `loom:scan`, opened the JSON and wants to read it without the schema open.
 
 A scan writes one JSON document, `storage/loom/index.json`. This page shows how to read it; the [schema](../reference/schema.md) has the field-by-field contract.
 
@@ -18,31 +18,36 @@ The index opens with metadata and a `stats` block, then carries one array per pr
   "events": [ { "...": "..." } ],
   "model_events": [ { "...": "..." } ],
   "listeners": [ { "...": "..." } ],
-  "closure_listeners": [ { "...": "..." } ],
-  "jobs": [ { "...": "..." } ],
   "observers": [ { "...": "..." } ],
+  "jobs": [ { "...": "..." } ],
+  "unresolved_dispatches": [ { "...": "..." } ],
+  "closure_listeners": [ { "...": "..." } ],
   "scheduled_tasks": [ { "...": "..." } ],
   "routes": [ { "...": "..." } ],
   "mailables": [ { "...": "..." } ],
-  "notifications": [ { "...": "..." } ],
-  "unresolved_dispatches": [ { "...": "..." } ]
+  "notifications": [ { "...": "..." } ]
 }
 ```
 
 All keys are always present. Empty arrays are valid; a `null` array never is. `loom_version` is the version of Loom that wrote the file, and `stats` counts the entries in each section.
 
-Entries are sorted, so two scans of the same source produce byte-identical files. That's what makes [`loom:diff`](../guides/gate-your-ci.md) stable and order-independent, and it's why committing the index gives you readable diffs.
+Entries are sorted, so two scans of the same source produce byte-identical files apart from `scanned_at`. That's what makes [`loom:diff`](../guides/gate-your-ci.md) stable and order-independent, and it's why committing the index gives you readable diffs.
 
 ## Reading a relationship
 
 The interesting part is how entries point at each other. Every relationship is stored once, on whichever side owns it:
 
-- A **route** lists what its controller method fires in `dispatches`.
-- An **event** lists its handlers in `handled_by`, each `{listener, method}`.
-- A **listener**, **job**, **observer** or **closure listener** lists what it fires in `dispatches`, each `{target, kind, confidence, file, line}`.
-- An **event** or **job** lists where it's fired from in `dispatched_from`. A **mailable** uses `sent_from`, and a **notification** uses `notified_from`. Each item is a call site: `{file, line, method}`.
+| Field | Lives on | Each item |
+| --- | --- | --- |
+| `dispatches` | route, listener, job, observer, closure listener | `{target, kind, confidence, file, line}` |
+| `handled_by` | event | `{listener, method}` |
+| `dispatched_from` | event, job | `{file, line, method}` |
+| `sent_from` | mailable | `{file, line, method}` |
+| `notified_from` | notification | `{file, line, method}` |
 
 To answer "who handles this event?", read its `handled_by`. To answer "where is this job dispatched?", read its `dispatched_from`. You never reconcile two copies of the same fact.
+
+`kind` says what the target is (`event` or `job` on a cross-linked `dispatches` item). `confidence` is always `high` today: every target Loom writes was resolved statically, and `medium` and `low` are reserved values. Don't read `high` as "verified at runtime".
 
 ## A worked example
 
@@ -74,7 +79,7 @@ The route records the event its controller method fires:
       "kind": "event",
       "confidence": "high",
       "file": "app/Http/Controllers/OrderController.php",
-      "line": 11
+      "line": 12
     }
   ]
 }
@@ -88,10 +93,17 @@ The event records who handles it and where it's dispatched from:
   "file": "app/Events/OrderPlaced.php",
   "line": 5,
   "dispatched_from": [
-    { "file": "app/Http/Controllers/OrderController.php", "line": 11, "method": "App\\Http\\Controllers\\OrderController::store" }
+    {
+      "file": "app/Http/Controllers/OrderController.php",
+      "line": 12,
+      "method": "App\\Http\\Controllers\\OrderController::store"
+    }
   ],
   "handled_by": [
-    { "listener": "App\\Listeners\\SendOrderConfirmation", "method": "handle" }
+    {
+      "listener": "App\\Listeners\\SendOrderConfirmation",
+      "method": "handle"
+    }
   ]
 }
 ```
@@ -103,7 +115,12 @@ The listener records the job it dispatches:
   "fqcn": "App\\Listeners\\SendOrderConfirmation",
   "file": "app/Listeners/SendOrderConfirmation.php",
   "line": 8,
-  "handles": [ { "event": "App\\Events\\OrderPlaced", "method": "handle" } ],
+  "handles": [
+    {
+      "event": "App\\Events\\OrderPlaced",
+      "method": "handle"
+    }
+  ],
   "registration": "auto_discovered",
   "queued": false,
   "dispatches": [
@@ -124,11 +141,22 @@ The job records where it's dispatched from, and the queue settings it declares:
 {
   "fqcn": "App\\Jobs\\SendReceipt",
   "file": "app/Jobs/SendReceipt.php",
-  "line": 9,
+  "line": 7,
   "queued": true,
-  "queue_config": { "connection": null, "queue": "mail", "delay": null, "tries": 3, "timeout": null, "backoff": null },
+  "queue_config": {
+    "connection": null,
+    "queue": "mail",
+    "delay": null,
+    "tries": 3,
+    "timeout": null,
+    "backoff": null
+  },
   "dispatched_from": [
-    { "file": "app/Listeners/SendOrderConfirmation.php", "line": 12, "method": "App\\Listeners\\SendOrderConfirmation::handle" }
+    {
+      "file": "app/Listeners/SendOrderConfirmation.php",
+      "line": 12,
+      "method": "App\\Listeners\\SendOrderConfirmation::handle"
+    }
   ]
 }
 ```
@@ -140,7 +168,7 @@ Follow the links. The route's `dispatches` names `OrderPlaced`. `OrderPlaced.han
 
 ## Keeping the file
 
-Decide whether `storage/loom/index.json` is a build artifact or a record. Add it to `.gitignore` if you only read it locally. Commit it if you want a baseline that [`loom:diff` and `loom:check`](../guides/gate-your-ci.md) can compare a branch against.
+Add `storage/loom/index.json` (or your configured `index_path`) to `.gitignore` if you only read it locally. Commit it if you want a baseline that [`loom:diff` and `loom:check`](../guides/gate-your-ci.md) can compare a branch against.
 
 ## Where next
 

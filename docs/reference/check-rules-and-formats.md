@@ -2,7 +2,7 @@
 
 Every flag, rule key, exit code and output format of `loom:check` and `loom:diff`. For a walkthrough, see [Gate your CI](../guides/gate-your-ci.md).
 
-Both commands read finished `index.json` files. They run no scanners and don't need your source tree.
+Both commands read finished `index.json` files. They run no scanners and don't need your source tree, so you can run them on an index downloaded from another job.
 
 ## Commands
 
@@ -29,7 +29,7 @@ A rule either passes or adds violations. The run fails if any rule that ran has 
 | `schema` | The index doesn't validate against the Loom schema. | Re-run `loom:scan`. If the file was edited by hand or came from a different Loom version, regenerate it. |
 | `orphan-listeners` | A listener handles no events. | Type-hint the event on `handle()`, register the listener, or delete it. |
 | `orphan-events` | An event is never dispatched and never handled. | Delete it, or add the dispatch or listener that was meant to exist. |
-| `unresolved-dispatches` | See below. | Make the dispatched class visible (a literal class name), or accept it into the baseline. |
+| `unresolved-dispatches` | See below. | Make the dispatched class a literal class name, or accept it into the baseline. |
 | `cyclic-dispatch` | A chain of dispatches loops back to its start. | Break one link in the reported chain. |
 
 ### Unresolved dispatches, baseline and strict
@@ -50,7 +50,7 @@ A rule either passes or adds violations. The run fails if any rule that ran has 
 `cyclic-dispatch` builds a graph with a node per event and job and an edge wherever a handler dispatches another. If a listener of `OrderPlaced` dispatches `InventoryAdjusted`, there is an edge `OrderPlaced → InventoryAdjusted`. Jobs join through their own dispatches.
 
 !!! note "One cycle per run"
-    It reports a representative cycle for each back-edge, not every possible cycle in a tangled region. Fix the reported chain, re-run, and the next one surfaces.
+    It reports one representative cycle per back-edge, not every cycle in a tangled region. Fix the reported chain, re-run, and the next one surfaces.
 
 ## Exit codes
 
@@ -69,7 +69,7 @@ The verdict is the same in every format.
 
 ### text
 
-Rules with violations, then a count. Passing output is `All checks passed.`. Real terminal output is colored.
+Rules with violations, then a count. A passing run prints `All checks passed.`
 
 ```text
 orphan-listeners — Every listener handles at least one event
@@ -77,7 +77,7 @@ orphan-listeners — Every listener handles at least one event
 orphan-events — Every event is dispatched or handled
   ✗ Event App\Events\OrderCancelled is never dispatched and never handled.
 unresolved-dispatches — No new unresolved dispatches (strict: none at all)
-  ✗ Unresolved dispatch (dynamic_class_name) at app/Services/Checkout.php:14: event(new $eventClass())
+  ✗ Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
 cyclic-dispatch — No cyclic event/job dispatch chains
   ✗ Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
 4 violation(s) across 4 rule(s).
@@ -108,7 +108,7 @@ Every rule appears, including skipped ones, so a consumer can tell what was enfo
                     "context": {
                         "fqcn": "App\\Listeners\\LegacyAudit",
                         "file": "app/Listeners/LegacyAudit.php",
-                        "line": 7
+                        "line": 5
                     }
                 }
             ]
@@ -132,12 +132,12 @@ Every rule appears, including skipped ones, so a consumer can tell what was enfo
             "skipped": false,
             "violations": [
                 {
-                    "message": "Unresolved dispatch (dynamic_class_name) at app/Services/Checkout.php:14: event(new $eventClass())",
+                    "message": "Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)",
                     "context": {
                         "reason": "dynamic_class_name",
-                        "file": "app/Services/Checkout.php",
-                        "line": 14,
-                        "expression": "event(new $eventClass())"
+                        "file": "app/Services/Notifier.php",
+                        "line": 9,
+                        "expression": "event($eventClass)"
                     }
                 }
             ]
@@ -163,7 +163,7 @@ Every rule appears, including skipped ones, so a consumer can tell what was enfo
 }
 ```
 
-With `--skip=orphan-events`, that rule stays in the list but reports as skipped:
+`context` carries `fqcn` (plus `file` and `line` for a listener), `reason`, `file`, `line` and `expression` for an unresolved dispatch, or `cycle`, a list of class names. With `--skip=orphan-events`, that rule stays in the list but reports as skipped:
 
 ```json
 {
@@ -176,7 +176,7 @@ With `--skip=orphan-events`, that rule stays in the list but reports as skipped:
 
 ### markdown
 
-A `## loom:check` heading and one `###` section per failing rule, ready for a PR comment. A passing run prints `All checks passed.`.
+A `## loom:check` heading and one `###` section per failing rule, ready for a PR comment. A passing run prints `All checks passed.`
 
 ```markdown
 ## loom:check
@@ -188,7 +188,7 @@ A `## loom:check` heading and one `###` section per failing rule, ready for a PR
 - Event App\Events\OrderCancelled is never dispatched and never handled.
 
 ### unresolved-dispatches — No new unresolved dispatches (strict: none at all)
-- Unresolved dispatch (dynamic_class_name) at app/Services/Checkout.php:14: event(new $eventClass())
+- Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
 
 ### cyclic-dispatch — No cyclic event/job dispatch chains
 - Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
@@ -200,41 +200,48 @@ A `## loom:check` heading and one `###` section per failing rule, ready for a PR
 
 ### text
 
-`+` added, `-` removed, `~` changed, with the changed cross-link members listed under it. Added and removed entries print as the full JSON entry.
+`+` added, `-` removed, `~` changed, with the changed cross-link members listed under it. Added and removed entries print as the full JSON entry. This diff comes from a branch that added two events, three listeners and an unresolved dispatch (the `listeners` section is left out here):
 
 ```text
 events
-  + {"id":"App\\Events\\OrderCancelled","fqcn":"App\\Events\\OrderCancelled","kind":"class","file":"app/Events/OrderCancelled.php","line":7,"dispatched_from":[],"handled_by":[]}
+  + {"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":5,"dispatched_from":[{"file":"app/Listeners/ReserveStock.php","line":12,"method":"App\\Listeners\\ReserveStock::handle"}],"handled_by":[{"listener":"App\\Listeners\\RecountStock","method":"handle"}]}
+  + {"id":"App\\Events\\OrderCancelled","fqcn":"App\\Events\\OrderCancelled","kind":"class","file":"app/Events/OrderCancelled.php","line":5,"dispatched_from":[],"handled_by":[]}
   ~ App\Events\OrderPlaced
       handled_by:
         + {"listener":"App\\Listeners\\ReserveStock","method":"handle"}
       dispatched_from:
-        + {"file":"app/Listeners/RecountOrders.php","line":14,"method":"App\\Listeners\\RecountOrders::handle"}
+        + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
 
 unresolved_dispatches
-  + {"file":"app/Services/Checkout.php","line":14,"expression":"event(new $eventClass())","reason":"dynamic_class_name"}
+  + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
 ```
 
 ### json
 
-Empty sections are omitted. Each section has `added`, `removed` and `changed`. Added and removed entries carry the full entry, so a consumer never reopens the source files. Here an event was removed and one of its dispatch sites went away:
+Empty sections are omitted. Each section has `added`, `removed` and `changed`. Added and removed entries carry the full entry, so a consumer never reopens the source files. Here the `RecountStock` listener was deleted:
 
 ```json
 {
     "events": {
         "added": [],
-        "removed": [
-            {
-                "id": "App\\Events\\InventoryAdjusted",
-                "fqcn": "App\\Events\\InventoryAdjusted",
-                "kind": "class",
-                "file": "app/Events/InventoryAdjusted.php",
-                "line": 7,
-                "dispatched_from": [],
-                "handled_by": []
-            }
-        ],
+        "removed": [],
         "changed": [
+            {
+                "identity": "App\\Events\\InventoryAdjusted",
+                "field_changes": [],
+                "sublist_changes": [
+                    {
+                        "field": "handled_by",
+                        "added": [],
+                        "removed": [
+                            {
+                                "listener": "App\\Listeners\\RecountStock",
+                                "method": "handle"
+                            }
+                        ]
+                    }
+                ]
+            },
             {
                 "identity": "App\\Events\\OrderPlaced",
                 "field_changes": [],
@@ -244,30 +251,64 @@ Empty sections are omitted. Each section has `added`, `removed` and `changed`. A
                         "added": [],
                         "removed": [
                             {
-                                "file": "app/Services/Checkout.php",
-                                "line": 13,
-                                "method": "App\\Services\\Checkout::finalize"
+                                "file": "app/Listeners/RecountStock.php",
+                                "line": 12,
+                                "method": "App\\Listeners\\RecountStock::handle"
                             }
                         ]
                     }
                 ]
             }
         ]
+    },
+    "listeners": {
+        "added": [],
+        "removed": [
+            {
+                "fqcn": "App\\Listeners\\RecountStock",
+                "file": "app/Listeners/RecountStock.php",
+                "line": 8,
+                "handles": [
+                    {
+                        "event": "App\\Events\\InventoryAdjusted",
+                        "method": "handle"
+                    }
+                ],
+                "registration": "auto_discovered",
+                "queued": false,
+                "dispatches": [
+                    {
+                        "target": "App\\Events\\OrderPlaced",
+                        "kind": "event",
+                        "confidence": "high",
+                        "file": "app/Listeners/RecountStock.php",
+                        "line": 12
+                    }
+                ]
+            }
+        ],
+        "changed": []
     }
 }
 ```
 
 ### markdown
 
-A `##` heading per section. Field changes use `→` and members are prefixed `+` or `-`.
+A `##` heading per section. Field changes use `→` and members are prefixed `+` or `-`. The same change as above:
 
 ```markdown
 ## events
 
-- **removed** `{"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":7,"dispatched_from":[],"handled_by":[]}`
+- **changed** `App\Events\InventoryAdjusted`
+  - `handled_by`:
+    - `-` `{"listener":"App\\Listeners\\RecountStock","method":"handle"}`
 - **changed** `App\Events\OrderPlaced`
   - `dispatched_from`:
-    - `-` `{"file":"app/Services/Checkout.php","line":13,"method":"App\\Services\\Checkout::finalize"}`
+    - `-` `{"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}`
+
+## listeners
+
+- **removed** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"auto_discovered","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
 ```
 
 ## What the diff compares

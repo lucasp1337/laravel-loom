@@ -67,7 +67,7 @@ src/
     Ast/                            # facade over php-parser nodes: Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
     ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
     ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
-    ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy, per-build)
+    ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy; each consumer builds its own)
     Fqcn.php                        # the one home for class-name strings: normalize, short, namespaceOf, same, split*Member (FqcnConfinementTest forbids ltrim-style copies)
 
 schema/
@@ -79,8 +79,8 @@ tests/
   Fixtures/                         # minimal app trees per scenario
 
 docs/                               # consumer-facing docs (published site) — no src paths, ADR or issue refs
-  contributing/                     # contributor-only: architecture, class-hierarchy, adr/, design/
-CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules, how to add a scanner
+  contributing/                     # contributor-only: architecture, class-hierarchy, add-a-scanner, adr/
+CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules; links to the add-a-scanner page
 ```
 
 ---
@@ -89,7 +89,7 @@ CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules, ho
 
 These have caused regressions. Don't rediscover them.
 
-**Visitors read on `leaveNode`, not `enterNode`.** `AstWalker` attaches `NameResolver` first. NameResolver rewrites `Node\Name` references as it descends — so by the time you're in `enterNode` for an outer node (e.g. a `FuncCall`), the inner `New_->class` or `ClassConstFetch->class` you want to read has NOT been resolved yet. `EventClassVisitor` is the one exception (it reads `$node->namespacedName` on the class itself, which NameResolver sets before descent). Everywhere else, use `leaveNode`. We've shipped this bug at least twice.
+**Visitors read on `leaveNode`, not `enterNode`.** `AstWalker` attaches `NameResolver` first. NameResolver rewrites `Node\Name` references as it descends — so by the time you're in `enterNode` for an outer node (e.g. a `FuncCall`), the inner `New_->class` or `ClassConstFetch->class` you want to read has NOT been resolved yet. `EventClassVisitor` is the one exception (it reads `$node->namespacedName` on the class itself, which NameResolver sets before descent). Everywhere else, use `leaveNode`. We've shipped this bug at least twice. The full set of visitor conventions is in [architecture](docs/contributing/architecture.md#visitor-conventions).
 
 **Read call arguments through `Support\Ast`.** Visitors and scanners do not name `PhpParser\Node\Arg`: use `Args::of($call->args)` (`at()`, `valueAt()`, `named()`, `lookup()`, `hasUnpack()`, `isFirstClassCallable()`), `CallSite` for one call and `CallChain::from()` for a fluent chain. `AstConfinementTest` enforces it.
 
@@ -100,7 +100,7 @@ These have caused regressions. Don't rediscover them.
 - `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
 - `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
 - `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
-- `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; cross-link phase 5 joins them.
+- `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; `DispatchedFromPhase` joins them.
 - `$defs/dispatchSite` carries an **optional** `mode` (`DispatchMode`: `sync`, `after_response`, `push`; omitted for plain dispatches) and an **optional** `overrides` object (`$defs/dispatchOverrides`) alongside `{file, line, method}` — dispatch-time fluent modifiers (`locale`, `mailer`, `connection`, `queue`, `delay`, `after_commit`). It's emitted only when at least one modifier is statically resolved; sites with none have no `overrides` key (additive, non-breaking). All four reverse-reference arrays share the shape, so any may carry it (events rarely do). `$defs/dispatchSite` also carries an **optional, notification-only** `channels` array — the literal channel filter from `Notification::send($users, $n, $channels)` / `sendNow(...)` — emitted only on `notifications[*].notified_from` entries and omitted when absent, empty, or non-literal (additive, non-breaking).
 - `closure_listeners[*].dispatches` — populated by the cross-link pass from DispatchScanner's dispatch sites, using the `$defs/dispatch` shape. Only *registration* closures (closure listeners, closure routes) own the sites inside them; `ClosureOwnershipPhase` hands a site in any other closure (`DB::transaction(fn () => ...)`, `each`, `tap`) to the enclosing class method. Attribution is **positional by source span** (not by enclosing class + method, which closures lack): a site is attributed when it shares a file with the closure listener and its line falls within `[line, end_line]` inclusive. Each `closure_listeners[]` entry carries `end_line` (the closure body's closing line) for this. Resolved dispatches only in `dispatches[]`; an unresolved target inside a closure goes to `unresolved_dispatches[]` like any other. No reverse edge: the target's `dispatched_from[]` does not list the closure (same rationale as `handled_by` skipping closures).
 - `routes[*].dispatches` for a closure route — filled by `RouteDispatchAttributionPhase` by span: the route carries `end_line` (the closure's last line, optional, closure actions only) and a site in `[line, end_line]` of the same file belongs to it. Unlike closure listeners, the event's `dispatched_from` does list the route, with `method` set to `VERB uri`.
@@ -128,16 +128,9 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 ## The cross-link pass
 
-`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. The main phases, in order:
+`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. The phases and why their order matters are listed in [architecture](docs/contributing/architecture.md#cross-link-pass); the order itself lives in `CrossLinker`.
 
-1. **`events[*].handled_by`** — listeners' `handles` `{event, method}` pairs inverted onto matching event entries as `{listener, method}` pairs
-2. **Disambiguate `kind: ambiguous`** — Dispatchable-form sites (`X::dispatch(...)`) get `kind = event` if their target is in `events[]`, else `kind = job`
-3. **Closure ownership** — `ClosureOwnershipPhase` keeps closure-internal sites that a closure listener or closure route owns, and releases the rest to the enclosing class method
-4. **`listeners[*].dispatches`** — sites whose enclosing context is a listener FQCN + enclosing method is in that listener's `handles[*].method` set
-5. **`observers[*].dispatches` and `jobs[*].dispatches`** — sites whose enclosing context is an observer FQCN + method is a canonical Eloquent hook, or whose enclosing context is a job FQCN + enclosing method is `handle`
-6. **`events[*].dispatched_from` and `jobs[*].dispatched_from`** — sites with finalized `kind === 'event'` matched to event entries, plus sites with finalized `kind === 'job'` matched to job entries
-
-After cross-link: strip `_dispatch_sites` from the merged sections before constructing the `Index`. Schema validation happens against the stripped payload.
+After cross-link, `_dispatch_sites` is stripped from the merged sections before the `Index` is constructed, and `loom:scan` validates the stripped payload.
 
 ---
 
@@ -145,7 +138,7 @@ After cross-link: strip `_dispatch_sites` from the merged sections before constr
 
 | Agent | Domain | When to invoke |
 |---|---|---|
-| `scanner-architect` | Scanner design, discovery strategy, three-concern separation | Adding or redesigning a scanner. Writes a design doc. |
+| `scanner-architect` | Scanner design, discovery strategy, three-concern separation | Adding or redesigning a scanner. Returns the design: discovery, emission, schema impact. |
 | `ast-specialist` | `nikic/php-parser` visitors, NameResolver edge cases | Writing or fixing AST-traversal code |
 | `schema-guardian` | `schema/loom-index.schema.json` | Any change to output shape; veto power on the schema |
 | `test-engineer` | Pest tests, fixture apps, Testbench harness | After any scanner or IndexBuilder change |
@@ -193,4 +186,4 @@ See the **Scope** section near the top of this file for what's emitted today vs 
 
 The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.
 
-**Docs rules.** `docs/` is consumer-facing: no `src/` paths, ADR or issue references, and never hand-written command output (the drift-guard test `tests/Docs/DocsInSyncTest.php` checks it against real output). One fact lives on one page. Contributor material goes in `docs/contributing/` or `CONTRIBUTING.md`. CHANGELOG entries are one short line each, linking the PR.
+**Docs rules.** See [CONTRIBUTING.md](CONTRIBUTING.md#where-docs-live). The agent-specific rules: the code wins, so verify a doc claim against `src/` before relying on it; and never state Laravel behaviour from memory, check the framework source or link its docs.

@@ -34,13 +34,15 @@ Boost writes only its own `boost:mcp` entry. It does not register Loom's server,
 }
 ```
 
-Or from the command line:
+Or from the command line, run from the project root so the relative `artisan` resolves:
 
 ```bash
 claude mcp add loom -- php artisan loom:mcp
 ```
 
-See [Ask an agent about your events](ask-an-agent.md) for other clients, Docker and Sail, and what to ask. Every tool's inputs are in the [MCP tools reference](../reference/mcp-tools.md).
+Restart your agent. `loom` now appears next to `laravel-boost` in its list of MCP servers.
+
+See [Ask an agent about your events](ask-an-agent.md) for other clients, Docker and Sail, absolute paths and what to ask. Every tool's inputs are in the [MCP tools reference](../reference/mcp-tools.md).
 
 ## Keep the index current
 

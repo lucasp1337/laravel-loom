@@ -2,10 +2,10 @@
 
 Inputs, outputs, permissions and failure behaviour of the Loom composite action. For a walkthrough, see [Gate your CI](../guides/gate-your-ci.md).
 
-The action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment. It uses the repository itself as the action, so you reference `lucasp1337/laravel-loom`, not a subpath.
+The action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment. Reference `lucasp1337/laravel-loom`, not a subpath.
 
 !!! warning "Loom must already be installed in your app"
-    The action runs `composer install` in your app and then `php artisan loom:scan`. If your app doesn't require `lucasp1337/laravel-loom` (as a dev dependency), the scan fails with "command not defined". The action doesn't bundle a Laravel app.
+    The action runs `composer install` in your app and then `php artisan loom:scan`. If your app doesn't require `lucasp1337/laravel-loom` as a dev dependency, the scan fails with "command not defined".
 
 ## Minimal workflow
 
@@ -63,7 +63,7 @@ jobs:
 | Diff finds changes, `fail-on-diff` is `true` | Fails with exit `1`. |
 | Diff skipped or errored | Passes, whatever `fail-on-diff` says. |
 
-Without `strict`, the check runs `schema`, `orphan-listeners`, `orphan-events` and `cyclic-dispatch`. With it, `unresolved-dispatches` runs too. Rule details are in [Check rules and output formats](check-rules-and-formats.md#rules).
+Which rules run: without `strict`, the check runs `schema`, `orphan-listeners`, `orphan-events` and `cyclic-dispatch`. With it, `unresolved-dispatches` runs too. Rule details are in [Check rules and output formats](check-rules-and-formats.md#rules).
 
 !!! warning "A missing diff is not a clean diff"
     The action builds the base index by fetching the base branch into a temporary worktree, installing dependencies and scanning it. If any of that fails, the diff is skipped and the build passes. That includes the first PR that adds Loom, since the base doesn't have it yet.
@@ -80,4 +80,4 @@ Without `strict`, the check runs `schema`, `orphan-listeners`, `orphan-events` a
 
 ## What the comment contains
 
-The comment starts with `# Laravel Loom`, the diff summary line, then the markdown output of `loom:check` (or `All checks passed.`). When the diff found changes, the diff sits below it in a collapsed "Architectural diff" block. The comment is edited in place on later pushes. Formats are shown in [Check rules and output formats](check-rules-and-formats.md#markdown).
+The comment starts with `# Laravel Loom`, the diff summary line, then the markdown output of `loom:check` (or `All checks passed.`). When the diff found changes, the diff sits below it in a collapsed "Architectural diff" block. Later pushes edit the comment in place. Formats are shown in [Check rules and output formats](check-rules-and-formats.md#markdown).

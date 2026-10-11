@@ -1,75 +1,44 @@
 # Architecture
 
-How Loom is wired internally.
+How Loom is wired. What each scanner matches is documented on the scanner and visitor classes; the tests under `tests/Unit` and `tests/Feature` pin it.
 
-## Pipeline
+Two halves: the build side turns source files into an `Index`, and the read side consumes a written `index.json`. They meet at the schema, `schema/loom-index.schema.json`.
+
+## Build side
+
+### Pipeline
 
 ```
-Filesystem → Discovery → AST parsing → Emission → Merge → Cross-link → Strip internals → Validate → Write
-              (per scanner)            (per scanner) (IndexBuilder)             (schema)    (index.json)
+per scanner:    scan scope -> discovery -> AST parse -> emit
+IndexBuilder:   merge -> cross-link -> strip _* sections -> Index
+loom:scan:      validate against the schema -> write index.json
 ```
 
-`IndexBuilder` orchestrates the pipeline. Each scanner contributes to one or more sections of the index, the cross-link pass joins data across scanners, then the result is validated against `schema/loom-index.schema.json` and written to `storage/loom/index.json`.
+`IndexBuilder::build()` runs the scanners that `DefaultScanners` registers, merges their sections (a scanner that returns a section the schema does not know makes `build()` throw), runs the cross-link pass, drops `_*` sections and wraps the result in an `Index`. `loom:scan` resolves the scan scope, calls `build()`, validates the payload with `IndexBuilder::validate()` and writes the file. A schema violation fails the command and nothing invalid is written.
 
-The `loom:scan` artisan command is a thin wrapper around `IndexBuilder::build()`. The `loom:show` command reads the written index and prints it (optionally filtered by FQCN substring).
+`DefaultScanners` hands one `ScanScope` (scan paths plus `scan.exclude`) and one shared `AstWalker` to every scanner. The walker swallows parse errors and counts them, which is where `loom:scan` gets its skipped-file count. See [Scan configuration](../reference/scan-config.md).
 
-Programmatic consumers don't run the pipeline: they load a written `index.json` with `IndexLoader` and read it through the typed getters on `Index`. That read model is the stable, public counterpart to the raw JSON schema — see [Index PHP API](../reference/php-api.md).
-
-`loom:check` is the policy gate, layered like the diff engine: a `CheckRuleRegistry` (mirroring the diff layer's spec registry) supplies an ordered set of rules from `src/Check/Rules/` keyed by the `RuleKey` enum, `CheckRunner` runs them against a loaded `Index` and collects violations, and a parallel `CheckFormatter` layer renders the result as text, JSON, or markdown. Like `loom:diff` it reads a written index rather than running scanners. See [Checking an index](../reference/check-rules-and-formats.md) for the command surface.
-
-The MCP server and the browser UI share one read layer, `src/Query/`. `IndexQuery` answers transport-agnostic questions over a loaded `Index` (sections, search, handlers, dispatch sites, chains, impact, orphans) and returns DTOs and enums. `Lucasp\Loom\Mcp` and `Lucasp\Loom\Ui` are adapters on top of it and do not depend on each other. Each supplies its own `IndexSource`: MCP scans a missing snapshot, the UI only reads the file. Scanners take a `ScanScope` (scan directories from `loom.scan.paths`, plus `loom.scan.exclude` globs) and walk it through `ScannerFilesystem::scanFiles()`; `DefaultScanners` hands one scope and one shared `AstWalker` to every scanner, and the walker collects parse failures that `loom:scan` reports. See [Scan configuration](../reference/scan-config.md).
-
-See [Browse the UI](../guides/browse-the-ui.md), [UI config](../reference/ui-config.md), [Ask an agent](../guides/ask-an-agent.md) and [MCP tools](../reference/mcp-tools.md).
-
-## The Scanner contract
+### Scanner contract
 
 ```php
-namespace Lucasp\Loom\Contracts;
-
 interface Scanner
 {
-    /**
-     * @return array<string, array<int, array<string, mixed>>> Entries keyed by schema section.
-     */
+    /** @return array<string, array<int, mixed>> entries keyed by schema section */
     public function scan(string $appRoot): array;
 }
 ```
 
-A scanner takes a path to a Laravel app root and returns an array keyed by section name. Valid section keys are the top-level array properties of the JSON schema:
+A scanner is stateless: it takes the app root and returns entries keyed by schema section. A section it does not contribute is omitted, and sections from several scanners are concatenated. `DispatchScanner` also returns the underscore-prefixed `_dispatch_sites`, which feeds the cross-link pass and is stripped before validation.
 
-- `events`
-- `listeners`
-- `closure_listeners`
-- `jobs`
-- `observers`
-- `model_events`
-- `unresolved_dispatches`
+Keep three concerns apart inside a scanner:
 
-Plus one internal key:
-
-- `_dispatch_sites` — underscore-prefixed, used by `DispatchScanner` to ferry per-call-site data into the cross-link pass. Stripped before schema validation.
-
-Scanners are **stateless**. They take a path, return data, no service injection, no Laravel runtime hooks.
-
-A scanner contributing nothing to a section simply omits that key from its return value. Multiple scanners contributing to the same section have their entries merged.
-
-## Three concerns per scanner
-
-Every scanner is internally organized into three concerns. Mixing them produces untestable code.
-
-### 1. Discovery
-
-Find candidate files or classes. Strategies:
-
-- **Filesystem walk** — `RecursiveIteratorIterator` over `app/Events/`, `app/Listeners/`, or all of `app/`. Filter `*.php`.
-- **Provider reflection** — parse classes that look like service providers, extract `$listen` arrays or `Event::listen()` calls.
-- **Attribute scan** — find classes carrying `#[ObservedBy]`.
-
-Hybrid strategies are common (events come from both `app/Events/` and dispatch-site seeding, for example).
+- **Discovery**: which files and classes to read. Strategies are a filesystem walk (a convention directory, or all of `app/`), provider parsing (reading `$listen` arrays and `Event::listen()` calls from provider classes) and an attribute scan (`#[ObservedBy]`). Hybrids are common: events come from `app/Events/` and from dispatch-site seeding.
+- **Parsing**: visitors over the AST, via `AstWalker`.
+- **Emission**: schema-shaped, sorted arrays; no JSON encoding. Entries are sorted by FQCN (or the natural key) and scalar arrays inside an entry are sorted ascending, so the output is stable across runs and machines.
 
 #### Class-based primitives
 
-Events, jobs, mailables and notifications share one skeleton: walk a convention directory, seed more classes from dispatch sites and locate them through PSR-4, merge by FQCN, emit entries sorted by FQCN. `Scanners\Discovery\ClassPrimitiveDiscovery` owns that flow; each primitive supplies a `ClassSpec` (`EventClassSpec`, `JobClassSpec`, `MailableClassSpec`, `NotificationClassSpec`) and its scanner is only construction plus `discover()`. A spec declares:
+Events, jobs, mailables and notifications share one skeleton: walk a convention directory, seed more classes from dispatch sites, locate them through PSR-4 and merge by FQCN. `Scanners\Discovery\ClassPrimitiveDiscovery` owns the flow and each primitive supplies a `ClassSpec`; its scanner is only construction plus `discover()`. A spec declares:
 
 - the convention directory and the class visitor (a `ClassRecordVisitor`);
 - how a class record becomes a location and an entry (queued state, queue config, channels);
@@ -78,107 +47,82 @@ Events, jobs, mailables and notifications share one skeleton: walk a convention 
 
 Seeded targets already found by the directory walk are skipped; the rest must resolve through PSR-4 to an admitted file declaring that FQCN. A target stays ambiguous only while every site that reached it was. A new class-based primitive is a new spec plus a thin scanner; primitives with other discovery (listeners, observers, routes, schedule) keep their own scanners.
 
-### 2. Parsing
+### Building blocks
 
-Pure AST work via `nikic/php-parser`. Use `Lucasp\Loom\Support\AstWalker` — it instantiates a `Parser` once and always attaches `NameResolver` before user visitors, so every `Node\Name` your visitor sees is fully qualified.
+| Piece | Role |
+| --- | --- |
+| `Support\AstWalker` | Parses a file and attaches `NameResolver` before any visitor, so names are fully qualified. |
+| `Support\Ast\*` | The only code that reads php-parser call nodes: `Args` (positional and named arguments), `CallSite`, `CallChain`, `Literal`, `ClassRef`, `Callables`, `ValueLists`, `EventsDispatcher`. |
+| `Scanners\Visitors\CollectingVisitor` | Base for visitors reused across files; its final `beforeTraverse()` calls `reset()`. `TracksClassScope` adds the enclosing class and method. |
+| `Support\Fqcn` | The one home for class-name strings: normalise, short, namespace, compare, `Class@method` splitting. |
+| `Scanners\Discovery\ClassPrimitiveDiscovery` | The shared skeleton for the class-based primitives, described above. |
+| `Scanners\Dispatch\DispatchRules` | One row per recognised dispatch call shape. `DispatchRuleMatcher` evaluates the table for `DispatchSiteVisitor`, and `eventDiscovery()` is the subset event discovery reads. |
+| `Support\ClassHierarchyResolver` | Lazy `extends` / `implements` / `use` resolution across files under the scan paths. Vendor classes are opaque leaves. Each consumer builds its own. See [class hierarchy](class-hierarchy.md). |
+| `Support\ChainModifierExtractor` | Maps a dispatch chain's `->onQueue()`, `->delay()` and similar links to `overrides`. |
 
-When a scanner needs transitive `extends` / `implements` / `use Trait` information (e.g. recognising a job as queued via `ShouldQueue` declared on an abstract parent), use `Lucasp\Loom\Support\ClassHierarchyResolver`. It lives at `src/Support/ClassHierarchyResolver.php` and is constructed once per `IndexBuilder::build()` call against the scanned `$appRoot`. It performs a single lazy walk of `app/` on first use, parses each file via the shared `AstWalker` + `ClassDeclarationVisitor`, and memoises queries. External / vendor classes are opaque leaves: traversal records them and stops. See [class-hierarchy.md](class-hierarchy.md) for the contract and [ADR 0001](adr/0001-class-hierarchy-resolver.md) for the rationale.
+Architecture tests enforce the boundaries between them:
 
-Visitor conventions:
+- `AstConfinementTest`: visitors never name `PhpParser\Node\Arg`.
+- `FqcnConfinementTest`: class-name string handling lives in `Support\Fqcn`.
+- `FieldSchemaParityTest`: the `Field` and `Sections` enums cover the schema (see [Field names](#field-names)).
 
-- **Read on `leaveNode`, not `enterNode`.** NameResolver rewrites child Names as it descends; by the time you `leaveNode` on a `FuncCall` or `StaticCall`, every inner `New_->class` / `ClassConstFetch->class` has been resolved. The one exception is reading `$node->namespacedName` on the class itself — that's set on enter.
-- **Extend `CollectingVisitor` and implement `reset()`.** Scanners reuse a single visitor instance across all files in the discovery loop; the base class calls `reset()` from a final `beforeTraverse()`. Visitors that need the enclosing class or method use the `TracksClassScope` trait.
-- **Expose state via a getter**, not by mutating an external array. Visitors collect into an instance property; the scanner reads it after each `walk()` call.
+### Visitor conventions
 
-### 3. Emission
+- **Read on `leaveNode`, not `enterNode`.** NameResolver rewrites child names while it descends, so an outer node's inner `new X` or `X::class` is only resolved on leave. The one exception is `namespacedName` on a class itself, which is set on enter.
+- **Extend `CollectingVisitor` and implement `reset()`.** Scanners reuse one visitor instance across all files in the discovery loop, and the base class calls `reset()` from a final `beforeTraverse()`.
+- **Expose state through a getter**, not by mutating an external array. The scanner reads the collected records after each `walk()`.
+- **Read call arguments through `Support\Ast`.** Never name `PhpParser\Node\Arg` in a visitor or scanner.
+- **A new dispatch form is a `DispatchRules` row**, plus a case in `tests/Unit/Dispatch/DispatchRuleMatcherTest.php`. Do not add shape checks to a visitor.
 
-Build schema-shaped arrays. No JSON encoding (that's `IndexBuilder`'s job). No format work. Return PHP arrays and let the caller handle serialization.
+### IndexBuilder and the section registry
 
-Emit deterministically: sort entries by FQCN (or whatever the natural key is) so the output is stable across runs and machines. Inside each entry, sort scalar arrays (`hooks`, `handles`, `handled_by`) ascending.
+`Index` holds a section map keyed by section name plus the envelope scalars (`schema_version`, `loom_version`, `scanned_at`, `laravel_version`). `SectionRegistry` is the single ordered source of truth for the sections: it drives the output body order and the `stats` block (one count per section), and flags which sections the UI lists in its sidebar and dashboard (all except `model_events`). `Index::toArray()` rebuilds `stats` and the section bodies by iterating it.
 
-## IndexBuilder
+Adding a top-level section means a new `Sections` case plus a `SectionRegistry` entry, plus the schema. `Index` and `IndexBuilder` do not change. Check the places that enumerate sections too: the cross-link phases, `loom:diff` specs, MCP tools and the UI ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)).
 
-`IndexBuilder` is the orchestrator. The pipeline in `build()`:
+### Field names
 
-1. **Instantiate** registered scanners (`DefaultScanners` supplies them in order)
-2. **Run** each scanner against `$appRoot`, in registration order
-3. **Merge** returned sections into a single map. Each section is a concatenation of every scanner's contribution.
-4. **Cross-link** (see below)
-5. **Strip** any `_*` underscore-prefixed sections (internal)
-6. **Validate** the merged sections against `schema/loom-index.schema.json` using `justinrainbow/json-schema`
-7. **Wrap** the result in an `Index` value object. `Index` holds a section map keyed by section name plus the three scalars (`loom_version`, `scanned_at`, `laravel_version`). `SectionRegistry` (`src/Index/SectionRegistry.php`) is the single ordered source of truth: it drives the output body order and the `stats` block (one count per section), and flags which sections the UI lists in its sidebar and dashboard (all except `model_events`). `Index::toArray()` rebuilds `stats` and the section bodies by iterating it.
+Field names are not magic strings. Three flat enums own the index's string keys:
 
-Validation failure is fatal. A non-conforming index throws rather than writing garbage to disk.
+- `Sections` for the top-level section names.
+- `MetaField` for the envelope scalars and `stats`.
+- `Field` for every per-entry property name.
 
-Adding a top-level section means a new `Sections` case plus a `SectionRegistry` entry (plus the schema) — no change to `Index` or `IndexBuilder`.
+The serializer, the cross-link phases and the `loom:diff` engine key off these enums via `->value`. Only deliberately internal, non-emitted keys (the `_*` sections, transient cross-link tags) stay raw strings. `tests/Unit/Index/FieldSchemaParityTest.php` asserts the enums exactly cover the schema's property surface, so a new field needs a case in the enum and an entry in the schema, or that test fails.
 
-Field names are not magic strings. Three flat enums own the index's string keys: `Sections` (`src/Index/Sections.php`) for the top-level section names, `MetaField` (`src/Index/MetaField.php`) for the envelope scalars (`loom_version`, `scanned_at`, `laravel_version`, `stats`), and `Field` (`src/Index/Field.php`) for every per-entry property name. The serializer, the cross-link phases, and the `loom:diff` engine all key off these enums via `->value`; only deliberately internal, non-emitted keys (e.g. the `_*` sections, transient cross-link tags) stay raw strings. A parity test (`tests/Unit/Index/FieldSchemaParityTest.php`) asserts the enums exactly cover the schema's property surface, so the enums can never silently drift from `schema/loom-index.schema.json`.
+### Cross-link pass
 
-## Cross-link pass
+`CrossLinker` builds FQCN lookups once, then runs ordered `CrossLinkPhase` classes over a shared `CrossLinkContext`. It is the only place that reads data across scanners. Phase order matters: disambiguation and closure ownership come before attribution, and sorting is last.
 
-The cross-link pass is the only place that reads cross-scanner data. It runs after every scanner has emitted, so it can rely on having a complete view of events, listeners, observers, and dispatch sites.
+1. `HandledByPhase`: `events[].handled_by` from `listeners[].handles`. Closure listeners are not joined, as the entry shape needs a class name.
+2. `AmbiguousDisambiguationPhase`: an `X::dispatch()` site becomes an event when `X` is in `events[]`, else a job. Attribution and `dispatched_from` read the finalized kind, so this runs before them.
+3. `ClosureOwnershipPhase`: a site inside a registration closure (closure listener or route closure) keeps its closure tag; a site in any other closure (`DB::transaction(fn () => ...)`, `each`, `tap`) is handed to the enclosing class method. Attribution reads the tag, so this runs before it.
+4. `DispatchAttributionPhase`: `dispatches` on listeners (the methods in `handles`), jobs (`handle`) and observers (Eloquent hook methods). A dispatch in a helper method called from a handler is not attributed to the handler.
+5. `ClosureDispatchAttributionPhase`: `closure_listeners[].dispatches` by source span `[line, end_line]` in the same file.
+6. `DispatchedFromPhase`: `dispatched_from`, `sent_from` and `notified_from` on events, jobs, mailables and notifications.
+7. `RouteDispatchAttributionPhase`: `routes[].dispatches` by controller class and method, or by span for a closure route.
+8. `SortPhase`: deterministic order.
 
-`IndexBuilder` delegates the pass to **`CrossLinker`** (`src/Index/CrossLinker.php`). `CrossLinker` computes the FQCN→entry lookups once up front, packs them with the merged sections and dispatch sites into a **`CrossLinkContext`**, then runs an ordered list of **`CrossLinkPhase`** classes (`src/Index/CrossLink/`) over that context. Each phase mutates the context in place; later phases see earlier phases' results.
+Add a relation by adding a phase; the orchestrator does not change. Two scanners never write the same field. The order lives in `CrossLinker`.
 
-The phases, in order — each its own `CrossLinkPhase`:
+### Unresolved dispatches
 
-1. **`HandledByPhase` → `events[*].handled_by`** — for each listener, for each `{event, method}` pair in `listener.handles`, append `{listener: listener.fqcn, method}` to the matching event's `handled_by` array. Sorted by `listener` ascending then `method` ascending. Orphan registrations (events the listener handles but EventScanner didn't find) are silently skipped. The phase also records each listener's method set on the context for `DispatchAttributionPhase`.
+A dispatch target Loom cannot resolve is never dropped. `DispatchScanner` emits it to `unresolved_dispatches[]` with one of four reasons: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`. A consumer reads that list to see the gaps in the index.
 
-2. **`AmbiguousDisambiguationPhase` → finalize `kind: ambiguous`** — DispatchScanner emits `X::dispatch(...)` Dispatchable-form sites with `kind: ambiguous` because the class could be either an event or a job. The phase finalizes each site on the context: `kind = event` if `target` is in `events[]`, otherwise `kind = job`. EventScanner's dispatch-site seeding ensures most event classes are already in `events[]`; classes that aren't fall through to `job`.
+### Errors and performance
 
-3. **`ClosureOwnershipPhase`** — splits closure-internal sites by owner. A site inside a registration closure (a closure listener, or a closure route) keeps its `inClosure` tag; a route-owned site also gets a `closureOrigin` label such as `GET /orders`. A site inside any other closure is pass-through: the tag is cleared and the later phases treat it as a plain class-method site.
+- A file that fails to parse is skipped and counted.
+- A schema violation is fatal for `loom:scan`: it prints the errors and writes nothing.
+- An app with nothing to find yields a valid index of empty arrays.
+- Nothing is cached. Scanners each parse the files they walk, so sharing parsed ASTs across scanners is the first thing to try if scan time becomes a problem. The [benchmark suite](adr/0006-benchmark-suite.md) gates on counts, not wall time.
 
-4. **`DispatchAttributionPhase` → `listeners[*].dispatches`, `jobs[*].dispatches`, `observers[*].dispatches`** — attributes each dispatch site to its enclosing handler and appends a `$defs/dispatch` entry: a listener whose enclosing method is in its `handles[*].method` set, a job whose enclosing method is literally `handle`, or an observer whose method is a canonical Eloquent hook (`creating`, `created`, `updating`, …). Dispatches from a custom handler method (`handleOrderPlaced`, `handleOrderRefunded`, …) are attributed, not dropped; sites in non-hook observer methods or in helper methods called from a job's `handle()` don't appear here.
+## Read side
 
-5. **`DispatchedFromPhase` → `events[*].dispatched_from`, `jobs[*].dispatched_from`, `mailables[*].sent_from`, `notifications[*].notified_from`** — for each site whose finalized `kind` matches a target entry, append a `$defs/dispatchSite` entry (`{file, line, method: "Class::method"}`) to that target's reverse-reference array.
+Everything that consumes a written index reads the file and does not run scanners, with one exception noted below.
 
-6. **`RouteDispatchAttributionPhase` → `routes[*].dispatches`** — attributes each event/job dispatch site to the route whose resolved controller it lives in, matching by `(controller_fqcn, controller_method)` against the site's enclosing class+method, and appends a `$defs/dispatch` entry. A site left tagged `inClosure` that falls inside a closure route's `[line, end_line]` goes to that route instead. Unresolved-controller routes without a closure keep `[]`.
+- `IndexLoader` and the typed getters on `Index` are the public read model ([PHP API](../reference/php-api.md)).
+- `src/Check/` (`loom:check`) and `src/Diff/` (`loom:diff`) run rules and specs over a loaded `Index`. `CheckRuleRegistry` supplies ordered rules keyed by `RuleKey`, `CheckRunner` collects violations and a `CheckFormatter` layer renders text, JSON or markdown; the diff layer mirrors that with a spec registry. See [Check rules and formats](../reference/check-rules-and-formats.md).
+- `src/Query/` answers transport-agnostic questions (`IndexQuery`) over a loaded `Index` and returns DTOs and enums. `src/Mcp/` and `src/Ui/` are adapters on top of it and do not depend on each other; each supplies its own `IndexSource`.
+- The MCP `IndexRepository` runs `loom:scan` once through Artisan when no snapshot exists and auto-scan is on. The UI only reads the file.
 
-7. **`SortPhase`** — sorts every cross-linked array (by string content or by `(file, line)` as appropriate) so the emitted index is deterministic across runs.
-
-The cross-link pass deliberately does NOT join `closure_listeners[]` into `events[*].handled_by`. That field's entry shape is `{listener: string, method: string}`; closures have neither. Adding closures would require a schema change (a new entry variant) and is reserved for a future design pass — don't add it without going through `schema-guardian`. `closure_listeners[*].dispatches` is filled by `ClosureDispatchAttributionPhase` through line-span attribution rather than the class+method join used for `listeners[*].dispatches`.
-
-Sorting is the final phase (`SortPhase`); after the pipeline finishes, `IndexBuilder` removes `_dispatch_sites` from the section map and runs validation.
-
-The pass is deliberately self-contained: every piece of cross-scanner logic belongs in a phase rather than scattered across scanners. Adding a new relation means appending a `CrossLinkPhase` to `CrossLinker`'s default pipeline — no change to the orchestrator or existing phases.
-
-## Unresolved dispatches
-
-Static analysis cannot resolve some dispatch sites:
-
-- `event($variable)` — variable holding the class
-- `event($container->make('SomeKey'))` — container indirection
-- `event("App\\Events\\{$name}")` — string interpolation
-- `event($flag ? $a : $b)` — non-resolvable ternary (both branches must be variables/expressions, not concrete `new X()` calls)
-
-These don't disappear. `DispatchScanner` emits each as an entry in `unresolved_dispatches[]` with one of four `reason` codes:
-
-- `dynamic_class_name`
-- `container_resolution`
-- `string_concatenation`
-- `conditional_dispatch`
-
-The intent: surface gaps in the index rather than silently dropping data. A consumer can read `unresolved_dispatches` and decide how to treat it.
-
-## Error handling
-
-- **File-level parse errors** — `AstWalker::walk()` swallows them and returns `null`. The scanner sees no visitor hits for that file.
-- **Schema validation errors** — fatal. `IndexBuilder` throws a `RuntimeException` with the violating section path.
-- **Missing app root** — `loom:scan` resolves the app root from Laravel itself (`$this->laravel->basePath()`), so this can only happen if Loom is invoked outside a Laravel application.
-- **Empty results** — valid. An app with no events, listeners, or observers produces a well-formed index with empty arrays and zero stats.
-
-## Performance
-
-No caching in the current implementation. Acceptable scan times:
-
-- Fresh `laravel new` app: < 1s
-- Small real app (~50 files in scope): < 5s
-- Medium real app (~500 files in scope): < 30s
-
-If you exceed these, the first move is sharing parsed ASTs across scanners (currently each scanner re-parses every file it walks). Caching to disk adds invalidation complexity and is a deliberate non-goal at this point.
-
-## Extension points
-
-Scanners are not a public extension point ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)). Adding a new scanner means contributing one file plus one entry in `DefaultScanners`; see [CONTRIBUTING.md](https://github.com/lucasp1337/laravel-loom/blob/main/CONTRIBUTING.md) for the workflow.
-
-Runtime data merging (e.g. promoting `confidence` from `high` to verified after a trace) would attach to existing dispatch entries via a separate overlay, not by mutating scanner output. Loom stays static; overlays would be a layer above.
+See [Ask an agent](../guides/ask-an-agent.md), [MCP tools](../reference/mcp-tools.md), [Browse the UI](../guides/browse-the-ui.md) and [UI config](../reference/ui-config.md) for the consumer view.

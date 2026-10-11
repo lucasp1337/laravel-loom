@@ -40,7 +40,8 @@
     "autoload-dev": {
         "psr-4": {
             "Lucasp\\Loom\\Tests\\": "tests/",
-            "Lucasp\\Loom\\Benchmarks\\": "benchmarks/src/"
+            "Lucasp\\Loom\\Benchmarks\\": "benchmarks/src/",
+            "Lucasp\\Loom\\Tools\\": "tools/"
         }
     },
     "scripts": {

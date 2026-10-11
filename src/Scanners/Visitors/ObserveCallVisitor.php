@@ -12,6 +12,8 @@ use PhpParser\Node;
 /**
  * Finds `Model::observe(Observer::class)` calls. Tracks enclosing class so
  * `self::` / `static::` resolve to the declaring class; `parent::` is skipped.
+ * `$this->observe(...)` is not a static call and is ignored. The argument is
+ * `Observer::class` or an array of such references, one registration each.
  *
  * @internal
  */

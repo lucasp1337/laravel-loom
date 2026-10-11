@@ -26,6 +26,20 @@ use Lucasp\Loom\Support\Sorting;
  * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
  * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
  *
+ * `observers[]` has one entry per (observer, model) pair from the attribute and
+ * the `observe()` call; when both exist the attribute wins. An observer's
+ * `hooks` are the methods named after an observable Eloquent event, of any
+ * visibility and declared, inherited or trait-provided (a vendor parent is
+ * opaque), because Laravel registers an observer method whenever
+ * `method_exists` is true. `booting` and `booted` are fired as model events but
+ * are not observable, so they are never hooks. An observer with no matching
+ * method is still emitted with `hooks: []`.
+ *
+ * `model_events[]` has one entry per (model, hook) that has at least one
+ * handler: observer hook methods plus the `Event::listen('eloquent.*')`
+ * strings, deduplicated on `handler::method` with the observer winning. A pair
+ * with no handler is not emitted.
+ *
  * @internal
  */
 final class ObserverScanner implements Scanner

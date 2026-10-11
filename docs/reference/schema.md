@@ -179,7 +179,7 @@ forceDeleting, forceDeleted, booting, booted
 - `subscriber` — discovered via a subscriber's `subscribe()` method. Covers both the return-array form (`return [Event::class => 'method', …]`) and the imperative form (`$events->listen(Event::class, [Listener::class, 'method'])` against the dispatcher parameter). The subscriber itself is registered via `$subscribe` array or `Event::subscribe(...)`. A foreign listener wired imperatively from inside a subscriber's body is also stamped `subscriber`.
 - `listen_array` — found in the `$listen` array of an `EventServiceProvider`
 - `event_listen_call` — registered via `Event::listen()` in a provider's `boot()`
-- `auto_discovered` — Laravel 11+ auto-discovery via typed `handle()` parameter
+- `auto_discovered` — a typed `handle()` parameter
 
 When the same listener is discovered through multiple paths, precedence is `subscriber > listen_array > event_listen_call > auto_discovered`.
 
@@ -268,7 +268,7 @@ The cross-link pass intentionally does NOT add closure entries to `events[*].han
 }
 ```
 
-All six keys are required when `queue_config` is an object; each value is the string or integer literal declared as a class property (the literal's own type is kept), or `null` when no such property is declared (the framework default applies at runtime). `queue_config` is `null` (not an empty object) when `queued` is `false`.
+All six keys are required when `queue_config` is an object; each value is the string or integer literal declared as a class property (the literal's own type is kept), or `null` when no such property is declared. `queue_config` is `null` (not an empty object) when `queued` is `false`.
 
 `dispatched_from[]` uses `$defs/dispatchSite` (the same shape as `events[*].dispatched_from`). It is populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` whose `target` matches the job's FQCN.
 
@@ -301,7 +301,7 @@ One observer registered against N models produces N entries.
 
 ## `scheduled_tasks[]`
 
-Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One entry per chain.
+Task scheduler entries. Emitted by `ScheduleScanner`. One entry per chain.
 
 ```
 {
@@ -327,22 +327,22 @@ Entries declared in Laravel's task scheduler. Emitted by `ScheduleScanner`. One 
 
 `$defs/scheduleEntry`. All fields are required. `name`, `target`, `cron`, `frequency`, `timezone`, `queue`, `connection`, and `without_overlapping_expires_at` may be `null`.
 
-`arguments[]` is the literal parameters array passed to `->command(Class::class, [...])` — `command` kind only; `[]` for every other kind. Plain items render as the stringified value, keyed items as `"key=value"`, booleans as `"true"`/`"false"`; unresolvable items are skipped. `queue` and `connection` are the 2nd / 3rd `->job($job, $queue, $connection)` overrides, `job` kind only, `null` when absent. `without_overlapping_expires_at` is the expiry minutes from `->withoutOverlapping($minutes)`; it is `null` when `withoutOverlapping()` carries no literal argument — the framework default of 1440 is deliberately not fabricated. The `without_overlapping` boolean is independent and unchanged.
+`arguments[]` is the literal parameters array passed to `->command(Class::class, [...])` — `command` kind only; `[]` for every other kind. Plain items render as the stringified value, keyed items as `"key=value"`, booleans as `"true"`/`"false"`; unresolvable items are skipped. `queue` and `connection` are the 2nd / 3rd `->job($job, $queue, $connection)` overrides, `job` kind only, `null` when absent. `without_overlapping_expires_at` is the expiry minutes from `->withoutOverlapping($minutes)`; it is `null` when `withoutOverlapping()` carries no literal argument — no default is invented. The `without_overlapping` boolean is independent and unchanged.
 
-`name` carries the schedule entry's `->name(...)` label (verbatim string) when one is declared, and is `null` otherwise. `even_in_maintenance_mode` is `true` only when `->evenInMaintenanceMode()` appears in the chain, mirroring Laravel's runtime gate that otherwise skips scheduled tasks while the app is in maintenance mode.
+`name` carries the schedule entry's `->name(...)` label (verbatim string) when one is declared, and is `null` otherwise. `even_in_maintenance_mode` is `true` only when `->evenInMaintenanceMode()` appears in the chain.
 
 `kind` is determined by the chain's root call:
 
 - `command` — `->command(string|FQCN)`. `target` is the signature string verbatim (`"mail:send"`, `"mail:send {--queue=default}"`), or the FQCN when the argument was a `::class` constant.
 - `job` — `->job(new X)` or `->job(X::class)`. `target` is the FQCN.
-- `closure` — `->call(...)`. `target` is `null` for inline closures, `"FQCN::method"` for tuple callables (`[Cls::class, 'method']`) and Laravel callable strings (`'App\\Cls@method'`).
+- `closure` — `->call(...)`. `target` is `null` for inline closures, `"FQCN::method"` for tuple callables (`[Cls::class, 'method']`) and `'App\\Cls@method'` strings.
 - `exec` — `->exec(string)`. `target` is the shell command string.
 
-`cron` is the canonical five-field expression for every recognised frequency helper (`daily` → `"0 0 * * *"`, `everyFiveMinutes` → `"*/5 * * * *"`, `cron('*/5 8-17 * * 1-5')` passed through verbatim). It is `null` when no recognised helper appears, when the helper's argument is a variable, or when the last frequency helper in the chain is unrecognised. The recognised helpers are listed on the [schedule scanner page](../guides/why-was-my-code-missed.md). When multiple frequency helpers chain together, last wins (mirroring Laravel's runtime).
+`cron` is the canonical five-field expression for every recognised frequency helper (`daily` → `"0 0 * * *"`, `everyFiveMinutes` → `"*/5 * * * *"`, `cron('*/5 8-17 * * 1-5')` passed through verbatim). It is `null` when no recognised helper appears, when the helper's argument is a variable, or when the last frequency helper in the chain is unrecognised. The recognised helpers are listed on the [schedule scanner page](../guides/why-was-my-code-missed.md). When multiple frequency helpers chain together, last wins.
 
-`frequency` carries a structured sub-minute interval — `{ "unit": "seconds", "every": <N> }` — for the seven sub-minute helpers (`everySecond` → `{ "unit": "seconds", "every": 1 }`, `everyTenSeconds` → `every: 10`; also `everyTwoSeconds`, `everyFiveSeconds`, `everyFifteenSeconds`, `everyTwentySeconds`, `everyThirtySeconds`). A five-field cron expression cannot express sub-minute intervals, so these entries carry `cron: null` and the interval lives in `frequency` instead. For every other entry `frequency` is `null`. At most one of `cron` / `frequency` is non-null: when a chain mixes cron-based and sub-minute helpers, last wins (mirroring Laravel's runtime) and the loser is cleared. `unit` is backed by the `FrequencyUnit` enum, currently `"seconds"` only.
+`frequency` carries a structured sub-minute interval — `{ "unit": "seconds", "every": <N> }` — for the seven sub-minute helpers (`everySecond` → `{ "unit": "seconds", "every": 1 }`, `everyTenSeconds` → `every: 10`; also `everyTwoSeconds`, `everyFiveSeconds`, `everyFifteenSeconds`, `everyTwentySeconds`, `everyThirtySeconds`). A five-field cron expression cannot express sub-minute intervals, so these entries carry `cron: null` and the interval lives in `frequency` instead. For every other entry `frequency` is `null`. At most one of `cron` / `frequency` is non-null: when a chain mixes cron-based and sub-minute helpers, last wins and the loser is cleared. `unit` is backed by the `FrequencyUnit` enum, currently `"seconds"` only.
 
-`constraints[]` carries opaque labels for non-cron restrictions: day-of-week (`"weekdays"`, `"sundays"`, …), time-window (`"between(8:00,17:00)"`, `"unlessBetween(...)"`), conditional (`"when(closure)"`, `"skip(closure)"`), and environment (`"environments(production,staging)"`). Sorted ascending. Constraints are emitted in addition to `cron` because Laravel evaluates them at runtime alongside the cron tick — they are not folded into the expression.
+`constraints[]` carries opaque labels for non-cron restrictions: day-of-week (`"weekdays"`, `"sundays"`, …), time-window (`"between(8:00,17:00)"`, `"unlessBetween(...)"`), conditional (`"when(closure)"`, `"skip(closure)"`), and environment (`"environments(production,staging)"`). Sorted ascending. Constraints are emitted in addition to `cron`, not folded into the expression.
 
 `file` and `line` point to the root method call of the chain (`$schedule->command(...)`), not the trailing modifier.
 
@@ -427,7 +427,7 @@ Notification classes discovered by `NotificationScanner`. One entry per FQCN.
 
 `$defs/notification`. All fields are required.
 
-`channels[]` is extracted from a `via()` method whose body is a single `return [...];` of literal strings (stored lowercased: `"mail"`, `"database"`, `"slack"`, `"broadcast"`, `"vonage"`) and / or `Class::class` constants (stored as FQCN: `"Illuminate\\Notifications\\Channels\\SlackChannel"`). Items are emitted in **source order** — Laravel dispatches over them in declaration order, and preserving source order keeps the index honest to what the file says.
+`channels[]` is extracted from a `via()` method whose body is a single `return [...];` of literal strings (stored lowercased: `"mail"`, `"database"`, `"slack"`, `"broadcast"`, `"vonage"`) and / or `Class::class` constants (stored as FQCN: `"Illuminate\\Notifications\\Channels\\SlackChannel"`). Items are emitted in **source order**.
 
 `channels_dynamic` distinguishes:
 
