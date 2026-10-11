@@ -74,6 +74,7 @@ function referencePageNames(): array
         'docs/reference/mcp-tools.md',
         'docs/reference/scan-config.md',
         'docs/reference/ui-config.md',
+        'docs/reference/commands.md',
     ];
 }
 

@@ -15,6 +15,14 @@ final class Markdown
         return str_replace(['|', "\r\n", "\n"], ['\|', '<br>', '<br>'], trim($text));
     }
 
+    /** Wraps option names, config keys, commands and paths in code spans. */
+    public static function codeSpans(string $text): string
+    {
+        $pattern = '/(?<![`\w\/.-])([\w.-]+(?:\/[\w.-]+)+|--[a-z][a-z-]*|loom:[a-z]+|[a-z]+(?:[._][a-z]+)+)(?![`\w])/';
+
+        return (string) preg_replace($pattern, '`$1`', $text);
+    }
+
     /**
      * @param  list<string>  $header
      * @param  list<list<string>>  $rows  already-formatted cells

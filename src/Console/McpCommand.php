@@ -20,9 +20,9 @@ use Lucasp\Loom\Support\OptionalPackages;
 final class McpCommand extends Command
 {
     protected $signature = 'loom:mcp
-        {--snapshot= : Path to an index.json to serve (default: storage/loom/index.json)}
-        {--scan : Run a fresh loom:scan before serving}
-        {--no-scan : Never auto-scan; require the snapshot to already exist}';
+        {--snapshot= : Serve this index file instead of the default (storage/loom/index.json)}
+        {--scan : Run loom:scan before serving}
+        {--no-scan : Never auto-scan; the snapshot must already exist}';
 
     protected $description = 'Start the embedded Loom MCP server over stdio';
 

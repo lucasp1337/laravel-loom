@@ -14,7 +14,7 @@ use Lucasp\Loom\Index\IndexSchema;
 /** @internal */
 class DiffCommand extends Command
 {
-    protected $signature = 'loom:diff {old : Path to the old index.json} {new : Path to the new index.json} {--format=text : Output format (text|json|markdown)}';
+    protected $signature = 'loom:diff {old : Path to the old index.json} {new : Path to the new index.json} {--format=text : Output format: text (default), json or markdown}';
 
     protected $description = 'Semantically diff two Loom index.json files';
 

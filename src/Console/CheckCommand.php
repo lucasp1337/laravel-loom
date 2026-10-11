@@ -19,11 +19,11 @@ use Lucasp\Loom\Support\IndexPath;
 class CheckCommand extends Command
 {
     protected $signature = 'loom:check
-        {index? : Path to index.json (default: storage/loom/index.json)}
-        {--baseline= : Path to a baseline index.json for growth checks}
+        {index? : Path to the index to check (default: storage/loom/index.json)}
+        {--baseline= : Path to an older index.json, for growth checks}
         {--strict : Treat any unresolved dispatch as a failure}
-        {--skip=* : Rule keys to skip}
-        {--format=text : Output format (text|json|markdown)}';
+        {--skip=* : Rule key to skip}
+        {--format=text : Output format: text (default), json or markdown}';
 
     protected $description = 'Run policy checks against a Loom index (CI gate)';
 
