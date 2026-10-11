@@ -1,117 +1,166 @@
 # What Loom detects
 
-One line per construct, with the test that pins it. Field meanings are in the [schema](schema.md); symptoms and fixes are in [Why was my code missed](../guides/why-was-my-code-missed.md).
+What each scanner reads and what it skips. Field meanings are in the [schema](schema.md); symptoms and fixes are in [Why was my code missed](../guides/why-was-my-code-missed.md).
 
+Loom parses source without running your app. It reads the directories in [`scan.paths`](scan-config.md) (default `app/`), `routes/` and the route files that providers and `bootstrap/app.php` load, and `bootstrap/app.php` for the scheduler. Anything decided at runtime is out of reach.
+
+!!! warning "Targets must be literal"
+    A dispatched or registered class has to be a `::class` reference, a `new X` expression or a string literal. Variables, concatenation and container lookups do not resolve; a dispatch like that is listed in `unresolved_dispatches` instead of being linked.
+
+Each section below lists what Loom reads, the cases that come out differently than you might expect, and what it does not read. The last line of a section names the tests that pin the behaviour.
 
 ## Events
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| Classes in `app/Events/`, abstract included | yes | [EventScannerTest] |
-| Targets of `event()`, `broadcast()`, `broadcast_if/unless()`, `Event::dispatch()` | yes, anywhere | [EventDispatchSiteVisitorTest] |
-| `X::dispatch/dispatchIf/dispatchUnless()` | only for classes in `app/Events/` | [ClassSpecsTest] |
-| Model `$dispatchesEvents` (literal hook, `Foo::class`) | yes, as dispatched by the model | [DispatchesEventsVisitorTest] |
-| Dynamic targets, anonymous classes | no; dynamic ones are `unresolved_dispatches` | [DispatchScannerTest] |
+Loom reads these as events:
+
+- Classes in `app/Events/`, abstract included.
+- Targets of `event()`, `broadcast()`, `broadcast_if()`, `broadcast_unless()` and `Event::dispatch()`, anywhere in scope.
+- `X::dispatch()`, `dispatchIf()` and `dispatchUnless()`, but only for classes in `app/Events/`.
+- A model's `$dispatchesEvents` map (literal hook name, `Foo::class` value), listed as dispatched by the model.
+
+Does not read: dynamic targets (they become `unresolved_dispatches`) and anonymous classes. `ShouldBroadcast` is not reported as a flag.
+
+An event outside `app/Events/` that is only fired with `X::dispatch()` is skipped, because the same call shape is a job elsewhere. Move the class under `app/Events/` or fire it once with `event()`.
+
+Pinned by [EventScannerTest], [EventDispatchSiteVisitorTest], [ClassSpecsTest], [DispatchesEventsVisitorTest], [DispatchScannerTest].
 
 ## Listeners
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| Public `handle*` or `__invoke` with a first parameter in `app/Listeners/`; declared, inherited or from a trait (`as`, `insteadof`) | yes | [HandlerResolutionTest] |
-| Nullable and union parameter types | one event per class | [ListenerScannerTest] |
-| Untyped or builtin first parameter | listed with `handles: []` | [ListenerScannerTest] |
-| Abstract classes, traits, no parameter, `as protected` | no | [ListenerScannerTest] |
-| `$listen`: bare, tuple, `Closure::fromCallable()`, `Listener::method(...)` | yes | [ListenArrayVisitorTest] |
-| `Event::listen(...)` from any class, facade alias or FQCN, event or array of events | yes | [EventListenCallVisitorTest] |
-| Dispatcher from `$this->app['events']`, `app()`, `resolve()`, `make()`, or a variable assigned from them | yes | [EventListenCallVisitorTest] |
-| Subscribers via `$subscribe` or `Event::subscribe()`, return-array and `$events->listen()` styles | yes, `registration: subscriber` | [SubscriberClassVisitorTest] |
-| Dispatcher typed in `boot()` or held in a property, nested closures in `subscribe()`, `$obj->method`, `Class::method` strings | no | [EventListenCallVisitorTest] |
+Loom reads these as listeners:
+
+- Public `handle*` or `__invoke` methods with a first parameter, in classes under `app/Listeners/`. The method can be declared, inherited from a parent, or come from a trait (`as` renames and `insteadof` included). Laravel's [event discovery](https://laravel.com/docs/events#event-discovery) uses the same rule.
+- `$listen` arrays: bare, tuple, `Closure::fromCallable()` and `Listener::method(...)` forms.
+- `Event::listen(...)` from any class, through the facade, its alias or the FQCN, with one event or an array of events.
+- The same call on a dispatcher from `$this->app['events']`, `app()`, `resolve()`, `make()`, or a variable assigned from one of them.
+- Subscribers, through `$subscribe` or `Event::subscribe()`, in return-array and `$events->listen()` styles. They are listed with `registration: subscriber`.
+
+| Construct | What you get |
+| --- | --- |
+| Nullable or union first parameter | One event per class |
+| Untyped or builtin first parameter | The listener, with `handles: []` |
+
+Does not read: abstract classes, traits, interfaces, methods made non-public with `as protected`, methods with no parameter, handlers inherited from a vendor class, a dispatcher typed in `boot()` or held in a property, registrations inside nested closures in `subscribe()`, `$obj->method` and `'Class::method'` strings.
+
+Pinned by [HandlerResolutionTest], [ListenerScannerTest], [ListenArrayVisitorTest], [EventListenCallVisitorTest], [SubscriberClassVisitorTest].
 
 ## Closure listeners
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| Closures and arrow functions in `$listen`, `listen()` and subscribers, keyed by `::class` or string | yes | [ListenerScannerEndToEndTest] |
-| `Event::listen(function (X $e) {...})` | event from the first parameter; untyped, `object`, `mixed` skipped | [EventListenCallVisitorTest] |
-| Dispatches in the body, nested closures included | yes, by source span | [ClosureDispatchAttributionPhaseTest] |
-| Queue status, back-links from `handled_by` | no (`queued` is always `false`) | [ClosureOwnerEndToEndTest] |
+Loom reads these as closure listeners:
+
+- Closures and arrow functions in `$listen`, `listen()` calls and subscribers, keyed by `::class` or a string.
+- `Event::listen(function (OrderPlaced $e) {...})`, with the event taken from the first parameter's type. Union types give one entry per class.
+- Events and jobs dispatched in the body, nested closures included, attributed by source span.
+
+Does not read: a closure with an untyped, `object` or `mixed` first parameter (skipped), queue status (`queued` is always `false`), and back-links from `handled_by` and `dispatched_from`, because a closure has no class name to point at.
+
+Pinned by [ListenerScannerEndToEndTest], [EventListenCallVisitorTest], [ClosureDispatchAttributionPhaseTest], [ClosureOwnerEndToEndTest].
 
 ## Observers
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| `#[ObservedBy]` single and array; `Model::observe()`, `static::`, `self::` | yes | [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest] |
-| Hook methods of any visibility, inherited or from a trait | yes, `retrieved` to `forceDeleted` plus `trashed` | [ObserverClassVisitorTest] |
-| `Event::listen('eloquent.{hook}: {Model}', ...)` with `Class@method`, tuple or class | yes, `model_events` only | [EloquentListenStringVisitorTest] |
-| `parent::observe()`, `$this->observe()`, `booting`/`booted` methods, closure handlers, container-form `eloquent.*` | no | [ObserverScannerTest] |
+Loom reads these as observers:
+
+- `#[ObservedBy]`, single and array form, and `Model::observe()`, `static::observe()` and `self::observe()`.
+- Hook methods the observer declares, inherits from a parent or gets from a trait, of any visibility. The hooks are the events Eloquent lets an observer subscribe to, `retrieved` through `forceDeleted`, plus `trashed`. See [observers](https://laravel.com/docs/eloquent#observers).
+- `Event::listen('eloquent.{hook}: {Model}', ...)` strings, as `model_events` only, with a `Class@method`, tuple or class handler. The strings `eloquent.booting: ...` and `eloquent.booted: ...` are read the same way.
+
+Does not read: `parent::observe()`, `$this->observe()`, dynamic arguments, `booting` and `booted` methods on the observer (they are not observer hooks), hooks inherited from a vendor class, closure handlers in `model_events`, and container-form `eloquent.*` registrations.
+
+Pinned by [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest], [ObserverClassVisitorTest], [EloquentListenStringVisitorTest], [ObserverScannerTest].
 
 ## Jobs
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| Classes in `app/Jobs/`; targets of `dispatch()`, `Bus::dispatch()`, `X::dispatch()` incl. conditional and fluent-chain forms | yes | [JobsScannerTest] |
-| Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff` | yes, `null` when absent | [JobsScannerTest] |
-| `queued` via a vendor parent, `backoff()`, `retryUntil()`, `ShouldBeUnique`, `Batchable` | no | [JobsScannerTest] |
+Loom reads these as jobs:
+
+- Classes in `app/Jobs/`, and classes passed to `dispatch(new X)`, `Bus::dispatch()` or `X::dispatch()`, including the conditional and fluent-chain forms.
+- Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`. Each is `null` when absent.
+
+Does not read: `queued` through a vendor parent class, `backoff()` and `retryUntil()` methods, non-literal property values, and flags such as `ShouldBeUnique` and `Batchable`.
+
+Pinned by [JobsScannerTest].
 
 ## Dispatches
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| `event()`, `broadcast()`, `Event::dispatch()`, `dispatch()`, `dispatch_sync()`, `Bus::dispatch/dispatchSync/dispatchNow/dispatchAfterResponse()` | yes | [DispatchRuleMatcherTest] |
-| `X::dispatch/dispatchIf/dispatchUnless/dispatchSync/dispatchAfterResponse()` | yes; event or job decided at cross-link | [DispatchScannerTest] |
-| `Bus::chain([...])`, `Bus::batch([...])` | one site per literal item | [BusChainBatchEndToEndTest] |
-| `Queue::push/pushOn/later/laterOn/bulk`, `->afterResponse()` | yes, with a `mode` | [DispatchModeEndToEndTest] |
-| Queue, connection, integer delay, `afterCommit`, locale, mailer | yes, as `overrides` | [ChainModifierExtractorTest] |
-| Sites in methods and in closures within them (`DB::transaction`, `each`, `tap`) | owned by the enclosing method | [ClosureOwnershipPhaseTest] |
-| Closures passed to `Event::listen` or `Route::get` | owned by that listener or route | [ClosureOwnershipPhaseTest] |
-| Variable, concatenated, container and conditional targets | `unresolved_dispatches` | [DispatchSiteVisitorTest] |
-| `Queue::pushRaw`, `Queue::before/after/failing`, first-class callables, code outside a class or route closure, non-literal delays, modifiers in a separate statement | no | [DispatchSiteVisitorTest] |
+Loom reads these as dispatch sites:
+
+- `event()`, `broadcast()`, `Event::dispatch()`, `dispatch()`, `dispatch_sync()`, and `Bus::dispatch()`, `dispatchSync()`, `dispatchNow()` and `dispatchAfterResponse()`.
+- `X::dispatch()`, `dispatchIf()`, `dispatchUnless()`, `dispatchSync()` and `dispatchAfterResponse()`. Whether `X` is an event or a job is decided when the index is cross-linked.
+- `Bus::chain([...])` and `Bus::batch([...])`, one site per literal item.
+- `Queue::push()`, `pushOn()`, `later()`, `laterOn()` and `bulk()`, and `->afterResponse()`, recorded with a `mode`.
+- The chain modifiers queue, connection, integer delay, `afterCommit`, locale and mailer, recorded as `overrides`.
+
+| Where the call sits | Counted for |
+| --- | --- |
+| A class method, or a closure inside it (`DB::transaction(fn () => ...)`, `each`, `tap`, a closure held in a variable) | The enclosing method |
+| A closure passed to `Event::listen` or `Route::get` | That listener or route, not the enclosing method |
+
+Does not read: `Queue::pushRaw`, closures registered with `Queue::before`, `after` or `failing`, first-class callables (`$this->send(...)`), code outside a class or a route closure, non-literal delays, and modifiers set in a separate statement.
+
+`mode` comes from the call that was written. Loom does not evaluate `ShouldQueue` or the queue driver against it, so a `sync` driver is not reflected.
+
+Variable, concatenated, container-resolved and conditional targets are listed in `unresolved_dispatches`. A dispatcher fetched from the container (`app(Dispatcher::class)->dispatch(...)`) is not followed.
+
+Pinned by [DispatchRuleMatcherTest], [DispatchScannerTest], [BusChainBatchEndToEndTest], [DispatchModeEndToEndTest], [ChainModifierExtractorTest], [ClosureOwnershipPhaseTest], [DispatchSiteVisitorTest].
 
 ## Mailables and notifications
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| Classes in `app/Mail/`; `Mail::send/sendNow/queue/onQueue/queueOn/later/laterOn`, `Mail::to()/cc()/bcc()` chains | yes | [MailableScannerEndToEndTest] |
-| `Mail::raw()`, `->html()`, `->text()`, variable targets | no; variables are `unresolved_dispatches` | [DispatchRuleMatcherTest] |
-| Classes in `app/Notifications/`; `$x->notify()`, `notifyNow()`, `Notification::send/sendNow()`, `Notification::route(...)->notify()` | yes | [NotificationScannerEndToEndTest] |
-| Literal channel filter on `send` | yes, `channels` on the site | [NotificationScannerEndToEndTest] |
-| `via()` returning a literal array | yes, source order | [NotificationScannerTest] |
-| Conditional or computed `via()` | `channels_dynamic: true` | [NotificationScannerTest] |
-| Inherited `via()`, `shouldSend()`, message content, receiver types, facade modifiers before `send` | no | [NotificationScannerTest] |
+Loom reads these:
+
+- Mailables: classes in `app/Mail/`, and classes passed to `Mail::send()`, `sendNow()`, `queue()`, `onQueue()`, `queueOn()`, `later()` and `laterOn()`, including `Mail::to()`, `cc()` and `bcc()` chains.
+- Notifications: classes in `app/Notifications/`, and classes passed to `$x->notify()`, `notifyNow()`, `Notification::send()`, `sendNow()` and `Notification::route(...)->notify()`.
+- Channels from a `via()` that returns a literal array, in source order, and a literal channel filter on `send`, recorded as `channels` on the site.
+
+| Construct | What you get |
+| --- | --- |
+| Conditional or computed `via()` | `channels_dynamic: true` |
+
+Does not read: `Mail::raw()`, `->html()` and `->text()` sends, an inherited `via()`, `shouldSend()`, message content, receiver types and facade modifiers before `send`. Variable targets are listed in `unresolved_dispatches`.
+
+Pinned by [MailableScannerEndToEndTest], [NotificationScannerEndToEndTest], [NotificationScannerTest], [DispatchRuleMatcherTest].
 
 ## Schedule
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| `Kernel::schedule()`, `withSchedule()`, `routes/console.php`, `Schedule::call/command/job/exec` under `app/` | yes | [ScheduleScannerEndToEndTest] |
-| Frequency helpers, `cron()`, minutes arguments, `daysOfMonth`, `quarterlyOn` | yes, as `cron` | [ScheduleScannerTest] |
-| Sub-minute helpers | `frequency`, `cron: null` | [ScheduleScannerTest] |
-| `->group(...)`, nested, variable or facade form | yes, inner modifiers win | [ScheduleScannerTest] |
-| Day, time-window, `when`, `skip`, `environments`, common flags | `constraints` and booleans | [ScheduleScannerTest] |
-| Macros, unknown helpers, variable arguments | `cron: null` | [ScheduleScannerTest] |
-| `repeatEvery()`, `evenWhenPaused()`, ping and output hooks, closure bodies | no | [ScheduleScannerTest] |
+Loom reads these as scheduled tasks:
+
+- `Kernel::schedule()`, `->withSchedule()` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::call()`, `command()`, `job()` and `exec()` under the scan paths.
+- Frequency helpers, `cron()`, minute arguments, `daysOfMonth` and `quarterlyOn`, as `cron`.
+- Sub-minute helpers, as `frequency` with `cron: null`.
+- `->group(...)`, nested, in variable or facade form; the inner modifiers win.
+- Day, time-window, `when`, `skip`, `environments` and the common flags, as `constraints` and booleans.
+
+| Construct | What you get |
+| --- | --- |
+| Macros, unknown helpers, variable arguments | `cron: null` |
+
+Does not read: `repeatEvery()`, `evenWhenPaused()`, ping and output hooks, and closure bodies.
+
+Pinned by [ScheduleScannerEndToEndTest], [ScheduleScannerTest].
 
 ## Routes
 
-| Construct | Result | Test |
-| --- | --- | --- |
-| `Route::get/post/put/patch/delete/options/any/match` in `routes/` and loaded route files | yes; `match` is one route per verb | [RouteScannerTest] |
-| Files from `loadRoutesFrom()`, `Route::group()` with a path, `withRouting(web:, api:, commands:)` | yes, for a resolvable path | [RouteFileDiscoveryTest] |
-| Group prefix, name, controller, middleware, including the loading group | yes | [RouteGroupInheritanceTest] |
-| Tuple, invokable, `Class@method`, closure actions | yes | [RouteScannerTest] |
-| `Route::resource`, `apiResource`, `->only()`, `->except()` | yes | [RouteScannerTest] |
-| Events and jobs dispatched in the controller method or closure | yes, `dispatches` | [RouteScannerEndToEndTest] |
-| Middleware group and alias expansion, `withoutMiddleware` | no | [RouteChainMiddlewareTest] |
-| `names()`, `parameters()`, `scoped()`, `shallow()`, `Route::resources()`, attribute routes, variable actions | no | [RouteScannerTest] |
-| Computed, relative or out-of-root route file paths; non-literal group attributes | no; listed by `loom:scan -v` | [RouteFileDiscoveryTest] |
+Loom reads these as routes:
+
+- `Route::get()`, `post()`, `put()`, `patch()`, `delete()`, `options()`, `any()` and `match()`, in `routes/` and in route files that are loaded. `match()` gives one route per verb.
+- Route files loaded by `loadRoutesFrom()`, `Route::group()` with a path, or `withRouting(web:, api:, commands:)`, when the path is a literal, `__DIR__`, `__FILE__`, `DIRECTORY_SEPARATOR`, `dirname()`, `base_path()`, `app_path()` or a concatenation of these.
+- Groups with prefix, name, controller and middleware, including the group that loads a route file. `withRouting()` loads `web` under the `web` middleware and `api` under the `api` middleware with the `api` prefix.
+- Tuple, invokable, `Class@method` and closure actions.
+- `Route::resource()` and `apiResource()`, with `->only()` and `->except()`.
+- Events and jobs dispatched in the controller method, or in the closure of a closure route, as `dispatches`.
+
+Group middleware is what the chain ends up with: a second `->middleware()` on a group chain replaces the first, nested groups add the inner list after the outer one, and `->middleware()` calls on a single route accumulate. See [route groups](https://laravel.com/docs/routing#route-group-middleware).
+
+Does not read: middleware group and alias expansion, `withoutMiddleware`, `names()`, `parameters()`, `scoped()`, `shallow()`, `Route::resources()`, attribute routes and variable actions. Route files loaded from a computed, relative or out-of-root path are listed by `loom:scan -v`, as are non-literal group attributes. The loading group's `domain`, `where` and `namespace` are not recorded.
+
+`app_path()` is taken as `app/`; a `useAppPath()` override is a runtime change Loom cannot see.
+
+Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTest], [RouteChainMiddlewareTest], [RouteScannerEndToEndTest].
 
 ## Everywhere
 
-- Targets must be `::class` references, `new X` expressions or string literals. Variables, concatenation and container lookups do not resolve.
-- Loom walks [`scan.paths`](scan-config.md) and skips `scan.exclude`; `Events/`, `Jobs/` and the other convention directories resolve inside each scan path.
+- [`scan.paths`](scan-config.md) are walked and `scan.exclude` is skipped. `Events/`, `Jobs/` and the other convention directories resolve inside each scan path.
 - Classes are located through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class that is missing or outside the scan paths is dropped.
-- Files with syntax errors are skipped (`loom:scan -v` lists them), and `vendor/` is opaque: `queued` and `via()` inherited from a package do not show.
-- A handler's `dispatches[]` lists events and jobs from its registered method only. Mail and notification sends appear in `mailables[].sent_from` and `notifications[].notified_from`.
+- Files with syntax errors are skipped; `loom:scan` prints their count and `-v` lists them.
+- `vendor/` is opaque, so `queued` and `via()` inherited from a package do not show.
+- A handler's `dispatches[]` lists events and jobs from its registered method only: a dispatch inside a private helper that `handle()` calls is attributed to the event's `dispatched_from` but not to the listener, job or observer. Routes attribute by controller method. Mail and notification sends appear in `mailables[].sent_from` and `notifications[].notified_from` instead.
 
 [BusChainBatchEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/BusChainBatchEndToEndTest.php
 [ChainModifierExtractorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/Support/ChainModifierExtractorTest.php
