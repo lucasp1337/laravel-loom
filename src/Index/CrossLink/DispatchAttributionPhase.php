@@ -15,6 +15,10 @@ use Lucasp\Loom\Index\Sections;
  * {@see HandledByPhase}, resolved kinds from {@see AmbiguousDisambiguationPhase}
  * and the cleared closure tags from {@see ClosureOwnershipPhase}.
  *
+ * A site is attributed only when its enclosing method is the handler method
+ * itself: a dispatch in a helper that `handle()` calls is not attributed to
+ * the job, and a non-hook observer method gets none.
+ *
  * @internal
  */
 final class DispatchAttributionPhase implements CrossLinkPhase

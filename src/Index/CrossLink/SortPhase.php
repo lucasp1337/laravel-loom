@@ -9,7 +9,7 @@ use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Support\Sorting;
 
 /**
- * Final phase: puts every section, and every nested array that is a set
+ * Final phase, so every earlier phase can append in any order: puts every section, and every nested array that is a set
  * rather than an ordered list, into a total deterministic order so two scans
  * of identical source emit byte-identical JSON regardless of filesystem order.
  *

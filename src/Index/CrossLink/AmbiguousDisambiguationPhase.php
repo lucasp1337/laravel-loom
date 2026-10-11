@@ -11,7 +11,8 @@ use Lucasp\Loom\Index\Sections;
 /**
  * `X::dispatch()` is ambiguous (the Dispatchable trait covers both
  * events and jobs). Resolve each ambiguous site to `event` if its target is a
- * known event, else `job`, mutating the dispatch sites before any phase that reads their kind.
+ * known event, else `job`. Runs before attribution and `dispatched_from`,
+ * which read the finalized kind.
  *
  * @internal
  */

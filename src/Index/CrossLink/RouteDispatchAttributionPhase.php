@@ -9,10 +9,11 @@ use Lucasp\Loom\Index\Sections;
 
 /**
  * Attributes each dispatch site to the route(s) whose controller method
- * encloses it — populating `routes[*].dispatches[]`. Mirrors
- * {@see DispatchAttributionPhase}'s site handling (closure-internal sites are
- * excluded, the shared {@see DispatchEntry::fromSite} payload is reused) so a
- * controller-method dispatch surfaces identically on routes and on listeners.
+ * encloses it, populating `routes[*].dispatches[]`. A site owned by a closure
+ * goes to the closure route whose source span holds it; every other site
+ * matches by controller class and method. The payload is shared with
+ * {@see DispatchAttributionPhase}, so a dispatch surfaces identically on routes
+ * and on listeners.
  *
  * @internal
  */
