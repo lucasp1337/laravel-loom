@@ -1,6 +1,8 @@
 # Check rules and output formats
 
-Every flag, rule key, exit code and output format of `loom:check` and `loom:diff`. For a walkthrough, see [Gate your CI](../guides/gate-your-ci.md). Both commands read finished `index.json` files; they run no scanners.
+Every flag, rule key, exit code and output format of `loom:check` and `loom:diff`. For a walkthrough, see [Gate your CI](../guides/gate-your-ci.md).
+
+Both commands read finished `index.json` files. They run no scanners and don't need your source tree, so you can run them on an index downloaded from another job.
 
 ## Commands
 
@@ -9,7 +11,7 @@ php artisan loom:check {index?} {--baseline=} {--strict} {--skip=*} {--format=te
 php artisan loom:diff {old} {new} {--format=text}
 ```
 
-`index` defaults to `storage/loom/index.json`. For `loom:diff`, order matters: entries in `new` but not `old` are added, the reverse are removed.
+`index` defaults to `storage/loom/index.json`. For `loom:diff`, order matters: entries in `new` but not `old` are added, and entries in `old` but not `new` are removed.
 
 | Flag | Command | Effect |
 | --- | --- | --- |
@@ -20,66 +22,298 @@ php artisan loom:diff {old} {new} {--format=text}
 
 ## Rules
 
-The run fails if any rule that ran has a violation.
+A rule either passes or adds violations. The run fails if any rule that ran has one.
 
 | Key | Fails when | What to do |
 | --- | --- | --- |
-| `schema` | The index doesn't validate against the schema. | Re-run `loom:scan`; regenerate a hand-edited or foreign file. |
+| `schema` | The index doesn't validate against the Loom schema. | Re-run `loom:scan`. If the file was edited by hand or came from a different Loom version, regenerate it. |
 | `orphan-listeners` | A listener handles no events. | Type-hint the event on `handle()`, register the listener, or delete it. |
 | `orphan-events` | An event is never dispatched and never handled. | Delete it, or add the dispatch or listener that was meant to exist. |
 | `unresolved-dispatches` | See below. | Make the dispatched class a literal class name, or accept it into the baseline. |
 | `cyclic-dispatch` | A chain of dispatches loops back to its start. | Break one link in the reported chain. |
 
-`unresolved-dispatches` polices what a branch adds, not inherited debt:
+### Unresolved dispatches, baseline and strict
+
+`unresolved-dispatches` polices what a branch adds, not the debt it inherits.
 
 | Flags | Behaviour |
 | --- | --- |
-| Neither | No-op: growth can't be measured without a reference. |
+| Neither `--baseline` nor `--strict` | No-op. It passes because growth can't be measured without a reference. |
 | `--baseline=PATH` | Fails on any unresolved dispatch not in the baseline. |
-| `--strict` | Fails on every unresolved dispatch. |
+| `--strict` | Fails on every unresolved dispatch, whatever the baseline says. |
 
 !!! warning "A green gate can be enforcing nothing"
     Plain `loom:check` counts this rule as passed while checking nothing. With a baseline, entries match by file, line and expression, so moving code makes old entries look new.
 
-`cyclic-dispatch` builds a graph with a node per event and job and an edge wherever a handler dispatches another. It reports one representative cycle per back-edge, so fix the reported chain and re-run to surface the next.
+### Cycle detection
+
+`cyclic-dispatch` builds a graph with a node per event and job and an edge wherever a handler dispatches another. If a listener of `OrderPlaced` dispatches `InventoryAdjusted`, there is an edge `OrderPlaced → InventoryAdjusted`. Jobs join through their own dispatches.
+
+!!! note "One cycle per run"
+    It reports one representative cycle per back-edge, not every cycle in a tangled region. Fix the reported chain, re-run, and the next one surfaces.
 
 ## Exit codes
 
-| Command | Code | Meaning |
-| --- | --- | --- |
-| check | `0` | Every rule that ran passed. |
-| check | `1` | A rule found a violation. |
-| check | `2` | Nothing was checked: bad path, invalid JSON, unknown `--format` or `--skip` key. Fail the job too. |
-| diff | `0` | No semantic changes. |
-| diff | `1` | Changes exist. Not an error; fail only if drift should block. |
-| diff | `2` | A path isn't a file, the JSON is invalid, or `--format` is unknown. |
+| Command | Code | Meaning | What to do |
+| --- | --- | --- | --- |
+| check | `0` | Every rule that ran passed. | Nothing. |
+| check | `1` | A rule found a violation. | Fix it or change the policy. Fail the job. |
+| check | `2` | Nothing was checked: bad path, invalid JSON, unknown `--format`, unknown `--skip` key. | Fix the invocation. Fail the job too. |
+| diff | `0` | No semantic changes. | Nothing. |
+| diff | `1` | Changes exist. Not an error. | Post the diff. Fail only if you want drift to block. |
+| diff | `2` | A path isn't a file, the JSON is invalid, or `--format` is unknown. | Fix the invocation. |
 
 ## Check output
 
 The verdict is the same in every format.
 
-- **text**: rules with violations, then a count; a pass prints `All checks passed.`
+### text
 
-  ```text
-  orphan-events — Every event is dispatched or handled
-    ✗ Event App\Events\OrderCancelled is never dispatched and never handled.
-  cyclic-dispatch — No cyclic event/job dispatch chains
-    ✗ Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
-  2 violation(s) across 2 rule(s).
-  ```
+Rules with violations, then a count. A passing run prints `All checks passed.`
 
-- **json**: `{ "passed", "violation_count", "rules": [...] }`. Every rule appears, skipped ones included, as `{ "key", "description", "skipped", "violations": [{ "message", "context" }] }`, so a consumer can tell what was enforced. `context` carries `fqcn`, `file` and `line`, or `reason`, `file`, `line` and `expression` for unresolved dispatches, or `cycle` (a list of class names).
-- **markdown**: a `## loom:check` heading and one `###` section per failing rule with one bullet per violation, ready for a PR comment.
+```text
+orphan-listeners — Every listener handles at least one event
+  ✗ Listener App\Listeners\LegacyAudit handles no events.
+orphan-events — Every event is dispatched or handled
+  ✗ Event App\Events\OrderCancelled is never dispatched and never handled.
+unresolved-dispatches — No new unresolved dispatches (strict: none at all)
+  ✗ Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
+cyclic-dispatch — No cyclic event/job dispatch chains
+  ✗ Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
+4 violation(s) across 4 rule(s).
+```
+
+### json
+
+Every rule appears, including skipped ones, so a consumer can tell what was enforced. This run used `--baseline`:
+
+```json
+{
+    "passed": false,
+    "violation_count": 4,
+    "rules": [
+        {
+            "key": "schema",
+            "description": "Index validates against the JSON schema",
+            "skipped": false,
+            "violations": []
+        },
+        {
+            "key": "orphan-listeners",
+            "description": "Every listener handles at least one event",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Listener App\\Listeners\\LegacyAudit handles no events.",
+                    "context": {
+                        "fqcn": "App\\Listeners\\LegacyAudit",
+                        "file": "app/Listeners/LegacyAudit.php",
+                        "line": 5
+                    }
+                }
+            ]
+        },
+        {
+            "key": "orphan-events",
+            "description": "Every event is dispatched or handled",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Event App\\Events\\OrderCancelled is never dispatched and never handled.",
+                    "context": {
+                        "fqcn": "App\\Events\\OrderCancelled"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "unresolved-dispatches",
+            "description": "No new unresolved dispatches (strict: none at all)",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)",
+                    "context": {
+                        "reason": "dynamic_class_name",
+                        "file": "app/Services/Notifier.php",
+                        "line": 9,
+                        "expression": "event($eventClass)"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "cyclic-dispatch",
+            "description": "No cyclic event/job dispatch chains",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Cyclic dispatch: App\\Events\\InventoryAdjusted → App\\Events\\OrderPlaced → App\\Events\\InventoryAdjusted",
+                    "context": {
+                        "cycle": [
+                            "App\\Events\\InventoryAdjusted",
+                            "App\\Events\\OrderPlaced",
+                            "App\\Events\\InventoryAdjusted"
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}
+```
+
+`context` carries `fqcn` (plus `file` and `line` for a listener), `reason`, `file`, `line` and `expression` for an unresolved dispatch, or `cycle`, a list of class names. With `--skip=orphan-events`, that rule stays in the list but reports as skipped:
+
+```json
+{
+    "key": "orphan-events",
+    "description": "Every event is dispatched or handled",
+    "skipped": true,
+    "violations": []
+}
+```
+
+### markdown
+
+A `## loom:check` heading and one `###` section per failing rule, ready for a PR comment. A passing run prints `All checks passed.`
+
+```markdown
+## loom:check
+
+### orphan-listeners — Every listener handles at least one event
+- Listener App\Listeners\LegacyAudit handles no events.
+
+### orphan-events — Every event is dispatched or handled
+- Event App\Events\OrderCancelled is never dispatched and never handled.
+
+### unresolved-dispatches — No new unresolved dispatches (strict: none at all)
+- Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
+
+### cyclic-dispatch — No cyclic event/job dispatch chains
+- Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
+```
 
 ## Diff output
 
-Entries added, removed or changed, sorted, so the same pair of indexes always gives the same output. No changes prints `No semantic changes.` (text, markdown) or `{}` (json).
+`loom:diff` reports entries added, removed or changed, sorted, so the same pair of indexes always produces identical output. No changes prints `No semantic changes.` (text, markdown) or `{}` (json).
 
-- **text**: `+` added, `-` removed, `~` changed with changed members under it. Added and removed entries print as the full JSON entry.
-- **json**: per section `{ "added", "removed", "changed" }`; empty sections are omitted. A changed entry is `{ "identity", "field_changes", "sublist_changes": [{ "field", "added", "removed" }] }`.
-- **markdown**: a `##` heading per section; field changes use `→` and members are prefixed `+` or `-`.
+### text
 
-`scanned_at`, `loom_version`, `laravel_version` and `stats` are ignored. Entries are matched by identity:
+`+` added, `-` removed, `~` changed, with the changed cross-link members listed under it. Added and removed entries print as the full JSON entry. This diff comes from a branch that added two events, three listeners and an unresolved dispatch (the `listeners` section is left out here):
+
+```text
+events
+  + {"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":5,"dispatched_from":[{"file":"app/Listeners/ReserveStock.php","line":12,"method":"App\\Listeners\\ReserveStock::handle"}],"handled_by":[{"listener":"App\\Listeners\\RecountStock","method":"handle"}]}
+  + {"id":"App\\Events\\OrderCancelled","fqcn":"App\\Events\\OrderCancelled","kind":"class","file":"app/Events/OrderCancelled.php","line":5,"dispatched_from":[],"handled_by":[]}
+  ~ App\Events\OrderPlaced
+      handled_by:
+        + {"listener":"App\\Listeners\\ReserveStock","method":"handle"}
+      dispatched_from:
+        + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
+
+unresolved_dispatches
+  + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
+```
+
+### json
+
+Empty sections are omitted. Each section has `added`, `removed` and `changed`. Added and removed entries carry the full entry, so a consumer never reopens the source files. Here the `RecountStock` listener was deleted:
+
+```json
+{
+    "events": {
+        "added": [],
+        "removed": [],
+        "changed": [
+            {
+                "identity": "App\\Events\\InventoryAdjusted",
+                "field_changes": [],
+                "sublist_changes": [
+                    {
+                        "field": "handled_by",
+                        "added": [],
+                        "removed": [
+                            {
+                                "listener": "App\\Listeners\\RecountStock",
+                                "method": "handle"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "identity": "App\\Events\\OrderPlaced",
+                "field_changes": [],
+                "sublist_changes": [
+                    {
+                        "field": "dispatched_from",
+                        "added": [],
+                        "removed": [
+                            {
+                                "file": "app/Listeners/RecountStock.php",
+                                "line": 12,
+                                "method": "App\\Listeners\\RecountStock::handle"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "listeners": {
+        "added": [],
+        "removed": [
+            {
+                "fqcn": "App\\Listeners\\RecountStock",
+                "file": "app/Listeners/RecountStock.php",
+                "line": 8,
+                "handles": [
+                    {
+                        "event": "App\\Events\\InventoryAdjusted",
+                        "method": "handle"
+                    }
+                ],
+                "registration": "auto_discovered",
+                "queued": false,
+                "dispatches": [
+                    {
+                        "target": "App\\Events\\OrderPlaced",
+                        "kind": "event",
+                        "confidence": "high",
+                        "file": "app/Listeners/RecountStock.php",
+                        "line": 12
+                    }
+                ]
+            }
+        ],
+        "changed": []
+    }
+}
+```
+
+### markdown
+
+A `##` heading per section. Field changes use `→` and members are prefixed `+` or `-`. The same change as above:
+
+```markdown
+## events
+
+- **changed** `App\Events\InventoryAdjusted`
+  - `handled_by`:
+    - `-` `{"listener":"App\\Listeners\\RecountStock","method":"handle"}`
+- **changed** `App\Events\OrderPlaced`
+  - `dispatched_from`:
+    - `-` `{"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}`
+
+## listeners
+
+- **removed** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"auto_discovered","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
+```
+
+## What the diff compares
+
+`scanned_at`, `loom_version`, `laravel_version` and the whole `stats` block are ignored, so two scans that differ only in those produce an empty diff. Entries are matched by identity, which is how a diff tells "changed" from "removed and re-added".
 
 | Section | Matched by |
 | --- | --- |
@@ -90,4 +324,9 @@ Entries added, removed or changed, sorted, so the same pair of indexes always gi
 | unresolved_dispatches | `file`, `line`, `expression` |
 | closure_listeners | `file`, `line`, `event`, `registration` |
 
-Cross-link arrays (`handled_by`, `handles`, `dispatches`, `dispatched_from` and similar) compare by membership. Reordering `notifications.channels` counts as a change, since delivery order can matter, and closure listeners are add or remove only. Field shapes are in the [schema reference](schema.md).
+Cross-link arrays (`handled_by`, `handles`, `dispatches`, `dispatched_from` and similar) compare by membership: a member is added or removed, never edited in place.
+
+!!! note "Two exceptions"
+    Reordering `notifications.channels` counts as a change, since delivery order can matter. Closure listeners are add or remove only, because a closure has no class name to match on.
+
+Field shapes for each section are in the [schema reference](schema.md).
