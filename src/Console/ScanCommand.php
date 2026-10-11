@@ -27,10 +27,10 @@ use Lucasp\Loom\Support\ScanScope;
 class ScanCommand extends Command
 {
     protected $signature = 'loom:scan
-        {--output= : Write the index here instead of the configured index_path}
-        {--path=* : Scan this directory (relative to the project root, repeatable) instead of scan.paths}
-        {--route-path=* : Read routes from this directory (relative to the project root, repeatable) instead of scan.route_paths}
-        {--no-discover-routes : Do not follow route-file loading calls for this run (overrides scan.discover_routes)}';
+        {--output= : Write the index here instead of the configured index_path. A relative path resolves from the project root. The MCP server and UI keep reading index_path}
+        {--path=* : Scan this directory instead of scan.paths. Relative to the project root; glob patterns allowed}
+        {--route-path=* : Read routes from this directory instead of scan.route_paths. Same rules as --path}
+        {--no-discover-routes : Do not follow route-file loading calls for this run, as if scan.discover_routes were false. Wins over the config value}';
 
     protected $description = 'Scan the application and write the index (default storage/loom/index.json)';
 

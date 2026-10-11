@@ -11,7 +11,7 @@ use Lucasp\Loom\Support\IndexPath;
 /** @internal */
 class ShowCommand extends Command
 {
-    protected $signature = 'loom:show {filter? : Optional FQCN substring filter}';
+    protected $signature = 'loom:show {filter? : Optional substring (a class or method name); keeps only events, listeners, observers and model_events entries whose JSON text contains it}';
 
     protected $description = 'Print the Loom index, optionally filtered by FQCN substring';
 

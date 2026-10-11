@@ -19,6 +19,8 @@ Rules for consumer docs:
 
 The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `vendor/bin/pest`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
 
+Reference pages carry generated regions: a block between `<!-- generated:NAME -->` and `<!-- /generated:NAME -->` markers, built from `schema/loom-index.schema.json`, the MCP tool classes, `config/loom.php` and the Artisan command signatures. After changing any of those, run `just docs-generate`; `just docs-check` (and `tests/Docs/ReferenceDriftTest.php`) fails when a committed page is stale. The full steps and how to add a region are under [Documentation site](#documentation-site).
+
 ## Prerequisites
 
 - PHP **8.3+** with `ext-mbstring`, `ext-xml`, `ext-dom`, `ext-xmlwriter`
@@ -75,9 +77,27 @@ docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest
 The `docs/` tree is published as a [Zensical](https://zensical.org/) site. It builds straight from these Markdown files — editing docs is just editing Markdown, no extra step.
 
 ```bash
-just docs-serve      # live-reload preview at http://localhost:8000
-just docs-build      # strict build into ./site (fails on broken links)
+just docs-generate   # refresh the generated regions
+just docs-check      # fail if a generated region drifted from its source; writes nothing
+just docs-serve      # regenerate, then live-reload preview at http://localhost:8000
+just docs-build      # check, then strict build from a scratch copy (fails on broken links)
 ```
+
+`composer docs:generate` and `composer docs:check` run the same script without Docker.
+
+### Generated regions
+
+Sources in `tools/Pages/` implement `RegionSource` and return page-independent regions (`name => markdown`); they never name a page. A page shows a region wherever it carries the marker pair, and one region may appear on several pages:
+
+```markdown
+<!-- generated:command:loom:check -->
+<!-- /generated:command:loom:check -->
+```
+
+- To show a region on another page, add the marker pair there and run `just docs-generate`.
+- To add a region, return a `GeneratedRegion` from a source. Fixed names are cases of `Regions\Region`; families use `Regions\RegionPrefix` plus a key. Marker syntax lives only in `Regions\Markers`.
+- To add a source, add a class in `tools/Pages/` implementing `RegionSource` with a `SourceContext` constructor; it is discovered automatically. Hand-written prose for a source lives in typed classes under `tools/Reference/`.
+- The generator fails on a marker no source produces, a region placed on no page, and unbalanced, nested, duplicate or malformed markers.
 
 The site is published by the `Docs` GitHub Pages workflow only, which runs on `workflow_dispatch` or a published release; nothing publishes from a local machine. The look is `docs/stylesheets/loom.css` plus the home-page template in `overrides/`. `nav` and theme options live in `mkdocs.yml` at the repo root, which Zensical reads directly.
 

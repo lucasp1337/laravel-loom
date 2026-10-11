@@ -93,7 +93,7 @@ nav:
       - MCP tools: reference/mcp-tools.md
       - Schema: reference/schema.md
       - PHP API: reference/php-api.md
-      - UI configuration: reference/ui-config.md
+      - Index, UI and MCP configuration: reference/ui-config.md
       - Scan configuration: reference/scan-config.md
       - What Loom detects: reference/what-loom-detects.md
   - Contributing:
