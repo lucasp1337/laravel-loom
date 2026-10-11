@@ -14,6 +14,7 @@ use Lucasp\Loom\Index\CrossLink\DispatchedFromPhase;
 use Lucasp\Loom\Index\CrossLink\HandledByPhase;
 use Lucasp\Loom\Index\CrossLink\RouteDispatchAttributionPhase;
 use Lucasp\Loom\Index\CrossLink\SortPhase;
+use Lucasp\Loom\Index\CrossLink\UnindexedTargetPhase;
 
 /**
  * Runs the cross-link pass: an ordered list of {@see CrossLinkPhase}s that
@@ -41,6 +42,7 @@ final class CrossLinker
         $this->phases = $phases ?? [
             new HandledByPhase,
             new AmbiguousDisambiguationPhase,
+            new UnindexedTargetPhase,
             new ClosureOwnershipPhase,
             new DispatchAttributionPhase,
             new ClosureDispatchAttributionPhase,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DispatchScanner;
 use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\JobsScanner;
 use Lucasp\Loom\Scanners\ListenerScanner;
 use Lucasp\Loom\Scanners\ObserverScanner;
 
@@ -19,6 +20,7 @@ function buildDispatchEndToEndPayload(): array
     $builder->register(new EventScanner);
     $builder->register(new ListenerScanner);
     $builder->register(new ObserverScanner);
+    $builder->register(new JobsScanner);
     $builder->register(new DispatchScanner);
 
     return $builder->build(dispatchEndToEndFixturePath(), '12.x')->toArray();
@@ -38,11 +40,12 @@ function dispatchEntryByFqcn(array $entries, string $fqcn): ?array
     return null;
 }
 
-it('produces a schema-valid index with all four scanners registered', function () {
+it('produces a schema-valid index with every dispatch scanner registered', function () {
     $builder = new IndexBuilder;
     $builder->register(new EventScanner);
     $builder->register(new ListenerScanner);
     $builder->register(new ObserverScanner);
+    $builder->register(new JobsScanner);
     $builder->register(new DispatchScanner);
 
     $payload = $builder->build(dispatchEndToEndFixturePath(), '12.x')->toArray();
@@ -157,12 +160,26 @@ it('populates events[InventoryAdjusted].dispatched_from from the listener', func
 it('records the unresolved_dispatches with file, line, expression, reason', function () {
     $payload = buildDispatchEndToEndPayload();
 
-    expect($payload['unresolved_dispatches'])->toHaveCount(2);
+    expect($payload['unresolved_dispatches'])->toHaveCount(3);
 
     foreach ($payload['unresolved_dispatches'] as $entry) {
         expect($entry)->toHaveKeys(['file', 'line', 'expression', 'reason']);
-        expect($entry['file'])->toBe('app/Services/Checkout.php');
     }
+
+    $byReason = collect($payload['unresolved_dispatches'])->groupBy('reason');
+    expect($byReason['dynamic_class_name'][0]['file'])->toBe('app/Services/Checkout.php')
+        ->and($byReason['string_concatenation'][0]['file'])->toBe('app/Services/Checkout.php');
+});
+
+it('reports a dispatch whose target class has no row as target_not_indexed, never in dispatches[]', function () {
+    $payload = buildDispatchEndToEndPayload();
+
+    $entry = collect($payload['unresolved_dispatches'])->firstWhere('reason', 'target_not_indexed');
+    expect($entry['file'])->toBe('app/Listeners/SendOrderConfirmation.php')
+        ->and($entry['expression'])->toContain('SomeEvent');
+
+    $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\SendOrderConfirmation');
+    expect(array_column($listener['dispatches'], 'target'))->not->toContain('App\\Events\\SomeEvent');
 });
 
 it('attributes dispatches in non-handle() methods listed in handles[*].method', function () {
@@ -213,5 +230,5 @@ it('matches the expected stats counts', function () {
     expect($payload['stats']['events'])->toBe(3);
     expect($payload['stats']['listeners'])->toBe(2);
     expect($payload['stats']['observers'])->toBe(1);
-    expect($payload['stats']['unresolved_dispatches'])->toBe(2);
+    expect($payload['stats']['unresolved_dispatches'])->toBe(3);
 });

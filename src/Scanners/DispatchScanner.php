@@ -15,6 +15,7 @@ use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\ScanScope;
 
 /**
@@ -128,6 +129,7 @@ final class DispatchScanner implements Scanner
             provisionalKind: DispatchKinds::EVENT,
             file: $file,
             line: $mapping->line,
+            expression: "\$dispatchesEvents['{$mapping->hook}'] => ".Fqcn::short($mapping->eventFqcn).'::class',
         );
     }
 }

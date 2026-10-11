@@ -47,5 +47,10 @@ final class DispatchSiteRecord
          * (stripped before schema validation).
          */
         public readonly bool $inClosure = false,
+        /**
+         * Pretty-printed source of the dispatching call; the cross-link pass
+         * reports it when the target has no section row.
+         */
+        public readonly ?string $expression = null,
     ) {}
 }

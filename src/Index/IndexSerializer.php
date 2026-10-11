@@ -112,6 +112,11 @@ final class IndexSerializer
         // others. Carried on `_dispatch_sites`, stripped before schema validation.
         $out['inClosure'] = $e->inClosure;
 
+        // Internal-only: source of the call, for the target-not-indexed report.
+        if ($e->expression !== null) {
+            $out[Field::EXPRESSION->value] = $e->expression;
+        }
+
         return $out;
     }
 

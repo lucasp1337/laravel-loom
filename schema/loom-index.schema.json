@@ -472,11 +472,11 @@
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "FQCN of the dispatched event or job."
+                    "description": "FQCN of the dispatched event, job, mailable or notification."
                 },
                 "kind": {
-                    "enum": ["event", "job"],
-                    "description": "Whether the target is an event or a job."
+                    "enum": ["event", "job", "mailable", "notification"],
+                    "description": "Whether the target is an event, a job, a mailable or a notification."
                 },
                 "confidence": {
                     "enum": ["high", "medium", "low"],

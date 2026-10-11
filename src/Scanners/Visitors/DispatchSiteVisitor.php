@@ -170,6 +170,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             overrides: $this->overridesFrom($outerLinks),
             mode: $rule->mode ?? ChainModifierExtractor::mode($outerLinks),
             inClosure: $this->inClosure(),
+            expression: $this->renderExpression($call->node(), $rule->label()),
         );
     }
 
@@ -230,6 +231,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
                 // Only the facade form takes a channel filter argument.
                 channels: $rule->channelsAt !== null ? $this->channelFilterFrom($args, $rule->channelsAt) : null,
                 inClosure: $this->inClosure(),
+                expression: $this->renderExpression($call->node(), $rule->label()),
             );
 
             return;
@@ -376,6 +378,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             // `->afterResponse()` exists only on PendingDispatch, never on event().
             mode: $rule->mode ?? ($rule->kind === DispatchKinds::EVENT ? null : ChainModifierExtractor::mode($outerLinks)),
             inClosure: $this->inClosure(),
+            expression: $this->renderExpression($call->node(), $rule->label()),
         );
     }
 

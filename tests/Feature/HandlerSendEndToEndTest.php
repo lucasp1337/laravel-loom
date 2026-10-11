@@ -24,7 +24,7 @@ it('scans mail/notification sends made from handlers into a schema-valid index',
     expect($builder->validate($payload))->toBe([]);
 });
 
-it('keeps mailable/notification kinds out of every handler dispatches[]', function () {
+it('lists mailable and notification sends in handler dispatches[]', function () {
     [, $payload] = buildHandlerSendPayload();
 
     $kinds = [];
@@ -36,7 +36,9 @@ it('keeps mailable/notification kinds out of every handler dispatches[]', functi
         }
     }
 
-    expect(array_diff($kinds, ['event', 'job']))->toBe([]);
+    expect(array_diff($kinds, ['event', 'job', 'mailable', 'notification']))->toBe([])
+        ->and($kinds)->toContain('mailable')
+        ->and($kinds)->toContain('notification');
 });
 
 it('still records handler sends in sent_from and notified_from', function () {
