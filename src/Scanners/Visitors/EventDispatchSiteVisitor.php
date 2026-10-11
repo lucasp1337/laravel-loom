@@ -21,6 +21,8 @@ use PhpParser\Node;
  */
 final class EventDispatchSiteVisitor extends CollectingVisitor
 {
+    use TracksClassScope;
+
     /** @var list<EventDispatchTarget> */
     private array $targets = [];
 
@@ -36,8 +38,17 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
         $this->targets = [];
     }
 
+    public function enterNode(Node $node): null
+    {
+        $this->enterClassScope($node);
+
+        return null;
+    }
+
     public function leaveNode(Node $node): null
     {
+        $this->leaveClassScope($node);
+
         $call = CallSite::of($node);
         $rule = $call !== null ? $this->matcher->match($call) : null;
         if ($call === null || $rule === null) {
@@ -46,9 +57,9 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
 
         $fqcn = match ($rule->target) {
             // `event($e)`, `Event::dispatch($e)`: the first argument's class
-            DispatchTarget::PENDING_ARGUMENT => ClassRef::fromInstanceOrConstant($call->args()->valueAt($rule->argIndex)),
+            DispatchTarget::PENDING_ARGUMENT => $this->resolveClassName(ClassRef::fromInstanceOrConstant($call->args()->valueAt($rule->argIndex))),
             // `X::dispatch(...)`: the class itself
-            DispatchTarget::STATIC_CLASS => $call->className(),
+            DispatchTarget::STATIC_CLASS => $this->resolveClassName($call->className()),
             DispatchTarget::ARGUMENT, DispatchTarget::LIST_ITEMS => null,
         };
 

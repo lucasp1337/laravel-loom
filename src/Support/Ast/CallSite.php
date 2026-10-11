@@ -7,22 +7,22 @@ namespace Lucasp\Loom\Support\Ast;
 use PhpParser\Node;
 
 /**
- * A method call, static call, function call or `new` expression, read through
- * one shape. Nullsafe calls (`$x?->m()`) are a different php-parser node and
- * are not call sites.
+ * A method call (nullsafe `$x?->m()` included), static call, function call or
+ * `new` expression, read through one shape.
  *
  * @internal
  */
 final readonly class CallSite
 {
     private function __construct(
-        private Node\Expr\MethodCall|Node\Expr\StaticCall|Node\Expr\FuncCall|Node\Expr\New_ $node,
+        private Node\Expr\MethodCall|Node\Expr\NullsafeMethodCall|Node\Expr\StaticCall|Node\Expr\FuncCall|Node\Expr\New_ $node,
     ) {}
 
     /** Wrap $node, or null when it is not one of the four call shapes. */
     public static function of(Node $node): ?self
     {
         if ($node instanceof Node\Expr\MethodCall
+            || $node instanceof Node\Expr\NullsafeMethodCall
             || $node instanceof Node\Expr\StaticCall
             || $node instanceof Node\Expr\FuncCall
             || $node instanceof Node\Expr\New_
@@ -33,7 +33,7 @@ final readonly class CallSite
         return null;
     }
 
-    public function node(): Node\Expr\MethodCall|Node\Expr\StaticCall|Node\Expr\FuncCall|Node\Expr\New_
+    public function node(): Node\Expr\MethodCall|Node\Expr\NullsafeMethodCall|Node\Expr\StaticCall|Node\Expr\FuncCall|Node\Expr\New_
     {
         return $this->node;
     }
@@ -41,8 +41,8 @@ final readonly class CallSite
     public function kind(): CallKind
     {
         return match (true) {
-            // `$x->m()`
-            $this->node instanceof Node\Expr\MethodCall => CallKind::METHOD,
+            // `$x->m()`, `$x?->m()`
+            $this->node instanceof Node\Expr\MethodCall, $this->node instanceof Node\Expr\NullsafeMethodCall => CallKind::METHOD,
             // `X::m()`
             $this->node instanceof Node\Expr\StaticCall => CallKind::STATIC,
             // `f()`
@@ -73,8 +73,8 @@ final readonly class CallSite
     public function receiver(): Node\Expr|Node\Name|null
     {
         return match (true) {
-            // `$var->m()`: the object expression
-            $this->node instanceof Node\Expr\MethodCall => $this->node->var,
+            // `$var->m()`, `$var?->m()`: the object expression
+            $this->node instanceof Node\Expr\MethodCall, $this->node instanceof Node\Expr\NullsafeMethodCall => $this->node->var,
             // `X::m()`: the class name (or a dynamic class expression)
             $this->node instanceof Node\Expr\StaticCall => $this->node->class,
             // `new X`: the class; an anonymous class has no receiver
@@ -97,6 +97,12 @@ final readonly class CallSite
         return $this->node->class instanceof Node\Name ? $this->node->class->toString() : null;
     }
 
+    /** True for a static call whose class is an expression (`$class::m()`, `$this->model::m()`). */
+    public function hasDynamicClass(): bool
+    {
+        return $this->node instanceof Node\Expr\StaticCall && $this->node->class instanceof Node\Expr;
+    }
+
     /**
      * The leftmost call of this call's receiver chain: follows `->var` through
      * method calls and returns the first call that is not one. Null when the
@@ -105,7 +111,7 @@ final readonly class CallSite
     public function chainRoot(): ?self
     {
         $site = $this;
-        while ($site !== null && $site->node instanceof Node\Expr\MethodCall) {
+        while ($site !== null && ($site->node instanceof Node\Expr\MethodCall || $site->node instanceof Node\Expr\NullsafeMethodCall)) {
             $site = self::of($site->node->var);
         }
 
@@ -133,7 +139,7 @@ final readonly class CallSite
             if ($current === $target) {
                 return true;
             }
-            $current = $current instanceof Node\Expr\MethodCall ? $current->var : null;
+            $current = $current instanceof Node\Expr\MethodCall || $current instanceof Node\Expr\NullsafeMethodCall ? $current->var : null;
         }
 
         return false;

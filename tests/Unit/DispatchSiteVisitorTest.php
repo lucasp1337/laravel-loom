@@ -1398,16 +1398,75 @@ function runDispatchBody(string $body): array
     PHP);
 }
 
-it('records static:: and self:: dispatch forms with the keyword as target', function (string $call, string $target) {
-    [$sites] = runDispatchBody($call);
+function runDispatchInClass(string $classHeader, string $body): array
+{
+    return runDispatchSiteVisitor(<<<PHP
+    <?php
+    namespace App\Jobs;
+    {$classHeader} {
+        public function handle(\$id, \$class): void
+        {
+            {$body}
+        }
+    }
+    PHP);
+}
+
+it('resolves self:: and static:: dispatch forms to the enclosing class', function (string $call) {
+    [$sites, $unresolved] = runDispatchInClass('final class Recompute', $call);
+
+    expect($unresolved)->toBe([])
+        ->and($sites)->toHaveCount(1)
+        ->and($sites[0]->target)->toBe('App\\Jobs\\Recompute')
+        ->and($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE)
+        ->and($sites[0]->method)->toBe('handle');
+})->with([
+    'static' => ['static::dispatch($id);'],
+    'self' => ['self::dispatch($id);'],
+    'self dispatchSync' => ['self::dispatchSync($id);'],
+    'self dispatchIf' => ['self::dispatchIf($id, $id);'],
+    'upper case' => ['SELF::dispatch($id);'],
+]);
+
+it('resolves parent:: to the extended class', function () {
+    [$sites] = runDispatchInClass('class Child extends \\App\\Jobs\\Base', 'parent::dispatch($id);');
 
     expect($sites)->toHaveCount(1)
-        ->and($sites[0]->target)->toBe($target)
-        ->and($sites[0]->form)->toBe(DispatchForm::DISPATCHABLE);
-})->with([
-    'static' => ['static::dispatch();', 'static'],
-    'self' => ['self::dispatch();', 'self'],
-]);
+        ->and($sites[0]->target)->toBe('App\\Jobs\\Base');
+});
+
+it('resolves new self and self::class arguments to the enclosing class', function () {
+    [$sites] = runDispatchInClass('class Recompute', 'dispatch(new self); dispatch(static::class);');
+
+    expect($sites)->toHaveCount(2)
+        ->and($sites[0]->target)->toBe('App\\Jobs\\Recompute')
+        ->and($sites[1]->target)->toBe('App\\Jobs\\Recompute');
+});
+
+it('reports parent:: with no parent class as unresolved', function () {
+    [$sites, $unresolved] = runDispatchInClass('class Recompute', 'parent::dispatch($id);');
+
+    expect($sites)->toBe([])
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
+
+it('reports self:: inside a trait as unresolved', function () {
+    [$sites, $unresolved] = runDispatchInClass('trait Dispatches', 'self::dispatch($id);');
+
+    expect($sites)->toBe([])
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
+
+it('reports a variable class dispatch as dynamic_class_name', function () {
+    [$sites, $unresolved] = runDispatchInClass('class Recompute', '$class::dispatch($id);');
+
+    expect($sites)->toBe([])
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('dynamic_class_name')
+        ->and($unresolved[0]->expression)->toBe('$class::dispatch($id)');
+});
 
 it('treats a facade outside the rule table as a Dispatchable class', function () {
     [$sites] = runDispatchBody('Route::dispatch(new Ship);');
@@ -1445,10 +1504,20 @@ it('reads a modifier off any ->notify() receiver chain', function () {
         ->and($sites[0]->overrides->locale)->toBe('fr');
 });
 
-it('ignores a nullsafe ->notify()', function () {
-    [$sites] = runDispatchBody('$u?->notify(new Paid);');
+it('records a nullsafe ->notify() and ->notifyNow()', function () {
+    [$sites] = runDispatchBody('$u?->team?->notify(new Paid); $u?->notifyNow(new Paid);');
 
-    expect($sites)->toBe([]);
+    expect($sites)->toHaveCount(2)
+        ->and($sites[0]->form)->toBe(DispatchForm::NOTIFY_METHOD)
+        ->and($sites[0]->provisionalKind)->toBe(DispatchKinds::NOTIFICATION)
+        ->and($sites[1]->mode)->toBe(DispatchMode::SYNC);
+});
+
+it('reads a modifier off a nullsafe receiver chain', function () {
+    [$sites] = runDispatchBody("\$u?->locale('fr')->notify(new Paid);");
+
+    expect($sites)->toHaveCount(1)
+        ->and($sites[0]->overrides->locale)->toBe('fr');
 });
 
 it('roots a Mail chain through a dynamic link', function () {

@@ -31,7 +31,7 @@ final readonly class CallChain
 
         while (true) {
             // `$receiver->method(...)`: a link, then keep descending the receiver
-            if ($current instanceof Node\Expr\MethodCall) {
+            if ($current instanceof Node\Expr\MethodCall || $current instanceof Node\Expr\NullsafeMethodCall) {
                 if (! $current->name instanceof Node\Identifier) {
                     return null;
                 }
@@ -78,7 +78,7 @@ final readonly class CallChain
         $current = $outer;
 
         // `$receiver->method(...)`: collect, then keep descending the receiver
-        while ($current instanceof Node\Expr\MethodCall) {
+        while ($current instanceof Node\Expr\MethodCall || $current instanceof Node\Expr\NullsafeMethodCall) {
             $site = CallSite::of($current);
             if ($site !== null) {
                 array_unshift($links, $site);

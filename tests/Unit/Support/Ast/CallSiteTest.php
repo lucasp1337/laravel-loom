@@ -58,9 +58,17 @@ it('returns a null name for dynamic callees', function () {
         ->and(CallSite::of(parseExpr('new $class'))?->name())->toBeNull();
 });
 
-it('does not treat nullsafe calls or other expressions as call sites', function () {
-    expect(CallSite::of(parseExpr('$o?->m()')))->toBeNull()
-        ->and(CallSite::of(parseExpr('$x')))->toBeNull()
+it('reads a nullsafe method call as a method call', function () {
+    $site = CallSite::of(parseExpr('$o?->notify($n)'));
+
+    expect($site?->kind())->toBe(CallKind::METHOD)
+        ->and($site?->name())->toBe('notify')
+        ->and($site?->receiver())->toBeInstanceOf(\PhpParser\Node\Expr\Variable::class)
+        ->and($site?->chainRoot())->toBeNull();
+});
+
+it('does not treat other expressions as call sites', function () {
+    expect(CallSite::of(parseExpr('$x')))->toBeNull()
         ->and(CallSite::of(parseExpr('Foo::class')))->toBeNull();
 });
 

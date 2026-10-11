@@ -77,7 +77,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     public function enterNode(Node $node): null
     {
-        if ($node instanceof Node\Expr\MethodCall) {
+        if ($node instanceof Node\Expr\MethodCall || $node instanceof Node\Expr\NullsafeMethodCall) {
             $site = CallSite::of($node);
             if ($site !== null) {
                 $this->methodCallStack[] = $site;
@@ -103,7 +103,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             }
         }
 
-        if ($node instanceof Node\Expr\MethodCall) {
+        if ($node instanceof Node\Expr\MethodCall || $node instanceof Node\Expr\NullsafeMethodCall) {
             // Pop AFTER handling: this MethodCall may itself be an outer-chain
             // modifier wrapping a dispatch call that was recorded earlier (its
             // child leaveNode ran first), so it had to stay on the stack while
@@ -140,8 +140,19 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $className = $call->className();
+        // `$class::dispatch()`: a class held in a variable
+        $receiver = $call->receiver();
+        if ($call->hasDynamicClass() && $receiver instanceof Node\Expr) {
+            $this->recordUnresolved($call, $receiver, $rule);
+
+            return;
+        }
+
+        $className = $this->resolveClassName($call->className());
         if ($className === null) {
+            // `self::` in a trait or anonymous class, `parent::` with no parent: no class to name
+            $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_CLASS_NAME);
+
             return;
         }
 
@@ -192,7 +203,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $resolved = ClassRef::fromInstanceOrConstant($argValue);
+        $resolved = $this->classRef($argValue);
 
         if ($resolved !== null) {
             if ($this->shouldSkipResolved()) {
@@ -234,15 +245,15 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
-        $resolved = ClassRef::fromInstanceOrConstant($first);
+        $resolved = $this->classRef($first);
 
         // Ternary with two statically resolvable branches: emit both.
         if ($resolved === null && $first instanceof Node\Expr\Ternary) {
             $ifBranch = $first->if;
 
             if ($ifBranch !== null) {
-                $ifFqcn = ClassRef::fromInstanceOrConstant($ifBranch);
-                $elseFqcn = ClassRef::fromInstanceOrConstant($first->else);
+                $ifFqcn = $this->classRef($ifBranch);
+                $elseFqcn = $this->classRef($first->else);
 
                 if ($ifFqcn !== null && $elseFqcn !== null) {
                     $this->emitResolved($call, $rule, $ifFqcn, $ifBranch);
@@ -281,7 +292,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         foreach ($first->items as $item) {
             $value = $item->value;
-            $resolved = ClassRef::fromInstanceOrConstant($value);
+            $resolved = $this->classRef($value);
             if ($resolved !== null && ! $item->unpack) {
                 $this->emitResolved($call, $rule, $resolved, $value);
 
@@ -294,6 +305,11 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private function recordUnresolved(CallSite $call, Node\Expr $value, DispatchRule $rule): void
     {
+        $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::from($this->classifyUnresolvedReason($value)));
+    }
+
+    private function recordUnresolvedWithReason(CallSite $call, DispatchRule $rule, UnresolvedReason $reason): void
+    {
         if ($this->shouldSkipUnresolved()) {
             return;
         }
@@ -302,8 +318,14 @@ final class DispatchSiteVisitor extends CollectingVisitor
             file: null,
             line: $call->line(),
             expression: $this->renderExpression($call->node(), $rule->label()),
-            reason: $this->classifyUnresolvedReason($value),
+            reason: $reason->value,
         );
+    }
+
+    /** `new X` / `X::class` as an FQCN, with `self` / `static` / `parent` resolved against the enclosing class. */
+    private function classRef(?Node $expr): ?string
+    {
+        return $this->resolveClassName(ClassRef::fromInstanceOrConstant($expr));
     }
 
     private function emitResolved(CallSite $call, DispatchRule $rule, string $targetFqcn, Node\Expr $argValue): void

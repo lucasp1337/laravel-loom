@@ -69,7 +69,8 @@ final class DispatchRuleMatcher
     {
         $class = $call->className();
         if ($class === null) {
-            return null;
+            // `$class::dispatch()`: the class is only known at runtime, but the form is Dispatchable
+            return $call->hasDynamicClass() ? $this->first(DispatchShape::CLASS_STATIC, null, $method) : null;
         }
 
         foreach ($this->ownedFacades as $facade) {
