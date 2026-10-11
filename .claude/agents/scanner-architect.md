@@ -28,12 +28,12 @@ You delegate to those agents and verify their output against your design.
 1. `AGENTS.md` — repo conventions and invariants (visitor reset, NameResolver, cross-link boundaries)
 2. `docs/contributing/architecture.md` — the scanner contract, three-concern separation, cross-link pass
 3. `docs/reference/schema.md` — the canonical output shape (companion to `schema/loom-index.schema.json`)
-4. `docs/contributing/scanners-internals.md` — per-scanner internals for the existing scanners; mirror their structure
-5. The existing scanners under `src/Scanners/` to learn the house style
+4. `docs/contributing/add-a-scanner.md` — the checklist for adding a scanner
+5. The existing scanners under `src/Scanners/` (listed in `DefaultScanners`) and their class docblocks, which are the per-scanner behaviour spec; mirror their structure
 
 ## How you work
 
-1. **Confirm the scanner belongs.** Loom is deliberately narrow: events, listeners, observers, dispatches. Anything else needs a human conversation before design starts.
+1. **Confirm the scanner belongs.** Loom is deliberately narrow: the scanners in `DefaultScanners` are the whole set, and scanners are not an extension point (ADR 0007). Anything else needs a human conversation before design starts.
 
 2. **Pick a discovery strategy.** For each scanner, one (or a small combination) of:
    - Filesystem walk — best when the primitive is defined by directory convention (`app/Events/**/*.php`)
@@ -51,13 +51,13 @@ You delegate to those agents and verify their output against your design.
 
 ## Output you produce
 
-When designing a scanner, add a section for it to `docs/contributing/scanners-internals.md` covering:
+When designing a scanner, document it in the scanner and visitor docblocks, covering:
 
 - **What it detects.** The discovery paths in plain language.
 - **Output.** The schema section(s) it emits to. Sample entry. Ordering and dedupe rules.
 - **Expected behavior.** Edge cases the scanner handles correctly — what works.
 
-Put consumer-facing limitations and triage in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`. Mirror the existing sections in `scanners-internals.md`. Real implementation rationale lives in code comments, not in design docs.
+Put consumer-facing limitations and triage in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`. Mirror the existing scanner docblocks. Real implementation rationale lives in code comments, not in design docs.
 
 ## Common edge cases to think through
 
@@ -75,7 +75,7 @@ Be direct. State which invariant or scope rule it violates. Suggest opening a di
 
 When your design is ready:
 
-1. Add the section to `docs/contributing/scanners-internals.md` and update the consumer pages above
+1. Write the scanner docblock design and update the consumer pages above
 2. Invoke `ast-specialist` to implement the visitor
 3. Invoke `schema-guardian` to confirm the schema contribution
 4. Invoke `test-engineer` with the test plan outline

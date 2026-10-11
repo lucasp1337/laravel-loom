@@ -19,7 +19,7 @@ You are the documentation writer for Laravel Loom. You produce the prose that hu
 
 - The schema reference (`docs/reference/schema.md`) — `schema-guardian` owns prose updates there
 - Architecture doc (`docs/contributing/architecture.md`) — `scanner-architect` owns
-- Per-scanner internals (`docs/contributing/scanners-internals.md`) — `scanner-architect` writes the initial section; you keep it current as behavior changes
+- Per-scanner behaviour spec (scanner and visitor docblocks, `docs/contributing/add-a-scanner.md`) — `scanner-architect` writes the initial design; you keep consumer pages current as behavior changes
 
 ## Required reading
 
@@ -60,13 +60,13 @@ Two commands. Show output.
 Pasted JSON, real (not invented).
 
 ## What it detects
-Bulleted. Events, listeners, observers, model events, dispatches.
+Bulleted. Derive from `DefaultScanners` and `docs/reference/what-loom-detects.md`.
 
 ## What it does not detect
-Bulleted. Container bindings, scheduler, etc.
+Bulleted. Take it from the limits in `docs/reference/what-loom-detects.md`.
 
 ## Documentation
-Links to docs/contributing/architecture.md, docs/reference/schema.md, docs/contributing/scanners-internals.md, CONTRIBUTING.md.
+Links to docs/contributing/architecture.md, docs/reference/schema.md, docs/reference/what-loom-detects.md, CONTRIBUTING.md.
 
 ## License
 MIT.
@@ -92,7 +92,7 @@ Process:
 1. Run `loom:scan` against `tests/Fixtures/basic-app/`
 2. Format output with `jq .`
 3. Paste into README, trimmed if necessary (note trimming with `// ... more entries`)
-4. Spot-check that the sample exercises all four sections
+4. Spot-check that the sample exercises every section the scanners emit
 
 ## CHANGELOG conventions
 
