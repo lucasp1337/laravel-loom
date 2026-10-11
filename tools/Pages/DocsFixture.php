@@ -6,6 +6,8 @@ namespace Lucasp\Loom\Tools\Pages;
 
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Illuminate\JsonSchema\Types\Type;
+use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\IndexLoader;
@@ -58,7 +60,13 @@ final class DocsFixture
             default => throw new RuntimeException("Unsupported dependency for {$class}"),
         };
 
+        if (! method_exists($tool, 'handle')) {
+            throw new RuntimeException("{$class} has no handle method");
+        }
         $response = $tool->handle(new UnvalidatedRequest($arguments));
+        if (! $response instanceof Response) {
+            throw new RuntimeException("{$class} did not return a response");
+        }
 
         return ['text' => (string) $response->content(), 'error' => $response->isError()];
     }
@@ -67,7 +75,7 @@ final class DocsFixture
      * Input schema of a tool, as an MCP client sees it.
      *
      * @param  class-string<Tool>  $class
-     * @return array<string, \Illuminate\JsonSchema\Types\Type>
+     * @return array<string, Type>
      */
     public function inputs(string $class): array
     {
@@ -103,14 +111,16 @@ final class DocsFixture
                 return 0;
             }
 
+            /** @param  array<string, mixed>  $parameters */
             public function call($command, array $parameters = [], $outputBuffer = null): int
             {
                 return 0;
             }
 
+            /** @param  array<string, mixed>  $parameters */
             public function queue($command, array $parameters = [])
             {
-                return null;
+                throw new RuntimeException('The docs fixture never queues commands');
             }
 
             public function all(): array

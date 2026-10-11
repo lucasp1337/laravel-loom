@@ -126,10 +126,10 @@ final class McpToolPages implements RegionSource
         }
 
         if (($human['errors'] ?? []) !== []) {
-            $rows = Arr::map(
+            $rows = array_values(Arr::map(
                 $human['errors'],
                 fn (array $args): array => [$this->callPhrase($args), '`'.$this->errorText($tool['class'], $args).'`'],
-            );
+            ));
             $out[] = "Errors come back as a text message instead of JSON:\n\n".Markdown::table(['Called with', 'Returns'], $rows);
         }
 
