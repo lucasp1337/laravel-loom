@@ -20,12 +20,12 @@ return [
 
         // Also read route files loaded from a statically resolvable
         // path: `loadRoutesFrom()`, `Route::group()` with a file path and the
-        // `withRouting()` paths in bootstrap/app.php. `false` reads only
+        // `withRouting()` paths in `bootstrap/app.php`. `false` reads only
         // `scan.route_paths`; `loom:scan --no-discover-routes` does the same
         // for one run.
         'discover_routes' => true,
 
-        // Also scan every directory in composer.json's `autoload.psr-4`.
+        // Also scan every directory in `composer.json`'s `autoload.psr-4`.
         // `autoload-dev` is not included.
         'psr4_paths' => false,
 
