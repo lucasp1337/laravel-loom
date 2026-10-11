@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Schedule;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\Literal;
 
@@ -35,6 +36,7 @@ enum CronHelper: string
     case EVERY_SIX_HOURS = 'everySixHours';
     case DAILY = 'daily';
     case DAILY_AT = 'dailyAt';
+    case AT = 'at';
     case TWICE_DAILY = 'twiceDaily';
     case TWICE_DAILY_AT = 'twiceDailyAt';
     case WEEKLY = 'weekly';
@@ -51,9 +53,11 @@ enum CronHelper: string
 
     /**
      * The cron expression this helper sets for the call's arguments; null when
-     * an argument cannot be resolved statically.
+     * an argument cannot be resolved statically. `$previous` is the cron the
+     * chain held before this call: `dailyAt` and `at` replace only the minute
+     * and hour fields and keep the rest.
      */
-    public function cron(Args $args): ?string
+    public function cron(Args $args, ?string $previous = null): ?string
     {
         return match ($this) {
             // `->cron('0 9 * * 1')`: the expression itself
@@ -84,7 +88,9 @@ enum CronHelper: string
             // `->daily()`
             self::DAILY => '0 0 * * *',
             // `->dailyAt('13:30')`: an `H:i` string literal
-            self::DAILY_AT => $this->atTime(Literal::string($args->valueAt(0)), '* * *'),
+            self::DAILY_AT,
+            // `->at('13:30')`: an alias of `dailyAt`
+            self::AT => $this->atTime(Literal::string($args->valueAt(0)), $this->dayFields($previous)),
             // `->twiceDaily(1, 13)`: two hours, defaults 1 and 13
             self::TWICE_DAILY => '0 '.(Literal::int($args->valueAt(0)) ?? 1).','.(Literal::int($args->valueAt(1)) ?? 13).' * * *',
             // `->twiceDailyAt(1, 13, 15)`: both hours must be int literals, minute defaults 0
@@ -127,6 +133,14 @@ enum CronHelper: string
                 (Literal::int($args->valueAt(1)) ?? 1).' '.(Literal::int($args->valueAt(0)) ?? 1).' *',
             ),
         };
+    }
+
+    /** The day-of-month, month and day-of-week fields of `$previous`; all `*` when it has none. */
+    private function dayFields(?string $previous): string
+    {
+        $fields = $previous === null ? [] : Str::of($previous)->squish()->explode(' ')->all();
+
+        return count($fields) === 5 ? collect($fields)->slice(2)->implode(' ') : '* * *';
     }
 
     private function withMinute(Args $args): ?string

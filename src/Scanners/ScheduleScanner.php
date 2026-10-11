@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
@@ -86,7 +87,7 @@ final class ScheduleScanner implements Scanner
         'weekdays', 'weekends',
         'sundays', 'mondays', 'tuesdays', 'wednesdays', 'thursdays', 'fridays', 'saturdays',
         'between', 'unlessBetween', 'when', 'skip', 'environments', 'days',
-        'name', 'description', 'user', 'evenInMaintenanceMode',
+        'name', 'description', 'user', 'evenInMaintenanceMode', 'purpose', 'describe',
         'ping', 'pingBefore', 'pingBeforeIf', 'thenPing', 'thenPingIf',
         'pingOnSuccess', 'pingOnFailure',
         'onSuccess', 'onFailure', 'then', 'before', 'after',
@@ -153,6 +154,8 @@ final class ScheduleScanner implements Scanner
                 continue;
             }
 
+            $this->noteUnreadScope($visitor, $file);
+
             foreach ($this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file)) as $entry) {
                 $entries[] = $entry;
             }
@@ -175,6 +178,7 @@ final class ScheduleScanner implements Scanner
         if ($this->walker->walk($file, [$visitor]) === null) {
             return [];
         }
+        $this->noteUnreadScope($visitor, $file);
 
         return $this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file));
     }
@@ -222,6 +226,25 @@ final class ScheduleScanner implements Scanner
     }
 
     /**
+     * A schedule scope with statements that produced no entry means its
+     * receivers are not recognised; surface it as a skipped file.
+     */
+    private function noteUnreadScope(ScheduleChainVisitor $visitor, string $file): void
+    {
+        $unreached = $visitor->unreachedHelperLine();
+        if ($unreached !== null) {
+            $this->walker->recordSkip($file, $unreached, 'A method taking a Schedule is never called from schedule(); its tasks are not read');
+        }
+
+        $line = $visitor->bodyScopeLine();
+        if ($line === null || $visitor->getEntries() !== []) {
+            return;
+        }
+
+        $this->walker->recordSkip($file, $line, 'No scheduled task could be read from the schedule definition; the receiver is not a Schedule parameter, a typed Schedule property or the Schedule facade');
+    }
+
+    /**
      * @param  list<ScheduleChainEntry>  $rawEntries
      * @return list<ScheduledEntry>
      */
@@ -229,9 +252,11 @@ final class ScheduleScanner implements Scanner
     {
         $out = [];
         foreach ($rawEntries as $raw) {
-            $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
+            $target = $raw->closureCommand
+                ? $this->closureCommandName($raw->rootArgs)
+                : $this->resolveTarget($raw->kind, $raw->rootArgs);
 
-            $arguments = $raw->kind === ScheduleKind::COMMAND
+            $arguments = $raw->kind === ScheduleKind::COMMAND && ! $raw->closureCommand
                 ? ValueLists::commandArguments($raw->rootArgs->valueAt(1))
                 : [];
             $queue = $raw->kind === ScheduleKind::JOB
@@ -268,7 +293,7 @@ final class ScheduleScanner implements Scanner
                 $helper = CronHelper::tryFrom($method);
                 if ($helper !== null) {
                     // Last-wins, including null when args are unresolvable.
-                    $cron = $helper->cron($args);
+                    $cron = $helper->cron($args, $cron);
                     $frequency = null;       // a cron-based helper overrides any prior sub-minute frequency
                     $cronWasSet = true;
 
@@ -307,7 +332,7 @@ final class ScheduleScanner implements Scanner
                 }
             }
 
-            $constraints = array_values(collect($constraints)->sort()->all());
+            $constraints = array_values(collect($constraints)->merge($raw->guards)->sort()->all());
 
             $out[] = new ScheduledEntry(
                 kind: $raw->kind,
@@ -370,6 +395,19 @@ final class ScheduleScanner implements Scanner
         }
 
         return null;
+    }
+
+    /** The command name of `Artisan::command('name {arg}', ...)`: the signature's first token. */
+    private function closureCommandName(Args $rootArgs): ?string
+    {
+        $signature = Literal::string($rootArgs->valueAt(0));
+        if ($signature === null) {
+            return null;
+        }
+
+        $name = Str::before(Str::squish($signature), ' ');
+
+        return $name === '' ? null : $name;
     }
 
     private function atCallableToStatic(string $value): string

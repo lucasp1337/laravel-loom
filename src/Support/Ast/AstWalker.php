@@ -99,6 +99,15 @@ class AstWalker
     }
 
     /**
+     * Record a file a scanner read but could not extract what it expected from.
+     * The first note per file wins, like a parse failure.
+     */
+    public function recordSkip(string $file, ?int $line, string $message): void
+    {
+        $this->skipped[$file] ??= new SkippedFile($file, $line, $message);
+    }
+
+    /**
      * Files that could not be read or parsed so far, sorted by path (absolute).
      *
      * @return list<SkippedFile>
