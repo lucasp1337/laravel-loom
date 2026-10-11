@@ -181,7 +181,7 @@ CODE_SAMPLE
     }
 
     /**
-     * @param  list<list<Stmt>>  $bodies
+     * @param  list<array<Stmt>>  $bodies
      * @return array{0: 'return'|'assign', 1: Expr|null, 2: list<Expr>}|null
      */
     private function uniformShape(array $bodies): ?array
