@@ -22,6 +22,8 @@ use Lucasp\Loom\Support\ScanScope;
  * terminal call. The argument may carry its own fluent chain
  * (`Mail::send((new X)->onConnection('redis'))`); a variable argument does not
  * resolve. Queue state and `queue_config` follow the same rules as jobs.
+ * Mailables take no part in event-or-job disambiguation: `Mail::send(new X)`
+ * cannot be a job, so the site is a mailable from the start.
  *
  * @internal
  */

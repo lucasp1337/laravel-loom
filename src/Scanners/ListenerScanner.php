@@ -55,7 +55,10 @@ use Lucasp\Loom\Support\ScanScope;
  * registration but located outside Listeners/ is found through PSR-4; if its
  * file cannot be located it is dropped, since `file` and `line` are required.
  * `handles[]` is deduplicated on (event, method), so one listener can handle
- * different events, or one event, through several methods.
+ * different events, or one event, through several methods. `queued` is true
+ * when the class transitively implements `ShouldQueue`, through parents and
+ * traits; a vendor parent is an opaque leaf, so `ShouldQueue` inherited from a
+ * package is not seen.
  *
  * @internal
  */

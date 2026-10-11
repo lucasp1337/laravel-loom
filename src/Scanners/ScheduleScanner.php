@@ -43,7 +43,12 @@ use PhpParser\Node;
  * the chain wins across that boundary, as at runtime. A frequency helper
  * followed by a method not known to be safe, or any helper with a non-literal
  * argument, leaves `cron` null rather than guessing. Day and time-window
- * helpers, `when`/`skip` and `environments` become opaque `constraints`.
+ * helpers, `when`/`skip` and `environments` become opaque `constraints`: the
+ * day helpers verbatim, `between(a,b)` and `unlessBetween(a,b)` with literal
+ * times, `when(closure)` and `skip(closure)`, `environments(a,b)`, and
+ * `days(0,3)`. A constraint whose arguments are not literal falls back to a
+ * marker rather than a guess: `between(closure)` and `unlessBetween(closure)`,
+ * `environments(closure)`, and `days(?)`.
  *
  * `->group(Closure)` (variable or facade form, nested groups concatenating)
  * splices the outer chain's links before each inner task's own, so the inner

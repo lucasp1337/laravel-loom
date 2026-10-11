@@ -30,6 +30,9 @@ use Lucasp\Loom\Support\ScanScope;
  * declares no `via()`, or inherits one, gives `channels: []` and
  * `channels_dynamic: false`.
  *
+ * Notifications take no part in event-or-job disambiguation: the site is a
+ * notification from the start.
+ *
  * @internal
  */
 final class NotificationScanner implements Scanner

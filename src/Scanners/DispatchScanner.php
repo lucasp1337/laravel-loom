@@ -29,6 +29,13 @@ use Lucasp\Loom\Support\ScanScope;
  * `X::dispatch()` is `ambiguous` until cross-link finalizes it as an event when
  * the target is in `events[]`, else a job.
  *
+ * `_dispatch_sites` entries are arrays keyed `classFqcn`, `method`, `target`,
+ * `form`, `provisionalKind` (the kind tag, `ambiguous` until finalized),
+ * `file`, `line` and `confidence`, plus `mode`, `overrides` and `channels`
+ * when present, and `inClosure`. ClosureOwnershipPhase adds `closureOrigin` to
+ * sites a route closure owns. Cross-link phases read these keys; they are
+ * stripped before validation.
+ *
  * A target that cannot be resolved is emitted as an unresolved dispatch with a
  * reason: `dynamic_class_name` (a variable), `string_concatenation` (concat or
  * interpolation), `container_resolution` (`app()`, `resolve()`, `->make()`) or
