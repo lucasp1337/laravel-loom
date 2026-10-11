@@ -123,7 +123,7 @@
                 "dispatched_from": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatchSite" },
-                    "description": "Dispatch sites that fire this event. Filled by the cross-link pass."
+                    "description": "Dispatch sites that fire this event."
                 },
                 "handled_by": {
                     "type": "array",
@@ -142,7 +142,7 @@
                             }
                         }
                     },
-                    "description": "Listeners that handle this event, one entry per listener and method, sorted by `listener`, `method`. Filled by the cross-link pass from `listeners[].handles`; closure listeners are not included."
+                    "description": "Listeners that handle this event, one entry per listener and method, sorted by `listener`, `method`. Taken from `listeners[].handles`; closure listeners are not included."
                 }
             },
             "description": "Event classes."
@@ -215,7 +215,7 @@
                     "description": "Observers and `Event::listen` targets, sorted by handler and method, deduplicated. The shape differs from `events[].handled_by` because observers are not listeners."
                 }
             },
-            "description": "Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent.*')` strings. Emitted directly by the observer scanner; the cross-link pass does not regenerate them."
+            "description": "Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent.*')` strings."
         },
         "listener": {
             "type": "object",
@@ -226,8 +226,15 @@
                     "type": "string",
                     "description": "Fully qualified class name."
                 },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "handles": {
                     "type": "array",
                     "items": {
@@ -249,16 +256,16 @@
                 },
                 "registration": {
                     "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"],
-                    "description": "`subscriber` (a subscriber's `subscribe()`), `listen_array` (`$listen`), `event_listen_call` (`Event::listen()`), `auto_discovered` (typed `handle()`). When several find the same listener, that order of precedence applies."
+                    "description": "`subscriber`: a subscriber's `subscribe()`.\n`listen_array`: `$listen`.\n`event_listen_call`: `Event::listen()`.\n`auto_discovered`: typed `handle()`.\nListed in order of precedence when several find the same listener."
                 },
                 "queued": {
                     "type": "boolean",
-                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. A trait cannot confer it."
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed."
                 },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "Events and jobs dispatched from the listener's handler methods. Filled by the cross-link pass."
+                    "description": "Events and jobs dispatched from the listener's handler methods."
                 }
             },
             "description": "Listener classes. Handler methods include inherited ones."
@@ -268,9 +275,19 @@
             "required": ["fqcn", "file", "line", "observes", "registration", "hooks", "dispatches"],
             "additionalProperties": false,
             "properties": {
-                "fqcn": { "type": "string" },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "observes": {
                     "type": "string",
                     "description": "FQCN of the observed model."
@@ -305,7 +322,7 @@
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "Dispatches made from the observer's hook methods. Filled by the cross-link pass."
+                    "description": "Dispatches made from the observer's hook methods."
                 }
             },
             "description": "Observer classes. One observer registered against N models gives N entries; when a pair is found through both paths, `attribute` wins over `observe_call`."
@@ -315,12 +332,22 @@
             "required": ["fqcn", "file", "line", "queued", "queue_config", "dispatched_from", "dispatches"],
             "additionalProperties": false,
             "properties": {
-                "fqcn": { "type": "string" },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "queued": {
                     "type": "boolean",
-                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. A trait cannot confer it."
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed."
                 },
                 "queue_config": {
                     "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/queueConfig" }],
@@ -329,12 +356,12 @@
                 "dispatched_from": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatchSite" },
-                    "description": "Dispatch sites whose resolved kind is `job` and whose target is this class. Filled by the cross-link pass."
+                    "description": "Dispatch sites whose resolved kind is `job` and whose target is this class."
                 },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "Dispatches made from the job's `handle` method. Filled by the cross-link pass."
+                    "description": "Dispatches made from the job's `handle` method."
                 }
             },
             "description": "Job classes."
@@ -344,12 +371,30 @@
             "required": ["connection", "queue", "delay", "tries", "timeout", "backoff"],
             "additionalProperties": false,
             "properties": {
-                "connection": { "type": ["string", "integer", "null"] },
-                "queue": { "type": ["string", "integer", "null"] },
-                "delay": { "type": ["string", "integer", "null"] },
-                "tries": { "type": ["string", "integer", "null"] },
-                "timeout": { "type": ["string", "integer", "null"] },
-                "backoff": { "type": ["string", "integer", "null"] }
+                "connection": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$connection` property."
+                },
+                "queue": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$queue` property."
+                },
+                "delay": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$delay` property."
+                },
+                "tries": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$tries` property."
+                },
+                "timeout": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$timeout` property."
+                },
+                "backoff": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Literal value of the class's `$backoff` property."
+                }
             },
             "description": "Class-level property literals. A key is `null` when the class declares no such property. The literal keeps its own type."
         },
@@ -358,15 +403,22 @@
             "required": ["file", "line", "method"],
             "additionalProperties": false,
             "properties": {
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File of the dispatch site."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line of the dispatch site."
+                },
                 "method": {
                     "type": "string",
                     "description": "Origin: `Class::method` (a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB /uri` for a route closure, `Class::$dispatchesEvents[hook]` for a model entry."
                 },
                 "mode": {
                     "enum": ["sync", "after_response", "push"],
-                    "description": "How the call form executes; omitted for plain forms, whose outcome follows the target's `queued` flag. `sync`: `dispatchSync`, `dispatchNow`, `sendNow`, `notifyNow`. `after_response`: `dispatchAfterResponse`, `->afterResponse()`. `push`: `Queue::push/later/bulk`, `Mail::queue/later`. `ShouldQueue` and the sync driver are not evaluated."
+                    "description": "How the call form executes; omitted for plain forms, whose outcome follows the target's `queued` flag. Describes the call form only: `ShouldQueue` and the sync driver are not evaluated."
                 },
                 "overrides": {
                     "$ref": "#/$defs/dispatchOverrides",
@@ -430,8 +482,15 @@
                     "enum": ["high", "medium", "low"],
                     "description": "Always `high` for statically resolved targets; `medium` and `low` are reserved."
                 },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 }
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File of the dispatching call."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line of the dispatching call."
+                }
             },
             "description": "A resolved dispatch made from a class method or closure."
         },
@@ -469,10 +528,10 @@
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "Dispatches attributed to the closure by source span. Filled by the cross-link pass."
+                    "description": "Dispatches attributed to the closure by source span."
                 }
             },
-            "description": "Closure and arrow-function registrations, one entry per site, never joined into `events[].handled_by`. Not deduplicated. Dispatches inside `[line, end_line]` of the file belong to it, nested closures included."
+            "description": "Closure and arrow-function registrations, one entry per site, never joined into `events[].handled_by`. Not deduplicated. Dispatches inside `[line, end_line]` of the file belong to it, nested closures included. Filter by `event` to find the closures for an event."
         },
         "scheduleEntry": {
             "type": "object",
@@ -499,7 +558,7 @@
             "properties": {
                 "kind": {
                     "enum": ["command", "job", "closure", "exec"],
-                    "description": "`command`: `->command()`, target is the signature or FQCN. `job`: `->job()`, target is the FQCN. `closure`: `->call()`, target is `null` for an inline closure, else `Class::method`. `exec`: `->exec()`, target is the shell string."
+                    "description": "`command`: `->command()`; `target` is the signature verbatim, options included, or the FQCN.\n`job`: `->job()`; `target` is the FQCN.\n`closure`: `->call()`; `target` is `null` for an inline closure, else `Class::method` (from `[Cls::class, 'method']` or `'Cls@method'`).\n`exec`: `->exec()`; `target` is the shell string."
                 },
                 "name": {
                     "type": ["string", "null"],
@@ -546,7 +605,7 @@
                             }
                         }
                     ],
-                    "description": "Sub-minute interval for the seven `every...Seconds` helpers, whose cron is `null`; `null` otherwise. At most one of `cron` and `frequency` is set."
+                    "description": "Sub-minute interval for the seven helpers `everySecond` to `everyThirtySeconds`, whose `cron` is `null`; `null` otherwise. At most one of `cron` and `frequency` is set."
                 },
                 "timezone": {
                     "type": ["string", "null"],
@@ -558,7 +617,7 @@
                 },
                 "without_overlapping_expires_at": {
                     "type": ["integer", "null"],
-                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; no default is invented."
+                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument."
                 },
                 "on_one_server": {
                     "type": "boolean",
@@ -575,7 +634,7 @@
                 "constraints": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Opaque labels for non-cron restrictions, sorted ascending: day of week (`weekdays`, `sundays`), time window (`between(8:00,17:00)`), conditions (`when(closure)`, `skip(closure)`), environments (`environments(production,staging)`). They sit beside `cron`, not inside it."
+                    "description": "Opaque labels for non-cron restrictions, sorted ascending. They sit beside `cron`, not inside it.\nDay of week: `weekdays`, `sundays`.\nTime window: `between(8:00,17:00)`.\nConditions: `when(closure)`, `skip(closure)`.\nEnvironments: `environments(production,staging)`."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -636,7 +695,7 @@
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Filled by the cross-link pass; empty when the controller cannot be resolved."
+                    "description": "From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Empty when the controller cannot be resolved. Each dispatched event also lists the route in its `dispatched_from`."
                 }
             },
             "description": "HTTP routes, one per route. A route registered against several verbs is reported as `ANY`."
@@ -646,9 +705,19 @@
             "required": ["fqcn", "file", "line", "queued", "queue_config", "sent_from"],
             "additionalProperties": false,
             "properties": {
-                "fqcn": { "type": "string" },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "queued": {
                     "type": "boolean",
                     "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface."
@@ -660,7 +729,7 @@
                 "sent_from": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatchSite" },
-                    "description": "Dispatch sites whose resolved kind is `mailable` and whose target is this class, sorted by `file`, `line`. Filled by the cross-link pass."
+                    "description": "Dispatch sites whose resolved kind is `mailable` and whose target is this class, sorted by `file`, `line`."
                 }
             },
             "description": "Mailable classes."
@@ -670,9 +739,19 @@
             "required": ["fqcn", "file", "line", "queued", "queue_config", "notified_from", "channels", "channels_dynamic"],
             "additionalProperties": false,
             "properties": {
-                "fqcn": { "type": "string" },
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "fqcn": {
+                    "type": "string",
+                    "description": "Fully qualified class name."
+                },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File declaring the class."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed declaration line."
+                },
                 "queued": {
                     "type": "boolean",
                     "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface."
@@ -693,7 +772,7 @@
                 },
                 "channels_dynamic": {
                     "type": "boolean",
-                    "description": "`true` only when `via()` exists but is not a single literal-array return, so channels exist at runtime but are invisible statically."
+                    "description": "`true` only when `via()` exists but is not a single literal-array return, the channels exist but cannot be read statically."
                 }
             },
             "description": "Notification classes."
@@ -703,15 +782,22 @@
             "required": ["file", "line", "expression", "reason"],
             "additionalProperties": false,
             "properties": {
-                "file": { "$ref": "#/$defs/relativePath" },
-                "line": { "type": "integer", "minimum": 1 },
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File containing the unresolved dispatch."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line of the unresolved dispatch."
+                },
                 "expression": {
                     "type": "string",
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
                     "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
-                    "description": "`dynamic_class_name`: a variable. `container_resolution`: `app()`, `resolve()`, `->make()`. `string_concatenation`: concatenation or interpolation. `conditional_dispatch`: a ternary whose branches cannot be evaluated."
+                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated."
                 }
             },
             "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."
