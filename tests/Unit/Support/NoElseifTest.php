@@ -9,12 +9,7 @@ declare(strict_types=1);
  *
  * @var array<string, string>
  */
-const ELSEIF_ALLOWLIST = [
-    'Check/DispatchGraph.php' => 'legacy, refactor tracked',
-    'Check/Rules/UnresolvedDispatchesRule.php' => 'legacy, refactor tracked',
-    'Scanners/Visitors/ObserveCallVisitor.php' => 'legacy, refactor tracked',
-    'Support/ScanScope.php' => 'legacy, refactor tracked',
-];
+const ELSEIF_ALLOWLIST = [];
 
 /**
  * @return array<string, int> `elseif` / `else if` count by path relative to src/

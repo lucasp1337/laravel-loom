@@ -119,14 +119,24 @@ final class DispatchGraph
 
         foreach ($this->adjacency[$node] ?? [] as $next) {
             $state = $color[$next] ?? 0;
+
+            // Unvisited: descend.
             if ($state === 0) {
                 $this->dfs($next, $color, $stack, $found);
-            } elseif ($state === 1) {
-                $cycle = $this->extractCycle($stack, $next);
-                if ($cycle !== null) {
-                    $canonical = $this->canonicalize($cycle);
-                    $found[Arr::join($canonical, "\x1F")] = $canonical;
-                }
+
+                continue;
+            }
+
+            // Finished (black): a cross or forward edge, no cycle through it.
+            if ($state !== 1) {
+                continue;
+            }
+
+            // On the current stack (gray): a back-edge closes a cycle.
+            $cycle = $this->extractCycle($stack, $next);
+            if ($cycle !== null) {
+                $canonical = $this->canonicalize($cycle);
+                $found[Arr::join($canonical, "\x1F")] = $canonical;
             }
         }
 
