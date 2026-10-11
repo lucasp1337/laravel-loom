@@ -519,7 +519,7 @@
                 },
                 "registration": {
                     "enum": ["listen_array", "event_listen_call", "subscriber"],
-                    "description": "`listen_array` (closure in `$listen`), `event_listen_call` (second argument of `Event::listen()`), `subscriber` (inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`)."
+                    "description": "`listen_array`: closure in `$listen`.\n`event_listen_call`: second argument of `Event::listen()`.\n`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`."
                 },
                 "queued": {
                     "type": "boolean",
@@ -772,7 +772,7 @@
                 },
                 "channels_dynamic": {
                     "type": "boolean",
-                    "description": "`true` only when `via()` exists but is not a single literal-array return, the channels exist but cannot be read statically."
+                    "description": "`true` only when `via()` exists but is not a single literal-array return; the channels exist but cannot be read statically."
                 }
             },
             "description": "Notification classes."
