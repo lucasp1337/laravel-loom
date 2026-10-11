@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Artisan;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DefaultScanners;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\RouteGroupAttribute;
 use Lucasp\Loom\Support\ScanScope;

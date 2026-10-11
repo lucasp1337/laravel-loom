@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Ast\CallSite;
-use Lucasp\Loom\Support\AstWalker;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use PhpParser\Node;
 

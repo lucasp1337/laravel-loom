@@ -6,12 +6,12 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ChainLink;
 use Lucasp\Loom\Dto\RouteChainEntry;
-use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Support\Ast\CallChain;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupContext;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupTracker;
 use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\RouteGroupAttribute;
-use Lucasp\Loom\Support\RouteGroupTracker;
 use PhpParser\Node;
 
 /**

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\NotificationClassRecord;
+use Lucasp\Loom\Support\Ast\QueueConfig;
 use Lucasp\Loom\Support\Ast\ValueLists;
-use Lucasp\Loom\Support\QueueConfig;
 use PhpParser\Node;
 
 /**

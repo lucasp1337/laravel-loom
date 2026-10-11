@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Loom\Support;
+namespace Lucasp\Loom\Support\Ast\Route;
 
-use Lucasp\Loom\Dto\RouteGroupAttributes;
-use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\Literal;
+use Lucasp\Loom\Support\Facades;
+use Lucasp\Loom\Support\RouteGroupAttribute;
 use PhpParser\Node;
 
 /**

@@ -53,4 +53,75 @@ final class Literal
 
         return null;
     }
+
+    /**
+     * Every item of an array literal as a string, or null when the node is not
+     * an array or holds a non-string item.
+     *
+     * @return list<string>|null
+     */
+    public static function strictStringList(?Node\Expr $node): ?array
+    {
+        if (! $node instanceof Node\Expr\Array_) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($node->items as $item) {
+            $string = self::string($item->value);
+            if ($string === null) {
+                return null;
+            }
+            $values[] = $string;
+        }
+
+        return $values;
+    }
+
+    /**
+     * Every item of an array literal as an int, or null when the node is not
+     * an array, is empty, or holds a non-integer item.
+     *
+     * @return list<int>|null
+     */
+    public static function intList(?Node\Expr $node): ?array
+    {
+        if (! $node instanceof Node\Expr\Array_) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($node->items as $item) {
+            $int = self::int($item->value);
+            if ($int === null) {
+                return null;
+            }
+            $values[] = $int;
+        }
+
+        return $values === [] ? null : $values;
+    }
+
+    /**
+     * The string-literal items of an array literal, skipping any other item;
+     * empty when the node is not an array.
+     *
+     * @return list<string>
+     */
+    public static function stringItems(?Node\Expr $node): array
+    {
+        if (! $node instanceof Node\Expr\Array_) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($node->items as $item) {
+            $string = self::string($item->value);
+            if ($string !== null) {
+                $values[] = $string;
+            }
+        }
+
+        return $values;
+    }
 }

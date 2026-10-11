@@ -8,7 +8,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\NotificationEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\NotificationClassSpec;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScanScope;
 

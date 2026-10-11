@@ -14,9 +14,9 @@ const FQCN_HELPER_ALLOWLIST = [
     'Check/CheckContext.php::normalize' => 'reshapes an index section for rules, not a class name',
     'Query/Internal/SectionReader.php::normalise' => 'stringifies scalar/enum property values, not a class name',
     'Support/ClassHierarchyResolver.php::normalizeAdaptation' => 'rewrites a trait adaptation DTO; the class names inside go through Fqcn::normalize',
-    'Support/RouteGroupAttributesBuilder.php::normaliseName' => 'route group name attribute, not a class name',
-    'Support/RouteGroupAttributesBuilder.php::normalisePrefix' => 'route group URI prefix, not a class name',
-    'Support/RoutePathResolver.php::normalise' => 'lexical filesystem path collapsing',
+    'Support/Ast/Route/RouteGroupAttributesBuilder.php::normaliseName' => 'route group name attribute, not a class name',
+    'Support/Ast/Route/RouteGroupAttributesBuilder.php::normalisePrefix' => 'route group URI prefix, not a class name',
+    'Support/Ast/Route/RoutePathResolver.php::normalise' => 'lexical filesystem path collapsing',
     'Support/ScanScope.php::normalisePath' => 'filesystem path normalisation',
     'Support/ScanScope.php::normaliseGlob' => 'filesystem glob normalisation',
 ];

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Loom\Support;
+namespace Lucasp\Loom\Support\Ast;
 
 use Lucasp\Loom\Dto\SkippedFile;
 use PhpParser\Error;

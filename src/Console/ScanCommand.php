@@ -16,7 +16,7 @@ use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Scanners\DefaultScanners;
 use Lucasp\Loom\Support\AppPath;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\IndexPath;
 use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;

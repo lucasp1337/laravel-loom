@@ -144,8 +144,7 @@ src/                        # production code
   Index/                    # IndexBuilder, Index, IndexLoader, Model/
   Check/  Diff/  Query/  Mcp/  Ui/
   Scanners/                 # one file per primitive + Visitors/ subdir
-  Support/AstWalker.php     # parser + NameResolver wrapper
-  Support/Ast/              # call-argument, call-chain and literal readers over php-parser nodes
+  Support/Ast/              # the only non-visitor home of php-parser: AstWalker, argument, call-chain and literal readers
 
 schema/loom-index.schema.json   # the contract for every emitted index
 
@@ -157,6 +156,24 @@ tests/
 docs/                       # consumer-facing docs (published site)
   contributing/             # contributor-only docs
 ```
+
+## Where does X go?
+
+| Change | Goes in | Test to touch |
+| --- | --- | --- |
+| New dispatch form (`X::foo($job)`, a helper) | a row in `Scanners/Dispatch/DispatchRules.php` | `tests/Unit/Dispatch/DispatchRuleMatcherTest.php` |
+| New schedule chain method or frequency | `Scanners/Schedule/` (`ScheduleModifier`, `ScheduleConstraint`, `CronHelper`) | `tests/Unit/Scanners/CronHelperTest.php`, `tests/Feature/ScheduleScannerTest.php` |
+| New class-based primitive | a `ClassSpec` in `Scanners/Discovery/`, a thin scanner, `DefaultScanners` | `tests/Unit/Scanners/ClassSpecsTest.php`, an end-to-end test; see [Add a scanner](docs/contributing/add-a-scanner.md) |
+| New scanner or top-level section | `Contracts\Scanner`, `Sections`, `SectionRegistry`, schema, `DefaultScanners` | scanner and `IndexBuilder` tests, `FieldSchemaParityTest`; see [Add a scanner](docs/contributing/add-a-scanner.md) |
+| New field on an existing entry | `Index/Field.php`, `schema/loom-index.schema.json`, the scanner DTO in `Dto/`, `Index/Model/` and `Hydrate` | `tests/Unit/Index/FieldSchemaParityTest.php`, `tests/Unit/Index/IndexApiTest.php` |
+| New way of reading a php-parser node | `Support/Ast/` (php-parser is imported only there and in `Scanners/Visitors/`) | `tests/Unit/Support/Ast/`, `PhpParserConfinementTest` |
+| New cross-link relation | a `CrossLinkPhase` in `Index/CrossLink/`, appended to `CrossLinker`'s list | `tests/Unit/Index/CrossLink/`; see [Cross-link pass](docs/contributing/architecture.md#cross-link-pass) |
+| New `loom:check` rule | `Check/Rules/`, registered in `CheckRuleRegistry` | `tests/Unit/Check/RulesTest.php` |
+| New MCP tool | `Mcp/Tools/`, listed in `LoomMcpServer::$tools`, a `ToolDoc` in `tools/Reference/McpToolDocs.php` | `tests/Feature/Mcp/`, `tests/Unit/McpSurfaceTest.php` |
+| New UI page | a Livewire component in `Ui/Livewire/`, a view in `resources/views/livewire/`, registered in `LoomUiServiceProvider` | `tests/Feature/Ui/PagesTest.php` |
+| New UI section column | `Ui/SectionPresentation.php` | `tests/Unit/Ui/SectionPresentationTest.php` |
+| New config key | `config/loom.php` (its comment becomes the docs row), plus `Support/ScanConfigKey.php` for `scan.*` or `Ui/LoomConfig.php` for `ui.*` | `tests/Docs/ReferenceDriftTest.php` |
+| New generated docs region | a `Region` case or `RegionPrefix`, a `RegionSource` in `tools/Pages/`, a marker pair on the page | `tests/Docs/ReferenceDriftTest.php`; run `composer docs:generate` |
 
 ## Adding a scanner
 

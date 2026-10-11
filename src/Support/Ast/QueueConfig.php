@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Loom\Support;
+namespace Lucasp\Loom\Support\Ast;
 
 use Lucasp\Loom\Dto\QueueConfigData;
-use Lucasp\Loom\Support\Ast\Literal;
 use PhpParser\Node;
 
 /**

@@ -8,7 +8,7 @@ use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\JobClassSpec;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScanScope;
 

@@ -6,12 +6,14 @@ namespace Lucasp\Loom\Support;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
-use Lucasp\Loom\Dto\RouteFileReference;
-use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Dto\UnresolvedGroupAttribute;
 use Lucasp\Loom\Dto\UnresolvedRoutePath;
 use Lucasp\Loom\Scanners\Visitors\ProviderListVisitor;
 use Lucasp\Loom\Scanners\Visitors\RouteFileLoadVisitor;
+use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\Ast\Route\RouteFileReference;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupContext;
+use Lucasp\Loom\Support\Ast\Route\RoutePathResolver;
 use SplFileInfo;
 
 /**
