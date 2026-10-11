@@ -13,6 +13,7 @@ Rules for consumer docs:
 1. One fact, one page. Link instead of restating.
 2. Never hand-write command output or JSON samples; paste what the command really prints.
 3. No issue, ADR or `src/` references.
+4. Say what Loom records and misses, not how Laravel works. Link the Laravel docs when a reader needs the framework behaviour, and make no version-specific framework claims.
 
 The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `vendor/bin/pest`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
 
