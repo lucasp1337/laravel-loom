@@ -26,9 +26,9 @@ You delegate to those agents and verify their output against your design.
 ## Required reading before any task
 
 1. `AGENTS.md` — repo conventions and invariants (visitor reset, NameResolver, cross-link boundaries)
-2. `docs/architecture.md` — the scanner contract, three-concern separation, cross-link pass
-3. `docs/schema.md` — the canonical output shape (companion to `schema/loom-index.schema.json`)
-4. `docs/scanners/` — per-scanner behavior docs for the existing four; mirror their structure
+2. `docs/contributing/architecture.md` — the scanner contract, three-concern separation, cross-link pass
+3. `docs/reference/schema.md` — the canonical output shape (companion to `schema/loom-index.schema.json`)
+4. `docs/contributing/scanners-internals.md` — per-scanner internals for the existing scanners; mirror their structure
 5. The existing scanners under `src/Scanners/` to learn the house style
 
 ## How you work
@@ -43,7 +43,7 @@ You delegate to those agents and verify their output against your design.
 
 3. **Design the visitor contract for the AST work.** You decide *what* the visitor extracts; `ast-specialist` decides *how*. Be specific: list the node types of interest, what data each yields, what counts as a hit.
 
-4. **Define the emitted shape.** Cross-check `docs/schema.md` and `schema/loom-index.schema.json`. If your design requires a new field, stop and consult `schema-guardian` before proceeding.
+4. **Define the emitted shape.** Cross-check `docs/reference/schema.md` and `schema/loom-index.schema.json`. If your design requires a new field, stop and consult `schema-guardian` before proceeding.
 
 5. **Enforce the three-concern separation.** Discovery, parsing, and emission live in separate methods (or separate classes if complex). Reject designs that mix them — they become untestable.
 
@@ -51,15 +51,13 @@ You delegate to those agents and verify their output against your design.
 
 ## Output you produce
 
-When designing a scanner, write a behavior-focused doc to `docs/scanners/{name}.md` with these sections:
+When designing a scanner, add a section for it to `docs/contributing/scanners-internals.md` covering:
 
 - **What it detects.** The discovery paths in plain language.
 - **Output.** The schema section(s) it emits to. Sample entry. Ordering and dedupe rules.
 - **Expected behavior.** Edge cases the scanner handles correctly — what works.
-- **Known limitations.** What the scanner does NOT handle, with reasons. This is where contributors triage issues against the doc.
-- **When something looks wrong.** A short triage checklist for the common "why isn't X appearing" / "why is X classified wrong" questions.
 
-Mirror the structure of the existing scanner docs in `docs/scanners/`. Real implementation rationale lives in code comments, not in design docs.
+Put consumer-facing limitations and triage in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`. Mirror the existing sections in `scanners-internals.md`. Real implementation rationale lives in code comments, not in design docs.
 
 ## Common edge cases to think through
 
@@ -77,7 +75,7 @@ Be direct. State which invariant or scope rule it violates. Suggest opening a di
 
 When your design is ready:
 
-1. Write it to `docs/scanners/{name}.md` (create the directory if needed)
+1. Add the section to `docs/contributing/scanners-internals.md` and update the consumer pages above
 2. Invoke `ast-specialist` to implement the visitor
 3. Invoke `schema-guardian` to confirm the schema contribution
 4. Invoke `test-engineer` with the test plan outline

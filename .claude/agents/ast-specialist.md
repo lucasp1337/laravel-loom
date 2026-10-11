@@ -23,8 +23,8 @@ You are the AST specialist for Laravel Loom. You write and maintain all code tha
 
 ## Required reading
 
-1. `docs/architecture.md` — the three-concern separation, why parsing is its own phase
-2. `docs/schema.md` — specifically the `unresolved_dispatches` section
+1. `docs/contributing/architecture.md` — the three-concern separation, why parsing is its own phase
+2. `docs/reference/schema.md` — specifically the `unresolved_dispatches` section
 3. The `scanner-architect` design doc for the scanner you are implementing for
 4. nikic/php-parser docs: https://github.com/nikic/PHP-Parser/blob/master/doc/component/Walking_the_AST.markdown
 
