@@ -4,6 +4,10 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Fixed
+
+- Observer hook resolution honours `scan.paths` and `scan.exclude` when following parent classes and traits.
+
 ## [0.4.0](https://github.com/lucasp1337/laravel-loom/compare/v0.3.0...v0.4.0) - 2026-10-10
 
 ### Added

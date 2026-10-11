@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Filesystem\Filesystem;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DefaultScanners;
 use Lucasp\Loom\Support\ComposerPsr4Map;
@@ -172,4 +173,58 @@ it('lets exclude globs remove route files', function () {
 it('rejects an absolute or escaping route path', function () {
     expect(fn () => new ScanScope(['app'], [], ['/etc']))->toThrow(InvalidArgumentException::class);
     expect(fn () => new ScanScope(['app'], [], ['../x']))->toThrow(InvalidArgumentException::class);
+});
+
+describe('observer hierarchy scope', function () {
+    /**
+     * @param  array<string, string>  $files  app-relative path => PHP source
+     */
+    function observerScopeApp(array $files): string
+    {
+        $root = sys_get_temp_dir().'/loom-observer-scope-'.bin2hex(random_bytes(4));
+        foreach ($files as $path => $source) {
+            @mkdir(dirname($root.'/'.$path), 0777, true);
+            file_put_contents($root.'/'.$path, "<?php\n\n".$source);
+        }
+
+        return $root;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    function observerScopeScan(string $root, ScanScope $scope): array
+    {
+        $builder = new IndexBuilder;
+        DefaultScanners::registerOn($builder, $scope);
+
+        $payload = $builder->build($root, '12.x')->toArray();
+        (new Filesystem)->deleteDirectory($root);
+
+        return $payload;
+    }
+
+    it('resolves inherited observer hooks inside a custom scan path', function () {
+        $root = observerScopeApp([
+            'src/Observers/Base.php' => "namespace Acme\\Observers;\nclass Base { public function created(\$m) {} }\n",
+            'src/Observers/PostObserver.php' => "namespace Acme\\Observers;\nclass PostObserver extends Base { public function saved(\$m) {} }\n",
+            'src/Models/Post.php' => "namespace Acme\\Models;\nuse Acme\\Observers\\PostObserver;\n#[\\Illuminate\\Database\\Eloquent\\Attributes\\ObservedBy(PostObserver::class)]\nclass Post {}\n",
+        ]);
+
+        $payload = observerScopeScan($root, new ScanScope(['src']));
+
+        expect($payload['observers'][0]['hooks'])->toBe(['created', 'saved']);
+    });
+
+    it('does not read hooks from an excluded parent class', function () {
+        $root = observerScopeApp([
+            'app/Legacy/Base.php' => "namespace App\\Legacy;\nclass Base { public function created(\$m) {} }\n",
+            'app/Observers/PostObserver.php' => "namespace App\\Observers;\nuse App\\Legacy\\Base;\nclass PostObserver extends Base { public function saved(\$m) {} }\n",
+            'app/Models/Post.php' => "namespace App\\Models;\nuse App\\Observers\\PostObserver;\n#[\\Illuminate\\Database\\Eloquent\\Attributes\\ObservedBy(PostObserver::class)]\nclass Post {}\n",
+        ]);
+
+        $payload = observerScopeScan($root, new ScanScope(['app'], ['app/Legacy']));
+
+        expect($payload['observers'][0]['hooks'])->toBe(['saved']);
+    });
 });
