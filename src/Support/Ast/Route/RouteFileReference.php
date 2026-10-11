@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Loom\Dto;
+namespace Lucasp\Loom\Support\Ast\Route;
 
 use Lucasp\Loom\Support\RouteFileLoader;
 use PhpParser\Node\Expr;

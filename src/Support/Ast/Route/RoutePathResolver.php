@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Lucasp\Loom\Support;
+namespace Lucasp\Loom\Support\Ast\Route;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
-use Lucasp\Loom\Dto\RouteFileReference;
 use Lucasp\Loom\Support\Ast\Arg;
 use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Fqcn;
+use Lucasp\Loom\Support\RoutePathProblem;
 use PhpParser\Node;
 
 /**

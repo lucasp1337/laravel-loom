@@ -83,6 +83,54 @@ final class ValueLists
         return $out;
     }
 
+    /**
+     * Flatten a scheduled command's `$parameters` array into strings. Plain
+     * items emit their literal value; keyed items emit "key=value". Items that
+     * are not string, int or boolean literals are skipped.
+     *
+     * @return list<string>
+     */
+    public static function commandArguments(?Node\Expr $array): array
+    {
+        if (! $array instanceof Node\Expr\Array_) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($array->items as $item) {
+            $value = self::scalarText($item->value);
+            if ($value === null) {
+                continue;
+            }
+
+            if ($item->key === null) {
+                $out[] = $value;
+
+                continue;
+            }
+
+            $key = self::scalarText($item->key);
+            if ($key !== null) {
+                $out[] = $key.'='.$value;
+            }
+        }
+
+        return $out;
+    }
+
+    /** A string, int or `true`/`false` literal as text; null when unresolvable. */
+    private static function scalarText(Node\Expr $node): ?string
+    {
+        $scalar = Literal::scalar($node);
+        if ($scalar !== null) {
+            return (string) $scalar;
+        }
+
+        $bool = Literal::bool($node);
+
+        return $bool === null ? null : ($bool ? 'true' : 'false');
+    }
+
     /** @return list<string> */
     private static function middlewareNames(Node\Expr $node): array
     {

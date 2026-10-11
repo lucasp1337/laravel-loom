@@ -10,6 +10,7 @@ use Lucasp\Loom\Dto\MethodVisibility;
 use Lucasp\Loom\Dto\ResolvedMethod;
 use Lucasp\Loom\Dto\TraitAdaptation;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
+use Lucasp\Loom\Support\Ast\AstWalker;
 
 /**
  * Cross-file extends/implements/use-trait resolver. Lazy index under

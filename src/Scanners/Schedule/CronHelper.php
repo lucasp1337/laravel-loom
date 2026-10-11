@@ -179,14 +179,14 @@ enum CronHelper: string
         }
 
         // `weeklyOn([1, 3, 5], ...)`: a list of days
-        $days = ScheduleArgs::intArray($args->valueAt(0));
+        $days = Literal::intList($args->valueAt(0));
 
         return $days === null ? null : $this->atTime($time, '* * '.Arr::join($days, ','));
     }
 
     private function daysOfMonth(Args $args): ?string
     {
-        $days = ScheduleArgs::dayArgs($args);
+        $days = $args->intValues();
 
         return $days === [] ? null : '0 0 '.Arr::join($days, ',').' * *';
     }

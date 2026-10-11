@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\MailableClassRecord;
-use Lucasp\Loom\Support\QueueConfig;
+use Lucasp\Loom\Support\Ast\QueueConfig;
 use PhpParser\Node;
 
 /**

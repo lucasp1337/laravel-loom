@@ -13,7 +13,7 @@ use Lucasp\Loom\Scanners\Discovery\EventClassSpec;
 use Lucasp\Loom\Scanners\Discovery\JobClassSpec;
 use Lucasp\Loom\Scanners\Discovery\MailableClassSpec;
 use Lucasp\Loom\Scanners\Discovery\NotificationClassSpec;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 
 /**

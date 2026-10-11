@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 
 /**

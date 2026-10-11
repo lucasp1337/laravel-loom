@@ -9,21 +9,18 @@ use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteEntry;
-use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Index\ResourceAction;
 use Lucasp\Loom\Index\RouterMethod;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
-use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
-use Lucasp\Loom\Support\AstWalker;
-use Lucasp\Loom\Support\Fqcn;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupContext;
 use Lucasp\Loom\Support\ResourceFilter;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
-use PhpParser\Node;
 
 /**
  * Discovers HTTP routes declared via the `Route` facade under routes/ and in
@@ -180,7 +177,7 @@ final class RouteScanner implements Scanner
         }
         $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args->valueAt(1), $raw->groupController);
+        $action = Callables::routeAction($args->valueAt(1), $raw->groupController);
 
         return [new RouteEntry(
             method: $method,
@@ -192,7 +189,7 @@ final class RouteScanner implements Scanner
             file: $relativeFile,
             line: $raw->line,
             dispatches: [],
-            endLine: $this->closureEndLine($args->valueAt(1)),
+            endLine: Callables::closureEndLine($args->valueAt(1)),
         )];
     }
 
@@ -206,14 +203,14 @@ final class RouteScanner implements Scanner
     {
         $args = $raw->rootArgs;
 
-        $verbs = $this->verbList($args->valueAt(0));
+        $verbs = $this->verbList(Literal::strictStringList($args->valueAt(0)));
         $ownUri = Literal::string($args->valueAt(1));
         if ($verbs === [] || $ownUri === null) {
             return [];
         }
         $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = $this->resolveAction($args->valueAt(2), $raw->groupController);
+        $action = Callables::routeAction($args->valueAt(2), $raw->groupController);
 
         $out = [];
         foreach ($verbs as $verb) {
@@ -227,7 +224,7 @@ final class RouteScanner implements Scanner
                 file: $relativeFile,
                 line: $raw->line,
                 dispatches: [],
-                endLine: $this->closureEndLine($args->valueAt(2)),
+                endLine: Callables::closureEndLine($args->valueAt(2)),
             );
         }
 
@@ -312,9 +309,9 @@ final class RouteScanner implements Scanner
         foreach (collect($chain)->slice(1)->all() as $link) {
             match (ResourceFilter::tryFrom($link->method)) {
                 // ->only(['index', 'show'])
-                ResourceFilter::ONLY => $only = $this->stringArgList($link->args),
+                ResourceFilter::ONLY => $only = $link->args->stringValues(),
                 // ->except(['create', 'edit'])
-                ResourceFilter::EXCEPT => $except = $this->stringArgList($link->args),
+                ResourceFilter::EXCEPT => $except = $link->args->stringValues(),
                 // any other chain modifier does not narrow the action set
                 null => null,
             };
@@ -331,34 +328,6 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Collect literal action names from `->only(...)` / `->except(...)` args,
-     * accepting both an array argument and variadic string arguments.
-     *
-     * @return list<string>
-     */
-    private function stringArgList(Args $args): array
-    {
-        $names = [];
-        foreach ($args->values() as $value) {
-            if ($value instanceof Node\Expr\Array_) {
-                foreach ($value->items as $item) {
-                    if ($item->value instanceof Node\Scalar\String_) {
-                        $names[] = $item->value->value;
-                    }
-                }
-
-                continue;
-            }
-            $string = Literal::string($value);
-            if ($string !== null) {
-                $names[] = $string;
-            }
-        }
-
-        return $names;
-    }
-
-    /**
      * The member route parameter: the singular of the resource name's last
      * segment, via Laravel's own inflector for faithful pluralisation rules.
      */
@@ -371,116 +340,19 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Resolve the verb array of a `match` call to uppercase HTTP verbs. Returns
-     * empty when not a literal array of strings.
+     * Uppercase the HTTP verbs of a `match` call's literal verb array, keeping
+     * those the router emits. Empty when the array is not all string literals.
      *
+     * @param  list<string>|null  $names
      * @return list<string>
      */
-    private function verbList(?Node\Expr $value): array
+    private function verbList(?array $names): array
     {
-        if (! $value instanceof Node\Expr\Array_) {
-            return [];
-        }
+        $verbs = collect($names ?? [])
+            ->map(static fn (string $name): string => strtoupper($name))
+            ->filter(static fn (string $verb): bool => collect(RouterMethod::EMITTED_VERBS)->containsStrict($verb));
 
-        $verbs = [];
-        foreach ($value->items as $item) {
-            if (! $item->value instanceof Node\Scalar\String_) {
-                return [];
-            }
-            $verb = strtoupper($item->value->value);
-            if (collect(RouterMethod::EMITTED_VERBS)->containsStrict($verb)) {
-                $verbs[] = $verb;
-            }
-        }
-
-        return $verbs;
-    }
-
-    /**
-     * Resolve a route action node to a controller FQCN + method. A bare
-     * method-name string binds to $groupController (the enclosing group's
-     * default controller) when one is present.
-     *
-     * @return array{fqcn: ?string, method: ?string}
-     */
-    private function resolveAction(?Node\Expr $value, ?string $groupController = null): array
-    {
-        // argument omitted
-        if ($value === null) {
-            return ['fqcn' => null, 'method' => null];
-        }
-
-        // Closure / arrow function: no controller.
-        if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
-            return ['fqcn' => null, 'method' => null];
-        }
-
-        // [Ctrl::class, 'method'] or [Ctrl::class].
-        if ($value instanceof Node\Expr\Array_) {
-            return $this->resolveArrayAction($value);
-        }
-
-        // Bare Ctrl::class -> invokable.
-        $fqcn = ClassRef::fromClassConstant($value);
-        if ($fqcn !== null) {
-            return ['fqcn' => $fqcn, 'method' => '__invoke'];
-        }
-
-        // 'Class@method' (legacy) or 'Class' (invokable string).
-        $string = Literal::string($value);
-        if ($string !== null) {
-            return $this->resolveStringAction($string, $groupController);
-        }
-
-        // Variable, dynamic expression, etc. — never guess.
-        return ['fqcn' => null, 'method' => null];
-    }
-
-    private function closureEndLine(?Node\Expr $value): ?int
-    {
-        return $value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction
-            ? $value->getEndLine()
-            : null;
-    }
-
-    /**
-     * @return array{fqcn: ?string, method: ?string}
-     */
-    private function resolveArrayAction(Node\Expr\Array_ $array): array
-    {
-        $tuple = Callables::tuple($array);
-        if ($tuple !== null) {
-            return ['fqcn' => $tuple['class'], 'method' => $tuple['method']];
-        }
-
-        // Single-element [Ctrl::class] -> invokable.
-        if (count($array->items) === 1) {
-            $fqcn = ClassRef::fromClassConstant($array->items[0]->value);
-            if ($fqcn !== null) {
-                return ['fqcn' => $fqcn, 'method' => '__invoke'];
-            }
-        }
-
-        return ['fqcn' => null, 'method' => null];
-    }
-
-    /**
-     * @return array{fqcn: ?string, method: ?string}
-     */
-    private function resolveStringAction(string $action, ?string $groupController = null): array
-    {
-        $parts = Fqcn::splitAtMember($action);
-        if ($parts !== null) {
-            return ['fqcn' => Fqcn::normalize($parts[0]), 'method' => $parts[1]];
-        }
-
-        // Bare method name under a group controller -> Controller::method.
-        if ($groupController !== null) {
-            return ['fqcn' => Fqcn::normalize($groupController), 'method' => $action];
-        }
-
-        // No '@' and no group controller -> invokable controller string.
-        return ['fqcn' => Fqcn::normalize($action), 'method' => '__invoke'];
+        return array_values($verbs->all());
     }
 
     /**

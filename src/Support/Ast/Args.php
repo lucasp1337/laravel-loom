@@ -115,6 +115,63 @@ final readonly class Args
         return $out;
     }
 
+    /**
+     * String literals passed variadically (`only('a', 'b')`) or as one array
+     * argument (`only(['a', 'b'])`); anything else is skipped.
+     *
+     * @return list<string>
+     */
+    public function stringValues(): array
+    {
+        $out = [];
+        foreach ($this->values() as $value) {
+            // `only(['a', 'b'])`: string items of an array argument
+            if ($value instanceof Node\Expr\Array_) {
+                $out = [...$out, ...Literal::stringItems($value)];
+
+                continue;
+            }
+            // `only('a')`: a string literal argument
+            $string = Literal::string($value);
+            if ($string !== null) {
+                $out[] = $string;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Statically-resolvable ints from variadic int arguments (`days(0, 3)`) or
+     * a single array argument (`days([0, 3])`); non-literal items are skipped.
+     *
+     * @return list<int>
+     */
+    public function intValues(): array
+    {
+        $out = [];
+        foreach ($this->values() as $value) {
+            // `days(0, 3)`: a scalar day
+            $int = Literal::int($value);
+            if ($int !== null) {
+                $out[] = $int;
+
+                continue;
+            }
+            // `days([0, 3])`: an array of days
+            if ($value instanceof Node\Expr\Array_) {
+                foreach ($value->items as $item) {
+                    $itemInt = Literal::int($item->value);
+                    if ($itemInt !== null) {
+                        $out[] = $itemInt;
+                    }
+                }
+            }
+        }
+
+        return $out;
+    }
+
     /** Whether any argument is spread (`...$args`). */
     public function hasUnpack(): bool
     {

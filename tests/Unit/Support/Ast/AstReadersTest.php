@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\EventsDispatcher;
 use Lucasp\Loom\Support\Ast\ValueLists;
-use Lucasp\Loom\Support\AstWalker;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
 

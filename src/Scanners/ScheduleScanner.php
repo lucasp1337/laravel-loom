@@ -13,19 +13,19 @@ use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Schedule\CronHelper;
-use Lucasp\Loom\Scanners\Schedule\ScheduleArgs;
 use Lucasp\Loom\Scanners\Schedule\ScheduleConstraint;
 use Lucasp\Loom\Scanners\Schedule\ScheduleModifier;
 use Lucasp\Loom\Scanners\Visitors\ScheduleChainVisitor;
 use Lucasp\Loom\Support\AppPath;
 use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
-use PhpParser\Node;
 
 /**
  * Discovers entries declared in Laravel's task scheduler (Kernel, bootstrap/app.php,
@@ -232,7 +232,7 @@ final class ScheduleScanner implements Scanner
             $target = $this->resolveTarget($raw->kind, $raw->rootArgs);
 
             $arguments = $raw->kind === ScheduleKind::COMMAND
-                ? $this->resolveCommandArguments($raw->rootArgs)
+                ? ValueLists::commandArguments($raw->rootArgs->valueAt(1))
                 : [];
             $queue = $raw->kind === ScheduleKind::JOB
                 ? Literal::string($raw->rootArgs->valueAt(1))
@@ -359,8 +359,9 @@ final class ScheduleScanner implements Scanner
         }
 
         // closure: [Class::class, 'method'] tuple or 'App\\Cls@method' string.
-        if ($value instanceof Node\Expr\Array_) {
-            return $this->tupleCallableTarget($value);
+        $tuple = Callables::staticTarget($value);
+        if ($tuple !== null) {
+            return $tuple;
         }
 
         $string = Literal::string($value);
@@ -369,86 +370,6 @@ final class ScheduleScanner implements Scanner
         }
 
         return null;
-    }
-
-    /**
-     * Resolves the `$parameters` array of a scheduled command into a flat
-     * list. Plain items emit their literal value; keyed items emit "key=value".
-     * Unresolvable items are skipped rather than fabricated.
-     *
-     * @return list<string>
-     */
-    private function resolveCommandArguments(Args $rootArgs): array
-    {
-        $array = $rootArgs->valueAt(1);
-        if (! $array instanceof Node\Expr\Array_) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($array->items as $item) {
-            $value = $this->scalarToString($item->value);
-            if ($value === null) {
-                continue;
-            }
-
-            if ($item->key === null) {
-                $out[] = $value;
-
-                continue;
-            }
-
-            $key = $this->scalarToString($item->key);
-            if ($key !== null) {
-                $out[] = $key.'='.$value;
-            }
-        }
-
-        return $out;
-    }
-
-    /** Stringify a scalar literal node (string, int, or bool) or null if unresolvable. */
-    private function scalarToString(Node\Expr $node): ?string
-    {
-        $string = Literal::string($node);
-        if ($string !== null) {
-            return $string;
-        }
-
-        $int = Literal::int($node);
-        if ($int !== null) {
-            return (string) $int;
-        }
-
-        if ($node instanceof Node\Expr\ConstFetch) {
-            $name = strtolower($node->name->toString());
-            if ($name === 'true' || $name === 'false') {
-                return $name;
-            }
-        }
-
-        return null;
-    }
-
-    private function tupleCallableTarget(Node\Expr\Array_ $array): ?string
-    {
-        if (count($array->items) !== 2) {
-            return null;
-        }
-        $classItem = $array->items[0];
-        $methodItem = $array->items[1];
-
-        $fqcn = ClassRef::fromInstanceOrConstant($classItem->value);
-        $method = null;
-        if ($methodItem->value instanceof Node\Scalar\String_) {
-            $method = $methodItem->value->value;
-        }
-
-        if ($fqcn === null || $method === null) {
-            return null;
-        }
-
-        return $fqcn.'::'.$method;
     }
 
     private function atCallableToStatic(string $value): string
@@ -491,31 +412,14 @@ final class ScheduleScanner implements Scanner
 
     private function environmentsConstraint(Args $args): string
     {
-        $values = [];
-        foreach ($args->values() as $value) {
-            // `environments('staging')`: a string literal argument
-            $s = Literal::string($value);
-            if ($s !== null) {
-                $values[] = $s;
-
-                continue;
-            }
-            // `environments(['staging', 'production'])`: string items of an array argument
-            if ($value instanceof Node\Expr\Array_) {
-                foreach ($value->items as $item) {
-                    if ($item->value instanceof Node\Scalar\String_) {
-                        $values[] = $item->value->value;
-                    }
-                }
-            }
-        }
+        $values = $args->stringValues();
 
         return $values === [] ? 'environments(closure)' : 'environments('.Arr::join($values, ',').')';
     }
 
     private function daysConstraint(Args $args): string
     {
-        $values = ScheduleArgs::dayArgs($args);
+        $values = $args->intValues();
 
         return $values === [] ? 'days(?)' : 'days('.Arr::join($values, ',').')';
     }

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Lucasp\Loom\Dto\RouteFileReference;
 use Lucasp\Loom\Scanners\Visitors\ProviderListVisitor;
 use Lucasp\Loom\Scanners\Visitors\RouteFileLoadVisitor;
+use Lucasp\Loom\Support\Ast\Route\RouteFileReference;
+use Lucasp\Loom\Support\Ast\Route\RoutePathResolver;
 use Lucasp\Loom\Support\RouteFileLoader;
 use Lucasp\Loom\Support\RoutePathProblem;
-use Lucasp\Loom\Support\RoutePathResolver;
 use PhpParser\NodeVisitorAbstract;
 
 function traverseWith(string $source, NodeVisitorAbstract $visitor): void

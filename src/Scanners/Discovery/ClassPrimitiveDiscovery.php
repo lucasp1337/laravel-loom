@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Discovery;
 
 use Illuminate\Support\Collection;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;

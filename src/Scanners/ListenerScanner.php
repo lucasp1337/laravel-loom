@@ -20,7 +20,7 @@ use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;

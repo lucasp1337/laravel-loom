@@ -112,4 +112,102 @@ final class Callables
 
         return null;
     }
+
+    /**
+     * `Class::method` for an array callable whose class is a `Class::class`
+     * constant or `new Class` and whose method is a string literal; null for
+     * any other shape, including non-array expressions.
+     */
+    public static function staticTarget(Node\Expr $value): ?string
+    {
+        if (! $value instanceof Node\Expr\Array_ || count($value->items) !== 2) {
+            return null;
+        }
+
+        $fqcn = ClassRef::fromInstanceOrConstant($value->items[0]->value);
+        $method = Literal::string($value->items[1]->value);
+
+        return $fqcn === null || $method === null ? null : $fqcn.'::'.$method;
+    }
+
+    /**
+     * Resolve a route action expression to a controller FQCN and method. A
+     * bare method-name string binds to $groupController (the enclosing group's
+     * default controller) when one is present.
+     *
+     * @return array{fqcn: ?string, method: ?string}
+     */
+    public static function routeAction(?Node\Expr $value, ?string $groupController = null): array
+    {
+        $none = ['fqcn' => null, 'method' => null];
+
+        // argument omitted, or a closure / arrow function: no controller
+        if ($value === null || self::closureEndLine($value) !== null) {
+            return $none;
+        }
+
+        // `[Ctrl::class, 'method']` or `[Ctrl::class]`
+        if ($value instanceof Node\Expr\Array_) {
+            return self::arrayRouteAction($value);
+        }
+
+        // bare `Ctrl::class`: invokable
+        $fqcn = ClassRef::fromClassConstant($value);
+        if ($fqcn !== null) {
+            return ['fqcn' => $fqcn, 'method' => '__invoke'];
+        }
+
+        // 'Class@method' (legacy) or 'Class' (invokable string)
+        $string = Literal::string($value);
+        if ($string !== null) {
+            return self::stringRouteAction($string, $groupController);
+        }
+
+        // variable or dynamic expression: never guess
+        return $none;
+    }
+
+    /** End line of a closure or arrow function expression; null for any other node. */
+    public static function closureEndLine(?Node\Expr $value): ?int
+    {
+        return $value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction
+            ? $value->getEndLine()
+            : null;
+    }
+
+    /** @return array{fqcn: ?string, method: ?string} */
+    private static function arrayRouteAction(Node\Expr\Array_ $array): array
+    {
+        $tuple = self::tuple($array);
+        if ($tuple !== null) {
+            return ['fqcn' => $tuple['class'], 'method' => $tuple['method']];
+        }
+
+        // single-element `[Ctrl::class]`: invokable
+        if (count($array->items) === 1) {
+            $fqcn = ClassRef::fromClassConstant($array->items[0]->value);
+            if ($fqcn !== null) {
+                return ['fqcn' => $fqcn, 'method' => '__invoke'];
+            }
+        }
+
+        return ['fqcn' => null, 'method' => null];
+    }
+
+    /** @return array{fqcn: ?string, method: ?string} */
+    private static function stringRouteAction(string $action, ?string $groupController): array
+    {
+        $parts = Fqcn::splitAtMember($action);
+        if ($parts !== null) {
+            return ['fqcn' => Fqcn::normalize($parts[0]), 'method' => $parts[1]];
+        }
+
+        // bare method name under a group controller: Controller::method
+        if ($groupController !== null) {
+            return ['fqcn' => Fqcn::normalize($groupController), 'method' => $action];
+        }
+
+        // no '@' and no group controller: invokable controller string
+        return ['fqcn' => Fqcn::normalize($action), 'method' => '__invoke'];
+    }
 }

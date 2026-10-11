@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Discovery;
 
 use Lucasp\Loom\Scanners\Visitors\ClassRecordVisitor;
+use Lucasp\Loom\Scanners\Visitors\CollectingVisitor;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\PrimitiveDirectory;
-use PhpParser\NodeVisitor;
 
 /**
  * What distinguishes one class-based primitive (event, job, mailable,
@@ -45,14 +45,14 @@ interface ClassSpec
     /**
      * Fresh visitors for one dispatch-site walk of a single file.
      *
-     * @return list<NodeVisitor>
+     * @return list<CollectingVisitor>
      */
     public function seedVisitors(): array;
 
     /**
      * Targets this primitive takes from the visitors after the file walk.
      *
-     * @param  list<NodeVisitor>  $visitors  the instances from {@see seedVisitors()}
+     * @param  list<CollectingVisitor>  $visitors  the instances from {@see seedVisitors()}
      * @return list<DispatchSeed>
      */
     public function seedsFrom(array $visitors): array;

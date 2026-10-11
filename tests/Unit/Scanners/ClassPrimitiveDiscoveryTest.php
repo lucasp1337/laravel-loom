@@ -10,7 +10,7 @@ use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\EventClassSpec;
 use Lucasp\Loom\Scanners\Discovery\JobClassSpec;
 use Lucasp\Loom\Scanners\Discovery\MailableClassSpec;
-use Lucasp\Loom\Support\AstWalker;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 
 /**

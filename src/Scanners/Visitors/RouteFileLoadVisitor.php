@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
-use Lucasp\Loom\Dto\RouteFileReference;
-use Lucasp\Loom\Dto\RouteGroupContext;
 use Lucasp\Loom\Support\Ast\Arg;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\Literal;
+use Lucasp\Loom\Support\Ast\Route\RouteFileReference;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupContext;
+use Lucasp\Loom\Support\Ast\Route\RouteGroupTracker;
 use Lucasp\Loom\Support\RouteFileLoader;
 use Lucasp\Loom\Support\RouteGroupAttribute;
-use Lucasp\Loom\Support\RouteGroupTracker;
 use Lucasp\Loom\Support\RoutingMiddlewareGroup;
 use Lucasp\Loom\Support\RoutingParameter;
 use PhpParser\Node;
