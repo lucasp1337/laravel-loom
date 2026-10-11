@@ -4,8 +4,8 @@ How to develop on Loom locally.
 
 ## Where docs live
 
-- `docs/` is **consumer-facing** and is the published MkDocs site. Write for someone using Loom in their app: no `src/` paths, no ADR or issue references.
-- `docs/contributing/` is **contributor-only** (architecture, class-hierarchy contract, `adr/`, `design/`). It is not in the site nav and may cite source paths, ADRs and issues, but must match the code.
+- `docs/` is **consumer-facing** and is the published docs site. Write for someone using Loom in their app: no `src/` paths, no ADR or issue references.
+- `docs/contributing/` is **contributor-only**: `architecture.md`, `class-hierarchy.md`, `add-a-scanner.md` and `adr/`. It is published under Contributing in the site nav, but it is written for contributors: it may cite source paths and ADRs, and it must match the code.
 - `CHANGELOG.md` entries are one short line each, linking the PR.
 
 Rules for consumer docs:
@@ -13,7 +13,9 @@ Rules for consumer docs:
 1. One fact, one page. Link instead of restating.
 2. Never hand-write command output or JSON samples; paste what the command really prints.
 3. No issue, ADR or `src/` references.
-4. Keep it short: do not explain what the reader does not need. Say what Loom records and misses, not how Laravel works. Link the Laravel docs when a reader needs the framework behaviour, and make no version-specific framework claims.
+4. Say what Loom records and misses, not how Laravel works. Link the Laravel docs when a reader needs the framework behaviour.
+5. Make no version-specific framework claims.
+6. Leave out what does nothing for the reader: provenance and history.
 
 The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `vendor/bin/pest`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
 
@@ -70,7 +72,7 @@ docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest
 
 ## Documentation site
 
-The consumer-facing `docs/` tree is published as a [Zensical](https://zensical.org/) site. It builds straight from these Markdown files — editing docs is just editing Markdown, no extra step.
+The `docs/` tree is published as a [Zensical](https://zensical.org/) site. It builds straight from these Markdown files — editing docs is just editing Markdown, no extra step.
 
 ```bash
 just docs-serve      # live-reload preview at http://localhost:8000
@@ -138,7 +140,7 @@ docs/                       # consumer-facing docs (published site)
 
 ## Adding a scanner
 
-See [Add a scanner](docs/contributing/add-a-scanner.md). The scanner and visitor docblocks are the behaviour spec; there is no separate internals page.
+See [Add a scanner](docs/contributing/add-a-scanner.md) for the steps and a checklist. The scanner and visitor docblocks are the behaviour spec. With an agent, the `/add-scanner` command runs the same steps as a chain.
 
 ## Adding a fixture
 
@@ -159,7 +161,7 @@ Pint skips `tests/Fixtures/` (configured via `pint.json`) because fixture files 
 2. Updated sample outputs in `README.md` and any affected tests
 3. A `CHANGELOG.md` entry calling out the version implication
 
-The `IndexBuilder` validates every built index against the schema before writing. If you change scanner output, expect the validation to catch mismatches early.
+`loom:scan` validates every built index against the schema and writes nothing when it does not conform. If you change scanner output, expect the validation to catch mismatches early. Field names are enums (`Sections`, `MetaField`, `Field`); `FieldSchemaParityTest` fails when they and the schema diverge.
 
 ## Working on the agents
 
