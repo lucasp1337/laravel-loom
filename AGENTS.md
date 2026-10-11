@@ -64,9 +64,8 @@ src/
     Dispatch/                       # DispatchRules (the table of recognised dispatch forms), DispatchRule, DispatchRuleMatcher
     Visitors/                       # CollectingVisitor subclasses (state reset is built in)
   Support/
-    AstWalker.php                   # parser + NameResolver wrapper; walkSource() for snippets and tests
     AppPath.php                     # app root + relative path joins/relativising (never rtrim/DIRECTORY_SEPARATOR by hand)
-    Ast/                            # facade over php-parser nodes: Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
+    Ast/                            # the only non-visitor home of php-parser (PhpParserConfinementTest): AstWalker (parser + NameResolver; walkSource() for snippets and tests), Route/ (route-group context), QueueConfig, Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
     ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
     ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
     ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy; each consumer builds its own)
