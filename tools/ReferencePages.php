@@ -390,13 +390,13 @@ final class ReferencePages
 
                 continue;
             }
-            if (preg_match("/^'([a-z_]+)' => \[\s*$/", $trim, $m) === 1 && str_starts_with($line, '    \'')) {
+            if (preg_match("/^'([a-z0-9_]+)' => \[\s*$/", $trim, $m) === 1 && str_starts_with($line, '    \'')) {
                 $group = $m[1];
                 $comment = [];
 
                 continue;
             }
-            if (preg_match("/^'([a-z_]+)' =>/", $trim, $m) === 1) {
+            if (preg_match("/^'([a-z0-9_]+)' =>/", $trim, $m) === 1) {
                 $top = ! str_starts_with($line, '        ');
                 $key = $top ? $m[1] : "{$group}.{$m[1]}";
                 $value = $top ? $config[$m[1]] : $config[$group][$m[1]];

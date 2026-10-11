@@ -16,6 +16,7 @@ php artisan vendor:publish --tag=loom-config
 | `scan.paths` | none | `['app']` | Directories loom:scan walks, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. Convention directories (Events, Listeners, Jobs, Mail, Notifications) resolve inside each one. |
 | `scan.route_paths` | none | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
 | `scan.discover_routes` | none | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in bootstrap/app.php. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. |
+| `scan.psr4_paths` | none | `false` | Also scan every directory in composer.json's `autoload.psr-4`. `autoload-dev` is not included. |
 | `scan.exclude` | none | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. |
 <!-- /generated:config-scan -->
 
