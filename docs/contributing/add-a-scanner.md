@@ -1,6 +1,6 @@
 # Add a scanner
 
-Scanners are internal ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)): one class and one entry in `DefaultScanners`. Anything a scanner emits must already exist in `schema/loom-index.schema.json`, so a new section goes through the schema first. It also needs a `Sections` case and a `SectionRegistry` entry; see [Adding a top-level section](architecture.md#indexbuilder-and-the-section-registry), and check the places that enumerate sections (cross-link, `loom:diff`, MCP, the UI).
+Scanners are internal ([ADR 0007](adr/0007-scanners-not-an-extension-point.md)): one class and one entry in `DefaultScanners`. Anything a scanner emits must already exist in `schema/loom-index.schema.json`, so a new section goes through the schema first. It also needs a `Sections` case and a `SectionRegistry` entry; see [Adding a top-level section](architecture.md#sections-and-fields), and check the places that enumerate sections (cross-link, `loom:diff`, MCP, the UI).
 
 If you work with an agent, the `/add-scanner` command runs these steps as a chain: architect, schema review, visitors, tests, quality checks, docs. For the three concerns every scanner keeps apart (discovery, parsing, emission), see [Scanner contract](architecture.md#scanner-contract).
 

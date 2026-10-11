@@ -132,7 +132,7 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 ## The cross-link pass
 
-`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. The phases and why their order matters are listed in [architecture](docs/contributing/architecture.md#cross-link-pass); the order itself lives in `CrossLinker`.
+`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. Each phase's docblock says what it reads and writes; the order lives in `CrossLinker`, and why it matters is in [architecture](docs/contributing/architecture.md#cross-link-pass).
 
 After cross-link, `_dispatch_sites` is stripped from the merged sections before the `Index` is constructed, and `loom:scan` validates the stripped payload.
 
