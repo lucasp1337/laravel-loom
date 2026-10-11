@@ -351,7 +351,7 @@
                 "timeout": { "type": ["string", "integer", "null"] },
                 "backoff": { "type": ["string", "integer", "null"] }
             },
-            "description": "Class-level property literals. A key is `null` when the class declares no such property (the framework default applies). The literal keeps its own type."
+            "description": "Class-level property literals. A key is `null` when the class declares no such property. The literal keeps its own type."
         },
         "dispatchSite": {
             "type": "object",
@@ -558,7 +558,7 @@
                 },
                 "without_overlapping_expires_at": {
                     "type": ["integer", "null"],
-                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; the framework default of 1440 is not invented."
+                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; no default is invented."
                 },
                 "on_one_server": {
                     "type": "boolean",

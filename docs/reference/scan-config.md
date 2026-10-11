@@ -15,7 +15,7 @@ php artisan vendor:publish --tag=loom-config
 | --- | --- | --- | --- |
 | `scan.paths` | none | `['app']` | Directories loom:scan walks, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. Convention directories (Events, Listeners, Jobs, Mail, Notifications) resolve inside each one. |
 | `scan.route_paths` | none | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
-| `scan.discover_routes` | none | `true` | Also read route files that Laravel loads from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in bootstrap/app.php. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. |
+| `scan.discover_routes` | none | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in bootstrap/app.php. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. |
 | `scan.exclude` | none | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. |
 <!-- /generated:config-scan -->
 
@@ -35,7 +35,7 @@ Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notification
 
 ## Route files
 
-Laravel loads a route file with `require`, from any path. Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` is on, every file these calls load by a statically resolvable path:
+Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` is on, every file these calls load by a statically resolvable path:
 
 | Call | Path argument |
 | --- | --- |
@@ -50,7 +50,7 @@ The final set is `scan.route_paths` plus discovered files, minus `scan.exclude`.
 
 ### Group attributes of the loading call
 
-A loaded file's routes inherit the group around the loading call, as Laravel requires the file inside that group:
+A loaded file's routes inherit the group around the loading call:
 
 | Loading call | Applied to the file's routes |
 | --- | --- |
@@ -61,7 +61,7 @@ A loaded file's routes inherit the group around the loading call, as Laravel req
 | `withRouting(api: $path)` | middleware `api` and prefix `api`, or the literal `apiPrefix:` |
 | `Route::controller(C::class)->group($path)` | default controller for bare method-name actions |
 
-`loadRoutesFrom()` on its own adds nothing, because Laravel does not wrap it in a group. Groups inside the loaded file nest inside the loading group, and a file that loads another passes the combined attributes on. A file loaded from two places is read once per loading group and can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded; `domain`, `where` and `namespace` of the loading group are not recorded. An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`) is not guessed: the file is still read and its routes carry the attributes that did resolve, and `-v` lists these under "Group attributes not applied". With `scan.discover_routes` off no loading call is followed, so no group is applied.
+`loadRoutesFrom()` on its own adds nothing. Groups inside the loaded file nest inside the loading group, and a file that loads another passes the combined attributes on. A file loaded from two places is read once per loading group and can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded; `domain`, `where` and `namespace` of the loading group are not recorded. An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`) is not guessed: the file is still read and its routes carry the attributes that did resolve, and `-v` lists these under "Group attributes not applied". With `scan.discover_routes` off no loading call is followed, so no group is applied.
 
 ## Locating classes
 

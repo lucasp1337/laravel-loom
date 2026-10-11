@@ -154,7 +154,7 @@ Scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `targe
 | `frequency` | object or null | Sub-minute interval for the seven `every...Seconds` helpers, whose cron is `null`; `null` otherwise. At most one of `cron` and `frequency` is set. |
 | `timezone` | string or null | From `->timezone()`. |
 | `without_overlapping` | boolean | `->withoutOverlapping()` appears in the chain. |
-| `without_overlapping_expires_at` | integer or null | Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; the framework default of 1440 is not invented. |
+| `without_overlapping_expires_at` | integer or null | Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument; no default is invented. |
 | `on_one_server` | boolean | `->onOneServer()` appears in the chain. |
 | `run_in_background` | boolean | `->runInBackground()` appears in the chain. |
 | `even_in_maintenance_mode` | boolean | `->evenInMaintenanceMode()` appears in the chain. |
@@ -220,7 +220,7 @@ Path relative to the app root, forward-slashed. Never absolute: a leading `/`, `
 
 ### `queueConfig`
 
-Class-level property literals. A key is `null` when the class declares no such property (the framework default applies). The literal keeps its own type.
+Class-level property literals. A key is `null` when the class declares no such property. The literal keeps its own type.
 
 | Field | Type | Description |
 | --- | --- | --- |

@@ -19,7 +19,7 @@ return [
         // dispatches inside route closures; independent of `scan.paths`.
         'route_paths' => ['routes'],
 
-        // Also read route files that Laravel loads from a statically resolvable
+        // Also read route files loaded from a statically resolvable
         // path: `loadRoutesFrom()`, `Route::group()` with a file path and the
         // `withRouting()` paths in bootstrap/app.php. `false` reads only
         // `scan.route_paths`; `loom:scan --no-discover-routes` does the same
