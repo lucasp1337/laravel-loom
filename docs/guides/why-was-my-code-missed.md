@@ -14,11 +14,11 @@ jq '.unresolved_dispatches' storage/loom/index.json
 
 `handled_by` is empty, or the listener shows `handles: []`. Likely causes:
 
-- **The handler has no usable type.** Loom follows Laravel's discovery: a public `handle*` or `__invoke` method with a first parameter, declared, inherited or from a trait. The event is read from that parameter's type (nullable and union types give one event per class). Untyped, builtin and intersection types give nothing. Write `handle(OrderPlaced $event)`.
+- **The handler has no usable type.** Loom reads a public `handle*` or `__invoke` method with a first parameter, declared, inherited or from a trait (see [event discovery](https://laravel.com/docs/events#event-discovery)). The event is read from that parameter's type (nullable and union types give one event per class). Untyped, builtin and intersection types give nothing. Write `handle(OrderPlaced $event)`.
 - **The dispatcher can't be followed.** `Event::listen()`, `$this->app['events']`, `app()`, `resolve()`, `$this->app->make()` and variables assigned from them work. A dispatcher typed in `boot(Dispatcher $d)` or held in a property does not. Use the facade or the `$listen` array.
 - **The registration is dynamic.** `Event::listen($name, ...)`, `'SendReceipt@handle'` strings outside `$listen`, `$obj->method(...)` and `Closure::fromCallable($var)` resolve to nothing. Use `::class` references and `[Listener::class, 'method']` tuples.
 - **Registered inside a nested closure in `subscribe()`.** Loom follows `if`, `foreach` and `try`, not closures such as `->each(fn () => $events->listen(...))`.
-- **Laravel would skip it too.** Abstract classes, traits, methods made non-public with `as protected`, and methods with no parameter. Handlers inherited from a vendor class can't be seen.
+- **Loom skips the class or method.** Abstract classes, traits, methods made non-public with `as protected`, and methods with no parameter. Handlers inherited from a vendor class can't be seen.
 
 ### A closure listener has no back-link
 
@@ -104,11 +104,11 @@ A closure or variable action gives `controller_fqcn: null`. A closure route stil
 
 ### Middleware shows `web`, not the classes
 
-Middleware is recorded as written: groups and aliases are not expanded and `->withoutMiddleware()` is not subtracted. Read it as what the route declared, not what runs. Repeated `middleware()` calls follow Laravel: the last call on a group registrar chain wins, nested groups append, and calls on a route accumulate.
+Middleware is recorded as written: groups and aliases are not expanded and `->withoutMiddleware()` is not subtracted. Read it as what the route declared, not what runs. Repeated `middleware()` calls are merged by the rules in [Routing](https://laravel.com/docs/routing#route-groups): the last call on a group chain wins, nested groups append, and calls on a route accumulate.
 
 ### Resource routes have the wrong names or URIs
 
-`resource()` and `apiResource()` expand to Laravel's default routes. `->names()`, `->parameters()`, `->scoped()`, `->shallow()` and nested names are ignored, and `Route::resources([...])` emits nothing; call `resource()` per controller.
+`resource()` and `apiResource()` expand to the default [resource routes](https://laravel.com/docs/controllers#resource-controllers). `->names()`, `->parameters()`, `->scoped()`, `->shallow()` and nested names are ignored, and `Route::resources([...])` emits nothing; call `resource()` per controller.
 
 ### A route is missing entirely
 

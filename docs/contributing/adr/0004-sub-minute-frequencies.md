@@ -6,7 +6,7 @@ Builds on [ADR 0002](0002-schedule-scanner.md), which made `cron` a canonical fi
 
 ## Context
 
-Laravel has seven sub-minute helpers: `everySecond`, `everyTwoSeconds`, `everyFiveSeconds`, `everyTenSeconds`, `everyFifteenSeconds`, `everyTwentySeconds` and `everyThirtySeconds`. A five-field cron has a one-minute floor, so they fell through to `cron: null`, indistinguishable from an unrecognised helper.
+There are seven sub-minute helpers: `everySecond`, `everyTwoSeconds`, `everyFiveSeconds`, `everyTenSeconds`, `everyFifteenSeconds`, `everyTwentySeconds` and `everyThirtySeconds`. A five-field cron has a one-minute floor, so they fell through to `cron: null`, indistinguishable from an unrecognised helper.
 
 ## Decision
 
@@ -15,7 +15,7 @@ Add `frequency: { "unit": "seconds", "every": 10 }` to every schedule entry.
 - The seven helpers set `frequency` and leave `cron` `null`; no cron is fabricated.
 - Every other entry has `frequency: null`.
 - `unit` is the `FrequencyUnit` enum, currently only `seconds`, so new units extend the field instead of overloading `cron`.
-- Last wins in both directions, as at runtime: a sub-minute helper after a cron helper clears `cron`, and a cron helper after a sub-minute helper clears `frequency`. At most one is non-null.
+- Last wins in both directions: a sub-minute helper after a cron helper clears `cron`, and a cron helper after a sub-minute helper clears `frequency`. At most one is non-null.
 
 ## Rejected
 

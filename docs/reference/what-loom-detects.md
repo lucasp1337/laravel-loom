@@ -17,7 +17,7 @@ One line per construct, with the test that pins it. Field meanings are in the [s
 
 | Construct | Result | Test |
 | --- | --- | --- |
-| Public `handle*` or `__invoke` with a first parameter in `app/Listeners/`; declared, inherited or from a trait (`as`, `insteadof`) | yes, as Laravel discovers them | [HandlerResolutionTest] |
+| Public `handle*` or `__invoke` with a first parameter in `app/Listeners/`; declared, inherited or from a trait (`as`, `insteadof`) | yes | [HandlerResolutionTest] |
 | Nullable and union parameter types | one event per class | [ListenerScannerTest] |
 | Untyped or builtin first parameter | listed with `handles: []` | [ListenerScannerTest] |
 | Abstract classes, traits, no parameter, `as protected` | no | [ListenerScannerTest] |
@@ -41,7 +41,7 @@ One line per construct, with the test that pins it. Field meanings are in the [s
 | Construct | Result | Test |
 | --- | --- | --- |
 | `#[ObservedBy]` single and array; `Model::observe()`, `static::`, `self::` | yes | [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest] |
-| Hook methods of any visibility, inherited or from a trait | yes, `retrieved` to `forceDeleted` plus `trashed` on Laravel 12+ | [ObserverClassVisitorTest] |
+| Hook methods of any visibility, inherited or from a trait | yes, `retrieved` to `forceDeleted` plus `trashed` | [ObserverClassVisitorTest] |
 | `Event::listen('eloquent.{hook}: {Model}', ...)` with `Class@method`, tuple or class | yes, `model_events` only | [EloquentListenStringVisitorTest] |
 | `parent::observe()`, `$this->observe()`, `booting`/`booted` methods, closure handlers, container-form `eloquent.*` | no | [ObserverScannerTest] |
 

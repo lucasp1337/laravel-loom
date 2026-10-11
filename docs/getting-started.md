@@ -47,7 +47,7 @@ The `events` entry for `OrderPlaced` tells you both directions of the story:
 }
 ```
 
-`dispatched_from` lists every place your code fires the event, and `handled_by` lists every listener that reacts. You didn't register `SendOrderConfirmation` anywhere: Loom found it because its `handle()` method is typed `OrderPlaced`, the same way Laravel's auto-discovery does.
+`dispatched_from` lists every place your code fires the event, and `handled_by` lists every listener that reacts. You didn't register `SendOrderConfirmation` anywhere: Loom found it because its `handle()` method is typed `OrderPlaced`.
 
 !!! warning "The filter is partial"
     It applies to events, listeners, observers and model events only. Jobs, mailables, notifications, routes and schedules print in full, so searching for `SendReceipt` returns those sections unfiltered.

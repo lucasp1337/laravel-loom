@@ -1,10 +1,10 @@
 # What Loom sees
 
-For someone who knows Laravel events, has scanned an app, and wants to know what ended up in the index and what didn't.
+For someone who has scanned an app and wants to know what ended up in the index and what didn't.
 
 ## The wiring problem
 
-One event in a checkout app. `OrderController::store` fires it with `event(new OrderPlaced($order->id))`. `SendOrderConfirmation` reacts to it, and nothing registers that listener: Laravel discovers it from the type hint on `handle(OrderPlaced $event)`. A provider adds a second reaction as a closure with `Event::listen(OrderPlaced::class, function (...) {...})`.
+One event in a checkout app. `OrderController::store` fires it with `event(new OrderPlaced($order->id))`. `SendOrderConfirmation` reacts to it, and nothing registers that listener explicitly: its only link to the event is the type hint on `handle(OrderPlaced $event)`. A provider adds a second reaction as a closure with `Event::listen(OrderPlaced::class, function (...) {...})`.
 
 Three files, three registration styles, and no place that says "these are the reactions to `OrderPlaced`". Grepping finds the `event()` call and the closure, but not the listener, whose only link is a type hint. Loom reads the source, follows each link and writes them into one index. It never boots your app, so it records what your code says, not what a request did.
 
