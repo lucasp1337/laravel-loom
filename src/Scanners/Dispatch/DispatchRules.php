@@ -11,7 +11,8 @@ use Lucasp\Loom\Support\Facades;
 
 /**
  * The dispatch forms Loom recognises, one row per call shape. Adding a dispatch
- * form is adding a row. Order matters only within METHOD_CALL rows (first match
+ * form is adding a row plus a case in `DispatchRuleMatcherTest`; visitors do
+ * not check call shapes themselves. Order matters only within METHOD_CALL rows (first match
  * wins), so the facade-rooted rows come before their any-receiver fallbacks.
  *
  * @internal

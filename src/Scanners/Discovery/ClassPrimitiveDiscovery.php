@@ -17,6 +17,14 @@ use Lucasp\Loom\Support\ScanScope;
  * through PSR-4, and return the entries sorted by FQCN. Everything that
  * varies per primitive comes from the {@see ClassSpec}.
  *
+ * A seed the directory walk already found is skipped; the rest must resolve
+ * through PSR-4 to an admitted file declaring that FQCN. A seed reached only
+ * through ambiguous forms must also pass {@see ClassSpec::admitsAmbiguous()}.
+ *
+ * A new class-based primitive is a spec plus a thin scanner. Primitives with
+ * other discovery (listeners, observers, routes, schedule) keep their own
+ * scanners.
+ *
  * @internal
  */
 final class ClassPrimitiveDiscovery

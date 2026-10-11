@@ -9,6 +9,12 @@ namespace Lucasp\Loom\Contracts;
  * extension point: sections are a closed set and nothing registers
  * third-party scanners.
  *
+ * A scanner is stateless and keeps three concerns apart: discovery (which
+ * files and classes to read), parsing (visitors through `AstWalker`) and
+ * emission (schema-shaped entries, sorted by FQCN or the natural key, no JSON
+ * encoding). A section it does not contribute to is omitted; contributions to
+ * the same section from several scanners are concatenated.
+ *
  * @internal
  */
 interface Scanner
