@@ -6,11 +6,11 @@ The public API is in [PHP API](../../reference/php-api.md).
 
 ## Context
 
-The UI (#19), the MCP server (#20) and custom tooling need to read an index from PHP. Two typed surfaces existed: the `Dto\*Entry` classes visitors emit, or a new read model hydrated from the written `index.json`. Whatever consumers depend on becomes a stable API and decides whether the scan pipeline can keep moving.
+The UI, the MCP server and custom tooling need to read an index from PHP. Two typed surfaces existed: the `Dto\*Entry` classes visitors emit, or a new read model hydrated from the written `index.json`. Whatever consumers depend on becomes a stable API and decides whether the scan pipeline can keep moving.
 
 ## Decision
 
-1. **A dedicated read model in `Index\Model\`.** `final readonly` value objects (`Event`, `Listener`, `Job`, plus shared `Dispatch`, `DispatchSite`, `QueueConfig`, `Handle`, `Handler`). Scanner DTOs stay internal build inputs; the two never merge, because DTOs are shaped for collection during traversal and the read model for consumption.
+1. **A dedicated read model in `Index\Model\`.** `final readonly` value objects (one per section, such as `Event`, `Listener` and `Job`, plus shared `Dispatch`, `DispatchSite`, `QueueConfig`, `Handle` and `Handler`). Scanner DTOs stay internal build inputs; the two never merge, because DTOs are shaped for collection during traversal and the read model for consumption.
 2. **Hydrate from the schema shape.** `fromArray()` factories and `IndexLoader` consume the same arrays `Index::toArray()` emits and the schema defines, so any written index loads without scanners present.
 3. **Fields mirror the schema, camelCased, enums typed.** `dispatched_from` is `dispatchedFrom`; enum-valued fields hydrate into the `Index\` enums plus `Confidence`. Nullability matches the schema.
 

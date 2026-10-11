@@ -6,7 +6,7 @@ Builds on [ADR 0002](0002-schedule-scanner.md), which made `cron` a canonical fi
 
 ## Context
 
-There are seven sub-minute helpers: `everySecond`, `everyTwoSeconds`, `everyFiveSeconds`, `everyTenSeconds`, `everyFifteenSeconds`, `everyTwentySeconds` and `everyThirtySeconds`. A five-field cron has a one-minute floor, so they fell through to `cron: null`, indistinguishable from an unrecognised helper.
+There were seven sub-minute helpers at the time (the `ScheduleScanner` table has the current list): `everySecond`, `everyTwoSeconds`, `everyFiveSeconds`, `everyTenSeconds`, `everyFifteenSeconds`, `everyTwentySeconds` and `everyThirtySeconds`. A five-field cron has a one-minute floor, so they fell through to `cron: null`, indistinguishable from an unrecognised helper.
 
 ## Decision
 

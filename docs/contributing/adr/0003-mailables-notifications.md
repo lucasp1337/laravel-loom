@@ -2,7 +2,7 @@
 
 **Status**: Accepted (2026-05-19)
 
-What each scanner matches today is in the scanner, `*ClassSpec` and `DispatchRules` docblocks. This ADR keeps the decisions behind it.
+What each scanner matches today is in the scanner, `*ClassSpec` and `DispatchRules` docblocks.
 
 ## Context
 
@@ -16,7 +16,9 @@ Mailables and notifications are dispatch-shaped primitives the index did not rec
 4. **Channels come from a literal `via()` only.** A body that is a single `return [...]` of strings and `Class::class` constants gives `channels` in source order (strings lowercased, classes as FQCN). Anything else gives `channels: []` with `channels_dynamic: true`; a class that declares no `via()` gives `[]` with `false`. Source order is kept because it is what the file says. No `null`, so arrays always iterate.
 5. **`Mail::raw()` and other forms with no class are skipped.** No FQCN means no entry, as with closure listeners. A variable or container-resolved target is still an `unresolved_dispatches[]` entry.
 6. **Dispatch sites are widened in the existing visitor, not re-walked per scanner.** New provisional kinds `mailable` and `notification` feed `mailables[].sent_from` and `notifications[].notified_from` through the cross-link pass, using the shared `$defs/dispatchSite`. Scanners emit empty arrays; one source of truth per field.
-7. **Chain modifiers belong to the dispatch site.** Queue, connection, delay and locale on the call are `overrides` on the site, while `queue_config` stays the class-level declaration.
+7. **Chain modifiers are not parsed.** Chained `->onQueue()`, `->onConnection()`, `->delay()`, `->cc()`, `->bcc()` and `->locale()` do not go into the mailable or notification entry; `queue_config` reflects class-level property declarations only, the same constraint as jobs. The chain is walked only as far as needed to find the target argument.
+
+    *Amended 2026-10-11: superseded in part. The queue, connection, integer delay, `after_commit`, locale and mailer links of a chain are now recorded as `overrides` on the dispatch site (`ChainModifierExtractor`). `queue_config` is still the class-level declaration.*
 8. **The receiver is not type-resolved.** `$user->notify(new X)` matches on the method name and argument; the notification class is enough for `notified_from`. "Which models receive it" would need type tracking.
 
 ## Rejected
@@ -31,6 +33,7 @@ Mailables and notifications are dispatch-shaped primitives the index did not rec
 - Two scanners, two visitors and two sections cost lines but keep each entry tight.
 - A dynamic `via()` reads as empty channels until the user finds `channels_dynamic`.
 - Receiver classes stay unknown.
+- Mailables and notifications take no part in event-or-job disambiguation: `Mail::send(new X)` cannot be a job.
 
 ## Open questions
 

@@ -13,8 +13,9 @@ A document that would be edited on every refactor is a reference, not an ADR.
 ## Conventions
 
 - File name `NNNN-kebab-case-title.md`.
-- Status goes `Proposed`, `Accepted`, then `Superseded by NNNN` or `Deprecated`. An accepted ADR is not edited; write a new one that supersedes it.
-- Sections: `Status`, `Context`, `Decision`, `Consequences`, optionally `Rejected`. Keep it skimmable in a minute.
+- Status goes `Proposed`, `Accepted`, then `Superseded by NNNN` or `Deprecated`. An accepted ADR is not edited; write a new one that supersedes it. When later work changes a decision in place or in part, keep the original wording and add a dated *Amended* note under it.
+- Sections: `Status`, `Context`, `Decision`, `Consequences`, optionally `Rejected` and `Open questions`. Keep it skimmable in a minute.
+- Link from the ADR to the reference page for current behaviour, and from the reference page back to the ADR for the why.
 
 ## Index
 

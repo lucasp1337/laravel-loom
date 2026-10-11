@@ -2,7 +2,7 @@
 
 **Status**: Accepted (2026-05-18)
 
-What the scanner matches today is in the `ScheduleScanner` and `ScheduleChainVisitor` docblocks. This ADR keeps the decisions behind it.
+What the scanner matches today is in the `ScheduleScanner` and `ScheduleChainVisitor` docblocks.
 
 ## Context
 
@@ -10,7 +10,9 @@ The scheduler callback declares what runs on cron and was invisible to Loom, so 
 
 ## Decision
 
-1. **Read every registration path.** `Console\Kernel::schedule()`, `->withSchedule()` in `bootstrap/app.php`, and `Schedule::` facade calls under the scan paths, merged on `(file, line)`. The kernel form is still common in upgraded apps and the facade form is the only one packages use; leaving either out is a blind spot.
+1. **Read every registration path.** `Console\Kernel::schedule()`, `->withSchedule()` in `bootstrap/app.php`, and `Schedule::` facade calls under the scan paths, merged on `(file, line)`. The kernel form is common in upgraded apps; leaving either out is a blind spot.
+
+    *Amended 2026-10-11: `routes/console.php` was added as a fourth surface later.*
 2. **Emit one entry per chain, from the root call.** The visitor reads on `leaveNode`, finds the outermost call whose innermost receiver is the `$schedule` variable or the `Schedule` facade, then walks the links. The root call decides `kind` and `target`; the other links decide cron, constraints and flags.
 3. **`cron` is a canonical five-field string.** Every recognised helper maps to one expression and `cron(string)` passes through verbatim. When several frequency helpers are chained the last wins. A missing, unknown or non-literal helper gives `null`.
 4. **Constraints stay opaque.** `->between`, `->weekdays`, `->when`, `->skip` and friends are `constraints[]` strings, not folded into cron, and `when(closure)` is not static.
