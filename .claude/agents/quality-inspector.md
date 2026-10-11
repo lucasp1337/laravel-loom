@@ -161,7 +161,7 @@ Before approving a PR, verify:
 
 ## When you reject
 
-Be specific. Name the file, the line, the smell. Quote the relevant invariant from `AGENTS.md` or `docs/architecture.md`. Suggest a fix.
+Be specific. Name the file, the line, the smell. Quote the relevant invariant from `AGENTS.md` or `docs/contributing/architecture.md`. Suggest a fix.
 
 ## Hand-off
 

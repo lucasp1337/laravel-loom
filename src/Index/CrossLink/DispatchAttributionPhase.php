@@ -9,9 +9,11 @@ use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\Sections;
 
 /**
- * Phase 3 — attributes each dispatch site to its enclosing handler's
+ * Attributes each dispatch site to its enclosing handler's
  * `dispatches[]`: a listener method that handles an event, a job's `handle()`,
- * or an observer's Eloquent hook.
+ * or an observer's Eloquent hook. Needs the listener method sets from
+ * {@see HandledByPhase}, resolved kinds from {@see AmbiguousDisambiguationPhase}
+ * and the cleared closure tags from {@see ClosureOwnershipPhase}.
  *
  * @internal
  */

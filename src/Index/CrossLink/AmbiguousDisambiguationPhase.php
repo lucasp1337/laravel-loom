@@ -9,9 +9,9 @@ use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
- * Phase 2 — `X::dispatch()` is ambiguous (the Dispatchable trait covers both
+ * `X::dispatch()` is ambiguous (the Dispatchable trait covers both
  * events and jobs). Resolve each ambiguous site to `event` if its target is a
- * known event, else `job`, mutating the dispatch sites for later phases.
+ * known event, else `job`, mutating the dispatch sites before any phase that reads their kind.
  *
  * @internal
  */

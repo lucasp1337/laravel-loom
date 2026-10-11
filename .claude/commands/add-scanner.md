@@ -13,7 +13,7 @@ Before writing any code, figure out whether this is a redesign of an existing sc
 2. If `$ARGUMENTS` matches an existing file (with or without the `Scanner.php` suffix), this is a redesign. Confirm with the user before proceeding — they may have meant to extend, not replace.
 3. If `$ARGUMENTS` is something new, surface that this expands Loom's scope. Loom is deliberately narrow (events, listeners, observers, dispatches). New primitives — container bindings, scheduler entries, broadcast channels, notifications, mailables — have historically been declined. Confirm with the user before designing.
 
-Also check `docs/scanners/` for the corresponding behavior doc when a scanner exists; that's where the contract for the scanner lives.
+Also check `docs/contributing/scanners-internals.md` and `docs/reference/what-loom-detects.md` for the corresponding behavior notes when a scanner exists.
 
 ## If scope check passes, run the chain
 
@@ -23,7 +23,7 @@ Delegate to each agent in order. Wait for completion before invoking the next.
 
 Invoke `scanner-architect`:
 
-> Design the `$ARGUMENTS` scanner per `AGENTS.md` and `docs/architecture.md`. Write a behavior-focused doc at `docs/scanners/$ARGUMENTS.md` mirroring the structure of the existing scanner docs (What it detects | Output | Expected behavior | Known limitations | When something looks wrong).
+> Design the `$ARGUMENTS` scanner per `AGENTS.md` and `docs/contributing/architecture.md`. Add a section for it to `docs/contributing/scanners-internals.md`, mirroring the existing per-scanner sections (What it detects, Output, Expected behavior), and put consumer-facing limitations in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`.
 
 Read the design doc back to the user. Pause for confirmation if anything looks off.
 
@@ -31,7 +31,7 @@ Read the design doc back to the user. Pause for confirmation if anything looks o
 
 Invoke `schema-guardian`:
 
-> Review the schema contribution proposed in `docs/scanners/$ARGUMENTS.md`. Confirm it fits the existing `schema/loom-index.schema.json` or specify what additions are needed and what version bump they imply.
+> Review the schema contribution proposed in the `$ARGUMENTS` section of `docs/contributing/scanners-internals.md`. Confirm it fits the existing `schema/loom-index.schema.json` or specify what additions are needed and what version bump they imply.
 
 If schema-guardian requires changes, apply them before continuing.
 
@@ -39,13 +39,13 @@ If schema-guardian requires changes, apply them before continuing.
 
 Invoke `ast-specialist`:
 
-> Implement the `$ARGUMENTS` scanner at `src/Scanners/$ARGUMENTS.php` per the design in `docs/scanners/$ARGUMENTS.md`. Follow the three-concern separation: discovery, parsing, emission. Register the scanner with `IndexBuilder`.
+> Implement the `$ARGUMENTS` scanner at `src/Scanners/$ARGUMENTS.php` per the design in the `$ARGUMENTS` section of `docs/contributing/scanners-internals.md`. Follow the three-concern separation: discovery, parsing, emission. Register the scanner with `IndexBuilder`.
 
 ### Step 4 — Tests
 
 Invoke `test-engineer`:
 
-> Write tests for `$ARGUMENTS` per the test plan in `docs/scanners/$ARGUMENTS.md`. Cover the visitor unit, scanner integration, and end-to-end layers. Add or extend fixture apps under `tests/Fixtures/` as needed.
+> Write tests for `$ARGUMENTS` per the test plan in the `$ARGUMENTS` section of `docs/contributing/scanners-internals.md`. Cover the visitor unit, scanner integration, and end-to-end layers. Add or extend fixture apps under `tests/Fixtures/` as needed.
 
 ### Step 5 — Quality
 

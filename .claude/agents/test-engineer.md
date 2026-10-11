@@ -21,7 +21,7 @@ You are the test engineer for Laravel Loom. You ensure every scanner is covered 
 
 ## Required reading
 
-1. `docs/architecture.md` — the testing strategy section
+1. `CONTRIBUTING.md` — the "Adding a scanner" test layers
 2. `AGENTS.md` — what valid output looks like
 3. Existing tests under `tests/` for house style
 4. Pest docs: https://pestphp.com/docs

@@ -111,7 +111,7 @@ final class ObserverScanner implements Scanner
             }
         }
 
-        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, new ClassHierarchyResolver($appRoot, $this->walker));
+        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, new ClassHierarchyResolver($appRoot, $this->walker, $this->scope()));
         $modelEvents = $this->buildModelEvents($observers, $listenEntries);
 
         return [

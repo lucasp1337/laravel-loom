@@ -9,9 +9,10 @@ use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
 
 /**
- * Phase 4 — populates the reverse `dispatched_from` / `sent_from` /
+ * Populates the reverse `dispatched_from` / `sent_from` /
  * `notified_from` arrays on the target entry (event, job, mailable, or
- * notification) from each finalized dispatch site.
+ * notification) from each finalized dispatch site. Needs resolved kinds and
+ * closure ownership, so it runs after the disambiguation and ownership phases.
  *
  * @internal
  */
@@ -96,7 +97,7 @@ final class DispatchedFromPhase implements CrossLinkPhase
     }
 
     /**
-     * Returns null for AMBIGUOUS (resolved in phase 2; shouldn't reach here).
+     * Returns null for AMBIGUOUS (resolved by {@see AmbiguousDisambiguationPhase}; shouldn't reach here).
      *
      * @return array{Sections, string}|null
      */

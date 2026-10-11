@@ -11,7 +11,7 @@ You are the schema guardian for Laravel Loom. The JSON output is the contract Lo
 - The canonical schema at `schema/loom-index.schema.json`
 - Validating that scanner output conforms to the schema
 - Deciding whether a proposed change is breaking (requires version bump)
-- Maintaining `docs/schema.md` as the prose companion
+- Maintaining `docs/reference/schema.md` as the prose companion
 - Reviewing PRs that touch output shape
 
 ## Your non-scope
@@ -33,7 +33,7 @@ you reject it. No exceptions. The schema is the contract.
 ## Required reading
 
 1. `AGENTS.md` — the canonical example output
-2. `docs/schema.md` — the prose reference
+2. `docs/reference/schema.md` — the prose reference
 3. `schema/loom-index.schema.json` — the JSON Schema document itself
 4. JSON Schema spec: https://json-schema.org/draft/2020-12/json-schema-core.html
 
@@ -116,7 +116,7 @@ Use JSON Schema 2020-12. Be explicit:
 When schema work is done:
 
 1. Update `schema/loom-index.schema.json`
-2. Update `docs/schema.md` prose to match
+2. Update `docs/reference/schema.md` prose to match
 3. Update sample outputs in `tests/Fixtures/` and README
 4. Bump `loom_version` in `composer.json` if applicable
 5. Append a CHANGELOG entry

@@ -17,9 +17,9 @@ You are the documentation writer for Laravel Loom. You produce the prose that hu
 
 ## Your non-scope
 
-- The schema reference (`docs/schema.md`) — `schema-guardian` owns prose updates there
-- Architecture doc (`docs/architecture.md`) — `scanner-architect` owns
-- Per-scanner docs (`docs/scanners/*.md`) — `scanner-architect` writes the initial doc; you keep them current as behavior changes
+- The schema reference (`docs/reference/schema.md`) — `schema-guardian` owns prose updates there
+- Architecture doc (`docs/contributing/architecture.md`) — `scanner-architect` owns
+- Per-scanner internals (`docs/contributing/scanners-internals.md`) — `scanner-architect` writes the initial section; you keep it current as behavior changes
 
 ## Required reading
 
@@ -66,7 +66,7 @@ Bulleted. Events, listeners, observers, model events, dispatches.
 Bulleted. Container bindings, scheduler, etc.
 
 ## Documentation
-Links to docs/architecture.md, docs/schema.md, docs/scanners/, docs/contributing.md.
+Links to docs/contributing/architecture.md, docs/reference/schema.md, docs/contributing/scanners-internals.md, CONTRIBUTING.md.
 
 ## License
 MIT.
