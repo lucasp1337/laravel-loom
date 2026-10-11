@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\UnresolvedReason;
+
 /**
  * Visitor-emitted unresolved dispatch — `file` is filled by DispatchScanner
  * before promoting to the schema-shape `UnresolvedDispatchEntry`.
@@ -13,7 +15,7 @@ namespace Lucasp\Loom\Dto;
 final class UnresolvedDispatchRecord
 {
     /**
-     * @param  'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch'  $reason
+     * @param  value-of<UnresolvedReason>  $reason
      */
     public function __construct(
         public ?string $file,

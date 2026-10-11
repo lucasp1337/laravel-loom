@@ -796,8 +796,8 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
-                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated."
+                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "target_not_indexed"],
+                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated.\n`dynamic_list`: a list of dispatch targets built at runtime (a variable, a spread, a collection).\n`target_not_indexed`: the class is named, but it is not an indexed event, job, mailable or notification."
                 }
             },
             "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."

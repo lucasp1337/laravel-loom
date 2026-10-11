@@ -1260,7 +1260,24 @@ it('sends non-literal Bus::chain and dynamic items to unresolved', function () {
 
     expect($sites)->toHaveCount(1);
     expect($unresolved)->toHaveCount(2);
-    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+    expect($unresolved[0]->reason)->toBe('dynamic_list');
+    expect($unresolved[1]->reason)->toBe('dynamic_class_name');
+});
+
+it('reads a chain nested inside Bus::batch', function () {
+    [$sites, $unresolved] = runDispatchBody('Bus::batch([[new Ship, new Ship, $u], new Ship, [[new Ship]]])->dispatch();');
+
+    expect($sites)->toHaveCount(4)
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('dynamic_class_name');
+});
+
+it('reports a spread item of a job list as dynamic_list', function () {
+    [$sites, $unresolved] = runDispatchBody('Bus::chain([new Ship, ...$u])->dispatch();');
+
+    expect($sites)->toHaveCount(1)
+        ->and($unresolved)->toHaveCount(1)
+        ->and($unresolved[0]->reason)->toBe('dynamic_list');
 });
 
 it('marks Bus::batch jobs after_response only for dispatchAfterResponse()', function () {

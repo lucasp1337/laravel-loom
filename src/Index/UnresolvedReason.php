@@ -16,4 +16,6 @@ enum UnresolvedReason: string
     case CONTAINER_RESOLUTION = 'container_resolution';
     case STRING_CONCATENATION = 'string_concatenation';
     case CONDITIONAL_DISPATCH = 'conditional_dispatch';
+    case DYNAMIC_LIST = 'dynamic_list';
+    case TARGET_NOT_INDEXED = 'target_not_indexed';
 }

@@ -274,8 +274,11 @@ final class DispatchSiteVisitor extends CollectingVisitor
     }
 
     /**
-     * Bus::chain([...]) / Bus::batch([...]): one job site per literal item; a
-     * non-literal list or item is recorded as unresolved.
+     * Bus::chain([...]) / Bus::batch([...]) / Queue::bulk([...]): one job site
+     * per literal item. A nested array literal is a chain inside a batch and is
+     * read the same way; an argument that is not an array literal, or a spread
+     * item, is an unresolved `dynamic_list`, any other unreadable item an
+     * unresolved dispatch for that item.
      */
     private function recordJobList(CallSite $call, DispatchRule $rule): void
     {
@@ -285,15 +288,35 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         if (! $first instanceof Node\Expr\Array_) {
-            $this->recordUnresolved($call, $first, $rule);
+            $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_LIST);
 
             return;
         }
 
-        foreach ($first->items as $item) {
+        $this->recordJobItems($call, $rule, $first);
+    }
+
+    private function recordJobItems(CallSite $call, DispatchRule $rule, Node\Expr\Array_ $list): void
+    {
+        foreach ($list->items as $item) {
             $value = $item->value;
+
+            // `...$jobs`: items only known at runtime
+            if ($item->unpack) {
+                $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_LIST);
+
+                continue;
+            }
+
+            // `[new A, new B]` inside a batch: a chain, read item by item
+            if ($value instanceof Node\Expr\Array_) {
+                $this->recordJobItems($call, $rule, $value);
+
+                continue;
+            }
+
             $resolved = $this->classRef($value);
-            if ($resolved !== null && ! $item->unpack) {
+            if ($resolved !== null) {
                 $this->emitResolved($call, $rule, $resolved, $value);
 
                 continue;
