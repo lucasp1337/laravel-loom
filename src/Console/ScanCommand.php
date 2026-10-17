@@ -63,7 +63,7 @@ class ScanCommand extends Command
 
         $outputPath = $this->resolveOutputPath();
 
-        $walker = new AstWalker;
+        $walker = new AstWalker($scope->astCacheBytes());
         $builder = new IndexBuilder;
         $discovery = new RouteFileDiscovery($scope, $walker);
         DefaultScanners::registerOn($builder, $scope, $walker, $discovery);

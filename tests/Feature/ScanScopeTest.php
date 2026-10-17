@@ -5,9 +5,13 @@ declare(strict_types=1);
 use Illuminate\Filesystem\Filesystem;
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DefaultScanners;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ComposerPsr4Map;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScanScope;
+use PhpParser\Node;
+use PhpParser\Node\Stmt\Class_;
+use PhpParser\NodeVisitorAbstract;
 
 function scopeFixture(string $name): string
 {
@@ -228,3 +232,41 @@ describe('observer hierarchy scope', function () {
         expect($payload['observers'][0]['hooks'])->toBe(['saved']);
     });
 });
+
+it('reads scan.ast_cache_mb as a byte budget for the shared AST cache', function (): void {
+    $root = scopeFixture('domain-fixture-app');
+
+    expect(ScanScope::fromConfig([], $root)->astCacheBytes())->toBeNull()
+        ->and(ScanScope::fromConfig(['ast_cache_mb' => null], $root)->astCacheBytes())->toBeNull()
+        ->and(ScanScope::fromConfig(['ast_cache_mb' => 'big'], $root)->astCacheBytes())->toBeNull()
+        ->and(ScanScope::fromConfig(['ast_cache_mb' => 0], $root)->astCacheBytes())->toBe(0)
+        ->and(ScanScope::fromConfig(['ast_cache_mb' => 4], $root)->astCacheBytes())->toBe(4 * 1024 * 1024);
+});
+
+it('disables the AST cache at zero and caches otherwise', function (?int $mb, bool $cached): void {
+    $file = tempnam(sys_get_temp_dir(), 'loom-ast-');
+    file_put_contents($file, '<?php class A {}');
+    $walker = new AstWalker(ScanScope::fromConfig(['ast_cache_mb' => $mb], scopeFixture('domain-fixture-app'))->astCacheBytes());
+    $first = null;
+    $second = null;
+    $grab = static function (?Node &$into): NodeVisitorAbstract {
+        return new class($into) extends NodeVisitorAbstract
+        {
+            public function __construct(private ?Node &$into) {}
+
+            public function enterNode(Node $node): null
+            {
+                if ($node instanceof Class_) {
+                    $this->into = $node;
+                }
+
+                return null;
+            }
+        };
+    };
+    $walker->walk($file, [$grab($first)]);
+    $walker->walk($file, [$grab($second)]);
+    unlink($file);
+
+    expect($first === $second)->toBe($cached);
+})->with([[0, false], [1, true], [null, true]]);

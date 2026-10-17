@@ -37,6 +37,9 @@ final class ScanScope
     /** @var list<string> */
     private array $composerFiles;
 
+    /** @var int|null parsed-tree cache budget in bytes; null sizes it from the memory limit, 0 disables it */
+    private ?int $astCacheBytes;
+
     /** @var array<string, RouterMethod> macro name to the router method it expands like */
     private array $routeMacros = [];
 
@@ -56,11 +59,13 @@ final class ScanScope
      * @param  bool  $discoverRoutes  also read route files that providers and bootstrap/app.php load
      * @param  list<string>  $composerFiles  composer.json globs whose PSR-4 maps are read besides the root one
      * @param  array<string, string>  $routeMacros  `Route::<macro>()` name to the router method it behaves like; entries naming no router method are ignored
+     * @param  int|null  $astCacheMb  megabytes of parsed source kept for reuse across scanners; null sizes it from the memory limit, 0 disables it
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [], array $routeMacros = [])
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [], array $routeMacros = [], ?int $astCacheMb = null)
     {
+        $this->astCacheBytes = $astCacheMb === null ? null : max(0, $astCacheMb) * 1024 * 1024;
         $this->composerFiles = $composerFiles;
         $this->discoverRoutes = $discoverRoutes;
         foreach ($routeMacros as $macro => $base) {
@@ -113,6 +118,7 @@ final class ScanScope
             ($config[ScanConfigKey::DISCOVER_ROUTES->value] ?? true) !== false,
             $composerFiles,
             self::macroMap($config[ScanConfigKey::ROUTE_MACROS->value] ?? null),
+            self::intOrNull($config[ScanConfigKey::AST_CACHE_MB->value] ?? null),
         );
     }
 
@@ -309,6 +315,20 @@ final class ScanScope
         }
 
         return Arr::where($value, static fn (mixed $base, mixed $macro): bool => is_string($macro) && is_string($base));
+    }
+
+    /**
+     * Source bytes of parsed files worth keeping for reuse across scanners.
+     * Null leaves the size to the memory limit; 0 turns the cache off.
+     */
+    public function astCacheBytes(): ?int
+    {
+        return $this->astCacheBytes;
+    }
+
+    private static function intOrNull(mixed $value): ?int
+    {
+        return is_int($value) ? $value : null;
     }
 
     public function discoversRoutes(): bool

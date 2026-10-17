@@ -44,6 +44,12 @@ return [
         // class lookup without being listed here.
         'composer_files' => [],
 
+        // Megabytes of parsed PHP source kept so each file is parsed once per
+        // scan instead of once per scanner. `null` sizes it from
+        // `memory_limit` (at most 8); `0` turns the cache off. Memory use is
+        // about 10 to 15 times this.
+        'ast_cache_mb' => null,
+
         // Globs relative to the project root. A match removes the file, or
         // everything under the matching directory, from every scanner.
         'exclude' => [],
