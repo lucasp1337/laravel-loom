@@ -25,6 +25,14 @@ return [
         // for one run.
         'discover_routes' => true,
 
+        // Router macros that register routes, mapped to the router method they
+        // behave like: `['softDeletableResource' => 'resource']`. A listed macro
+        // is read as that method; any other `Route::<unknown>()` call is
+        // reported in `unresolved_routes`. Methods: get, post, put, patch,
+        // delete, options, any, match, resource, apiResource, singleton,
+        // apiSingleton, view, redirect, permanentRedirect, fallback.
+        'route_macros' => [],
+
         // Also scan every directory in `composer.json`'s `autoload.psr-4`.
         // `autoload-dev` is not included.
         'psr4_paths' => false,

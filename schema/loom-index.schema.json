@@ -19,6 +19,7 @@
         "closure_listeners",
         "scheduled_tasks",
         "routes",
+        "unresolved_routes",
         "mailables",
         "notifications"
     ],
@@ -70,6 +71,7 @@
                 "closure_listeners": { "type": "integer", "minimum": 0 },
                 "scheduled_tasks": { "type": "integer", "minimum": 0 },
                 "routes": { "type": "integer", "minimum": 0 },
+                "unresolved_routes": { "type": "integer", "minimum": 0 },
                 "mailables": { "type": "integer", "minimum": 0 },
                 "notifications": { "type": "integer", "minimum": 0 }
             },
@@ -84,6 +86,7 @@
         "closure_listeners": { "type": "array", "items": { "$ref": "#/$defs/closureListener" } },
         "scheduled_tasks": { "type": "array", "items": { "$ref": "#/$defs/scheduleEntry" } },
         "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+        "unresolved_routes": { "type": "array", "items": { "$ref": "#/$defs/unresolvedRoute" } },
         "mailables": { "type": "array", "items": { "$ref": "#/$defs/mailable" } },
         "notifications": { "type": "array", "items": { "$ref": "#/$defs/notification" } }
     },
@@ -654,7 +657,7 @@
             "additionalProperties": false,
             "properties": {
                 "method": {
-                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "ANY"],
+                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "QUERY", "ANY"],
                     "description": "HTTP verb, uppercase."
                 },
                 "uri": {
@@ -692,13 +695,17 @@
                     "minimum": 1,
                     "description": "Last line of a closure action. Present only for closure actions."
                 },
+                "kind": {
+                    "enum": ["view", "redirect", "fallback"],
+                    "description": "`view`: `Route::view()`. `redirect`: `Route::redirect()` / `permanentRedirect()`. `fallback`: `Route::fallback()`. Omitted for every other route."
+                },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
                     "description": "From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Empty when the controller cannot be resolved. Each dispatched event also lists the route in its `dispatched_from`."
                 }
             },
-            "description": "HTTP routes, one per route. A route registered against several verbs is reported as `ANY`."
+            "description": "HTTP routes, one per route and verb. `any()` and `redirect()` routes are reported as `ANY`; a resource `update` is reported as both `PUT` and `PATCH`."
         },
         "mailable": {
             "type": "object",
@@ -776,6 +783,44 @@
                 }
             },
             "description": "Notification classes."
+        },
+        "unresolvedRoute": {
+            "type": "object",
+            "required": ["file", "line", "expression", "reason"],
+            "additionalProperties": false,
+            "properties": {
+                "file": {
+                    "$ref": "#/$defs/relativePath",
+                    "description": "File containing the route form."
+                },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line of the route form."
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "Pretty-printed source of the call or expression that could not be read."
+                },
+                "reason": {
+                    "enum": [
+                        "unknown_route_call",
+                        "dynamic_uri",
+                        "dynamic_resource",
+                        "dynamic_verbs",
+                        "dynamic_resource_options",
+                        "dynamic_middleware",
+                        "dynamic_group_attribute",
+                        "route_file_dynamic",
+                        "route_file_relative",
+                        "route_file_outside_root",
+                        "route_file_not_found",
+                        "attribute_route"
+                    ],
+                    "description": "`unknown_route_call`: `Route::<name>()` is a macro or package helper; map it in `scan.route_macros`.\n`dynamic_uri`, `dynamic_resource`, `dynamic_verbs`: no route emitted, the URI, resource name or verbs are not literal.\n`dynamic_resource_options`: a resource option is not literal; the defaults were used.\n`dynamic_middleware`: a middleware or `withoutMiddleware` entry is not literal; the middleware list may be incomplete.\n`dynamic_group_attribute`: a group or chain prefix, name, controller or middleware is not literal.\n`route_file_*`: a route file's path cannot be followed.\n`attribute_route`: a controller declares a route with an attribute, which Loom does not read."
+                }
+            },
+            "description": "Route forms Loom could not read in full. Never dropped silently."
         },
         "unresolvedDispatch": {
             "type": "object",

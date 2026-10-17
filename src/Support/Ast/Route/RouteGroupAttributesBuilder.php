@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support\Ast\Route;
 
-use Illuminate\Support\Arr;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\Ast\ValueLists;
@@ -34,8 +33,14 @@ final class RouteGroupAttributesBuilder
     /** @var list<Node\Expr> */
     private array $middlewareNodes = [];
 
+    /** @var list<Node\Expr> */
+    private array $excludedNodes = [];
+
     /** @var array<string, bool> unresolved flag by attribute value, set by the latest assignment */
     private array $unresolved = [];
+
+    /** @var array<string, Node\Expr> the expression behind each unresolved flag */
+    private array $unresolvedNodes = [];
 
     /**
      * @param  list<Node\Expr>  $nodes  the setter's argument nodes; single-valued attributes read the first
@@ -53,18 +58,23 @@ final class RouteGroupAttributesBuilder
             RouteGroupAttribute::CONTROLLER => $this->setController($first),
             // ->middleware(...) / ['middleware' => ...]: names resolved later, like the controller
             RouteGroupAttribute::MIDDLEWARE => $this->setMiddleware($nodes),
+            // ->withoutMiddleware(...) / ['excluded_middleware' => ...]: exclusions accumulate
+            RouteGroupAttribute::WITHOUT_MIDDLEWARE => $this->addExcluded($nodes),
             // only ever produced for a non-array Route::group() config, never set here
             RouteGroupAttribute::ATTRIBUTES => null,
         };
     }
 
     /** The whole config of `Route::group($attributes, ...)` is not an array literal. */
-    public function markAttributesUnresolved(): void
+    public function markAttributesUnresolved(?Node\Expr $node = null): void
     {
         $this->unresolved[RouteGroupAttribute::ATTRIBUTES->value] = true;
+        if ($node !== null) {
+            $this->unresolvedNodes[RouteGroupAttribute::ATTRIBUTES->value] = $node;
+        }
     }
 
-    public function build(): RouteGroupAttributes
+    public function build(int $line = 0): RouteGroupAttributes
     {
         $unresolved = [];
         foreach ($this->unresolved as $value => $isUnresolved) {
@@ -73,7 +83,7 @@ final class RouteGroupAttributesBuilder
             }
         }
 
-        return new RouteGroupAttributes($this->prefix, $this->name, $this->controllerNode, $this->middlewareNodes, $unresolved);
+        return new RouteGroupAttributes($this->prefix, $this->name, $this->controllerNode, $this->middlewareNodes, $this->excludedNodes, $unresolved, $this->unresolvedNodes, $line);
     }
 
     /** The literal string of a prefix or name; a non-literal is recorded as unresolved, never guessed. */
@@ -81,6 +91,7 @@ final class RouteGroupAttributesBuilder
     {
         $literal = Literal::string($node);
         $this->unresolved[$attribute->value] = $literal === null;
+        $this->remember($attribute, $node, $literal === null);
 
         return $literal;
     }
@@ -90,40 +101,40 @@ final class RouteGroupAttributesBuilder
         $this->controllerNode = $node;
         // Anything but `Class::class` has no FQCN to apply.
         $this->unresolved[RouteGroupAttribute::CONTROLLER->value] = ClassRef::fromClassConstant($node) === null;
+        $this->remember(RouteGroupAttribute::CONTROLLER, $node, ClassRef::fromClassConstant($node) === null);
     }
 
     /** @param  list<Node\Expr>  $nodes */
     private function setMiddleware(array $nodes): void
     {
         // the latest assignment replaces the earlier list and its unresolved flag
-        $this->unresolved[RouteGroupAttribute::MIDDLEWARE->value] = Arr::where($nodes, fn (Node\Expr $node): bool => ! $this->isStaticMiddleware($node)) !== [];
+        $unreadable = ValueLists::unreadableMiddleware($nodes);
+        $this->unresolved[RouteGroupAttribute::MIDDLEWARE->value] = $unreadable !== [];
+        $this->remember(RouteGroupAttribute::MIDDLEWARE, $unreadable[0] ?? null, $unreadable !== []);
         $this->middlewareNodes = $nodes;
     }
 
-    /** True when {@see ValueLists::middleware()} can read every name in the node. */
-    private function isStaticMiddleware(Node\Expr $node): bool
+    /** @param  list<Node\Expr>  $nodes */
+    private function addExcluded(array $nodes): void
     {
-        // 'auth' or Foo::class
-        if ($node instanceof Node\Scalar\String_ || ClassRef::fromClassConstant($node) !== null) {
-            return true;
+        $unreadable = ValueLists::unreadableMiddleware($nodes);
+        // exclusions accumulate, so an unreadable one stays flagged
+        if ($unreadable !== []) {
+            $this->unresolved[RouteGroupAttribute::WITHOUT_MIDDLEWARE->value] = true;
+            $this->remember(RouteGroupAttribute::WITHOUT_MIDDLEWARE, $unreadable[0], true);
         }
-        // a variable, call or concatenation
-        if (! $node instanceof Node\Expr\Array_) {
-            return false;
-        }
+        $this->excludedNodes = [...$this->excludedNodes, ...$nodes];
+    }
 
-        foreach ($node->items as $item) {
-            // ['alias' => ...] and [...$spread] hold names Loom cannot read
-            if ($item->key !== null || $item->unpack) {
-                return false;
-            }
-            // an item that is neither a string nor Foo::class
-            if (! $item->value instanceof Node\Scalar\String_ && ClassRef::fromClassConstant($item->value) === null) {
-                return false;
-            }
-        }
+    /** Keep the expression behind an unresolved flag, drop it when the latest assignment is readable. */
+    private function remember(RouteGroupAttribute $attribute, ?Node\Expr $node, bool $unresolved): void
+    {
+        if ($unresolved && $node !== null) {
+            $this->unresolvedNodes[$attribute->value] = $node;
 
-        return true;
+            return;
+        }
+        unset($this->unresolvedNodes[$attribute->value]);
     }
 
     private function normalisePrefix(?string $value): ?string

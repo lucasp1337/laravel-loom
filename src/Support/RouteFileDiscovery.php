@@ -31,7 +31,7 @@ use SplFileInfo;
 final class RouteFileDiscovery
 {
     /** Cheap pre-filter: a file lacking all of these cannot hold a loading call. */
-    private const NEEDLES = ['loadRoutesFrom', 'group', 'withRouting', 'withCommands'];
+    private const NEEDLES = ['loadRoutesFrom', 'group', 'withRouting', 'withCommands', 'require', 'include'];
 
     /** @var array<string, array{files: list<string>, unresolved: list<UnresolvedRoutePath>, contexts: array<string, list<RouteGroupContext>>, attributes: list<UnresolvedGroupAttribute>}> */
     private array $results = [];
@@ -137,7 +137,7 @@ final class RouteFileDiscovery
         }
 
         for ($i = 0; $i < count($queue); $i++) {
-            foreach ($this->references($queue[$i]) as $reference) {
+            foreach ($this->references($queue[$i], isset($files[$queue[$i]])) as $reference) {
                 $outcome = $this->follow($reference, $queue[$i], $appRoot);
 
                 // a path that could not be followed: kept for reporting
@@ -243,7 +243,7 @@ final class RouteFileDiscovery
         $resolved = $this->resolver->resolve($reference, $sourceFile, $appRoot);
 
         if ($resolved instanceof RoutePathProblem) {
-            return new UnresolvedRoutePath($sourceFile, $reference->line, $reference->loader, $resolved);
+            return new UnresolvedRoutePath($sourceFile, $reference->line, $reference->loader, $resolved, $reference->expression);
         }
         if (is_file($resolved)) {
             return $resolved;
@@ -252,20 +252,20 @@ final class RouteFileDiscovery
             return null;
         }
 
-        return new UnresolvedRoutePath($sourceFile, $reference->line, $reference->loader, RoutePathProblem::NOT_FOUND);
+        return new UnresolvedRoutePath($sourceFile, $reference->line, $reference->loader, RoutePathProblem::NOT_FOUND, $reference->expression);
     }
 
     /**
      * @return list<RouteFileReference>
      */
-    private function references(string $file): array
+    private function references(string $file, bool $routeFile): array
     {
         $source = @file_get_contents($file);
         if ($source === false || ! Str::contains($source, self::NEEDLES)) {
             return [];
         }
 
-        $visitor = new RouteFileLoadVisitor;
+        $visitor = new RouteFileLoadVisitor($routeFile);
         if ($this->walker->walk($file, [$visitor]) === null) {
             return [];
         }

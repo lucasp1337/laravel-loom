@@ -30,6 +30,13 @@ final class RouteGroupTracker
 
     private RouteGroupContext $base;
 
+    /**
+     * Own attributes of each group opened since the last {@see drainOpened()}.
+     *
+     * @var list<RouteGroupAttributes>
+     */
+    private array $opened = [];
+
     public function __construct(?RouteGroupContext $base = null)
     {
         $this->base = $base ?? RouteGroupContext::empty();
@@ -38,13 +45,30 @@ final class RouteGroupTracker
     public function reset(): void
     {
         $this->stack = [];
+        $this->opened = [];
+    }
+
+    /**
+     * The groups opened since the last call, for visitors that report their
+     * unreadable attributes.
+     *
+     * @return list<RouteGroupAttributes>
+     */
+    public function drainOpened(): array
+    {
+        $opened = $this->opened;
+        $this->opened = [];
+
+        return $opened;
     }
 
     /** PhpParser enters a group call before descending into its closure, so pushing here keeps the top correct for inner nodes. */
     public function enter(Node $node): void
     {
         if (self::isOpener($node)) {
-            $this->stack[] = $this->current()->merge($this->attributes($node));
+            $attributes = $this->attributes($node);
+            $this->opened[] = $attributes;
+            $this->stack[] = $this->current()->merge($attributes);
         }
     }
 
@@ -54,6 +78,12 @@ final class RouteGroupTracker
         if (self::isOpener($node)) {
             array_pop($this->stack);
         }
+    }
+
+    /** Whether the node being visited sits inside an opened group. */
+    public function isOpen(): bool
+    {
+        return $this->stack !== [];
     }
 
     public function current(): RouteGroupContext
@@ -119,7 +149,7 @@ final class RouteGroupTracker
 
         // Route::prefix('x')->...->group($routes): attributes are the fluent setters
         if ($node instanceof Node\Expr\MethodCall) {
-            return $this->fluentAttributes($node->var);
+            return $this->fluentAttributes($node->var, $node->getStartLine());
         }
 
         return (new RouteGroupAttributesBuilder)->build();
@@ -132,9 +162,9 @@ final class RouteGroupTracker
 
         // a variable or call as config: nothing in it can be read
         if (! $config instanceof Node\Expr\Array_) {
-            $builder->markAttributesUnresolved();
+            $builder->markAttributesUnresolved($config);
 
-            return $builder->build();
+            return $builder->build($call->getStartLine());
         }
 
         foreach ($config->items as $item) {
@@ -149,14 +179,14 @@ final class RouteGroupTracker
             $builder->set($attribute, [$item->value]);
         }
 
-        return $builder->build();
+        return $builder->build($call->getStartLine());
     }
 
     /**
      * Read the setters of a fluent group's `->var` chain in source order, e.g.
      * `Route::prefix('x')->name('y.')->controller(C::class)`.
      */
-    private function fluentAttributes(Node\Expr $chain): RouteGroupAttributes
+    private function fluentAttributes(Node\Expr $chain, int $line): RouteGroupAttributes
     {
         $builder = new RouteGroupAttributesBuilder;
 
@@ -165,7 +195,7 @@ final class RouteGroupTracker
             $builder->set($attribute, $nodes);
         }
 
-        return $builder->build();
+        return $builder->build($line);
     }
 
     /**

@@ -18,6 +18,7 @@ use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
+use Lucasp\Loom\Index\Model\UnresolvedRoute;
 
 /**
  * Immutable Loom index and the stable, documented consumption surface. Holds
@@ -111,6 +112,12 @@ final class Index
     public function routes(): array
     {
         return $this->hydrate(Sections::ROUTES, Route::fromArray(...));
+    }
+
+    /** @return list<UnresolvedRoute> */
+    public function unresolvedRoutes(): array
+    {
+        return $this->hydrate(Sections::UNRESOLVED_ROUTES, UnresolvedRoute::fromArray(...));
     }
 
     /** @return list<UnresolvedDispatch> */

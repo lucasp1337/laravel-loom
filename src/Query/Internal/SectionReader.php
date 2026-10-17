@@ -15,6 +15,7 @@ use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
+use Lucasp\Loom\Index\Model\UnresolvedRoute;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -40,6 +41,7 @@ final class SectionReader
             Sections::MAILABLES => $index->mailables(),
             Sections::NOTIFICATIONS => $index->notifications(),
             Sections::ROUTES => $index->routes(),
+            Sections::UNRESOLVED_ROUTES => $index->unresolvedRoutes(),
         };
     }
 
@@ -49,7 +51,7 @@ final class SectionReader
             $item instanceof Route => $item->method.' '.$item->uri,
             $item instanceof ClosureListener => $item->event,
             $item instanceof ModelEvent => $item->id,
-            $item instanceof UnresolvedDispatch => $item->file.':'.$item->line,
+            $item instanceof UnresolvedDispatch, $item instanceof UnresolvedRoute => $item->file.':'.$item->line,
             $item instanceof ScheduledTask => $item->name ?? $item->target ?? $item->kind->value,
             default => self::stringProperty($item, 'fqcn'),
         };

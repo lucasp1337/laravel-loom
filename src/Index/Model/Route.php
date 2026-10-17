@@ -29,6 +29,7 @@ final readonly class Route
         public int $line,
         public array $dispatches,
         public ?int $endLine = null,
+        public ?string $kind = null,
     ) {}
 
     /** @param  array<string, mixed>  $data */
@@ -45,6 +46,7 @@ final readonly class Route
             line: Hydrate::int($data, Field::LINE),
             dispatches: Hydrate::list($data, Field::DISPATCHES, Dispatch::fromArray(...)),
             endLine: Hydrate::nullableInt($data, Field::END_LINE),
+            kind: Hydrate::nullableString($data, Field::KIND),
         );
     }
 }

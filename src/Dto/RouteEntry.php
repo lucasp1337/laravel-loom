@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Dto;
 
+use Lucasp\Loom\Index\RouteKind;
+
 /**
  * A single HTTP route discovered under routes/.
  *
@@ -27,5 +29,7 @@ final readonly class RouteEntry
         public array $dispatches = [],
         /** Last line of a closure action; null for every other action. */
         public ?int $endLine = null,
+        /** Set for view, redirect and fallback routes; null for every other route. */
+        public ?RouteKind $kind = null,
     ) {}
 }

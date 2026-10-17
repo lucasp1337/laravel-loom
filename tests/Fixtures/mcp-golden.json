@@ -19,7 +19,8 @@
                             "scheduled_tasks",
                             "mailables",
                             "notifications",
-                            "routes"
+                            "routes",
+                            "unresolved_routes"
                         ],
                         "type": "string"
                     }

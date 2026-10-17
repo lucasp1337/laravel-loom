@@ -20,6 +20,7 @@ use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Dto\RouteEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Dto\UnresolvedRouteEntry;
 use RuntimeException;
 
 /**
@@ -65,6 +66,7 @@ final class IndexSerializer
             $entry instanceof ScheduledEntry => $this->scheduled($entry),
             $entry instanceof RouteEntry => $this->route($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
+            $entry instanceof UnresolvedRouteEntry => $this->unresolvedRoute($entry),
             $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
             default => throw new RuntimeException('IndexSerializer cannot serialize '.$entry::class),
         };
@@ -282,7 +284,23 @@ final class IndexSerializer
             $out[Field::END_LINE->value] = $e->endLine;
         }
 
+        // Only view, redirect and fallback routes carry a kind.
+        if ($e->kind !== null) {
+            $out[Field::KIND->value] = $e->kind->value;
+        }
+
         return $out;
+    }
+
+    /** @return array<string, mixed> */
+    public function unresolvedRoute(UnresolvedRouteEntry $e): array
+    {
+        return [
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::EXPRESSION->value => $e->expression,
+            Field::REASON->value => $e->reason->value,
+        ];
     }
 
     /** @return array<string, mixed> */

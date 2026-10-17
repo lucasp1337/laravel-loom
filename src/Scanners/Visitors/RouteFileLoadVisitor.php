@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Support\Ast\Arg;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\Literal;
@@ -15,6 +16,7 @@ use Lucasp\Loom\Support\RouteGroupAttribute;
 use Lucasp\Loom\Support\RoutingMiddlewareGroup;
 use Lucasp\Loom\Support\RoutingParameter;
 use PhpParser\Node;
+use PhpParser\PrettyPrinter\Standard as PrettyPrinter;
 
 /**
  * Collects the path arguments of calls that load route files:
@@ -32,7 +34,9 @@ use PhpParser\Node;
  * ->prefix($apiPrefix)->group()` with the prefix defaulting to `api`. Bare
  * `loadRoutesFrom()` adds no group, as Laravel does not wrap it. A non-literal
  * attribute is not guessed; it is reported through `unresolvedAttributes()`.
- * `domain`, `where` and `namespace` of the loading group are not recorded.
+ * A `require` / `include` is a loading call too when it sits inside a route
+ * group closure or at the top level of a route file; it inherits the enclosing
+ * groups. `domain`, `where` and `namespace` of the loading group are not recorded.
  *
  * @internal
  */
@@ -43,9 +47,15 @@ final class RouteFileLoadVisitor extends CollectingVisitor
 
     private RouteGroupTracker $groups;
 
-    public function __construct()
+    private PrettyPrinter $printer;
+
+    /**
+     * @param  bool  $routeFile  the file is itself a route file, so a `require` at its top level loads more routes; elsewhere only a `require` inside a route group counts
+     */
+    public function __construct(private readonly bool $routeFile = false)
     {
         $this->groups = new RouteGroupTracker;
+        $this->printer = new PrettyPrinter;
     }
 
     protected function reset(): void
@@ -64,6 +74,8 @@ final class RouteFileLoadVisitor extends CollectingVisitor
             $node instanceof Node\Expr\StaticCall => $this->staticCall($node),
             // $this->loadRoutesFrom(), Route::...->group(), ->withRouting(), ->withCommands()
             $node instanceof Node\Expr\MethodCall => $this->methodCall($node),
+            // require base_path('routes/api.php') inside a group closure or a route file
+            $node instanceof Node\Expr\Include_ => $this->includeCall($node),
             default => null,
         };
 
@@ -92,6 +104,16 @@ final class RouteFileLoadVisitor extends CollectingVisitor
 
         // Router::group(array $attributes, Closure|array|string $routes)
         $this->collect(RouteFileLoader::ROUTE_GROUP, Args::of($call->args)->at(1));
+    }
+
+    private function includeCall(Node\Expr\Include_ $call): void
+    {
+        // a require far from any route group in an ordinary file is not a route file
+        if (! $this->routeFile && ! $this->groups->isOpen()) {
+            return;
+        }
+
+        $this->add(RouteFileLoader::INCLUDE, $call->expr, false, null);
     }
 
     private function methodCall(Node\Expr\MethodCall $call): void
@@ -193,6 +215,17 @@ final class RouteFileLoadVisitor extends CollectingVisitor
         return RoutingMiddlewareGroup::DEFAULT_API_PREFIX;
     }
 
+    private function render(Node\Expr $value): string
+    {
+        try {
+            $rendered = Str::squish($this->printer->prettyPrintExpr($value));
+        } catch (\Throwable) {
+            return '(unprintable)';
+        }
+
+        return Str::length($rendered) > 80 ? Str::substr($rendered, 0, 77).'...' : $rendered;
+    }
+
     private function collect(RouteFileLoader $loader, ?Arg $arg, bool $allowsDirectory = false, ?RouteGroupContext $context = null): void
     {
         // argument omitted
@@ -225,6 +258,6 @@ final class RouteFileLoadVisitor extends CollectingVisitor
             return;
         }
 
-        $this->references[] = new RouteFileReference($loader, $value, $value->getStartLine(), $allowsDirectory, $context ?? $this->groups->current());
+        $this->references[] = new RouteFileReference($loader, $value, $value->getStartLine(), $allowsDirectory, $this->render($value), $context ?? $this->groups->current());
     }
 }

@@ -48,7 +48,7 @@ function routeEntries(): array
 it('returns an empty routes array when routes/ is absent', function () {
     $result = (new RouteScanner)->scan(sys_get_temp_dir());
 
-    expect($result)->toBe(['routes' => []]);
+    expect($result)->toBe(['routes' => [], 'unresolved_routes' => []]);
 });
 
 // ---------------------------------------------------------------------------
@@ -309,7 +309,7 @@ it('expands Route::resource into its seven constituent routes', function () {
         static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\PhotoController',
     ));
 
-    expect($photos)->toHaveCount(7);
+    expect($photos)->toHaveCount(8);
 });
 
 it('expands Route::apiResource into five routes with no create or edit', function () {
@@ -337,7 +337,7 @@ it('expands Route::apiResource into five routes with no create or edit', functio
         static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\WidgetController',
     ));
 
-    expect($widgets)->toHaveCount(5);
+    expect($widgets)->toHaveCount(6);
 
     expect(routeBy($entries, 'GET', '/widgets/create'))->toBeNull();
     expect(array_filter(
@@ -377,14 +377,14 @@ it('honours ->except() on a resource', function () {
         static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\TagController',
     ));
 
-    expect($tags)->toHaveCount(4);
+    expect($tags)->toHaveCount(5);
 
     foreach (['index', 'store', 'show', 'update'] as $action) {
         $match = array_values(array_filter(
             $tags,
             static fn (RouteEntry $e): bool => $e->controllerMethod === $action,
         ));
-        expect($match)->toHaveCount(1);
+        expect($match)->toHaveCount($action === 'update' ? 2 : 1);
     }
 
     foreach (['create', 'edit', 'destroy'] as $action) {
@@ -414,7 +414,7 @@ it('applies group prefix, name, and middleware to a grouped apiResource', functi
         static fn (RouteEntry $e): bool => $e->controllerFqcn === 'App\\Http\\Controllers\\ItemController',
     ));
 
-    expect($items)->toHaveCount(5);
+    expect($items)->toHaveCount(6);
 
     $index = routeBy($entries, 'GET', '/admin/items');
     expect($index)->not->toBeNull();

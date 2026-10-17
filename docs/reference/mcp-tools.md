@@ -55,7 +55,7 @@ Lists one section of the index verbatim, with a count. Use it to find a class na
 
 | Input | Type | Required / default | Notes |
 | --- | --- | --- | --- |
-| `section` | string | required | The index section to list. One of `events`, `listeners`, `observers`, `model_events`, `jobs`, `unresolved_dispatches`, `closure_listeners`, `scheduled_tasks`, `mailables`, `notifications`, `routes`. |
+| `section` | string | required | The index section to list. One of `events`, `listeners`, `observers`, `model_events`, `jobs`, `unresolved_dispatches`, `closure_listeners`, `scheduled_tasks`, `mailables`, `notifications`, `routes`, `unresolved_routes`. |
 
 Called with `section` = `jobs`, it returns:
 
@@ -96,7 +96,7 @@ Errors come back as a text message instead of JSON:
 
 | Called with | Returns |
 | --- | --- |
-| `section` = `widgets` | `Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes.` |
+| `section` = `widgets` | `Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes, unresolved_routes.` |
 
 ### `get-entity`
 
