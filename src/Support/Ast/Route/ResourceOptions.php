@@ -180,14 +180,14 @@ final class ResourceOptions
 
         // Laravel appends the new list to every per-method list set earlier
         foreach ($this->middlewareFor as $method => $existing) {
-            $this->middlewareFor[$method] = collect([...$existing, ...$middleware])->unique()->values()->all();
+            $this->middlewareFor[$method] = array_values(collect([...$existing, ...$middleware])->unique()->all());
         }
     }
 
     private function setMiddlewareFor(Args $args): void
     {
         $methods = $this->argValueList($args->valueAt(0));
-        $middleware = $this->middlewareOf(collect($args->values())->slice(1)->values()->all());
+        $middleware = $this->middlewareOf(array_values(collect($args->values())->slice(1)->all()));
         if ($methods === null) {
             $this->dynamic = true;
 
@@ -196,7 +196,7 @@ final class ResourceOptions
 
         // the resource-wide list applies to these methods too
         if ($this->middleware !== null) {
-            $middleware = collect([...$this->middleware, ...$middleware])->unique()->values()->all();
+            $middleware = array_values(collect([...$this->middleware, ...$middleware])->unique()->all());
         }
         foreach ($methods as $method) {
             $this->middlewareFor[$method] = $middleware;
@@ -206,7 +206,7 @@ final class ResourceOptions
     private function setExcludedFor(Args $args): void
     {
         $methods = $this->argValueList($args->valueAt(0));
-        $middleware = $this->middlewareOf(collect($args->values())->slice(1)->values()->all());
+        $middleware = $this->middlewareOf(array_values(collect($args->values())->slice(1)->all()));
         if ($methods === null) {
             $this->dynamic = true;
 

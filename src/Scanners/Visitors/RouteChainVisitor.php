@@ -194,7 +194,7 @@ final class RouteChainVisitor extends CollectingVisitor
         }
 
         $issues = [];
-        $leading = $this->leading(collect($links)->slice(0, $index)->values()->all(), $issues);
+        $leading = $this->leading(array_values(collect($links)->slice(0, $index)->all()), $issues);
 
         $context = $this->groups->current();
 
@@ -219,11 +219,10 @@ final class RouteChainVisitor extends CollectingVisitor
         }
 
         $excluded = [...$groupExcluded, ...$leading->excluded, ...$postExcluded];
-        $middleware = collect([...$groupMiddleware, ...($leading->middleware ?? []), ...$postMiddleware])
+        $middleware = array_values(collect([...$groupMiddleware, ...($leading->middleware ?? []), ...$postMiddleware])
             ->unique()
             ->reject(static fn (string $name): bool => collect($excluded)->containsStrict($name))
-            ->values()
-            ->all();
+            ->all());
 
         return new RouteChainEntry(
             root: $method,
@@ -347,7 +346,8 @@ final class RouteChainVisitor extends CollectingVisitor
             $rendered = '(unprintable)';
         }
 
-        $rendered = Str::squish($rendered);
+        // NameResolver has qualified the facade; show it as written
+        $rendered = Str::squish(Str::replace('\\Illuminate\\Support\\Facades\\Route::', 'Route::', $rendered));
 
         return Str::length($rendered) > self::EXPRESSION_LIMIT ? Str::substr($rendered, 0, self::EXPRESSION_LIMIT - 3).'...' : $rendered;
     }

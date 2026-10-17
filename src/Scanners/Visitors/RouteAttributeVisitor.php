@@ -71,7 +71,7 @@ final class RouteAttributeVisitor extends CollectingVisitor
         return $this->issues;
     }
 
-    /** @param  list<Node\AttributeGroup>  $groups */
+    /** @param  array<Node\AttributeGroup>  $groups */
     private function inspect(array $groups): void
     {
         foreach ($groups as $group) {

@@ -672,10 +672,10 @@
         },
         "list.unknown": {
             "content": [
-                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes."
+                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes, unresolved_routes."
             ],
             "errors": [
-                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes."
+                "Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes, unresolved_routes."
             ]
         }
     }

@@ -62,11 +62,10 @@ final class ResourceCall
         // apiResource() / apiSingleton() seed `only` unless the options set it
         $apiOnly = $kind?->apiOnly();
         if ($apiOnly !== null && $this->options->only === null) {
-            $this->options->only = collect($apiOnly)
+            $this->options->only = array_values(collect($apiOnly)
                 ->map(static fn ($action): string => $action->value)
                 ->reject(fn (string $action): bool => collect($this->options->except)->containsStrict($action))
-                ->values()
-                ->all();
+                ->all());
         }
 
         // modifiers after the call; the single-resource forms only

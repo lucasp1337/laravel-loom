@@ -205,8 +205,6 @@ final class RouteScanner implements Scanner
      * The URI of a route: its own, under the enclosing groups' prefixes, under
      * the prefix the chain sets before the call, under every `->prefix()`
      * written after it. Always leading-slash; root collapses to '/'.
-     *
-     * @param  list<string>  $segments  prefix segments, outermost first
      */
     private function uriOf(RouteChainEntry $raw, string $ownUri): string
     {

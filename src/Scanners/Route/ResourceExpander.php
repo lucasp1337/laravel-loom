@@ -63,11 +63,10 @@ final class ResourceExpander
     private function routesOf(ResourceTarget $target, ResourceKind $kind, ResourceOptions $options, RouteChainEntry $raw, string $file): array
     {
         // 'admin/photos': the leading segments become a URI prefix, the last is the resource
-        $segments = explode('/', $target->name);
-        $name = Arr::last($segments);
-        $prefix = collect($segments)->slice(0, -1)->values()->all();
+        $name = Str::afterLast($target->name, '/');
+        $prefix = Str::contains($target->name, '/') ? explode('/', Str::beforeLast($target->name, '/')) : [];
         // the resource wildcard comes from the last dotted segment, as ResourceRegistrar::register()
-        $leaf = Arr::last(explode('.', $name));
+        $leaf = Str::afterLast($name, '.');
 
         $routes = [];
         foreach ($this->actions($kind, $options) as $action) {
@@ -137,7 +136,7 @@ final class ResourceExpander
         $uri = Arr::join(Arr::map($parts, fn (string $part): string => $part.'/{'.$this->wildcard($part, $options).'}'), '/');
 
         // the resource's own wildcard is added per action, so remove it here
-        return Str::replace('/{'.$this->wildcard(Arr::last($parts), $options).'}', '', $uri);
+        return Str::replace('/{'.$this->wildcard(Str::afterLast($resource, '.'), $options).'}', '', $uri);
     }
 
     /** `ResourceRegistrar::getResourceWildcard()`. */
@@ -175,11 +174,10 @@ final class ResourceExpander
         $own = $options->middlewareFor[$action->value] ?? $options->middleware ?? [];
         $excluded = [...$raw->groupExcluded, ...$options->excluded, ...($options->excludedFor[$action->value] ?? [])];
 
-        return collect([...$raw->groupMiddleware, ...$own])
+        return array_values(collect([...$raw->groupMiddleware, ...$own])
             ->unique()
             ->reject(static fn (string $name): bool => collect($excluded)->containsStrict($name))
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
