@@ -128,11 +128,16 @@ Loom reads these as scheduled tasks:
 - Frequency helpers, `cron()`, minute arguments, `daysOfMonth` and `quarterlyOn`, as `cron`.
 - Sub-minute helpers, as `frequency` with `cron: null`.
 - `->group(...)`, nested, in variable or facade form; the inner modifiers win.
+- A `Schedule` property or a `Schedule` parameter of a method that `schedule()` calls on `$this`, and `Artisan::command(...)->hourly()` (the command name is the signature's first word).
+- `->at('3:15')` as `dailyAt`, keeping the day fields of an earlier `weekly()` or `monthly()`.
+- Enclosing `if`, `elseif` and `else` blocks, as `if(<condition>)`, `elseif(<condition>)` and `else(<if condition>)` constraints.
 - Day, time-window, `when`, `skip`, `environments` and the common flags, as `constraints` and booleans.
 
 | Construct | What you get |
 | --- | --- |
 | Macros, unknown helpers, variable arguments | `cron: null` |
+
+A `schedule()` body whose tasks cannot be read, or a `Schedule` helper that `schedule()` never calls, is listed under skipped files (`loom:scan -v`).
 
 Does not read: `repeatEvery()`, `evenWhenPaused()`, ping and output hooks, and closure bodies.
 
@@ -160,7 +165,7 @@ Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTe
 ## Everywhere
 
 - [`scan.paths`](scan-config.md) are walked and `scan.exclude` is skipped. `Events/`, `Jobs/` and the other convention directories resolve inside each scan path.
-- Classes are located through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class that is missing or outside the scan paths is dropped.
+- Classes are located through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none), plus the files in `extra.merge-plugin.include` and `scan.composer_files`. A class that is missing or outside the scan paths is dropped.
 - Files with syntax errors are skipped; `loom:scan` prints their count and `-v` lists them.
 - `vendor/` is opaque, so `queued` and `via()` inherited from a package do not show.
 - A handler's `dispatches[]` lists events and jobs from its registered method only: a dispatch inside a private helper that `handle()` calls is attributed to the event's `dispatched_from` but not to the listener, job or observer. Routes attribute by controller method. Mail and notification sends appear in `mailables[].sent_from` and `notifications[].notified_from` instead.

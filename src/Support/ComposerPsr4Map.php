@@ -37,22 +37,86 @@ final class ComposerPsr4Map
         return new self([self::DEFAULT_PREFIX => [self::DEFAULT_DIRECTORY]]);
     }
 
-    /** Only `autoload.psr-4`; `autoload-dev` (tests, factories) is not application code. */
-    public static function fromAppRoot(string $appRoot): self
+    /**
+     * The root composer.json plus the files it pulls in through
+     * `extra.merge-plugin.include` and the configured `$extraFiles` (globs
+     * relative to the app root). Only `autoload.psr-4`; `autoload-dev` (tests,
+     * factories) is not application code. Directories are relative to the app
+     * root, whichever file declared them.
+     *
+     * @param  list<string>  $extraFiles
+     * @param  bool  $includeRoot  false reads only the included files
+     */
+    public static function fromAppRoot(string $appRoot, array $extraFiles = [], bool $includeRoot = true): self
     {
-        $file = AppPath::join($appRoot, 'composer.json');
+        $root = $includeRoot ? self::decode(AppPath::join($appRoot, 'composer.json')) : [];
+        $files = array_values(collect([...self::mergePluginIncludes($root), ...$extraFiles])->unique(strict: true)->all());
+
+        $map = [];
+        self::collect($map, $root['autoload']['psr-4'] ?? null, '');
+
+        foreach (self::composerFiles($appRoot, $files) as $file) {
+            $relativeDir = Str::chopEnd(Str::chopEnd((string) AppPath::relative($appRoot, $file), 'composer.json'), '/');
+            self::collect($map, self::decode($file)['autoload']['psr-4'] ?? null, $relativeDir);
+        }
+
+        return $map === [] && $includeRoot ? self::laravelDefault() : new self($map);
+    }
+
+    /**
+     * Existing composer.json files (absolute, sorted) matching globs relative
+     * to the app root.
+     *
+     * @param  list<string>  $globs
+     * @return list<string>
+     */
+    public static function composerFiles(string $appRoot, array $globs): array
+    {
+        $found = [];
+        $root = preg_replace('/[*?\[\]]/', '[$0]', AppPath::root($appRoot)) ?? AppPath::root($appRoot);
+
+        foreach ($globs as $glob) {
+            foreach (glob($root.'/'.Str::trim(Str::replace('\\', '/', $glob), '/')) ?: [] as $match) {
+                if (is_file($match) && Str::endsWith($match, 'composer.json')) {
+                    $found[Str::replace('/', DIRECTORY_SEPARATOR, $match)] = true;
+                }
+            }
+        }
+
+        return array_values(collect(array_keys($found))->sort()->all());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function decode(string $file): array
+    {
         $raw = is_file($file) ? @file_get_contents($file) : false;
         $decoded = $raw === false ? null : json_decode($raw, true);
 
-        $psr4 = is_array($decoded) && is_array($decoded['autoload'] ?? null)
-            ? ($decoded['autoload']['psr-4'] ?? null)
-            : null;
+        return is_array($decoded) ? $decoded : [];
+    }
 
+    /**
+     * @param  array<string, mixed>  $root
+     * @return list<string>
+     */
+    private static function mergePluginIncludes(array $root): array
+    {
+        $include = $root['extra']['merge-plugin']['include'] ?? [];
+
+        return array_values(collect((array) $include)->filter(fn (mixed $v): bool => is_string($v))->all());
+    }
+
+    /**
+     * @param  array<string, list<string>>  $map
+     */
+    private static function collect(array &$map, mixed $psr4, string $baseDir): void
+    {
         if (! is_array($psr4)) {
-            return self::laravelDefault();
+            return;
         }
 
-        $map = [];
         foreach ($psr4 as $prefix => $dirs) {
             $prefix = (string) $prefix;
             if ($prefix !== '' && ! Str::endsWith($prefix, '\\')) {
@@ -63,11 +127,10 @@ final class ComposerPsr4Map
                 if (! is_string($dir)) {
                     continue;
                 }
-                $map[$prefix][] = Str::trim(Str::replace('\\', '/', $dir), '/');
+                $dir = Str::trim(Str::replace('\\', '/', $dir), '/');
+                $map[$prefix][] = Str::trim($baseDir.'/'.$dir, '/');
             }
         }
-
-        return $map === [] ? self::laravelDefault() : new self($map);
     }
 
     /**

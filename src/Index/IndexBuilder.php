@@ -7,7 +7,9 @@ namespace Lucasp\Loom\Index;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Support\AppPath;
 use RuntimeException;
 
 /**
@@ -50,6 +52,11 @@ class IndexBuilder
      */
     public function build(string $appRoot, string $laravelVersion): Index
     {
+        // Scanners compare absolute file paths against the root; a relative one silently loses every match.
+        if (! AppPath::isAbsolute($appRoot)) {
+            throw new InvalidArgumentException("The app root must be an absolute path: {$appRoot}");
+        }
+
         $sections = $this->initialSections();
 
         foreach ($this->scanners as $scanner) {

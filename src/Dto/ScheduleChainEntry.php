@@ -16,6 +16,8 @@ final readonly class ScheduleChainEntry
 {
     /**
      * @param  list<ChainLink>  $chain
+     * @param  list<string>  $guards  enclosing `if` branches, rendered as constraint strings
+     * @param  bool  $closureCommand  the root is `Artisan::command()`, scheduled through the closure command
      */
     public function __construct(
         public ScheduleKind $kind,
@@ -23,5 +25,7 @@ final readonly class ScheduleChainEntry
         public Args $rootArgs,
         public array $chain,
         public int $line,
+        public array $guards = [],
+        public bool $closureCommand = false,
     ) {}
 }

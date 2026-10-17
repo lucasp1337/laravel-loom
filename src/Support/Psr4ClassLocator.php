@@ -16,9 +16,12 @@ final class Psr4ClassLocator
     /** @var array<string, ComposerPsr4Map> */
     private array $maps = [];
 
+    /** @param  list<string>  $composerFiles  extra composer.json globs (`scan.composer_files`) */
+    public function __construct(private readonly array $composerFiles = []) {}
+
     public function locate(string $appRoot, string $fqcn): ?string
     {
-        $this->maps[$appRoot] ??= ComposerPsr4Map::fromAppRoot($appRoot);
+        $this->maps[$appRoot] ??= ComposerPsr4Map::fromAppRoot($appRoot, $this->composerFiles);
 
         return $this->maps[$appRoot]->locate($appRoot, $fqcn);
     }

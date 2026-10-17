@@ -33,6 +33,9 @@ final class ScanScope
 
     private bool $discoverRoutes;
 
+    /** @var list<string> */
+    private array $composerFiles;
+
     /** @var array<string, list<string>> */
     private array $resolved = [];
 
@@ -47,11 +50,13 @@ final class ScanScope
      * @param  list<string>  $exclude
      * @param  list<string>  $routePaths
      * @param  bool  $discoverRoutes  also read route files that providers and bootstrap/app.php load
+     * @param  list<string>  $composerFiles  composer.json globs whose PSR-4 maps are read besides the root one
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true)
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [])
     {
+        $this->composerFiles = $composerFiles;
         $this->discoverRoutes = $discoverRoutes;
         $normalised = [];
         foreach ($paths as $path) {
@@ -80,8 +85,12 @@ final class ScanScope
     {
         $paths = $pathOverride ?? self::stringList($config[ScanConfigKey::PATHS->value] ?? null, [self::DEFAULT_PATH]);
 
-        if (($config[ScanConfigKey::PSR4_PATHS->value] ?? false) === true) {
-            $paths = array_values(collect($paths)->merge(ComposerPsr4Map::fromAppRoot($appRoot)->directories())->all());
+        $composerFiles = self::stringList($config[ScanConfigKey::COMPOSER_FILES->value] ?? null, []);
+
+        // `psr4_paths`: every PSR-4 directory of the root and included composer files; `composer_files` alone: just those files'
+        $all = ($config[ScanConfigKey::PSR4_PATHS->value] ?? false) === true;
+        if ($all || $composerFiles !== []) {
+            $paths = array_values(collect($paths)->merge(ComposerPsr4Map::fromAppRoot($appRoot, $composerFiles, includeRoot: $all)->directories())->all());
         }
 
         $routePaths = $routePathOverride ?? self::stringList($config[ScanConfigKey::ROUTE_PATHS->value] ?? null, [self::DEFAULT_ROUTE_PATH]);
@@ -91,6 +100,7 @@ final class ScanScope
             self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []),
             $routePaths,
             ($config[ScanConfigKey::DISCOVER_ROUTES->value] ?? true) !== false,
+            $composerFiles,
         );
     }
 
@@ -257,6 +267,14 @@ final class ScanScope
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function composerFiles(): array
+    {
+        return $this->composerFiles;
     }
 
     public function discoversRoutes(): bool
