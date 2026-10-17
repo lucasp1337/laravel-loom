@@ -95,7 +95,7 @@ it('leaves non-listener sections empty and reports unreadable registrations', fu
     expect($payload['observers'])->toBe([]);
     expect($payload['model_events'])->toBe([]);
     // Listener registrations Loom cannot read are reported, not dropped.
-    expect(collect($payload['unresolved_dispatches'])->pluck('reason')->unique()->all())->toBe(['unreadable_listener']);
+    expect(collect($payload['unresolved_dispatches'])->pluck('reason')->unique()->all())->toBe(['unreadable_event_name', 'untyped_closure_listener']);
 
     expect($payload['stats']['events'])->toBe(0);
     expect($payload['stats']['observers'])->toBe(0);

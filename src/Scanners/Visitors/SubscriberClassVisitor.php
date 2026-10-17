@@ -122,7 +122,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
                 }
                 $event = ListenerRef::event($item->key);
                 if ($event === null) {
-                    $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_LISTENER);
+                    $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
                     continue;
                 }
@@ -277,7 +277,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
 
         $event = ListenerRef::event($eventValue);
         if ($event === null) {
-            $this->recordUnresolved($eventValue, UnresolvedReason::UNREADABLE_LISTENER);
+            $this->recordUnresolved($eventValue, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
             return;
         }

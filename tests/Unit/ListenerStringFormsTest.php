@@ -71,7 +71,7 @@ it('reports listener and event shapes it cannot fold as unresolved', function ()
     expect($visitor->getPairs())->toBe([]);
     expect(collect($visitor->getUnresolved())->map(fn ($r) => $r->expression.'|'.$r->reason)->all())->toBe([
         '$listener|unreadable_listener',
-        '$event|unreadable_listener',
+        '$event|unreadable_event_name',
         "'App\\Listeners\\X::handle'|unreadable_listener",
     ]);
 });
@@ -105,6 +105,7 @@ it('reads closure, tuple and class model hooks and reports unreadable ones', fun
     ]);
     expect(collect($visitor->getUnresolved())->map(fn ($r) => $r->expression.'|'.$r->reason)->all())->toBe([
         '$callback|unreadable_model_hook',
+        'fn () => ...|relative_class_name',
     ]);
 });
 

@@ -93,7 +93,7 @@ final class ListenArrayVisitor extends CollectingVisitor
 
             $event = ListenerRef::event($item->key);
             if ($event === null) {
-                $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_LISTENER);
+                $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
                 continue;
             }

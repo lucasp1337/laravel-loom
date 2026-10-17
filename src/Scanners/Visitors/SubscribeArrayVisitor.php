@@ -69,7 +69,7 @@ final class SubscribeArrayVisitor extends CollectingVisitor
                 $folded = ListenerRef::fold($item->value)
             ?? ($item->value instanceof Node\Expr\New_ ? ClassRef::fromInstanceOrConstant($item->value) : null);
                 if ($folded === null || Fqcn::normalize($folded) === '') {
-                    $this->recordUnresolved($item->value, UnresolvedReason::UNREADABLE_LISTENER);
+                    $this->recordUnresolved($item->value, UnresolvedReason::UNREADABLE_SUBSCRIBER);
 
                     continue;
                 }

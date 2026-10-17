@@ -50,6 +50,14 @@ final class Hydrate
     }
 
     /** @param  array<string, mixed>  $data */
+    public static function nullableBool(array $data, Field $field): ?bool
+    {
+        $value = $data[$field->value] ?? null;
+
+        return is_bool($value) ? $value : null;
+    }
+
+    /** @param  array<string, mixed>  $data */
     public static function bool(array $data, Field $field): bool
     {
         return ($data[$field->value] ?? null) === true;

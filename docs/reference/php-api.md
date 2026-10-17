@@ -138,7 +138,7 @@ Every value object in `Lucasp\Loom\Index\Model\` is `final readonly` with public
 | `Dispatch` | `string $target`, `DispatchKinds $kind`, `Confidence $confidence`, `string $file`, `int $line` |
 | `DispatchSite` | `string $file`, `int $line`, `string $method`, `?DispatchMode $mode`, `?DispatchOverrides $overrides`, `?list<string> $channels` |
 | `DispatchOverrides` | `?string $locale`, `?string $mailer`, `?string $connection`, `?string $queue`, `?int $delay`, `?bool $afterCommit` |
-| `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff` |
+| `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff`, `?bool $afterCommit` |
 | `Frequency` | `FrequencyUnit $unit`, `int $every`: a sub-minute schedule frequency (`scheduled_tasks[*].frequency`), present only when `cron` is `null` |
 | `Handle` | `string $event`, `string $method`: a listener's event-to-method binding (`listeners[*].handles`) |
 | `Handler` | `string $listener`, `string $method`: an event's listener-to-method binding (`events[*].handled_by`) |

@@ -5,7 +5,7 @@ What each scanner reads and what it skips. Field meanings are in the [schema](sc
 Loom parses source without running your app. It reads the directories in [`scan.paths`](scan-config.md) (default `app/`), `routes/` and the route files that providers and `bootstrap/app.php` load, and `bootstrap/app.php` for the scheduler. Anything decided at runtime is out of reach.
 
 !!! warning "Targets must be literal"
-    A dispatched or registered class has to be a `::class` reference, a `new X` expression or a string literal. Variables, concatenation and container lookups do not resolve; a dispatch like that is listed in `unresolved_dispatches` instead of being linked.
+    A dispatched or registered class has to be a `::class` reference, a `new X` expression or a string literal. Variables, concatenation and container lookups do not resolve; a dispatch like that is listed in `unresolved_dispatches` instead of being linked. [Forms Loom does not read](unread-forms.md) shows each such form as code, with the reason it gets and the fix.
 
 Each section below lists what Loom reads, the cases that come out differently than you might expect, and what it does not read. The last line of a section names the tests that pin the behaviour.
 
@@ -39,7 +39,7 @@ Loom reads these as listeners:
 | Nullable or union first parameter | One event per class |
 | Untyped or builtin first parameter | The listener, with `handles: []` |
 
-Does not read: abstract classes, traits, interfaces, methods made non-public with `as protected`, methods with no parameter, handlers inherited from a vendor class, a dispatcher typed in `boot()` or held in a property, registrations inside nested closures in `subscribe()`, `$obj->method` and `'Class::method'` strings. A registration whose event or listener is one of these, a variable or a call (`Event::listen($name, ...)`, `[$this, 'handle']`) is listed in `unresolved_dispatches` with reason `unreadable_listener`. A listener is matched to the event class it is typed to, not to that class's parents.
+Does not read: abstract classes, traits, interfaces, methods made non-public with `as protected`, methods with no parameter, handlers inherited from a vendor class, a dispatcher typed in `boot()` or held in a property, registrations inside nested closures in `subscribe()`, `$obj->method` and `'Class::method'` strings. A registration whose event or listener is one of these, a variable or a call (`Event::listen($name, ...)`, `[$this, 'handle']`) is listed in `unresolved_dispatches` with a reason (`unreadable_event_name`, `unreadable_listener`, `unreadable_subscriber` or `untyped_closure_listener`, see [Forms Loom does not read](unread-forms.md#listener-registrations)). A listener is matched to the event class it is typed to, not to that class's parents.
 
 Pinned by [HandlerResolutionTest], [ListenerScannerTest], [ListenArrayVisitorTest], [EventListenCallVisitorTest], [SubscriberClassVisitorTest].
 
@@ -66,7 +66,7 @@ Loom reads these as observers:
 - Model hook registrations `static::creating(...)`, `saved`, `deleted`, `softDeleted` and the other registrar methods, from `booted()`, `boot()`, a trait's `bootXxx()` or outside the model. A closure or arrow function becomes a `model_events` handler with method `{closure}` and a `closure_listeners` entry (`registration: model_hook`) that holds the dispatches inside it. A `[Handler::class, 'method']`, `Handler::class` or `'Handler@method'` callback becomes a handler. A hook in a trait is listed once for each class that uses the trait.
 - `eloquent.{hook}: {Model}` keys in `$listen`, and closure handlers in `Event::listen('eloquent.*', fn ...)`, as `model_events`.
 
-Does not read: `parent::observe()`, `$this->observe()`, dynamic arguments, `booting` and `booted` methods on the observer (they are not observer hooks), hooks inherited from a vendor class, `$observables` custom events, and container-form `eloquent.*` registrations. A `static::creating($callback)` whose callback is a variable or call is listed in `unresolved_dispatches` with reason `unreadable_model_hook`. `Model::creating($variable)` outside the model is skipped, because the class isn't known to be a model.
+Does not read: `parent::observe()`, `$this->observe()`, dynamic arguments, `booting` and `booted` methods on the observer (they are not observer hooks), hooks inherited from a vendor class, `$observables` custom events, and container-form `eloquent.*` registrations. A `static::creating($callback)` whose callback is a variable or call is listed in `unresolved_dispatches` with reason `unreadable_model_hook` (see [model hooks](unread-forms.md#model-hooks)). `Model::creating($variable)` outside the model is skipped, because the class isn't known to be a model.
 
 Pinned by [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest], [ObserverClassVisitorTest], [EloquentListenStringVisitorTest], [ObserverScannerTest].
 
@@ -75,11 +75,12 @@ Pinned by [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest], [ObserverC
 Loom reads these as jobs:
 
 - Classes in `app/Jobs/`, and classes passed to `dispatch(new X)`, `Bus::dispatch()` or `X::dispatch()`, including the conditional and fluent-chain forms.
-- Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`, inherited from parent classes and traits (most derived wins). Each is `null` when absent.
-- Literal `$this->onQueue('x')`, `onConnection('x')`, `delay(60)` and `$this->queue = 'x'` statements at the top level of the constructor. They win over property defaults; a parent's constructor counts only while the child calls `parent::__construct()`.
+- Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`, and the `$afterCommit` flag, inherited from parent classes and traits (most derived wins). Each is `null` when absent.
+- Literal `$this->onQueue('x')`, `onConnection('x')`, `delay(60)`, `afterCommit()`, `beforeCommit()` and `$this->queue = 'x'` statements at the top level of the constructor. They win over property defaults; a parent's constructor counts only while the child calls `parent::__construct()`.
 - `queued: true` for `ShouldQueue` and `ShouldQueueAfterCommit`, directly or through parents and your own interfaces.
+- `queue_config.after_commit`: `true` for `ShouldQueueAfterCommit`, a literal `$afterCommit = true` or an `afterCommit()` call; `false` for a literal `false` or `beforeCommit()`; `null` when the class says nothing, because the queue connection's `after_commit` setting decides. A job can opt out of `ShouldQueueAfterCommit` with `false`; a mailable or notification cannot.
 
-Does not read: `queued` through a vendor parent class, constructor calls inside a branch, `afterCommit()` (no `queue_config` field for it), `backoff()` and `retryUntil()` methods, non-literal property values, and flags such as `ShouldBeUnique` and `Batchable`.
+Does not read: `queued` through a vendor parent class, constructor calls inside a branch, `backoff()` and `retryUntil()` methods, non-literal property values, and flags such as `ShouldBeUnique` and `Batchable`.
 
 Pinned by [JobsScannerTest].
 
@@ -105,7 +106,7 @@ Does not read: `Queue::pushRaw`, closures registered with `Queue::before`, `afte
 
 `mode` comes from the call that was written. Loom does not evaluate `ShouldQueue` or the queue driver against it, so a `sync` driver is not reflected.
 
-Variable, concatenated, container-resolved and conditional targets, `$class::dispatch()`, and job lists built at runtime are listed in `unresolved_dispatches`. So is a target class that has no row in the index (an action class that is not a job, an event from a package): it is never linked. A dispatcher fetched from the container (`app(Dispatcher::class)->dispatch(...)`) is not followed.
+Variable, concatenated, container-resolved and conditional targets, string event names, closure jobs, view-based mail, `$class::dispatch()`, and job lists built at runtime are listed in `unresolved_dispatches`, each with its own reason (see [dispatch targets](unread-forms.md#dispatch-targets)). So is a target class that has no row in the index (an action class that is not a job, an event from a package): it is never linked. A dispatcher fetched from the container (`app(Dispatcher::class)->dispatch(...)`) is not followed.
 
 Pinned by [DispatchRuleMatcherTest], [DispatchScannerTest], [BusChainBatchEndToEndTest], [DispatchModeEndToEndTest], [ChainModifierExtractorTest], [ClosureOwnershipPhaseTest], [DispatchSiteVisitorTest].
 
@@ -122,7 +123,7 @@ Loom reads these:
 | Conditional `via()` | the union of possible channels, `channels_dynamic: true` |
 | Computed `via()` (call, property, keyed or non-literal item) | `channels: []`, `channels_dynamic: true` |
 
-Does not read: `Mail::raw()`, `->html()` and `->text()` sends, an inherited `via()`, `shouldSend()`, message content, receiver types and facade modifiers before `send`. Variable targets are listed in `unresolved_dispatches`, and so is a dispatched class whose file Loom cannot find (a package class, a missing file, an excluded path) with reason `class_not_found`.
+Does not read: `Mail::raw()`, `->html()` and `->text()` sends, an inherited `via()`, `shouldSend()`, message content, receiver types and facade modifiers before `send`. Variable targets and view-based `Mail::send('view', ...)` are listed in `unresolved_dispatches`, and so is a dispatched class whose file Loom cannot find (a package class, a missing file, an excluded path) with reason `class_not_found`.
 
 Pinned by [MailableScannerEndToEndTest], [NotificationScannerEndToEndTest], [NotificationScannerTest], [DispatchRuleMatcherTest].
 

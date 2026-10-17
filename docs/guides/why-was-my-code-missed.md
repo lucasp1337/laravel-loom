@@ -33,7 +33,7 @@ protected $listen = [
 ];
 ```
 
-**The event name or listener is dynamic.** `Event::listen($name, ...)`, `$obj->method(...)`, `Closure::fromCallable($var)` and a listener held in a variable can't be resolved. Each one is listed in `unresolved_dispatches` with reason `unreadable_listener`, so you can find it. `'SendReceipt@handle'` and `SendReceipt::class.'@handle'` are read. Use `::class` references and `[Listener::class, 'method']` tuples for the rest.
+**The event name or listener is dynamic.** `Event::listen($name, ...)`, `$obj->method(...)`, `Closure::fromCallable($var)` and a listener held in a variable can't be resolved. Each one is listed in `unresolved_dispatches` with reason [`unreadable_event_name`](../reference/unread-forms.md#unreadable_event_name), [`unreadable_listener`](../reference/unread-forms.md#unreadable_listener) or [`untyped_closure_listener`](../reference/unread-forms.md#untyped_closure_listener), so you can find it. `'SendReceipt@handle'` and `SendReceipt::class.'@handle'` are read. Use `::class` references and `[Listener::class, 'method']` tuples for the rest.
 
 **The listener is `discovery_unverified`, or missing.** Loom labels a class in `app/Listeners/` as `auto_discovered` only when it can see that event discovery is on: `bootstrap/app.php` calls `Application::configure()` and nothing turns discovery off. `withEvents(false)`, `EventServiceProvider::disableEventDiscovery()` or a legacy bootstrap without a `shouldDiscoverEvents()` override that returns `true` mean such a class is not a listener, so it is left out unless you register it. If `bootstrap/app.php` is missing or `withEvents(...)` gets a non-literal argument, the class appears as `discovery_unverified`.
 
@@ -67,7 +67,7 @@ Loom finds events in `app/Events/`, plus any class passed to `event(...)`, `broa
 
 ### A model event handler is missing
 
-A closure hook (`static::created(fn ...)` or `Event::listen('eloquent.created: App\Models\Order', fn ...)`) shows in `model_events[].handled_by` with the method `{closure}` on the model, and in `closure_listeners` with its dispatches. A hook callback Loom can't read (`static::created($callback)`) is listed in `unresolved_dispatches` with reason `unreadable_model_hook`. An observer that only registers through the string form never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
+A closure hook (`static::created(fn ...)` or `Event::listen('eloquent.created: App\Models\Order', fn ...)`) shows in `model_events[].handled_by` with the method `{closure}` on the model, and in `closure_listeners` with its dispatches. A hook callback Loom can't read (`static::created($callback)`) is listed in `unresolved_dispatches` with reason [`unreadable_model_hook`](../reference/unread-forms.md#unreadable_model_hook). An observer that only registers through the string form never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
 
 Hook methods declared on the observer, inherited from a parent observer or provided by a trait are all read. A `booting()` or `booted()` method on an observer is ignored; `Event::listen('eloquent.booted: ...')` strings are read.
 
@@ -79,19 +79,14 @@ Each `'created' => InvoiceCreated::class` entry in a model's `$dispatchesEvents`
 
 ### A dispatch shows up as unresolved
 
-Entries in `unresolved_dispatches` carry a `reason`. Each one points at the line to change:
+Entries in `unresolved_dispatches` carry a `reason` that names the shape of the code, and each reason has one change that makes it readable. [Forms Loom does not read](../reference/unread-forms.md) lists them all with a snippet and the fix. The common ones:
 
-| Reason | What Loom saw | Fix |
-|---|---|---|
-| `dynamic_class_name` | `event($event)` where `$event` is a variable | Pass `new OrderPlaced(...)` or `OrderPlaced::class` at the call |
-| `string_concatenation` | `event("App\\Events\\" . $name)` | Use a `::class` reference |
-| `container_resolution` | `event(app(OrderPlaced::class))` or `resolve(...)` | Construct the event with `new` |
-| `conditional_dispatch` | a ternary whose branches aren't both `new X` | Split into two `if` branches, each with its own `event(new ...)` |
-| `dynamic_list` | `Bus::chain($jobs)` or a `...$jobs` item, where the list is built at runtime | Write the list as an array literal of `new X` items |
-| `class_not_found` | `event(new Registered)` where no file under your scan paths declares the class (a package class, a typo, an excluded path) | Nothing to fix for a package class; otherwise add its directory to `scan.paths` or fix the name |
-| `unreadable_listener` | `Event::listen($name, ...)` or a listener held in a variable | Use `::class` references and `[Listener::class, 'method']` tuples |
-| `unreadable_model_hook` | `static::creating($callback)` where the callback is not a closure or readable callable | Pass a closure or a `[Class::class, 'method']` callable |
-| `target_not_indexed` | `StartLogDrain::dispatch()` where a file declares `StartLogDrain` but it is not an event, job, mailable or notification Loom indexed (a dispatch gets this or `class_not_found`, never both) | Make it a job (`ShouldQueue`, or place it under `Jobs/`) or an event so it gets a row |
+- [`dynamic_class_name`](../reference/unread-forms.md#dynamic_class_name): `event($event)`. Pass `new OrderPlaced(...)` at the call.
+- [`string_event_name`](../reference/unread-forms.md#string_event_name): `event('service.installed')`. Loom indexes class events.
+- [`closure_job`](../reference/unread-forms.md#closure_job): `dispatch(function () {...})`. Move the work into a job class.
+- [`view_mail`](../reference/unread-forms.md#view_mail): `Mail::send('emails.welcome', $data, fn ...)`. Send a mailable.
+- [`call_result`](../reference/unread-forms.md#call_result) and [`stored_target`](../reference/unread-forms.md#stored_target): the target comes from a call or a property. Construct it at the dispatch.
+- [`class_not_found`](../reference/unread-forms.md#class_not_found) and [`target_not_indexed`](../reference/unread-forms.md#target_not_indexed): the class is named but has no row to link to.
 
 A ternary where both branches are `new X()` is fine. Loom records both.
 
@@ -139,6 +134,8 @@ The same applies to `ShouldBeUnique`, `ShouldBeEncrypted`, `Batchable` and `#[On
 ### `queue_config` values are null
 
 Loom reads class-level properties with literal values, such as `public $tries = 3;` or `public $queue = 'emails';`. It doesn't run `backoff()` or `retryUntil()` methods, and a property set from `config('queue.default')` or a constant stays `null`. Use a literal property if you want the value in the index.
+
+`after_commit` is `null` when the class neither implements `ShouldQueueAfterCommit` nor sets `$afterCommit` or calls `afterCommit()` / `beforeCommit()` in its constructor. It then follows the `after_commit` option of the queue connection, which Loom does not read.
 
 ### A job is missing from the jobs list
 

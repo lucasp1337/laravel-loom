@@ -101,17 +101,7 @@ Loom doesn't drop these. Each goes into `unresolved_dispatches` with the express
 }
 ```
 
-Read that as "an event fires here and I can't tell which". The reason says why:
-
-- `dynamic_class_name`: the class is a variable.
-- `string_concatenation`: the name is built by concatenation or interpolation.
-- `container_resolution`: the class comes from `app()`, `resolve()` or `->make()`.
-- `conditional_dispatch`: a ternary whose branches don't both resolve to a class.
-- `dynamic_list`: a list of jobs built at runtime, such as `Bus::chain($jobs)` or a spread item.
-- `class_not_found`: the class is named, but no file under your scan paths declares it (a package class, a typo, an excluded path).
-- `target_not_indexed`: a file declares the class, but it is not an indexed event, job, mailable or notification. A dispatch gets `class_not_found` or `target_not_indexed`, never both.
-- `unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a literal.
-- `unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable.
+Read that as "an event fires here and I can't tell which". The reason says why, from a variable (`dynamic_class_name`) to a closure dispatched as a job (`closure_job`) to a class with no row to link to (`target_not_indexed`). Every reason, with the code shape it names and the change that fixes it, is on [Forms Loom does not read](../reference/unread-forms.md). A dispatch gets `class_not_found` or `target_not_indexed`, never both.
 
 A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
 

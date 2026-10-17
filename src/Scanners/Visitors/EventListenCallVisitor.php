@@ -152,7 +152,7 @@ final class EventListenCallVisitor extends CollectingVisitor
         if ($first instanceof Node\Expr\Closure || $first instanceof Node\Expr\ArrowFunction) {
             $events = $this->eventsFromClosureType($first);
             if ($events === []) {
-                $this->recordUnresolved($first, UnresolvedReason::UNREADABLE_LISTENER);
+                $this->recordUnresolved($first, UnresolvedReason::UNTYPED_CLOSURE_LISTENER);
             }
             foreach ($events as $event) {
                 $this->recordClosurePair($event, $first);
@@ -164,7 +164,7 @@ final class EventListenCallVisitor extends CollectingVisitor
         $second = $args->valueAt(1);
         if ($second === null) {
             // A lone non-closure argument (e.g. `queueable(...)`) names no readable event.
-            $this->recordUnresolved($first, UnresolvedReason::UNREADABLE_LISTENER);
+            $this->recordUnresolved($first, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
             return;
         }
@@ -185,7 +185,7 @@ final class EventListenCallVisitor extends CollectingVisitor
     {
         $event = ListenerRef::event($eventExpr);
         if ($event === null) {
-            $this->recordUnresolved($eventExpr, UnresolvedReason::UNREADABLE_LISTENER);
+            $this->recordUnresolved($eventExpr, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
             return;
         }

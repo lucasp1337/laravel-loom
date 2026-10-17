@@ -22,7 +22,7 @@ final readonly class QueueDeclaration
 
     public static function none(): self
     {
-        $empty = new QueueConfigData(null, null, null, null, null, null);
+        $empty = new QueueConfigData(null, null, null, null, null, null, null);
 
         return new self($empty, $empty, false, false);
     }

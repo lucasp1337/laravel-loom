@@ -62,7 +62,7 @@ final class EventSubscribeCallVisitor extends CollectingVisitor
             ?? ($argument instanceof Node\Expr\New_ ? ClassRef::fromInstanceOrConstant($argument) : null);
         $fqcn = $folded === null ? null : Fqcn::normalize($folded);
         if ($fqcn === null || $fqcn === '') {
-            $this->recordUnresolved($argument, UnresolvedReason::UNREADABLE_LISTENER);
+            $this->recordUnresolved($argument, UnresolvedReason::UNREADABLE_SUBSCRIBER);
 
             return null;
         }

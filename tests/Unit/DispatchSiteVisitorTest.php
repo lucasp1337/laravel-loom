@@ -901,7 +901,7 @@ it('resolves event((new X($order))->something()) chain-wrapped target', function
     expect($sites[0]->provisionalKind)->toBe(DispatchKinds::EVENT);
 });
 
-it('still records variable-receiver ->notify($n->locale(...)) as dynamic_class_name unresolved', function () {
+it('records variable-receiver ->notify($n->locale(...)) as call_result unresolved', function () {
     $source = <<<'PHP'
     <?php
     namespace App\Services;
@@ -916,7 +916,7 @@ it('still records variable-receiver ->notify($n->locale(...)) as dynamic_class_n
 
     expect($sites)->toBe([]);
     expect($unresolved)->toHaveCount(1);
-    expect($unresolved[0]->reason)->toBe('dynamic_class_name');
+    expect($unresolved[0]->reason)->toBe('call_result');
 });
 
 // -----------------------------------------------------------------------------
@@ -1404,6 +1404,7 @@ function runDispatchBody(string $body): array
     use App\Jobs\Ship;
     use App\Notifications\Paid;
     use Illuminate\Support\Facades\Bus;
+    use Illuminate\Support\Facades\Mail;
     use Illuminate\Support\Facades\Queue;
     use Illuminate\Support\Facades\Route;
     class Svc {
@@ -1459,20 +1460,20 @@ it('resolves new self and self::class arguments to the enclosing class', functio
         ->and($sites[1]->target)->toBe('App\\Jobs\\Recompute');
 });
 
-it('reports parent:: with no parent class as unresolved', function () {
+it('reports parent:: with no parent class as relative_class_name', function () {
     [$sites, $unresolved] = runDispatchInClass('class Recompute', 'parent::dispatch($id);');
 
     expect($sites)->toBe([])
         ->and($unresolved)->toHaveCount(1)
-        ->and($unresolved[0]->reason)->toBe('dynamic_class_name');
+        ->and($unresolved[0]->reason)->toBe('relative_class_name');
 });
 
-it('reports self:: inside a trait as unresolved', function () {
+it('reports self:: inside a trait as relative_class_name', function () {
     [$sites, $unresolved] = runDispatchInClass('trait Dispatches', 'self::dispatch($id);');
 
     expect($sites)->toBe([])
         ->and($unresolved)->toHaveCount(1)
-        ->and($unresolved[0]->reason)->toBe('dynamic_class_name');
+        ->and($unresolved[0]->reason)->toBe('relative_class_name');
 });
 
 it('reports a variable class dispatch as dynamic_class_name', function () {
@@ -1587,3 +1588,42 @@ it('does not trace a variable across a closure boundary', function () {
     expect($sites)->toBe([])
         ->and($unresolved)->toHaveCount(1);
 });
+
+// -----------------------------------------------------------------------------
+// Reason split: each unreadable shape says why
+// -----------------------------------------------------------------------------
+
+it('classifies an unreadable dispatch target by its shape', function (string $body, string $reason) {
+    [$sites, $unresolved] = runDispatchBody($body);
+
+    expect($sites)->toBe([])
+        ->and(collect($unresolved)->pluck('reason')->all())->toBe([$reason]);
+})->with([
+    'string event name' => ["event('service.installed');", 'string_event_name'],
+    'closure job' => ['dispatch(function () { return 1; });', 'closure_job'],
+    'arrow function job' => ['dispatch(fn () => 1);', 'closure_job'],
+    'queued closure' => ['Queue::push(fn () => 1);', 'closure_job'],
+    'view mail with a string' => ["Mail::send('emails.welcome', [], fn (\$m) => 1);", 'view_mail'],
+    'view mail with an array' => ['Mail::send([], [], fn ($m) => 1);', 'view_mail'],
+    'method call result' => ['event($this->makeEvent());', 'call_result'],
+    'static call result' => ['dispatch(JobFactory::build());', 'call_result'],
+    'function call result' => ['event(makeEvent());', 'call_result'],
+    'property' => ['event($this->event);', 'stored_target'],
+    'array element' => ['dispatch($jobs[0]);', 'stored_target'],
+    'constant' => ['event(self::EVENT);', 'stored_target'],
+    'static property' => ['dispatch(static::$job);', 'stored_target'],
+    'coalesce' => ['event($event ?? new Fallback);', 'unsupported_expression'],
+    'string job' => ["Queue::push('Handler@run');", 'unsupported_expression'],
+    'dynamic class receiver property' => ['$this->model::dispatch($id);', 'stored_target'],
+    'match' => ['event(match ($kind) { 1 => new A, default => $other });', 'conditional_dispatch'],
+]);
+
+it('reports new self and self::class in a trait as relative_class_name', function (string $body) {
+    [$sites, $unresolved] = runDispatchInClass('trait Fires', $body);
+
+    expect($sites)->toBe([])
+        ->and(collect($unresolved)->pluck('reason')->all())->toBe(['relative_class_name']);
+})->with([
+    'new self' => ['event(new self);'],
+    'self::class' => ['event(self::class);'],
+]);
