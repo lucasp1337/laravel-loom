@@ -133,12 +133,15 @@ it('reads the argument and chain shape of a row from its target', function (stri
     'notification facade takes channels' => ['Notification::send($u, $n)', DispatchTarget::ARGUMENT, 2],
 ]);
 
+it('matches a Dispatchable call on a variable class', function (): void {
+    expect(matchDispatchRule('$class::dispatch()')?->shape)->toBe(DispatchShape::CLASS_STATIC);
+});
+
 it('matches nothing for shapes outside the table', function (string $expr): void {
     expect(matchDispatchRule($expr))->toBeNull();
 })->with([
     'unknown function' => ['listen($e)'],
     'dynamic function' => ['$f($e)'],
-    'dynamic static class' => ['$class::dispatch()'],
     'dynamic static method' => ['Job::$m()'],
     'dynamic method' => ['$x->$m($n)'],
     'new expression' => ['new Foo($e)'],

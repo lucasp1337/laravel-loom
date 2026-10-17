@@ -472,15 +472,15 @@
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "FQCN of the dispatched event or job."
+                    "description": "FQCN of the dispatched event, job, mailable or notification."
                 },
                 "kind": {
-                    "enum": ["event", "job"],
-                    "description": "Whether the target is an event or a job."
+                    "enum": ["event", "job", "mailable", "notification"],
+                    "description": "Whether the target is an event, a job, a mailable or a notification."
                 },
                 "confidence": {
                     "enum": ["high", "medium", "low"],
-                    "description": "Always `high` for statically resolved targets; `medium` and `low` are reserved."
+                    "description": "`high` for a target resolved in the handler method itself; `medium` when the call sits in a helper method the handler reaches (see `via`); `low` is reserved."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -490,6 +490,12 @@
                     "type": "integer",
                     "minimum": 1,
                     "description": "1-indexed line of the dispatching call."
+                },
+                "via": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "minItems": 1,
+                    "description": "Present when the call sits in a helper method of the same class that the handler reaches through `$this->`, `self::` or `static::` calls: the helper method names in call order, ending with the method that holds the call. Absent when the handler makes the call itself."
                 }
             },
             "description": "A resolved dispatch made from a class method or closure."
@@ -796,8 +802,8 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "class_not_found", "unreadable_listener", "unreadable_model_hook"],
-                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated.\n`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`.\n`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a readable literal.\n`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable."
+                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "class_not_found", "target_not_indexed", "unreadable_listener", "unreadable_model_hook"],
+                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated.\n`dynamic_list`: a list of dispatch targets built at runtime (a variable, a spread, a collection).\n`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`.\n`target_not_indexed`: a class file was found, but it is not an indexed event, job, mailable or notification.\n`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a readable literal.\n`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable."
                 }
             },
             "description": "Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently."

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Support\Ast\RelativeClassName;
 use PhpParser\Node;
 
 /**
@@ -77,5 +78,36 @@ trait TracksClassScope
         }
 
         return $this->classScope[count($this->classScope) - 1]['method'];
+    }
+
+    /**
+     * Resolve a written class name against the enclosing class: `self` and
+     * `static` become its FQCN, `parent` its extended class, any other name
+     * passes through. Null when the keyword cannot be named: inside a trait
+     * (`self` is the using class), an anonymous class, or a class with no parent.
+     * `static` is the declaring class; a subclass that inherits the call is not followed.
+     */
+    private function resolveClassName(?string $name): ?string
+    {
+        if ($name === null) {
+            return null;
+        }
+
+        $keyword = RelativeClassName::fromName($name);
+        if ($keyword === null) {
+            return $name;
+        }
+
+        $class = $this->currentClassNode();
+        if (! $class instanceof Node\Stmt\Class_) {
+            return null;
+        }
+
+        return match ($keyword) {
+            // `self` / `static`: the enclosing class; null for an anonymous class
+            RelativeClassName::SELF, RelativeClassName::STATIC => $class->namespacedName?->toString(),
+            // `parent`: the extended class as written, null when there is none
+            RelativeClassName::PARENT => $class->extends?->toString(),
+        };
     }
 }

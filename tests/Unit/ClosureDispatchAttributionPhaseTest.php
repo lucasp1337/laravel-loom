@@ -192,9 +192,7 @@ it('skips an ambiguous-kind site even when it falls inside the span', function (
     expect($context->sections[Sections::CLOSURE_LISTENERS->value][0]['dispatches'])->toBe([]);
 });
 
-it('skips a non-event/job kind site (mailable) even inside the span', function () {
-    // DispatchEntry::fromSite would accept mailable, but closure dispatches[]
-    // only carries event|job per the schema, so the phase drops it.
+it('attributes a mailable site inside the span', function () {
     $context = closureContext(
         [closureEntry('a.php', 10, 14)],
         [dispatchSite('App\\Mail\\Receipt', 'mailable', 'a.php', 12)],
@@ -202,7 +200,8 @@ it('skips a non-event/job kind site (mailable) even inside the span', function (
 
     (new ClosureDispatchAttributionPhase)->apply($context);
 
-    expect($context->sections[Sections::CLOSURE_LISTENERS->value][0]['dispatches'])->toBe([]);
+    expect($context->sections[Sections::CLOSURE_LISTENERS->value][0]['dispatches'])->toHaveCount(1)
+        ->and($context->sections[Sections::CLOSURE_LISTENERS->value][0]['dispatches'][0]['kind'])->toBe('mailable');
 });
 
 it('keeps dispatches empty for a closure with no matching site', function () {

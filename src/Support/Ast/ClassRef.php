@@ -38,7 +38,7 @@ final class ClassRef
     public static function fromInstanceOrConstant(?Node $expr): ?string
     {
         // Unwrap fluent chains: (new X)->locale('es')->onQueue('q') resolves to X.
-        while ($expr instanceof Node\Expr\MethodCall) {
+        while ($expr instanceof Node\Expr\MethodCall || $expr instanceof Node\Expr\NullsafeMethodCall) {
             $expr = $expr->var;
         }
 

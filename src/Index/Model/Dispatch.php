@@ -22,6 +22,13 @@ final readonly class Dispatch
         public Confidence $confidence,
         public string $file,
         public int $line,
+        /**
+         * Helper methods between the handler method and the call, in call
+         * order; empty when the handler makes the call itself.
+         *
+         * @var list<string>
+         */
+        public array $via = [],
     ) {}
 
     /** @param  array<string, mixed>  $data */
@@ -33,6 +40,7 @@ final readonly class Dispatch
             confidence: Confidence::from(Hydrate::string($data, Field::CONFIDENCE)),
             file: Hydrate::string($data, Field::FILE),
             line: Hydrate::int($data, Field::LINE),
+            via: Hydrate::stringList($data, Field::VIA),
         );
     }
 }

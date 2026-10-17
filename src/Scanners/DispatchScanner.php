@@ -7,12 +7,14 @@ namespace Lucasp\Loom\Scanners;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
+use Lucasp\Loom\Dto\MethodCallEdge;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
@@ -35,6 +37,11 @@ use Lucasp\Loom\Support\ScanScope;
  * when present, and `inClosure`. ClosureOwnershipPhase adds `closureOrigin` to
  * sites a route closure owns. Cross-link phases read these keys; they are
  * stripped before validation.
+ *
+ * `_method_calls` lists every same-class call (`$this->m()`, `self::m()`,
+ * `static::m()`) as a caller/callee pair per class; the cross-link pass walks
+ * them so a dispatch in a helper is also attributed to the handler methods
+ * that reach it (see DispatchAttributionPhase).
  *
  * A target that cannot be resolved is emitted as an unresolved dispatch with a
  * reason: `dynamic_class_name` (a variable), `string_concatenation` (concat or
@@ -67,7 +74,7 @@ final class DispatchScanner implements Scanner
     }
 
     /**
-     * @return array{unresolved_dispatches: list<UnresolvedDispatchEntry>, _dispatch_sites: list<DispatchSiteRecord>}
+     * @return array{unresolved_dispatches: list<UnresolvedDispatchEntry>, _dispatch_sites: list<DispatchSiteRecord>, _method_calls: list<MethodCallEdge>}
      */
     public function scan(string $appRoot): array
     {
@@ -75,6 +82,9 @@ final class DispatchScanner implements Scanner
         $sites = [];
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
+
+        /** @var array<string, MethodCallEdge> $edges */
+        $edges = [];
 
         $seen = [];
         foreach ([...$this->scanFiles($appRoot), ...$this->routeFiles($appRoot)] as $file) {
@@ -92,6 +102,10 @@ final class DispatchScanner implements Scanner
             foreach ($visitor->getSites() as $site) {
                 $site->file = $relative;
                 $sites[] = $site;
+            }
+
+            foreach ($visitor->getCallEdges() as $edge) {
+                $edges[$edge->classFqcn.'::'.$edge->caller.'>'.$edge->callee] = $edge;
             }
 
             foreach ($mappingVisitor->getMappings() as $mapping) {
@@ -114,6 +128,7 @@ final class DispatchScanner implements Scanner
         return [
             'unresolved_dispatches' => $unresolved,
             '_dispatch_sites' => $sites,
+            '_method_calls' => array_values(collect($edges)->sortKeys()->all()),
         ];
     }
 
@@ -128,6 +143,7 @@ final class DispatchScanner implements Scanner
             provisionalKind: DispatchKinds::EVENT,
             file: $file,
             line: $mapping->line,
+            expression: "\$dispatchesEvents['{$mapping->hook}'] => ".Fqcn::short($mapping->eventFqcn).'::class',
         );
     }
 }

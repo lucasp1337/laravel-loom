@@ -119,7 +119,7 @@ If two scanners ever write to the same field, you've drifted from the design —
 
 **Static only.** No `app()->make()`, no `Event::listen()` at runtime, no `\ReflectionClass::getMethods()` for anything Loom analyzes. Loom reads source files via `file_get_contents`. Reflection is fine for inspecting the running Laravel application (e.g. `Application::VERSION`), not for inspecting the app being scanned.
 
-**Unresolved dispatches are first-class output.** When DispatchScanner sees `event($var)` or `event("App\\Events\\{$x}")`, it MUST emit an `unresolved_dispatches` entry. Silently dropping these is a regression. The four reason codes are fixed by the schema: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`.
+**Unresolved dispatches are first-class output.** When DispatchScanner sees `event($var)` or `event("App\\Events\\{$x}")`, it MUST emit an `unresolved_dispatches` entry. Silently dropping these is a regression. The reason codes are fixed by the schema (`UnresolvedReason`): `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `dynamic_list`, `target_not_indexed`. `UnindexedTargetPhase` enforces that no `dispatches[]` target lacks a section row.
 
 **Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
 
