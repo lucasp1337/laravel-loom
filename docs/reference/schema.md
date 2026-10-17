@@ -80,9 +80,9 @@ Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `handler` | string | FQCN of the observer or `Event::listen` target. |
-| `method` | string | Observer hook or listener method. |
-| `file` | [path](#relativepath) | Observer class file, or the file holding the `Event::listen` call. |
+| `handler` | string | FQCN of the observer, `Event::listen` target or hook callback class. For a closure model hook, the model FQCN. |
+| `method` | string | Observer hook or listener method. `{closure}` for a closure model hook; its body is the `closure_listeners[]` entry at the same file and line. |
+| `file` | [path](#relativepath) | Observer class file, or the file holding the `Event::listen` call or model hook registration. |
 | `line` | integer ≥ 1 | Observer class line, or the `Event::listen` call line. |
 <!-- /generated:schema:model_events -->
 
@@ -99,7 +99,7 @@ Listener classes. Handler methods include inherited ones.
 | `file` | [path](#relativepath) | File declaring the class. |
 | `line` | integer ≥ 1 | 1-indexed declaration line. |
 | `handles` | array of object | Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`. |
-| `registration` | one of `listen_array`, `auto_discovered`, `event_listen_call`, `subscriber` | `subscriber`: a subscriber's `subscribe()`.<br>`listen_array`: `$listen`.<br>`event_listen_call`: `Event::listen()`.<br>`auto_discovered`: typed `handle()`.<br>Listed in order of precedence when several find the same listener. |
+| `registration` | enum | `subscriber`: a subscriber's `subscribe()`.<br>`listen_array`: `$listen`.<br>`event_listen_call`: `Event::listen()`.<br>`auto_discovered`: typed `handle()` under a discovery directory, with discovery verified on.<br>`discovery_unverified`: the same, but whether the app runs event discovery could not be read.<br>`model_hook`: only closure listeners carry it.<br>Listed in order of precedence when several find the same listener.<br>Values: `listen_array`, `auto_discovered`, `discovery_unverified`, `event_listen_call`, `subscriber`, `model_hook`. |
 | `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed. |
 | `dispatches` | array of [dispatch](#dispatch) | Events and jobs dispatched from the listener's handler methods. |
 
@@ -152,14 +152,14 @@ Job classes.
 
 ## `unresolved_dispatches[]`
 
-Dispatch sites whose target could not be resolved statically. Never dropped silently.
+Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `file` | [path](#relativepath) | File containing the unresolved dispatch. |
 | `line` | integer ≥ 1 | 1-indexed line of the unresolved dispatch. |
 | `expression` | string | Pretty-printed source of the unresolvable expression. |
-| `reason` | one of `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch` | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated. |
+| `reason` | enum | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated.<br>`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a readable literal.<br>`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable.<br>Values: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `unreadable_listener`, `unreadable_model_hook`. |
 <!-- /generated:schema:unresolved_dispatches -->
 
 <!-- generated:schema:closure_listeners -->
@@ -175,7 +175,7 @@ Closure and arrow-function registrations, one entry per site, never joined into 
 | `file` | [path](#relativepath) | File holding the closure, not the registration call. |
 | `line` | integer ≥ 1 | 1-indexed first line of the closure. |
 | `end_line` | integer ≥ 1 | 1-indexed last line of the closure; equals `line` for a one-line closure. |
-| `registration` | one of `listen_array`, `event_listen_call`, `subscriber` | `listen_array`: closure in `$listen`.<br>`event_listen_call`: second argument of `Event::listen()`.<br>`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`. |
+| `registration` | one of `listen_array`, `event_listen_call`, `subscriber`, `model_hook` | `listen_array`: closure in `$listen`.<br>`event_listen_call`: second argument of `Event::listen()`.<br>`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`.<br>`model_hook`: a closure passed to a model's static hook registrar (`static::creating(fn ...)`); `event` is the model event id (`eloquent.{hook}: {model}`). |
 | `queued` | boolean | Always `false`; closure queue detection is not done. |
 | `dispatches` | array of [dispatch](#dispatch) | Dispatches attributed to the closure by source span. |
 <!-- /generated:schema:closure_listeners -->

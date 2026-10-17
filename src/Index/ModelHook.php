@@ -40,6 +40,25 @@ enum ModelHook: string
         return $this !== self::BOOTING && $this !== self::BOOTED;
     }
 
+    /**
+     * The hook a static registrar method (`Model::creating($callback)`,
+     * `Model::softDeleted($callback)`) subscribes to; null when the method is
+     * not one. `booting` and `booted` have no registrar, and `softDeleted`
+     * registers `trashed`.
+     */
+    public static function fromRegistrar(string $method): ?self
+    {
+        $hook = match ($method) {
+            // SoftDeletes names its `trashed` registrar after the soft delete.
+            'softDeleted' => self::TRASHED,
+            // `trashed()` is an instance check, not a registrar.
+            'trashed' => null,
+            default => self::tryFrom($method),
+        };
+
+        return $hook?->isObservable() === true ? $hook : null;
+    }
+
     /** @return list<string> */
     public static function observableValues(): array
     {

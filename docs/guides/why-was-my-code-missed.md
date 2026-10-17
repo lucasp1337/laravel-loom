@@ -33,7 +33,9 @@ protected $listen = [
 ];
 ```
 
-**The event name or listener is dynamic.** `Event::listen($name, ...)`, string callables like `'SendReceipt@handle'` outside `$listen`, `$obj->method(...)` and `Closure::fromCallable($var)` resolve to nothing. Use `::class` references and `[Listener::class, 'method']` tuples.
+**The event name or listener is dynamic.** `Event::listen($name, ...)`, `$obj->method(...)`, `Closure::fromCallable($var)` and a listener held in a variable can't be resolved. Each one is listed in `unresolved_dispatches` with reason `unreadable_listener`, so you can find it. `'SendReceipt@handle'` and `SendReceipt::class.'@handle'` are read. Use `::class` references and `[Listener::class, 'method']` tuples for the rest.
+
+**The listener is `discovery_unverified`, or missing.** Loom labels a class in `app/Listeners/` as `auto_discovered` only when it can see that event discovery is on: `bootstrap/app.php` calls `Application::configure()` and nothing turns discovery off. `withEvents(false)`, `EventServiceProvider::disableEventDiscovery()` or a legacy bootstrap without a `shouldDiscoverEvents()` override that returns `true` mean such a class is not a listener, so it is left out unless you register it. If `bootstrap/app.php` is missing or `withEvents(...)` gets a non-literal argument, the class appears as `discovery_unverified`.
 
 **The listener registers itself inside a nested closure.** In a subscriber's `subscribe()` method, Loom follows `if`, `foreach` and `try` blocks but not closures inside them, so `collect([...])->each(fn () => $events->listen(...))` is invisible. Register with plain `$events->listen(...)` calls or return an array.
 
@@ -65,7 +67,7 @@ Loom finds events in `app/Events/`, plus any class passed to `event(...)`, `broa
 
 ### A model event handler is missing
 
-`Event::listen('eloquent.created: App\Models\Order', ...)` with a closure doesn't add anything to `model_events[].handled_by`, which only holds `Observer::method` names. The closure is in `closure_listeners` with the raw event string. An observer that only registers through this string form also never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
+A closure hook (`static::created(fn ...)` or `Event::listen('eloquent.created: App\Models\Order', fn ...)`) shows in `model_events[].handled_by` with the method `{closure}` on the model, and in `closure_listeners` with its dispatches. A hook callback Loom can't read (`static::created($callback)`) is listed in `unresolved_dispatches` with reason `unreadable_model_hook`. An observer that only registers through the string form never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
 
 Hook methods declared on the observer, inherited from a parent observer or provided by a trait are all read. A `booting()` or `booted()` method on an observer is ignored; `Event::listen('eloquent.booted: ...')` strings are read.
 

@@ -124,7 +124,7 @@ Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it return
         "method": "handle"
       }
     ],
-    "registration": "auto_discovered",
+    "registration": "discovery_unverified",
     "queued": false,
     "dispatches": [
       {

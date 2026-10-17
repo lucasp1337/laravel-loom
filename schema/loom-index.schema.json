@@ -195,15 +195,15 @@
                         "properties": {
                             "handler": {
                                 "type": "string",
-                                "description": "FQCN of the observer or `Event::listen` target."
+                                "description": "FQCN of the observer, `Event::listen` target or hook callback class. For a closure model hook, the model FQCN."
                             },
                             "method": {
                                 "type": "string",
-                                "description": "Observer hook or listener method."
+                                "description": "Observer hook or listener method. `{closure}` for a closure model hook; its body is the `closure_listeners[]` entry at the same file and line."
                             },
                             "file": {
                                 "$ref": "#/$defs/relativePath",
-                                "description": "Observer class file, or the file holding the `Event::listen` call."
+                                "description": "Observer class file, or the file holding the `Event::listen` call or model hook registration."
                             },
                             "line": {
                                 "type": "integer",
@@ -255,8 +255,8 @@
                     "description": "Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`."
                 },
                 "registration": {
-                    "enum": ["listen_array", "auto_discovered", "event_listen_call", "subscriber"],
-                    "description": "`subscriber`: a subscriber's `subscribe()`.\n`listen_array`: `$listen`.\n`event_listen_call`: `Event::listen()`.\n`auto_discovered`: typed `handle()`.\nListed in order of precedence when several find the same listener."
+                    "enum": ["listen_array", "auto_discovered", "discovery_unverified", "event_listen_call", "subscriber", "model_hook"],
+                    "description": "`subscriber`: a subscriber's `subscribe()`.\n`listen_array`: `$listen`.\n`event_listen_call`: `Event::listen()`.\n`auto_discovered`: typed `handle()` under a discovery directory, with discovery verified on.\n`discovery_unverified`: the same, but whether the app runs event discovery could not be read.\n`model_hook`: only closure listeners carry it.\nListed in order of precedence when several find the same listener."
                 },
                 "queued": {
                     "type": "boolean",
@@ -518,8 +518,8 @@
                     "description": "1-indexed last line of the closure; equals `line` for a one-line closure."
                 },
                 "registration": {
-                    "enum": ["listen_array", "event_listen_call", "subscriber"],
-                    "description": "`listen_array`: closure in `$listen`.\n`event_listen_call`: second argument of `Event::listen()`.\n`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`."
+                    "enum": ["listen_array", "event_listen_call", "subscriber", "model_hook"],
+                    "description": "`listen_array`: closure in `$listen`.\n`event_listen_call`: second argument of `Event::listen()`.\n`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`.\n`model_hook`: a closure passed to a model's static hook registrar (`static::creating(fn ...)`); `event` is the model event id (`eloquent.{hook}: {model}`)."
                 },
                 "queued": {
                     "type": "boolean",
@@ -796,11 +796,11 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
-                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated."
+                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "unreadable_listener", "unreadable_model_hook"],
+                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated.\n`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a readable literal.\n`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable."
                 }
             },
-            "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."
+            "description": "Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently."
         }
     }
 }

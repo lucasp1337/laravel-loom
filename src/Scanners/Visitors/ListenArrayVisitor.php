@@ -7,25 +7,30 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
-use Lucasp\Loom\Support\Ast\Callables;
-use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Index\UnresolvedReason;
+use Lucasp\Loom\Support\Ast\ListenerRef;
+use Lucasp\Loom\Support\EloquentEventName;
 use PhpParser\Node;
 
 /**
  * Collects (event, listener) pairs from `$listen` on EventServiceProvider classes.
- * String-keyed entries (e.g. 'eloquent.*') belong to ObserverScanner.
+ * Keys are `Event::class` constants or literal strings (a class name, dotted
+ * name or wildcard pattern). `eloquent.*` keys belong to ObserverScanner.
  *
- * Values may be a bare `Listener::class` (method `handle`), a tuple
- * `[Listener::class, 'method']`, `Closure::fromCallable([...])` (the one-element
- * form defaults to `handle`) or `Listener::method(...)`; all resolve to the same
- * pair. Closures and arrow functions are collected separately as closure
- * listeners. The property may have any visibility and must be an array.
+ * Values may be a bare `Listener::class` (method `handle`), a `'Fqcn@method'`
+ * string or `Listener::class.'@method'`, a tuple `[Listener::class, 'method']`,
+ * `Closure::fromCallable([...])` (the one-element form defaults to `handle`) or
+ * `Listener::method(...)`; all resolve to the same pair. Closures and arrow
+ * functions are collected separately as closure listeners. A key or value that
+ * is none of these is recorded as unresolved. The property may have any
+ * visibility and must be an array.
  *
  * @internal
  */
 final class ListenArrayVisitor extends CollectingVisitor
 {
     use IdentifiesEventServiceProvider;
+    use RecordsUnresolvedRegistrations;
 
     /** @var list<ListenerPair> */
     private array $pairs = [];
@@ -37,6 +42,7 @@ final class ListenArrayVisitor extends CollectingVisitor
     {
         $this->pairs = [];
         $this->closurePairs = [];
+        $this->resetUnresolved();
     }
 
     public function enterNode(Node $node): null
@@ -80,37 +86,34 @@ final class ListenArrayVisitor extends CollectingVisitor
     private function collectPairs(Node\Expr\Array_ $array): void
     {
         foreach ($array->items as $item) {
+            // A keyless item is not an event name.
             if ($item->key === null) {
                 continue;
             }
 
-            $eventFqcn = $this->eventFromKey($item->key);
-            if ($eventFqcn === null) {
+            $event = ListenerRef::event($item->key);
+            if ($event === null) {
+                $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_LISTENER);
+
                 continue;
             }
 
-            // String-keyed entries skip the regular pair slot; only their
-            // closure values are captured.
-            $keyIsClass = $item->key instanceof Node\Expr\ClassConstFetch;
             $value = $item->value;
+            $listeners = $value instanceof Node\Expr\Array_
+                ? array_map(static fn (Node\ArrayItem $listener): Node\Expr => $listener->value, $value->items)
+                : [$value];
 
-            if ($value instanceof Node\Expr\Array_) {
-                foreach ($value->items as $listenerItem) {
-                    $this->emitListenerEntry($eventFqcn, $keyIsClass, $listenerItem->value);
-                }
-
-                continue;
+            foreach ($listeners as $listener) {
+                $this->emitListenerEntry($event, $listener);
             }
-
-            $this->emitListenerEntry($eventFqcn, $keyIsClass, $value);
         }
     }
 
-    private function emitListenerEntry(string $eventFqcn, bool $keyIsClass, Node\Expr $value): void
+    private function emitListenerEntry(string $event, Node\Expr $value): void
     {
         if ($value instanceof Node\Expr\Closure || $value instanceof Node\Expr\ArrowFunction) {
             $this->closurePairs[] = new ClosurePairRecord(
-                event: $eventFqcn,
+                event: $event,
                 line: $value->getStartLine(),
                 endLine: $value->getEndLine(),
                 registration: ListenerRegistration::LISTEN_ARRAY,
@@ -119,60 +122,23 @@ final class ListenArrayVisitor extends CollectingVisitor
             return;
         }
 
-        if (! $keyIsClass) {
+        // `eloquent.{hook}: {Model}` keys are model-event handlers; ObserverScanner reads them.
+        if (EloquentEventName::is($event)) {
             return;
         }
 
-        $resolved = $this->listenerFromValue($value);
+        $resolved = ListenerRef::listener($value);
         if ($resolved === null) {
+            $this->recordUnresolved($value, UnresolvedReason::UNREADABLE_LISTENER);
+
             return;
         }
 
         $this->pairs[] = new ListenerPair(
-            event: $eventFqcn,
+            event: $event,
             listener: $resolved['listener'],
             method: $resolved['method'],
         );
-    }
-
-    private function eventFromKey(Node\Expr $expr): ?string
-    {
-        $direct = ClassRef::fromClassConstant($expr);
-        if ($direct !== null) {
-            return $direct;
-        }
-
-        return $expr instanceof Node\Scalar\String_ ? $expr->value : null;
-    }
-
-    /**
-     * @return array{listener: string, method: string}|null
-     */
-    private function listenerFromValue(Node\Expr $value): ?array
-    {
-        $direct = ClassRef::fromClassConstant($value);
-        if ($direct !== null) {
-            return ['listener' => $direct, 'method' => 'handle'];
-        }
-
-        if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            // [ListenerClass::class, 'method'] tuple.
-            $tuple = Callables::tuple($value);
-            if ($tuple !== null) {
-                return ['listener' => $tuple['class'], 'method' => $tuple['method']];
-            }
-
-            // Single-element array acts like a bare ::class.
-            $first = ClassRef::fromClassConstant($value->items[0]->value);
-            if ($first !== null) {
-                return ['listener' => $first, 'method' => 'handle'];
-            }
-
-            return null;
-        }
-
-        // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
-        return Callables::listener($value);
     }
 
     /** @return list<ListenerPair> */
