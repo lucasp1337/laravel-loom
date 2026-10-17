@@ -322,7 +322,7 @@ final class IndexSerializer
     }
 
     /**
-     * @return array<string, string|int|null>|null
+     * @return array<string, string|int|bool|null>|null
      */
     private function queueConfig(?QueueConfigData $q): ?array
     {
@@ -337,6 +337,7 @@ final class IndexSerializer
             Field::TRIES->value => $q->tries,
             Field::TIMEOUT->value => $q->timeout,
             Field::BACKOFF->value => $q->backoff,
+            Field::AFTER_COMMIT->value => $q->afterCommit,
         ];
     }
 }

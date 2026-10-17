@@ -10,10 +10,11 @@ use PhpParser\Node;
 
 /**
  * Reads the queueable-class settings (`connection`, `queue`, `delay`, `tries`,
- * `timeout`, `backoff`) a class or trait body declares as scalar literals:
- * property defaults, and the top-level statements of its constructor
- * (`$this->onQueue('x')`, `$this->onConnection('y')`, `$this->delay(60)` and
- * `$this->queue = 'x'`). A constructor statement inside a branch is not read.
+ * `timeout`, `backoff`, `afterCommit`) a class or trait body declares as
+ * literals: property defaults, and the top-level statements of its constructor
+ * (`$this->onQueue('x')`, `$this->onConnection('y')`, `$this->delay(60)`,
+ * `$this->afterCommit()`, `$this->beforeCommit()` and `$this->queue = 'x'`).
+ * A constructor statement inside a branch is not read.
  * Settings not declared map to `null`; merging through parents is the
  * resolver's job.
  *
@@ -22,13 +23,19 @@ use PhpParser\Node;
 final class QueueConfig
 {
     /** @var list<string> */
-    public const PROPERTIES = ['connection', 'queue', 'delay', 'tries', 'timeout', 'backoff'];
+    public const PROPERTIES = ['connection', 'queue', 'delay', 'tries', 'timeout', 'backoff', 'afterCommit'];
 
     /** Fluent setter name => the setting it sets. */
     private const SETTERS = [
         'onconnection' => 'connection',
         'onqueue' => 'queue',
         'delay' => 'delay',
+    ];
+
+    /** Argument-less setter name => the value it gives `afterCommit`. */
+    private const AFTER_COMMIT_SETTERS = [
+        'aftercommit' => true,
+        'beforecommit' => false,
     ];
 
     public static function declarationOf(Node\Stmt\ClassLike $node): QueueDeclaration
@@ -41,7 +48,7 @@ final class QueueConfig
                 foreach ($stmt->props as $prop) {
                     $name = $prop->name->toString();
                     if (self::isSetting($name) && $prop->default !== null) {
-                        $properties[$name] = Literal::scalar($prop->default);
+                        $properties[$name] = self::literal($name, $prop->default);
                     }
                 }
 
@@ -83,23 +90,26 @@ final class QueueConfig
         return collect(self::PROPERTIES)->contains($name);
     }
 
-    /** @return array<string, string|int|null> */
+    /** A setting's literal: `afterCommit` is a bool, the rest are strings or ints. */
+    private static function literal(string $name, ?Node\Expr $node): string|int|bool|null
+    {
+        return match ($name) {
+            // `public $afterCommit = true;`
+            'afterCommit' => Literal::bool($node),
+            default => Literal::scalar($node),
+        };
+    }
+
+    /** @return array<string, string|int|bool|null> */
     private static function blank(): array
     {
         return collect(self::PROPERTIES)->mapWithKeys(static fn (string $key): array => [$key => null])->all();
     }
 
-    /** @param  array<string, string|int|null>  $values */
+    /** @param  array<string, string|int|bool|null>  $values */
     private static function data(array $values): QueueConfigData
     {
-        return new QueueConfigData(
-            connection: $values['connection'],
-            queue: $values['queue'],
-            delay: $values['delay'],
-            tries: $values['tries'],
-            timeout: $values['timeout'],
-            backoff: $values['backoff'],
-        );
+        return QueueConfigData::fromSettings($values);
     }
 
     private static function isParentConstructorCall(Node\Expr $expr): bool
@@ -114,7 +124,7 @@ final class QueueConfig
     /**
      * Literal settings one constructor statement applies to `$this`.
      *
-     * @return array<string, string|int>
+     * @return array<string, string|int|bool>
      */
     private static function constructorSettings(Node\Expr $expr): array
     {
@@ -126,7 +136,7 @@ final class QueueConfig
             }
 
             $name = $target->name instanceof Node\Identifier ? $target->name->toString() : null;
-            $value = Literal::scalar($expr->expr);
+            $value = $name === null ? null : self::literal($name, $expr->expr);
 
             return $name !== null && $value !== null && self::isSetting($name) ? [$name => $value] : [];
         }
@@ -142,16 +152,23 @@ final class QueueConfig
     }
 
     /**
-     * @param  array<string, string|int>  $settings
+     * @param  array<string, string|int|bool>  $settings
      */
     private static function collectSetter(Node\Expr\MethodCall $call, array &$settings): Node\Expr
     {
         if ($call->name instanceof Node\Identifier) {
-            $key = self::SETTERS[strtolower($call->name->toString())] ?? null;
+            $name = strtolower($call->name->toString());
+            $key = self::SETTERS[$name] ?? null;
             $value = Literal::scalar(Args::of($call->args)->valueAt(0));
             if ($key !== null && $value !== null) {
                 // Outer links run last, so they win; the spine is walked outer-first.
                 $settings[$key] ??= $value;
+            }
+
+            // `afterCommit()` / `beforeCommit()` take no argument
+            $afterCommit = self::AFTER_COMMIT_SETTERS[$name] ?? null;
+            if ($afterCommit !== null) {
+                $settings['afterCommit'] ??= $afterCommit;
             }
         }
 

@@ -124,7 +124,7 @@ final class EloquentListenStringVisitor extends CollectingVisitor
 
         $event = EloquentEventName::parse($name);
         if ($event === null) {
-            $this->recordUnresolved($eventValue, UnresolvedReason::UNREADABLE_MODEL_HOOK);
+            $this->recordUnresolved($eventValue, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
             return;
         }

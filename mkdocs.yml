@@ -96,6 +96,7 @@ nav:
       - Index, UI and MCP configuration: reference/ui-config.md
       - Scan configuration: reference/scan-config.md
       - What Loom detects: reference/what-loom-detects.md
+      - Forms Loom does not read: reference/unread-forms.md
   - Contributing:
       - Architecture: contributing/architecture.md
       - Class hierarchy: contributing/class-hierarchy.md

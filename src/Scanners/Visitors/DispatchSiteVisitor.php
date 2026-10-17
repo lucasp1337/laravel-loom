@@ -203,7 +203,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         $className = $this->resolveClassName($call->className());
         if ($className === null) {
             // `self::` in a trait or anonymous class, `parent::` with no parent: no class to name
-            $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_CLASS_NAME);
+            $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::RELATIVE_CLASS_NAME);
 
             return;
         }
@@ -489,7 +489,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private function recordUnresolved(CallSite $call, Node\Expr $value, DispatchRule $rule): void
     {
-        $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::from($this->classifyUnresolvedReason($value)));
+        $this->recordUnresolvedWithReason($call, $rule, $this->classifyUnresolvedReason($value, $rule->kind));
     }
 
     private function recordUnresolvedWithReason(CallSite $call, DispatchRule $rule, UnresolvedReason $reason): void
@@ -565,48 +565,64 @@ final class DispatchSiteVisitor extends CollectingVisitor
         return $this->currentClassFqcn() === null && ! $this->inClosure();
     }
 
-    /** @return 'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch' */
-    private function classifyUnresolvedReason(Node $expr): string
+    /** The reason an unreadable dispatch target stays unresolved, from the shape of its expression. */
+    private function classifyUnresolvedReason(Node $expr, DispatchKinds $kind): UnresolvedReason
     {
-        if ($expr instanceof Node\Expr\Variable) {
-            return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
-        }
+        return match (true) {
+            // `new self` / `self::class` in a trait or anonymous class
+            $this->isUnnameableRelativeClass($expr) => UnresolvedReason::RELATIVE_CLASS_NAME,
+            // `event($event)`
+            $expr instanceof Node\Expr\Variable => UnresolvedReason::DYNAMIC_CLASS_NAME,
+            // `new $class`
+            $expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Expr => UnresolvedReason::DYNAMIC_CLASS_NAME,
+            // `event(app(Foo::class))`, `resolve(...)`
+            $expr instanceof Node\Expr\FuncCall
+                && $expr->name instanceof Node\Name
+                && in_array(strtolower($expr->name->toString()), ['app', 'resolve'], true) => UnresolvedReason::CONTAINER_RESOLUTION,
+            // `$container->make(Foo::class)`
+            $expr instanceof Node\Expr\MethodCall
+                && $expr->name instanceof Node\Identifier
+                && $expr->name->toString() === 'make' => UnresolvedReason::CONTAINER_RESOLUTION,
+            // `'App\\Events\\'.$name`, `"App\\Events\\{$name}"`
+            $expr instanceof Node\Expr\BinaryOp\Concat, $expr instanceof Node\Scalar\InterpolatedString => UnresolvedReason::STRING_CONCATENATION,
+            // `$flag ? new A : $other`, `match (...) {...}`
+            $expr instanceof Node\Expr\Ternary, $expr instanceof Node\Expr\Match_ => UnresolvedReason::CONDITIONAL_DISPATCH,
+            // `event('service.installed')`
+            $expr instanceof Node\Scalar\String_ && $kind === DispatchKinds::EVENT => UnresolvedReason::STRING_EVENT_NAME,
+            // `dispatch(function () {...})`, `dispatch(fn () => ...)`
+            ($expr instanceof Node\Expr\Closure || $expr instanceof Node\Expr\ArrowFunction) && $kind === DispatchKinds::JOB => UnresolvedReason::CLOSURE_JOB,
+            // `Mail::send('emails.welcome', $data, fn ($m) => ...)`, `Mail::send([], [], fn ...)`
+            ($expr instanceof Node\Scalar\String_ || $expr instanceof Node\Expr\Array_) && $kind === DispatchKinds::MAILABLE => UnresolvedReason::VIEW_MAIL,
+            // `event($this->makeEvent())`, `dispatch(JobFactory::build())`, `event($make())`
+            $expr instanceof Node\Expr\MethodCall,
+            $expr instanceof Node\Expr\NullsafeMethodCall,
+            $expr instanceof Node\Expr\StaticCall,
+            $expr instanceof Node\Expr\FuncCall => UnresolvedReason::CALL_RESULT,
+            // `event($this->event)`, `dispatch($jobs[0])`, `event(self::EVENT)`, `dispatch(static::$job)`
+            $expr instanceof Node\Expr\PropertyFetch,
+            $expr instanceof Node\Expr\NullsafePropertyFetch,
+            $expr instanceof Node\Expr\StaticPropertyFetch,
+            $expr instanceof Node\Expr\ArrayDimFetch,
+            $expr instanceof Node\Expr\ClassConstFetch => UnresolvedReason::STORED_TARGET,
+            default => UnresolvedReason::UNSUPPORTED_EXPRESSION,
+        };
+    }
 
-        if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Expr\Variable) {
-            return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
-        }
+    /** `new self` / `self::class` (also `static`, `parent`) where the enclosing code cannot name that class. */
+    private function isUnnameableRelativeClass(Node $expr): bool
+    {
+        $name = match (true) {
+            $expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name => $expr->class,
+            $expr instanceof Node\Expr\ClassConstFetch
+                && $expr->class instanceof Node\Name
+                && $expr->name instanceof Node\Identifier
+                && $expr->name->toString() === 'class' => $expr->class,
+            default => null,
+        };
 
-        if ($expr instanceof Node\Expr\FuncCall
-            && $expr->name instanceof Node\Name
-            && in_array(strtolower($expr->name->toString()), ['app', 'resolve'], true)
-        ) {
-            return UnresolvedReason::CONTAINER_RESOLUTION->value;
-        }
-
-        if ($expr instanceof Node\Expr\MethodCall
-            && $expr->name instanceof Node\Identifier
-            && $expr->name->toString() === 'make'
-        ) {
-            return UnresolvedReason::CONTAINER_RESOLUTION->value;
-        }
-
-        if ($expr instanceof Node\Expr\BinaryOp\Concat) {
-            return UnresolvedReason::STRING_CONCATENATION->value;
-        }
-
-        if ($expr instanceof Node\Scalar\Encapsed) {
-            return UnresolvedReason::STRING_CONCATENATION->value;
-        }
-
-        if ($expr instanceof Node\Expr\Ternary) {
-            return UnresolvedReason::CONDITIONAL_DISPATCH->value;
-        }
-
-        if ($expr instanceof Node\Expr\Match_) {
-            return UnresolvedReason::CONDITIONAL_DISPATCH->value;
-        }
-
-        return UnresolvedReason::DYNAMIC_CLASS_NAME->value;
+        return $name !== null
+            && RelativeClassName::fromName($name->toString()) !== null
+            && $this->resolveClassName($name->toString()) === null;
     }
 
     private function renderExpression(Node\Expr $callNode, string $callLabel): string

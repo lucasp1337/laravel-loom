@@ -586,7 +586,7 @@
         },
         "entity.job": {
             "content": [
-                "{\"kind\":\"job\",\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":null,\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}}"
+                "{\"kind\":\"job\",\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"found\":true,\"entity\":{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":{\"connection\":null,\"queue\":\"mail\",\"delay\":null,\"tries\":3,\"timeout\":null,\"backoff\":null,\"after_commit\":true},\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}}"
             ],
             "errors": []
         },
@@ -658,7 +658,7 @@
         },
         "list.jobs": {
             "content": [
-                "{\"section\":\"jobs\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":null,\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}]}"
+                "{\"section\":\"jobs\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Jobs\\\\SendMail\",\"file\":\"app/Jobs/SendMail.php\",\"line\":6,\"queued\":true,\"queue_config\":{\"connection\":null,\"queue\":\"mail\",\"delay\":null,\"tries\":3,\"timeout\":null,\"backoff\":null,\"after_commit\":true},\"dispatched_from\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":9,\"method\":\"dispatch\"}],\"dispatches\":[{\"target\":\"App\\\\Events\\\\Pong\",\"kind\":\"event\",\"confidence\":\"high\",\"file\":\"app/Jobs/SendMail.php\",\"line\":15}]}]}"
             ],
             "errors": []
         },

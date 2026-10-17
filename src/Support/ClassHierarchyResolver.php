@@ -14,6 +14,7 @@ use Lucasp\Loom\Dto\ResolvedMethod;
 use Lucasp\Loom\Dto\TraitAdaptation;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\Ast\QueueConfig;
 
 /**
  * Cross-file extends/implements/use-trait resolver. Lazy index under
@@ -282,8 +283,13 @@ final class ClassHierarchyResolver
      * defaults, and the most derived declaration wins within each. A parent's
      * constructor counts only while every constructor below it calls
      * `parent::__construct()`. Each key is null when no declaration sets it.
+     *
+     * `afterCommit` also follows `ShouldQueueAfterCommit`: a class implementing
+     * it is after-commit, except that a job may opt out with a literal `false`
+     * (`$interfaceWinsOverFalse` is set for mailables and notifications, whose
+     * queued wrapper takes the interface as `true` without looking at the property).
      */
-    public function queueConfig(string $fqcn): QueueConfigData
+    public function queueConfig(string $fqcn, bool $interfaceWinsOverFalse = false): QueueConfigData
     {
         $fqcn = Fqcn::normalize($fqcn);
         $this->ensureIndexed();
@@ -317,18 +323,28 @@ final class ClassHierarchyResolver
         }
 
         $sources = [...$constructors, ...$properties];
-        $pick = static fn (string $key): string|int|null => collect($sources)
-            ->map(static fn (QueueConfigData $data): string|int|null => $data->{$key})
-            ->first(static fn (string|int|null $value): bool => $value !== null);
+        $pick = static fn (string $key): string|int|bool|null => collect($sources)
+            ->map(static fn (QueueConfigData $data): string|int|bool|null => $data->{$key})
+            ->first(static fn (string|int|bool|null $value): bool => $value !== null);
 
-        return new QueueConfigData(
-            connection: $pick('connection'),
-            queue: $pick('queue'),
-            delay: $pick('delay'),
-            tries: $pick('tries'),
-            timeout: $pick('timeout'),
-            backoff: $pick('backoff'),
-        );
+        $settings = collect(QueueConfig::PROPERTIES)->mapWithKeys(static fn (string $key): array => [$key => $pick($key)])->all();
+        $settings['afterCommit'] = $this->afterCommit($fqcn, $settings['afterCommit'], $interfaceWinsOverFalse);
+
+        return QueueConfigData::fromSettings($settings);
+    }
+
+    /** The class's after-commit setting: the interface and the literal declared, as described on `queueConfig()`. */
+    private function afterCommit(string $fqcn, string|int|bool|null $declared, bool $interfaceWinsOverFalse): ?bool
+    {
+        $declared = is_bool($declared) ? $declared : null;
+
+        return match (true) {
+            // not `ShouldQueueAfterCommit`: only the literal can say
+            ! $this->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE_AFTER_COMMIT->value) => $declared,
+            // `ShouldQueueAfterCommit` plus a literal `false`: a job opts out, mail and notifications do not
+            $declared === false => $interfaceWinsOverFalse,
+            default => true,
+        };
     }
 
     public function isSubclassOf(string $fqcn, string $ancestor): bool

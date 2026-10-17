@@ -307,3 +307,22 @@ it('emits each concrete class independently when multiple are declared in one fi
     expect(jobQueueConfig($source, 0)->tries)->toBe(1);
     expect($classes[1]->fqcn)->toBe('App\\Jobs\\JobTwo');
 });
+
+it('reads $afterCommit from a property default and the constructor', function (string $body, ?bool $property, ?bool $constructor) {
+    $source = "<?php\nnamespace App\\Jobs;\nclass Charge\n{\n{$body}\n}\n";
+
+    $declaration = runVisitor(new ClassDeclarationVisitor, $source)->getDeclarations()[0]->queue;
+
+    expect($declaration->properties->afterCommit)->toBe($property)
+        ->and($declaration->constructor->afterCommit)->toBe($constructor);
+})->with([
+    'property true' => ['public $afterCommit = true;', true, null],
+    'property false' => ['public $afterCommit = false;', false, null],
+    'property uppercase constant' => ['public $afterCommit = TRUE;', true, null],
+    'property not a literal' => ['public $afterCommit = self::FLAG;', null, null],
+    'constructor afterCommit()' => ['public function __construct() { $this->afterCommit(); }', null, true],
+    'constructor beforeCommit()' => ['public function __construct() { $this->beforeCommit(); }', null, false],
+    'constructor assignment' => ['public function __construct() { $this->afterCommit = true; }', null, true],
+    'constructor chained' => ['public function __construct() { $this->onQueue("x")->afterCommit(); }', null, true],
+    'constructor in a branch' => ['public function __construct($f) { if ($f) { $this->afterCommit(); } }', null, null],
+]);

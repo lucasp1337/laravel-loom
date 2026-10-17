@@ -47,7 +47,7 @@ final class MailableClassSpec implements ClassSpec
             file: $relativeFile,
             line: $record->line,
             queued: $resolver->isQueued($record->fqcn),
-            queueConfig: $resolver->queueConfig($record->fqcn),
+            queueConfig: $resolver->queueConfig($record->fqcn, interfaceWinsOverFalse: true),
         );
     }
 

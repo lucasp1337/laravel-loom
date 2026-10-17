@@ -76,6 +76,8 @@ final class ModelHookCallVisitor extends CollectingVisitor
 
         // `parent::creating()` names no statically known model.
         if (strtolower($rawClass) === 'parent') {
+            $this->recordUnresolved($callback, UnresolvedReason::RELATIVE_CLASS_NAME);
+
             return null;
         }
 
@@ -84,7 +86,7 @@ final class ModelHookCallVisitor extends CollectingVisitor
 
         if ($model === null) {
             // `static::creating()` in an anonymous class or at file level.
-            $this->recordUnresolved($callback, UnresolvedReason::UNREADABLE_MODEL_HOOK);
+            $this->recordUnresolved($callback, UnresolvedReason::RELATIVE_CLASS_NAME);
 
             return null;
         }

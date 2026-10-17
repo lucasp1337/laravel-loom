@@ -75,7 +75,8 @@ Called with `section` = `jobs`, it returns:
         "delay": null,
         "tries": null,
         "timeout": null,
-        "backoff": null
+        "backoff": null,
+        "after_commit": null
       },
       "dispatched_from": [
         {
@@ -734,7 +735,7 @@ Called with no input, it returns:
       "file": "app/Jobs/SendMail.php",
       "line": 13,
       "expression": "event($this->followUp)",
-      "reason": "dynamic_class_name"
+      "reason": "stored_target"
     }
   ]
 }
