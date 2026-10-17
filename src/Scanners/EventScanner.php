@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\EventEntry;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\EventClassSpec;
 use Lucasp\Loom\Support\Ast\AstWalker;
@@ -49,12 +50,14 @@ final class EventScanner implements Scanner
     }
 
     /**
-     * @return array{events: list<EventEntry>}
+     * @return array{events: list<EventEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
         $discovery = new ClassPrimitiveDiscovery($this->walker, $this->locator, $this->scope);
 
-        return ['events' => $discovery->discover($appRoot, new EventClassSpec)];
+        $result = $discovery->discover($appRoot, new EventClassSpec);
+
+        return ['events' => $result->entries, 'unresolved_dispatches' => $result->unresolved];
     }
 }

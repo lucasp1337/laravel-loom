@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Discovery;
 
 use Illuminate\Support\Collection;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Psr4ClassLocator;
@@ -20,6 +22,11 @@ use Lucasp\Loom\Support\ScanScope;
  * A seed the directory walk already found is skipped; the rest must resolve
  * through PSR-4 to an admitted file declaring that FQCN. A seed reached only
  * through ambiguous forms must also pass {@see ClassSpec::admitsAmbiguous()}.
+ *
+ * A seed that cannot be located (a vendor class, a class outside the scan
+ * directories, a missing file) is not dropped: each site that named it becomes
+ * an `unresolved_dispatches` entry with reason `class_not_found`. A seed that
+ * is only ambiguous is reported by the one spec that owns the fallback (jobs).
  *
  * A new class-based primitive is a spec plus a thin scanner. Primitives with
  * other discovery (listeners, observers, routes, schedule) keep their own
@@ -45,31 +52,46 @@ final class ClassPrimitiveDiscovery
      * @template TEntry of object
      *
      * @param  ClassSpec<TRecord, TLocation, TEntry>  $spec
-     * @return list<TEntry>
+     * @return DiscoveryResult<TEntry>
      */
-    public function discover(string $appRoot, ClassSpec $spec): array
+    public function discover(string $appRoot, ClassSpec $spec): DiscoveryResult
     {
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
 
         $merged = $this->fromDirectory($appRoot, $spec, $resolver);
+        $unresolved = [];
 
-        foreach ($this->seeds($appRoot, $spec) as $seed) {
+        foreach ($this->seeds($appRoot, $spec) as $fqcn => $seed) {
             // The convention directory already supplied it.
-            if (isset($merged[$seed->fqcn])) {
+            if (isset($merged[$fqcn])) {
                 continue;
             }
 
-            $located = $this->locate($appRoot, $spec, $seed->fqcn, $resolver);
+            $located = $this->locate($appRoot, $spec, $fqcn, $resolver);
             if ($located === null) {
+                foreach ($seed['sites'] as $site) {
+                    // An ambiguous site is reported by the one spec owning the fallback.
+                    if ($site['ambiguous'] && ! $spec->reportsUnlocatableAmbiguous()) {
+                        continue;
+                    }
+
+                    $unresolved[] = new UnresolvedDispatchEntry(
+                        file: $site['file'],
+                        line: $site['line'],
+                        expression: $fqcn.'::class',
+                        reason: UnresolvedReason::CLASS_NOT_FOUND->value,
+                    );
+                }
+
                 continue;
             }
 
             // An ambiguous form is accepted only when the class proves it fits.
-            if ($seed->ambiguous && ! $spec->admitsAmbiguous($located['location'], $this->isUnderDirectory($appRoot, $spec, $located['absolute']))) {
+            if ($seed['ambiguous'] && ! $spec->admitsAmbiguous($located['location'], $this->isUnderDirectory($appRoot, $spec, $located['absolute']))) {
                 continue;
             }
 
-            $merged[$seed->fqcn] = $located['location'];
+            $merged[$fqcn] = $located['location'];
         }
 
         $entries = [];
@@ -77,7 +99,7 @@ final class ClassPrimitiveDiscovery
             $entries[] = $spec->entryOf((string) $fqcn, $location);
         }
 
-        return $entries;
+        return new DiscoveryResult($entries, $unresolved);
     }
 
     /**
@@ -98,6 +120,11 @@ final class ClassPrimitiveDiscovery
 
             // Later classes with the same FQCN overwrite earlier ones.
             foreach ($visitor->getClasses() as $record) {
+                // A class the convention directory holds but that is not this primitive.
+                if (! $spec->belongsByConvention($record, $resolver)) {
+                    continue;
+                }
+
                 $found[$spec->fqcnOf($record)] = $spec->locationOf(
                     $record,
                     $this->relativePath($appRoot, $file->getPathname()),
@@ -111,36 +138,35 @@ final class ClassPrimitiveDiscovery
 
     /**
      * Seeds merged by FQCN: a target stays ambiguous only while every site
-     * that reached it was.
+     * that reached it was. Each site is kept for the unresolved report.
      *
      * @template TRecord of object
      * @template TLocation of object
      * @template TEntry of object
      *
      * @param  ClassSpec<TRecord, TLocation, TEntry>  $spec
-     * @return list<DispatchSeed>
+     * @return array<string, array{ambiguous: bool, sites: list<array{file: string, line: int, ambiguous: bool}>}>
      */
     private function seeds(string $appRoot, ClassSpec $spec): array
     {
-        /** @var array<string, bool> $ambiguousByFqcn */
-        $ambiguousByFqcn = [];
+        $merged = [];
 
         foreach ($this->scanFiles($appRoot) as $file) {
             // Fresh per file: a failed parse skips beforeTraverse and would leak state.
             $visitors = $spec->seedVisitors();
             $this->walker->walk($file->getPathname(), $visitors);
 
+            $relative = $this->relativePath($appRoot, $file->getPathname());
+
             foreach ($spec->seedsFrom($visitors) as $seed) {
-                $ambiguousByFqcn[$seed->fqcn] = ($ambiguousByFqcn[$seed->fqcn] ?? true) && $seed->ambiguous;
+                $current = $merged[$seed->fqcn] ?? ['ambiguous' => true, 'sites' => []];
+                $current['ambiguous'] = $current['ambiguous'] && $seed->ambiguous;
+                $current['sites'][] = ['file' => $relative, 'line' => $seed->line, 'ambiguous' => $seed->ambiguous];
+                $merged[$seed->fqcn] = $current;
             }
         }
 
-        $merged = [];
-        foreach ($ambiguousByFqcn as $fqcn => $ambiguous) {
-            $merged[] = new DispatchSeed((string) $fqcn, $ambiguous);
-        }
-
-        return $merged;
+        return Collection::make($merged)->sortKeys()->all();
     }
 
     /**

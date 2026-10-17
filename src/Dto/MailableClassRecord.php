@@ -14,6 +14,5 @@ final readonly class MailableClassRecord
     public function __construct(
         public string $fqcn,
         public int $line,
-        public QueueConfigData $queueConfig,
     ) {}
 }

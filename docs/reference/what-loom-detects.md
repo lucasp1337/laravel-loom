@@ -72,9 +72,11 @@ Pinned by [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest], [ObserverC
 Loom reads these as jobs:
 
 - Classes in `app/Jobs/`, and classes passed to `dispatch(new X)`, `Bus::dispatch()` or `X::dispatch()`, including the conditional and fluent-chain forms.
-- Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`. Each is `null` when absent.
+- Class-level scalar `$connection`, `$queue`, `$delay`, `$tries`, `$timeout` and `$backoff`, inherited from parent classes and traits (most derived wins). Each is `null` when absent.
+- Literal `$this->onQueue('x')`, `onConnection('x')`, `delay(60)` and `$this->queue = 'x'` statements at the top level of the constructor. They win over property defaults; a parent's constructor counts only while the child calls `parent::__construct()`.
+- `queued: true` for `ShouldQueue` and `ShouldQueueAfterCommit`, directly or through parents and your own interfaces.
 
-Does not read: `queued` through a vendor parent class, `backoff()` and `retryUntil()` methods, non-literal property values, and flags such as `ShouldBeUnique` and `Batchable`.
+Does not read: `queued` through a vendor parent class, constructor calls inside a branch, `afterCommit()` (no `queue_config` field for it), `backoff()` and `retryUntil()` methods, non-literal property values, and flags such as `ShouldBeUnique` and `Batchable`.
 
 Pinned by [JobsScannerTest].
 
@@ -105,15 +107,16 @@ Pinned by [DispatchRuleMatcherTest], [DispatchScannerTest], [BusChainBatchEndToE
 
 Loom reads these:
 
-- Mailables: classes in `app/Mail/`, and classes passed to `Mail::send()`, `sendNow()`, `queue()`, `onQueue()`, `queueOn()`, `later()` and `laterOn()`, including `Mail::to()`, `cc()` and `bcc()` chains.
-- Notifications: classes in `app/Notifications/`, and classes passed to `$x->notify()`, `notifyNow()`, `Notification::send()`, `sendNow()` and `Notification::route(...)->notify()`.
-- Channels from a `via()` that returns a literal array, in source order, and a literal channel filter on `send`, recorded as `channels` on the site.
+- Mailables: classes in `app/Mail/` that extend `Mailable` (or a class outside your code) or declare `build()`, `envelope()` or `content()`, and classes passed to `Mail::send()`, `sendNow()`, `queue()`, `onQueue()`, `queueOn()`, `later()` and `laterOn()`, including `Mail::to()`, `cc()` and `bcc()` chains.
+- Notifications: classes in `app/Notifications/` that extend `Notification` (or a class outside your code) or declare `via()`, and classes passed to `$x->notify()`, `notifyNow()`, `Notification::send()`, `sendNow()` and `Notification::route(...)->notify()`.
+- Channels from a `via()` that returns a literal array, or a local array built from a literal with `$x[] = 'literal'` appends, in source order. Appends or returns under a branch give the union of the possible channels with `channels_dynamic: true`. and a literal channel filter on `send`, recorded as `channels` on the site.
 
 | Construct | What you get |
 | --- | --- |
-| Conditional or computed `via()` | `channels_dynamic: true` |
+| Conditional `via()` | the union of possible channels, `channels_dynamic: true` |
+| Computed `via()` (call, property, keyed or non-literal item) | `channels: []`, `channels_dynamic: true` |
 
-Does not read: `Mail::raw()`, `->html()` and `->text()` sends, an inherited `via()`, `shouldSend()`, message content, receiver types and facade modifiers before `send`. Variable targets are listed in `unresolved_dispatches`.
+Does not read: `Mail::raw()`, `->html()` and `->text()` sends, an inherited `via()`, `shouldSend()`, message content, receiver types and facade modifiers before `send`. Variable targets are listed in `unresolved_dispatches`, and so is a dispatched class whose file Loom cannot find (a package class, a missing file, an excluded path) with reason `class_not_found`.
 
 Pinned by [MailableScannerEndToEndTest], [NotificationScannerEndToEndTest], [NotificationScannerTest], [DispatchRuleMatcherTest].
 

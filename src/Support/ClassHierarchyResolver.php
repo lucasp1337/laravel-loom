@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\MethodDeclaration;
 use Lucasp\Loom\Dto\MethodVisibility;
+use Lucasp\Loom\Dto\QueueConfigData;
+use Lucasp\Loom\Dto\QueueDeclaration;
 use Lucasp\Loom\Dto\ResolvedMethod;
 use Lucasp\Loom\Dto\TraitAdaptation;
 use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
@@ -29,7 +32,9 @@ use Lucasp\Loom\Support\Ast\AstWalker;
  * `handle as protected` hides it), and an abstract trait method never
  * replaces a concrete inherited one. Keys are lower-cased; `definedIn` is the
  * class or trait holding the code and `declaredIn` the class `self` means.
- * Methods only: properties and constants are not resolved.
+ * Beyond methods only the queue settings are resolved, by `queueConfig()`:
+ * property defaults and literal constructor calls, merged through parents and
+ * traits. Other properties and constants are not.
  *
  * @internal
  */
@@ -56,6 +61,7 @@ final class ClassHierarchyResolver
      *     isAbstract: bool,
      *     methods: list<MethodDeclaration>,
      *     adaptations: list<TraitAdaptation>,
+     *     queue: QueueDeclaration,
      * }>
      */
     private array $index = [];
@@ -241,6 +247,88 @@ final class ClassHierarchyResolver
         $found = in_array($interface, $this->implementsAll($fqcn), true);
 
         return $this->implementsInterfaceCache[$fqcn][$interface] = $found;
+    }
+
+    /**
+     * Whether the class is queued: it implements `ShouldQueue` or one of the
+     * framework's sub-interfaces of it, directly or through a parent or an
+     * interface indexed from the app.
+     */
+    public function isQueued(string $fqcn): bool
+    {
+        return collect(LaravelClasses::queueInterfaces())
+            ->contains(fn (string $interface): bool => $this->implementsInterface($fqcn, $interface));
+    }
+
+    /**
+     * Whether `$fqcn` is a `$base` as far as the source shows: it extends it,
+     * or it extends a class outside the app (not in the `Illuminate\` namespace)
+     * that may itself extend `$base`.
+     */
+    public function mayExtend(string $fqcn, string $base): bool
+    {
+        $chain = $this->extendsChain($fqcn);
+        if (in_array(Fqcn::normalize($base), $chain, true)) {
+            return true;
+        }
+
+        $last = Arr::last($chain);
+
+        return $last !== null && ! $this->knows($last) && ! Str::startsWith($last, 'Illuminate\\');
+    }
+
+    /**
+     * The class's queue settings: literal constructor calls win over property
+     * defaults, and the most derived declaration wins within each. A parent's
+     * constructor counts only while every constructor below it calls
+     * `parent::__construct()`. Each key is null when no declaration sets it.
+     */
+    public function queueConfig(string $fqcn): QueueConfigData
+    {
+        $fqcn = Fqcn::normalize($fqcn);
+        $this->ensureIndexed();
+
+        $chain = [$fqcn, ...$this->extendsChain($fqcn)];
+
+        /** @var list<QueueConfigData> $constructors most derived first */
+        $constructors = [];
+        /** @var list<QueueConfigData> $properties most derived first */
+        $properties = [];
+        $constructing = true;
+
+        foreach ($chain as $class) {
+            $decl = $this->index[$class] ?? null;
+            if ($decl === null || $decl['kind'] !== 'class') {
+                continue;
+            }
+
+            $queue = $decl['queue'];
+            $properties[] = $queue->properties;
+            foreach ($this->traitClosure($decl['traits']) as $trait) {
+                if (isset($this->index[$trait])) {
+                    $properties[] = $this->index[$trait]['queue']->properties;
+                }
+            }
+
+            if ($constructing && $queue->declaresConstructor) {
+                $constructors[] = $queue->constructor;
+                $constructing = $queue->callsParentConstructor;
+            }
+        }
+
+        $sources = [...$constructors, ...$properties];
+        $pick = static fn (string $key): string|int|null => collect($sources)
+            ->map(static fn (QueueConfigData $data): string|int|null => $data->{$key})
+            ->first(static fn (string|int|null $value): bool => $value !== null);
+
+        return new QueueConfigData(
+            connection: $pick('connection'),
+            queue: $pick('queue'),
+            delay: $pick('delay'),
+            tries: $pick('tries'),
+            timeout: $pick('timeout'),
+            backoff: $pick('backoff'),
+        );
     }
 
     public function isSubclassOf(string $fqcn, string $ancestor): bool
@@ -452,6 +540,21 @@ final class ClassHierarchyResolver
     }
 
     /**
+     * @param  list<string>  $traits
+     * @return list<string>
+     */
+    private function traitClosure(array $traits): array
+    {
+        $result = [];
+        $seen = [];
+        foreach ($traits as $trait) {
+            $this->expandClosure(Fqcn::normalize($trait), 'trait', 'traits', $result, $seen);
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  'interface'|'trait'  $expectKind
      * @param  'parents'|'traits'  $edgeField
      * @param  list<string>  $result
@@ -509,6 +612,7 @@ final class ClassHierarchyResolver
                     'isAbstract' => $decl->isAbstract,
                     'methods' => $decl->methods,
                     'adaptations' => array_values(Arr::map($decl->adaptations, $this->normalizeAdaptation(...))),
+                    'queue' => $decl->queue ?? QueueDeclaration::none(),
                 ];
             }
         }

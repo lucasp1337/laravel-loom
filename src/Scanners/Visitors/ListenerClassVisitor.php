@@ -6,7 +6,6 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\ListenerClassRecord;
 use Lucasp\Loom\Support\Ast\ClassRef;
-use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 
 /**
@@ -39,7 +38,7 @@ final class ListenerClassVisitor extends CollectingVisitor
         $this->classes[] = new ListenerClassRecord(
             fqcn: $node->namespacedName->toString(),
             line: $node->getStartLine(),
-            queued: ClassRef::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value),
+            queued: ClassRef::declaresQueueInterface($node),
         );
 
         return null;

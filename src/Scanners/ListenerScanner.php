@@ -22,7 +22,6 @@ use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
-use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -441,7 +440,7 @@ final class ListenerScanner implements Scanner
                 line: (int) $loc->line,
                 handles: $handles,
                 registration: $loc->registration,
-                queued: $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_QUEUE->value),
+                queued: $resolver->isQueued($fqcn),
             );
         }
 

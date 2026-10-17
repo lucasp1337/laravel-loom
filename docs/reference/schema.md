@@ -159,7 +159,7 @@ Dispatch sites whose target could not be resolved statically. Never dropped sile
 | `file` | [path](#relativepath) | File containing the unresolved dispatch. |
 | `line` | integer ≥ 1 | 1-indexed line of the unresolved dispatch. |
 | `expression` | string | Pretty-printed source of the unresolvable expression. |
-| `reason` | one of `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch` | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated. |
+| `reason` | one of `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `class_not_found` | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated.<br>`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`. |
 <!-- /generated:schema:unresolved_dispatches -->
 
 <!-- generated:schema:closure_listeners -->
@@ -268,8 +268,8 @@ Notification classes.
 | `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. |
 | `queue_config` | [queueConfig](#queueconfig) or null | `null` when `queued` is `false`. |
 | `notified_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites whose resolved kind is `notification` and whose target is this class, sorted by `file`, `line`. The only list whose entries may carry `channels`. |
-| `channels` | array of string | From a `via()` that is a single `return [...]` of literal strings (lowercased) or `Class::class` constants (FQCN), in source order. `[]` when `via()` is dynamic, not declared or inherited. |
-| `channels_dynamic` | boolean | `true` only when `via()` exists but is not a single literal-array return; the channels exist but cannot be read statically. |
+| `channels` | array of string | From a `via()` that returns an array of literal strings (lowercased) or `Class::class` constants (FQCN), in source order: a literal array, or a local array built from one with `$x[] = 'literal'` appends. Under branches or with several returns, the union of every channel that may apply. `[]` when `via()` is unreadable, not declared or inherited. |
+| `channels_dynamic` | boolean | `true` only when `via()` exists but `channels` may not be what a call returns: the body is unreadable (`channels` is `[]`), or the channels depend on a branch or on several returns (`channels` is the union). |
 <!-- /generated:schema:notifications -->
 
 ## Shared shapes

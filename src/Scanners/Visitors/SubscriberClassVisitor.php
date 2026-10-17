@@ -11,7 +11,6 @@ use Lucasp\Loom\Dto\SubscriberClassRecord;
 use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
-use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 
 /**
@@ -68,7 +67,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return null;
         }
 
-        $queued = ClassRef::declaresInterface($node, LaravelClasses::SHOULD_QUEUE->value);
+        $queued = ClassRef::declaresQueueInterface($node);
 
         $this->currentClassFqcn = $node->namespacedName->toString();
         [$handles, $closureHandles, $foreignPairs] = $this->extractMethodBody($subscribeMethod);
