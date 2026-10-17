@@ -56,7 +56,7 @@ Order matters because phases consume what earlier ones settle: a dispatch site's
 - A file that fails to parse is skipped and counted, and `loom:scan` reports the count.
 - A schema violation is fatal for `loom:scan`: it prints the errors and writes nothing.
 - An app with nothing to find yields a valid index of empty arrays.
-- Nothing is cached: each scanner parses the files it walks. The [benchmark suite](adr/0006-benchmark-suite.md) gates on counts, not wall time.
+- `AstWalker` parses and name-resolves each file once and keeps the tree for the next scanner (keyed by path and content hash). It admits files until a source-size budget, derived from the memory limit, is spent and then parses per walk, because every scanner sweeps the same files in order and evicting would never hit. Visitors must not mutate the tree. The [benchmark suite](adr/0006-benchmark-suite.md) gates on counts, not wall time.
 
 ## Read side
 

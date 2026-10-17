@@ -16,6 +16,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ### Changed
 
+- A scan parses each PHP file once and shares the name-resolved tree across scanners (about 3x faster on a large app; the cache is bounded by the memory limit).
 - `queue_config` merges parent and trait properties and literal constructor `onQueue`/`onConnection`/`delay`; `ShouldQueueAfterCommit` reads as queued; `via()` building a local array reads as a union with `channels_dynamic`.
 - Plain classes under `Mail/` and `Notifications/` are no longer listed without evidence.
 - Listener `auto_discovered` requires verified discovery, otherwise `discovery_unverified`.
