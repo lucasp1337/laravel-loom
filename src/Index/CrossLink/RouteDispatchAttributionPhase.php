@@ -45,9 +45,11 @@ final class RouteDispatchAttributionPhase implements CrossLinkPhase
                 continue;
             }
 
-            $key = $classFqcn.'::'.$method;
-            foreach ($routeIndex[$key] ?? [] as $routeIdx) {
-                $context->appendToEntry(Sections::ROUTES, $routeIdx, Field::DISPATCHES->value, $payload);
+            // The controller method itself, or any controller method that reaches it through same-class helper calls
+            foreach ($context->reachingMethods($classFqcn, $method) as $reach) {
+                foreach ($routeIndex[$classFqcn.'::'.$reach['method']] ?? [] as $routeIdx) {
+                    $context->appendToEntry(Sections::ROUTES, $routeIdx, Field::DISPATCHES->value, DispatchEntry::viaHelpers($payload, $reach['via']));
+                }
             }
         }
     }

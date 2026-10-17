@@ -17,22 +17,31 @@ final readonly class DispatchRef
         public Confidence $confidence,
         public string $file,
         public int $line,
+        /** @var list<string> */
+        public array $via = [],
     ) {}
 
     public static function fromDispatch(Dispatch $dispatch): self
     {
-        return new self($dispatch->target, $dispatch->kind, $dispatch->confidence, $dispatch->file, $dispatch->line);
+        return new self($dispatch->target, $dispatch->kind, $dispatch->confidence, $dispatch->file, $dispatch->line, $dispatch->via);
     }
 
-    /** @return array{target: string, kind: string, confidence: string, file: string, line: int} */
+    /** @return array{target: string, kind: string, confidence: string, file: string, line: int, via?: list<string>} */
     public function toArray(): array
     {
-        return [
+        $out = [
             'target' => $this->target,
             'kind' => $this->kind->value,
             'confidence' => $this->confidence->value,
             'file' => $this->file,
             'line' => $this->line,
         ];
+
+        // Only helper-reached dispatches carry the marker
+        if ($this->via !== []) {
+            $out['via'] = $this->via;
+        }
+
+        return $out;
     }
 }

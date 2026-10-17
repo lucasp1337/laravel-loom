@@ -11,6 +11,7 @@ use Lucasp\Loom\Dto\EventEntry;
 use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
+use Lucasp\Loom\Dto\MethodCallEdge;
 use Lucasp\Loom\Dto\MailableEntry;
 use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ModelEventHandler;
@@ -66,6 +67,7 @@ final class IndexSerializer
             $entry instanceof RouteEntry => $this->route($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
             $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
+            $entry instanceof MethodCallEdge => ['classFqcn' => $entry->classFqcn, 'caller' => $entry->caller, 'callee' => $entry->callee],
             default => throw new RuntimeException('IndexSerializer cannot serialize '.$entry::class),
         };
     }

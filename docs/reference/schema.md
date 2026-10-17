@@ -159,7 +159,7 @@ Dispatch sites whose target could not be resolved statically. Never dropped sile
 | `file` | [path](#relativepath) | File containing the unresolved dispatch. |
 | `line` | integer ≥ 1 | 1-indexed line of the unresolved dispatch. |
 | `expression` | string | Pretty-printed source of the unresolvable expression. |
-| `reason` | one of `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch` | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated. |
+| `reason` | enum | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated.<br>`dynamic_list`: a list of dispatch targets built at runtime (a variable, a spread, a collection).<br>`target_not_indexed`: the class is named, but it is not an indexed event, job, mailable or notification.<br>Values: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `dynamic_list`, `target_not_indexed`. |
 <!-- /generated:schema:unresolved_dispatches -->
 
 <!-- generated:schema:closure_listeners -->
@@ -355,11 +355,12 @@ A resolved dispatch made from a class method or closure.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `target` | string | FQCN of the dispatched event or job. |
-| `kind` | one of `event`, `job` | Whether the target is an event or a job. |
-| `confidence` | one of `high`, `medium`, `low` | Always `high` for statically resolved targets; `medium` and `low` are reserved. |
+| `target` | string | FQCN of the dispatched event, job, mailable or notification. |
+| `kind` | one of `event`, `job`, `mailable`, `notification` | Whether the target is an event, a job, a mailable or a notification. |
+| `confidence` | one of `high`, `medium`, `low` | `high` for a target resolved in the handler method itself; `medium` when the call sits in a helper method the handler reaches (see `via`); `low` is reserved. |
 | `file` | [path](#relativepath) | File of the dispatching call. |
 | `line` | integer ≥ 1 | 1-indexed line of the dispatching call. |
+| `via`? | array of string | Present when the call sits in a helper method of the same class that the handler reaches through `$this->`, `self::` or `static::` calls: the helper method names in call order, ending with the method that holds the call. Absent when the handler makes the call itself. |
 <!-- /generated:shape:dispatch -->
 
 ## Determinism

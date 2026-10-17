@@ -54,4 +54,25 @@ final class DispatchEntry
             Field::LINE->value => $line,
         ];
     }
+
+    /**
+     * Mark a payload as reached through helper methods: `via` lists them in
+     * call order and the confidence drops to medium, since the helper may not
+     * run on every path.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $via
+     * @return array<string, mixed>
+     */
+    public static function viaHelpers(array $payload, array $via): array
+    {
+        if ($via === []) {
+            return $payload;
+        }
+
+        $payload[Field::CONFIDENCE->value] = Confidence::MEDIUM->value;
+        $payload[Field::VIA->value] = $via;
+
+        return $payload;
+    }
 }

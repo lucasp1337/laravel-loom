@@ -31,7 +31,7 @@ function findSite(array $sites, string $file, int $line): ?DispatchSiteRecord
 it('returns both unresolved_dispatches and _dispatch_sites keys', function () {
     $result = (new DispatchScanner)->scan(dispatchFixturePath());
 
-    expect(array_keys($result))->toBe(['unresolved_dispatches', '_dispatch_sites']);
+    expect(array_keys($result))->toBe(['unresolved_dispatches', '_dispatch_sites', '_method_calls']);
 });
 
 it('returns empty arrays when app/ does not exist', function () {

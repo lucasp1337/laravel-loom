@@ -19,6 +19,7 @@ enum Field: string
     case KIND = 'kind';
     case FILE = 'file';
     case LINE = 'line';
+    case VIA = 'via';
     case DISPATCHED_FROM = 'dispatched_from';
     case HANDLED_BY = 'handled_by';
     case LISTENER = 'listener';

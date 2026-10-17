@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners\Visitors;
 
 use Illuminate\Support\Arr;
 use Lucasp\Loom\Dto\DispatchOverrides;
+use Lucasp\Loom\Dto\MethodCallEdge;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Index\Confidence;
@@ -17,7 +18,9 @@ use Lucasp\Loom\Scanners\Dispatch\DispatchTarget;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Ast\CallSite;
+use Lucasp\Loom\Support\Ast\CallKind;
 use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\RelativeClassName;
 use Lucasp\Loom\Support\Ast\ValueLists;
 use Lucasp\Loom\Support\ChainModifierExtractor;
 use PhpParser\Node;
@@ -57,6 +60,9 @@ final class DispatchSiteVisitor extends CollectingVisitor
     /** @var list<UnresolvedDispatchRecord> */
     private array $unresolved = [];
 
+    /** @var array<string, MethodCallEdge> same-class calls, keyed to drop repeats */
+    private array $callEdges = [];
+
     private PrettyPrinter $printer;
 
     private DispatchRuleMatcher $matcher;
@@ -73,6 +79,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         $this->closureDepth = 0;
         $this->sites = [];
         $this->unresolved = [];
+        $this->callEdges = [];
     }
 
     public function enterNode(Node $node): null
@@ -97,6 +104,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
     {
         $call = CallSite::of($node);
         if ($call !== null) {
+            $this->recordSameClassCall($call);
             $rule = $this->matcher->match($call);
             if ($rule !== null) {
                 $this->record($call, $rule);
@@ -118,6 +126,32 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         return null;
+    }
+
+    /** `$this->helper()`, `self::helper()`, `static::helper()` inside a method: an edge to the helper. */
+    private function recordSameClassCall(CallSite $call): void
+    {
+        $caller = $this->currentMethod();
+        $class = $this->currentClassFqcn();
+        $callee = $call->name();
+        if ($caller === null || $class === null || $callee === null) {
+            return;
+        }
+
+        $receiver = $call->receiver();
+        $sameClass = match ($call->kind()) {
+            // `$this->helper()`
+            CallKind::METHOD => $receiver instanceof Node\Expr\Variable && $receiver->name === 'this',
+            // `self::helper()` / `static::helper()`; `parent::` leaves the class
+            CallKind::STATIC => $receiver instanceof Node\Name
+                && in_array(RelativeClassName::fromName($receiver->toString()), [RelativeClassName::SELF, RelativeClassName::STATIC], true),
+            CallKind::FUNCTION, CallKind::INSTANTIATION => false,
+        };
+        if (! $sameClass) {
+            return;
+        }
+
+        $this->callEdges[$class.'::'.$caller.'>'.$callee] = new MethodCallEdge($class, $caller, $callee);
     }
 
     private function record(CallSite $call, DispatchRule $rule): void
@@ -495,6 +529,12 @@ final class DispatchSiteVisitor extends CollectingVisitor
     private function overridesFrom(array ...$linkLists): DispatchOverrides
     {
         return ChainModifierExtractor::extract(array_values(Arr::collapse($linkLists)));
+    }
+
+    /** @return list<MethodCallEdge> */
+    public function getCallEdges(): array
+    {
+        return array_values($this->callEdges);
     }
 
     /** @return list<DispatchSiteRecord> */

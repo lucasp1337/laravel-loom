@@ -88,7 +88,10 @@ final class CrossLinker
         ];
         $observerIndex = $this->indexByFqcnMulti($sections[Sections::OBSERVERS->value]);
 
-        return new CrossLinkContext($sections, $dispatchSites, $singleIndexes, $observerIndex);
+        /** @var array<int, array<string, mixed>> $callEdges */
+        $callEdges = $sections['_method_calls'] ?? [];
+
+        return new CrossLinkContext($sections, $dispatchSites, $singleIndexes, $observerIndex, callEdges: $callEdges);
     }
 
     /**

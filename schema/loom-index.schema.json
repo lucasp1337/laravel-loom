@@ -480,7 +480,7 @@
                 },
                 "confidence": {
                     "enum": ["high", "medium", "low"],
-                    "description": "Always `high` for statically resolved targets; `medium` and `low` are reserved."
+                    "description": "`high` for a target resolved in the handler method itself; `medium` when the call sits in a helper method the handler reaches (see `via`); `low` is reserved."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -490,6 +490,12 @@
                     "type": "integer",
                     "minimum": 1,
                     "description": "1-indexed line of the dispatching call."
+                },
+                "via": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "minItems": 1,
+                    "description": "Present when the call sits in a helper method of the same class that the handler reaches through `$this->`, `self::` or `static::` calls: the helper method names in call order, ending with the method that holds the call. Absent when the handler makes the call itself."
                 }
             },
             "description": "A resolved dispatch made from a class method or closure."
