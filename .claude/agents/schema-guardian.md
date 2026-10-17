@@ -36,7 +36,7 @@ Commits that change scanner output cite the schema section, e.g. `feat(listeners
 
 ## Required reading
 
-1. `AGENTS.md` — the canonical example output
+1. `.claude/skills/change-schema` — the schema-change procedure
 2. `docs/reference/schema.md` — the prose reference
 3. `schema/loom-index.schema.json` — the JSON Schema document itself
 4. JSON Schema spec: https://json-schema.org/draft/2020-12/json-schema-core.html
