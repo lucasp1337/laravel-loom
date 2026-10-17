@@ -30,7 +30,9 @@
                     "section"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "List Entities Tool"
+            }
         },
         "get-entity": {
             "name": "get-entity",
@@ -61,7 +63,9 @@
                     "fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Get Entity Tool"
+            }
         },
         "dispatch-sites-for": {
             "name": "dispatch-sites-for",
@@ -79,7 +83,9 @@
                     "event_fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Dispatch Sites For Tool"
+            }
         },
         "handlers-for": {
             "name": "handlers-for",
@@ -97,7 +103,9 @@
                     "event_fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Handlers For Tool"
+            }
         },
         "dispatches-from": {
             "name": "dispatches-from",
@@ -115,7 +123,9 @@
                     "method_fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Dispatches From Tool"
+            }
         },
         "events-following": {
             "name": "events-following",
@@ -138,7 +148,9 @@
                     "event_fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Events Following Tool"
+            }
         },
         "events-from-method": {
             "name": "events-from-method",
@@ -161,7 +173,9 @@
                     "method_fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Events From Method Tool"
+            }
         },
         "route-to-events": {
             "name": "route-to-events",
@@ -189,7 +203,9 @@
                     "uri"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Route To Events Tool"
+            }
         },
         "impact-of-change": {
             "name": "impact-of-change",
@@ -216,7 +232,9 @@
                     "fqcn"
                 ]
             },
-            "annotations": []
+            "annotations": {
+                "title": "Impact Of Change Tool"
+            }
         },
         "find-orphans": {
             "name": "find-orphans",
@@ -226,7 +244,9 @@
                 "type": "object",
                 "properties": []
             },
-            "annotations": []
+            "annotations": {
+                "title": "Find Orphans Tool"
+            }
         },
         "find-unresolved-dispatches": {
             "name": "find-unresolved-dispatches",
@@ -236,7 +256,9 @@
                 "type": "object",
                 "properties": []
             },
-            "annotations": []
+            "annotations": {
+                "title": "Find Unresolved Dispatches Tool"
+            }
         }
     },
     "cases": {
