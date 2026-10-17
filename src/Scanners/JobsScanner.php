@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\JobEntry;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\JobClassSpec;
 use Lucasp\Loom\Support\Ast\AstWalker;
@@ -45,12 +46,14 @@ final class JobsScanner implements Scanner
     }
 
     /**
-     * @return array{jobs: list<JobEntry>}
+     * @return array{jobs: list<JobEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
         $discovery = new ClassPrimitiveDiscovery($this->walker, $this->locator, $this->scope);
 
-        return ['jobs' => $discovery->discover($appRoot, new JobClassSpec)];
+        $result = $discovery->discover($appRoot, new JobClassSpec);
+
+        return ['jobs' => $result->entries, 'unresolved_dispatches' => $result->unresolved];
     }
 }

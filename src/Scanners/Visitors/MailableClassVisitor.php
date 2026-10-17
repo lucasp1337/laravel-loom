@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\MailableClassRecord;
-use Lucasp\Loom\Support\Ast\QueueConfig;
 use PhpParser\Node;
 
 /**
@@ -40,7 +39,6 @@ final class MailableClassVisitor extends CollectingVisitor implements ClassRecor
         $this->classes[] = new MailableClassRecord(
             fqcn: $node->namespacedName->toString(),
             line: $node->getStartLine(),
-            queueConfig: QueueConfig::extractFrom($node),
         );
 
         return null;

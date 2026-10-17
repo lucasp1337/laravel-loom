@@ -16,8 +16,9 @@ use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 
 /**
- * Mailables: every concrete class under Mail/, plus mailable-kind dispatch
- * targets (never ambiguous). The queue config is emitted for queued ones only.
+ * Mailables: every concrete class under Mail/ that is a mailable (extends
+ * Mailable or declares build/envelope/content), plus mailable-kind dispatch
+ * targets (never ambiguous, so no further proof). The queue config is emitted for queued ones only.
  *
  * @implements ClassSpec<MailableClassRecord, MailableLocation, MailableEntry>
  *
@@ -45,8 +46,8 @@ final class MailableClassSpec implements ClassSpec
         return new MailableLocation(
             file: $relativeFile,
             line: $record->line,
-            queued: $resolver->implementsInterface($record->fqcn, LaravelClasses::SHOULD_QUEUE->value),
-            queueConfig: $record->queueConfig,
+            queued: $resolver->isQueued($record->fqcn),
+            queueConfig: $resolver->queueConfig($record->fqcn),
         );
     }
 
@@ -66,7 +67,7 @@ final class MailableClassSpec implements ClassSpec
 
             foreach ($visitor->getSites() as $site) {
                 if ($site->provisionalKind === DispatchKinds::MAILABLE) {
-                    $seeds[] = new DispatchSeed($site->target, false);
+                    $seeds[] = new DispatchSeed($site->target, false, $site->line);
                 }
             }
         }
@@ -80,6 +81,20 @@ final class MailableClassSpec implements ClassSpec
         return true;
     }
 
+    public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool
+    {
+        // A class under Mail/ is a mailable only when it extends Mailable (or
+        // an unseen vendor parent), or declares one of the methods Laravel
+        // calls on a mailable.
+        return $resolver->mayExtend($record->fqcn, LaravelClasses::MAILABLE->value)
+            || $this->declaresAny($resolver, $record->fqcn, ['build', 'envelope', 'content']);
+    }
+
+    public function reportsUnlocatableAmbiguous(): bool
+    {
+        return false;
+    }
+
     public function entryOf(string $fqcn, object $location): MailableEntry
     {
         return new MailableEntry(
@@ -89,5 +104,13 @@ final class MailableClassSpec implements ClassSpec
             queued: $location->queued,
             queueConfig: $location->queued ? $location->queueConfig : null,
         );
+    }
+
+    /** @param  list<string>  $names */
+    private function declaresAny(ClassHierarchyResolver $resolver, string $fqcn, array $names): bool
+    {
+        $methods = $resolver->effectiveMethods($fqcn);
+
+        return collect($names)->contains(static fn (string $name): bool => isset($methods[$name]));
     }
 }

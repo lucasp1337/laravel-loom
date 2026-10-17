@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support\Ast;
 
+use Illuminate\Support\Str;
 use PhpParser\Node;
 
 /**
@@ -37,25 +38,28 @@ final class ValueLists
                 return null;
             }
 
-            $value = $item->value;
-
-            if ($value instanceof Node\Scalar\String_) {
-                $channels[] = strtolower($value->value);
-
-                continue;
+            $channel = self::channel($item->value);
+            if ($channel === null) {
+                return null;
             }
 
-            $fqcn = ClassRef::fromClassConstant($value);
-            if ($fqcn !== null) {
-                $channels[] = $fqcn;
-
-                continue;
-            }
-
-            return null;
+            $channels[] = $channel;
         }
 
         return $channels;
+    }
+
+    /**
+     * One channel: a string literal (lowercased) or a `Class::class` constant
+     * (FQCN); null for anything else.
+     */
+    public static function channel(Node\Expr $value): ?string
+    {
+        if ($value instanceof Node\Scalar\String_) {
+            return Str::lower($value->value);
+        }
+
+        return ClassRef::fromClassConstant($value);
     }
 
     /**

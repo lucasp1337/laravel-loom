@@ -768,11 +768,11 @@
                 "channels": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "From a `via()` that is a single `return [...]` of literal strings (lowercased) or `Class::class` constants (FQCN), in source order. `[]` when `via()` is dynamic, not declared or inherited."
+                    "description": "From a `via()` that returns an array of literal strings (lowercased) or `Class::class` constants (FQCN), in source order: a literal array, or a local array built from one with `$x[] = 'literal'` appends. Under branches or with several returns, the union of every channel that may apply. `[]` when `via()` is unreadable, not declared or inherited."
                 },
                 "channels_dynamic": {
                     "type": "boolean",
-                    "description": "`true` only when `via()` exists but is not a single literal-array return; the channels exist but cannot be read statically."
+                    "description": "`true` only when `via()` exists but `channels` may not be what a call returns: the body is unreadable (`channels` is `[]`), or the channels depend on a branch or on several returns (`channels` is the union)."
                 }
             },
             "description": "Notification classes."
@@ -796,8 +796,8 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch"],
-                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated."
+                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "class_not_found"],
+                    "description": "`dynamic_class_name`: a variable.\n`container_resolution`: `app()`, `resolve()`, `->make()`.\n`string_concatenation`: concatenation or interpolation.\n`conditional_dispatch`: a ternary whose branches cannot be evaluated.\n`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`."
                 }
             },
             "description": "Dispatch sites whose target could not be resolved statically. Never dropped silently."

@@ -10,6 +10,5 @@ final readonly class JobClassRecord
     public function __construct(
         public string $fqcn,
         public int $line,
-        public QueueConfigData $queueConfig,
     ) {}
 }

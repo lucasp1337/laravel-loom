@@ -157,12 +157,15 @@ it('populates events[InventoryAdjusted].dispatched_from from the listener', func
 it('records the unresolved_dispatches with file, line, expression, reason', function () {
     $payload = buildDispatchEndToEndPayload();
 
-    expect($payload['unresolved_dispatches'])->toHaveCount(2);
+    // Two unreadable targets in Checkout, plus one event class no file declares.
+    expect($payload['unresolved_dispatches'])->toHaveCount(3);
 
     foreach ($payload['unresolved_dispatches'] as $entry) {
         expect($entry)->toHaveKeys(['file', 'line', 'expression', 'reason']);
-        expect($entry['file'])->toBe('app/Services/Checkout.php');
     }
+
+    $missing = collect($payload['unresolved_dispatches'])->firstWhere('reason', 'class_not_found');
+    expect($missing['expression'])->toBe('App\\Events\\SomeEvent::class');
 });
 
 it('attributes dispatches in non-handle() methods listed in handles[*].method', function () {
@@ -213,5 +216,5 @@ it('matches the expected stats counts', function () {
     expect($payload['stats']['events'])->toBe(3);
     expect($payload['stats']['listeners'])->toBe(2);
     expect($payload['stats']['observers'])->toBe(1);
-    expect($payload['stats']['unresolved_dispatches'])->toBe(2);
+    expect($payload['stats']['unresolved_dispatches'])->toBe(3);
 });

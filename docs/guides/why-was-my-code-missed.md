@@ -85,6 +85,7 @@ Entries in `unresolved_dispatches` carry a `reason`. Each one points at the line
 | `string_concatenation` | `event("App\\Events\\" . $name)` | Use a `::class` reference |
 | `container_resolution` | `event(app(OrderPlaced::class))` or `resolve(...)` | Construct the event with `new` |
 | `conditional_dispatch` | a ternary whose branches aren't both `new X` | Split into two `if` branches, each with its own `event(new ...)` |
+| `class_not_found` | `event(new Registered)` where no file under your scan paths declares the class (a package class, a typo, an excluded path) | Nothing to fix for a package class; otherwise add its directory to `scan.paths` or fix the name |
 
 A ternary where both branches are `new X()` is fine. Loom records both.
 
@@ -121,7 +122,7 @@ A dispatch whose target is a variable (`dispatch($job)`) can't be resolved at al
 
 ### `queued` is false but my class is queued
 
-Loom decides `queued` by following `extends` chains through your own code to find `implements ShouldQueue`. It doesn't look inside `vendor/`, so a job, mailable, notification or listener that gets `ShouldQueue` from a package's base class reads `false`.
+Loom decides `queued` by following `extends` chains through your own code to find `implements ShouldQueue` or `ShouldQueueAfterCommit`. It doesn't look inside `vendor/`, so a job, mailable, notification or listener that gets `ShouldQueue` from a package's base class reads `false`.
 
 **Fix:** add `implements ShouldQueue` directly to your class. It's redundant at runtime and makes the intent visible.
 
@@ -153,7 +154,7 @@ Mail::to($order->customer)->send(new OrderReceipt($order));
 
 `channels: []` means Loom couldn't read a channel list. The flag next to it says why:
 
-- **`channels_dynamic: true`**: `via()` exists but isn't a single `return [...]` of string literals and `::class` constants. A conditional, a property, a variable or keyed entries all set the flag. Loom doesn't merge branches, so it shows the gap instead of guessing.
+- **`channels_dynamic: true`**: `via()` isn't a plain literal list. A local array built from literals with `$channels[] = 'slack'` is read, and under an `if` or with several returns `channels` holds every channel that may apply. A call, a property, a variable you didn't build from literals or keyed entries leaves `channels: []`.
 - **`channels_dynamic: false`**: Loom found no `via()` on the class itself. If `via()` lives on a parent class or in a trait, that's why. Declare it on the notification:
 
 ```php

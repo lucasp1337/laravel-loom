@@ -12,13 +12,12 @@ use Lucasp\Loom\Scanners\Visitors\ClassRecordVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
-use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 
 /**
  * Jobs: every class under Jobs/, plus job-kind dispatch targets. Ambiguous
  * (Dispatchable-form) targets are kept only under Jobs/ or when they
- * implement ShouldQueue. The queue config is emitted for queued jobs only.
+ * implement ShouldQueue (or a sub-interface of it). The queue config is emitted for queued jobs only.
  *
  * @implements ClassSpec<JobClassRecord, JobLocation, JobEntry>
  *
@@ -46,8 +45,8 @@ final class JobClassSpec implements ClassSpec
         return new JobLocation(
             file: $relativeFile,
             line: $record->line,
-            queued: $resolver->implementsInterface($record->fqcn, LaravelClasses::SHOULD_QUEUE->value),
-            queueConfig: $record->queueConfig,
+            queued: $resolver->isQueued($record->fqcn),
+            queueConfig: $resolver->queueConfig($record->fqcn),
         );
     }
 
@@ -68,9 +67,9 @@ final class JobClassSpec implements ClassSpec
             foreach ($visitor->getSites() as $site) {
                 match ($site->provisionalKind) {
                     // Proven job dispatch.
-                    DispatchKinds::JOB => $seeds[] = new DispatchSeed($site->target, false),
+                    DispatchKinds::JOB => $seeds[] = new DispatchSeed($site->target, false, $site->line),
                     // Dispatchable form: could still be an event.
-                    DispatchKinds::AMBIGUOUS => $seeds[] = new DispatchSeed($site->target, true),
+                    DispatchKinds::AMBIGUOUS => $seeds[] = new DispatchSeed($site->target, true, $site->line),
                     default => null,
                 };
             }
@@ -82,6 +81,17 @@ final class JobClassSpec implements ClassSpec
     public function admitsAmbiguous(object $location, bool $underDirectory): bool
     {
         return $underDirectory || $location->queued;
+    }
+
+    public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool
+    {
+        return true;
+    }
+
+    public function reportsUnlocatableAmbiguous(): bool
+    {
+        // Cross-linking resolves an ambiguous target that is no event to a job.
+        return true;
     }
 
     public function entryOf(string $fqcn, object $location): JobEntry

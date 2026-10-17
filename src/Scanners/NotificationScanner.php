@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\NotificationEntry;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\NotificationClassSpec;
 use Lucasp\Loom\Support\Ast\AstWalker;
@@ -48,12 +49,14 @@ final class NotificationScanner implements Scanner
     }
 
     /**
-     * @return array{notifications: list<NotificationEntry>}
+     * @return array{notifications: list<NotificationEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
         $discovery = new ClassPrimitiveDiscovery($this->walker, $this->locator, $this->scope);
 
-        return ['notifications' => $discovery->discover($appRoot, new NotificationClassSpec)];
+        $result = $discovery->discover($appRoot, new NotificationClassSpec);
+
+        return ['notifications' => $result->entries, 'unresolved_dispatches' => $result->unresolved];
     }
 }

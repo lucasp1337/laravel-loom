@@ -69,6 +69,22 @@ interface ClassSpec
     public function admitsAmbiguous(object $location, bool $underDirectory): bool;
 
     /**
+     * Whether a class found by walking the convention directory is this
+     * primitive. Mailables and notifications ask for evidence (a base class
+     * or a defining method) so helper classes in the same directory are not
+     * listed. A dispatch site proves its target, so seeds skip this.
+     *
+     * @param  TRecord  $record
+     */
+    public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool;
+
+    /**
+     * Whether an ambiguous seed that cannot be located is reported by this
+     * primitive. Exactly one spec says yes, so the target is listed once.
+     */
+    public function reportsUnlocatableAmbiguous(): bool;
+
+    /**
      * @param  TLocation  $location
      * @return TEntry
      */

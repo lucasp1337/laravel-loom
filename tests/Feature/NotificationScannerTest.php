@@ -131,13 +131,13 @@ it('extracts the single mail channel for PasswordReset', function () {
     expect($entry->channelsDynamic)->toBeFalse();
 });
 
-it('flags channels_dynamic=true and channels=[] for DynamicChannelNotification', function () {
+it('flags channels_dynamic=true with the union of channels for a branching via()', function () {
     $entries = (new NotificationScanner)->scan(notificationFixturePath())['notifications'];
 
     $entry = notificationByFqcn($entries, 'App\\Notifications\\DynamicChannelNotification');
 
     expect($entry)->not->toBeNull();
-    expect($entry->channels)->toBe([]);
+    expect($entry->channels)->toBe(['mail', 'database']);
     expect($entry->channelsDynamic)->toBeTrue();
 });
 
