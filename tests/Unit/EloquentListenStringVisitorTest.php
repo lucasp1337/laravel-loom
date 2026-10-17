@@ -111,10 +111,10 @@ it('defaults method to the hook name when handler is Class::class with no method
 
     expect($entries)->toHaveCount(1);
     expect($entries[0]->handler)->toBe('App\\Observers\\UserObserver');
-    expect($entries[0]->method)->toBe('saved');
+    expect($entries[0]->method)->toBe('handle');
 });
 
-it('skips closure handlers', function () {
+it('records closure handlers with the closure method', function () {
     $source = <<<'PHP'
     <?php
 
@@ -133,7 +133,10 @@ it('skips closure handlers', function () {
 
     $entries = runEloquentListenStringVisitor($source);
 
-    expect($entries)->toBe([]);
+    expect($entries)->toHaveCount(1);
+    expect($entries[0]->method)->toBe('{closure}');
+    expect($entries[0]->handler)->toBe('App\\Models\\User');
+    expect($entries[0]->isClosure())->toBeTrue();
 });
 
 it('skips dynamic event-name arguments', function () {

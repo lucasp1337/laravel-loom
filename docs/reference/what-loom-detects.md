@@ -28,8 +28,8 @@ Pinned by [EventScannerTest], [EventDispatchSiteVisitorTest], [ClassSpecsTest], 
 
 Loom reads these as listeners:
 
-- Public `handle*` or `__invoke` methods with a first parameter, in classes under `app/Listeners/`. The method can be declared, inherited from a parent, or come from a trait (`as` renames and `insteadof` included). Laravel's [event discovery](https://laravel.com/docs/events#event-discovery) uses the same rule.
-- `$listen` arrays: bare, tuple, `Closure::fromCallable()` and `Listener::method(...)` forms.
+- Public `handle*` or `__invoke` methods with a first parameter, in classes under `app/Listeners/` (or the directories passed to `withEvents([...])`). The method can be declared, inherited from a parent, or come from a trait (`as` renames and `insteadof` included). Laravel's [event discovery](https://laravel.com/docs/events#event-discovery) uses the same rule. They are `registration: auto_discovered` only when `bootstrap/app.php` uses `Application::configure()` and nothing turns discovery off. With `withEvents(false)` or `disableEventDiscovery()` such a class is listed only if registered explicitly. When the switch can't be read (no `bootstrap/app.php`, a non-literal `withEvents(...)` argument) the class is listed as `discovery_unverified`. A pre-`configure()` bootstrap discovers only when an app provider's `shouldDiscoverEvents()` returns `true`.
+- `$listen` arrays: bare, tuple, `'Fqcn@method'`, `Listener::class.'@method'`, `Closure::fromCallable()` and `Listener::method(...)` forms, with a class or literal string event key (a dotted name or wildcard is kept as written).
 - `Event::listen(...)` from any class, through the facade, its alias or the FQCN, with one event or an array of events.
 - The same call on a dispatcher from `$this->app['events']`, `app()`, `resolve()`, `make()`, or a variable assigned from one of them.
 - Subscribers, through `$subscribe` or `Event::subscribe()`, in return-array and `$events->listen()` styles. They are listed with `registration: subscriber`.
@@ -39,7 +39,7 @@ Loom reads these as listeners:
 | Nullable or union first parameter | One event per class |
 | Untyped or builtin first parameter | The listener, with `handles: []` |
 
-Does not read: abstract classes, traits, interfaces, methods made non-public with `as protected`, methods with no parameter, handlers inherited from a vendor class, a dispatcher typed in `boot()` or held in a property, registrations inside nested closures in `subscribe()`, `$obj->method` and `'Class::method'` strings.
+Does not read: abstract classes, traits, interfaces, methods made non-public with `as protected`, methods with no parameter, handlers inherited from a vendor class, a dispatcher typed in `boot()` or held in a property, registrations inside nested closures in `subscribe()`, `$obj->method` and `'Class::method'` strings. A registration whose event or listener is one of these, a variable or a call (`Event::listen($name, ...)`, `[$this, 'handle']`) is listed in `unresolved_dispatches` with reason `unreadable_listener`. A listener is matched to the event class it is typed to, not to that class's parents.
 
 Pinned by [HandlerResolutionTest], [ListenerScannerTest], [ListenArrayVisitorTest], [EventListenCallVisitorTest], [SubscriberClassVisitorTest].
 
@@ -63,7 +63,10 @@ Loom reads these as observers:
 - Hook methods the observer declares, inherits from a parent or gets from a trait, of any visibility. The hooks are the events Eloquent lets an observer subscribe to, `retrieved` through `forceDeleted`, plus `trashed`. See [observers](https://laravel.com/docs/eloquent#observers).
 - `Event::listen('eloquent.{hook}: {Model}', ...)` strings, as `model_events` only, with a `Class@method`, tuple or class handler. The strings `eloquent.booting: ...` and `eloquent.booted: ...` are read the same way.
 
-Does not read: `parent::observe()`, `$this->observe()`, dynamic arguments, `booting` and `booted` methods on the observer (they are not observer hooks), hooks inherited from a vendor class, closure handlers in `model_events`, and container-form `eloquent.*` registrations.
+- Model hook registrations `static::creating(...)`, `saved`, `deleted`, `softDeleted` and the other registrar methods, from `booted()`, `boot()`, a trait's `bootXxx()` or outside the model. A closure or arrow function becomes a `model_events` handler with method `{closure}` and a `closure_listeners` entry (`registration: model_hook`) that holds the dispatches inside it. A `[Handler::class, 'method']`, `Handler::class` or `'Handler@method'` callback becomes a handler. A hook in a trait is listed once for each class that uses the trait.
+- `eloquent.{hook}: {Model}` keys in `$listen`, and closure handlers in `Event::listen('eloquent.*', fn ...)`, as `model_events`.
+
+Does not read: `parent::observe()`, `$this->observe()`, dynamic arguments, `booting` and `booted` methods on the observer (they are not observer hooks), hooks inherited from a vendor class, `$observables` custom events, and container-form `eloquent.*` registrations. A `static::creating($callback)` whose callback is a variable or call is listed in `unresolved_dispatches` with reason `unreadable_model_hook`. `Model::creating($variable)` outside the model is skipped, because the class isn't known to be a model.
 
 Pinned by [ObservedByAttributeVisitorTest], [ObserveCallVisitorTest], [ObserverClassVisitorTest], [EloquentListenStringVisitorTest], [ObserverScannerTest].
 

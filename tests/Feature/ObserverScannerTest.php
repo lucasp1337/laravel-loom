@@ -156,7 +156,7 @@ describe('ObserverScanner model_events output', function () {
     it('emits exactly the expected number of model_event entries', function () {
         $modelEvents = (new ObserverScanner)->scan(observerFixturePath())['model_events'];
 
-        expect($modelEvents)->toHaveCount(10);
+        expect($modelEvents)->toHaveCount(11);
     });
 
     it('uses the "eloquent.{hook}: {Model}" id format', function () {

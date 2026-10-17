@@ -9,19 +9,27 @@ use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ClosureListenerEntry;
 use Lucasp\Loom\Dto\ClosureListenerRecord;
+use Lucasp\Loom\Dto\EventDiscoveryFact;
 use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerLocation;
 use Lucasp\Loom\Dto\ListenerPair;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Dto\UnresolvedDispatchRecord;
 use Lucasp\Loom\Index\ListenerRegistration;
+use Lucasp\Loom\Scanners\Visitors\EventDiscoveryVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventListenCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\EventSubscribeCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\ListenerClassVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscribeArrayVisitor;
 use Lucasp\Loom\Scanners\Visitors\SubscriberClassVisitor;
+use Lucasp\Loom\Support\AppPath;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\EventDiscovery;
+use Lucasp\Loom\Support\EventDiscoveryResolver;
+use Lucasp\Loom\Support\EventDiscoveryStatus;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -34,8 +42,13 @@ use Lucasp\Loom\Support\ScanScope;
  *
  * Paths, merged by listener FQCN; the winning `registration` is
  * `subscriber`, then `listen_array`, `event_listen_call`, `auto_discovered`:
- * 1. Auto-discovery. Mirrors Laravel's DiscoverEvents: an instantiable class
- *    under Listeners/ with a public `handle*` or `__invoke` method taking a
+ * 1. Auto-discovery, only when the app runs it ({@see EventDiscoveryResolver}:
+ *    on with `Application::configure()`, off with `withEvents(false)` or
+ *    `disableEventDiscovery()`, off in a legacy bootstrap unless a provider's
+ *    `shouldDiscoverEvents()` returns true). When the switch cannot be read the
+ *    class is listed as `discovery_unverified`; when discovery is off it is
+ *    listed only if registered explicitly. Mirrors Laravel's DiscoverEvents: an
+ *    instantiable class under Listeners/ (or the directories the app set) with a public `handle*` or `__invoke` method taking a
  *    first parameter, declared, inherited or trait-provided (`as` renames and
  *    `insteadof` applied). The events are the class types of that parameter
  *    (nullable and union types give each class; builtin and intersection
@@ -49,6 +62,11 @@ use Lucasp\Loom\Support\ScanScope;
  *    registration per event.
  * 4. Subscribers named in `$subscribe` or `Event::subscribe(...)`
  *    ({@see SubscriberClassVisitor}).
+ *
+ * Listener values are `Foo::class`, `'Fqcn@method'`, `Foo::class.'@method'`,
+ * tuples and callables; a string event key is kept as written (`eloquent.*`
+ * names are model events, read by ObserverScanner). A registration whose event
+ * or listener cannot be read is emitted in `unresolved_dispatches`.
  *
  * `method` is `handle` when a registration names none. A listener named in a
  * registration but located outside Listeners/ is found through PSR-4; if its
@@ -69,6 +87,12 @@ final class ListenerScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
+    /** @var list<EventDiscoveryFact> */
+    private array $discoveryFacts = [];
+
+    /** @var list<UnresolvedDispatchEntry> */
+    private array $unresolved = [];
+
     public function __construct(?AstWalker $walker = null, ?Psr4ClassLocator $locator = null, ?ScanScope $scope = null)
     {
         $this->walker = $walker ?? new AstWalker;
@@ -77,14 +101,17 @@ final class ListenerScanner implements Scanner
     }
 
     /**
-     * @return array{listeners: list<ListenerEntry>, closure_listeners: list<ClosureListenerEntry>}
+     * @return array{listeners: list<ListenerEntry>, closure_listeners: list<ClosureListenerEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
+        $this->discoveryFacts = [];
+        $this->unresolved = [];
         $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
 
-        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot, $resolver);
+        // The listen-array walk also gathers the discovery switches that auto-discovery depends on.
         [$listenArrayPairs, $listenArrayClosures] = $this->discoverFromListenArray($appRoot);
+        $autoDiscovered = $this->discoverFromAutoDiscovery($appRoot, $resolver, $this->resolveDiscovery($appRoot));
         [$eventListenPairs, $eventListenClosures] = $this->discoverFromEventListenCalls($appRoot);
         $subscriberFqcns = $this->discoverSubscriberFqcns($appRoot);
         [$subscribers, $subscriberClosures, $subscriberForeignPairs] = $this->resolveSubscribers($appRoot, $subscriberFqcns);
@@ -98,18 +125,91 @@ final class ListenerScanner implements Scanner
                 $eventListenClosures,
                 $subscriberClosures,
             ),
+            'unresolved_dispatches' => $this->unresolved,
         ];
+    }
+
+    private function resolveDiscovery(string $appRoot): EventDiscovery
+    {
+        $bootstrap = AppPath::join($appRoot, 'bootstrap/app.php');
+        $hasBootstrap = is_file($bootstrap);
+        $facts = [];
+        if ($hasBootstrap) {
+            $visitor = new EventDiscoveryVisitor;
+            $this->walker->walk($bootstrap, [$visitor]);
+            $facts = $this->anchored($visitor->getFacts(), 'bootstrap');
+        }
+
+        return EventDiscoveryResolver::resolve($hasBootstrap, $facts, $this->discoveryFacts);
+    }
+
+    /**
+     * @param  list<EventDiscoveryFact>  $facts
+     * @return list<EventDiscoveryFact>
+     */
+    private function anchored(array $facts, string $directory): array
+    {
+        return array_values(Arr::map($facts, fn (EventDiscoveryFact $fact): EventDiscoveryFact => $fact->paths === [] || $fact->paths === null
+            ? $fact
+            : new EventDiscoveryFact(
+                $fact->kind,
+                $fact->value,
+                $this->anchorPaths($fact->paths, $directory),
+                $fact->dynamic,
+            )));
+    }
+
+    /**
+     * @param  list<string>  $paths
+     * @return list<string>|null null when a path leaves the app root
+     */
+    private function anchorPaths(array $paths, string $directory): ?array
+    {
+        $anchored = [];
+        foreach ($paths as $path) {
+            $resolved = EventDiscoveryResolver::anchor($path, $directory);
+            if ($resolved === null) {
+                return null;
+            }
+            $anchored[] = $resolved;
+        }
+
+        return $anchored;
+    }
+
+    /**
+     * @param  list<UnresolvedDispatchRecord>  $records
+     */
+    private function collectUnresolved(string $relative, array $records): void
+    {
+        foreach ($records as $record) {
+            $this->unresolved[] = new UnresolvedDispatchEntry(
+                file: $relative,
+                line: $record->line,
+                expression: $record->expression,
+                reason: $record->reason,
+            );
+        }
     }
 
     /**
      * @return array<string, ListenerLocation>
      */
-    private function discoverFromAutoDiscovery(string $appRoot, ClassHierarchyResolver $resolver): array
+    private function discoverFromAutoDiscovery(string $appRoot, ClassHierarchyResolver $resolver, EventDiscovery $discovery): array
     {
+        // With discovery off, only explicit registrations make a listener.
+        if ($discovery->status === EventDiscoveryStatus::DISABLED) {
+            return [];
+        }
+
+        $registration = $discovery->status === EventDiscoveryStatus::ENABLED
+            ? ListenerRegistration::AUTO_DISCOVERED
+            : ListenerRegistration::DISCOVERY_UNVERIFIED;
+
         $visitor = new ListenerClassVisitor;
         $results = [];
 
-        foreach ($this->scanFiles($appRoot, PrimitiveDirectory::LISTENERS) as $file) {
+        foreach ($this->discoveryFiles($appRoot, $discovery) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
 
             foreach ($visitor->getClasses() as $class) {
@@ -122,7 +222,7 @@ final class ListenerScanner implements Scanner
                     file: $this->relativePath($appRoot, $file->getPathname()),
                     line: $class->line,
                     queued: $class->queued,
-                    registration: ListenerRegistration::AUTO_DISCOVERED,
+                    registration: $registration,
                 );
                 foreach ($handles as $handle) {
                     $location->handles[$handle->event.'::'.$handle->method] = $handle;
@@ -132,6 +232,25 @@ final class ListenerScanner implements Scanner
         }
 
         return $results;
+    }
+
+    /**
+     * Files under `Listeners/` in the scan directories, or under the
+     * directories the app configured for discovery.
+     *
+     * @return iterable<\SplFileInfo>
+     */
+    private function discoveryFiles(string $appRoot, EventDiscovery $discovery): iterable
+    {
+        if ($discovery->directories === null) {
+            return $this->scanFiles($appRoot, PrimitiveDirectory::LISTENERS);
+        }
+
+        return collect($this->scanFiles($appRoot))->filter(function (\SplFileInfo $file) use ($appRoot, $discovery): bool {
+            $relative = $this->relativePath($appRoot, $file->getPathname());
+
+            return collect($discovery->directories)->contains(fn (string $directory): bool => Str::startsWith($relative, $directory.'/'));
+        });
     }
 
     /**
@@ -171,12 +290,15 @@ final class ListenerScanner implements Scanner
     private function discoverFromListenArray(string $appRoot): array
     {
         $visitor = new ListenArrayVisitor;
+        $discoveryVisitor = new EventDiscoveryVisitor;
         $pairs = [];
         $closures = [];
 
         foreach ($this->scanFiles($appRoot) as $file) {
-            $this->walker->walk($file->getPathname(), [$visitor]);
+            $this->walker->walk($file->getPathname(), [$visitor, $discoveryVisitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
+            $this->collectUnresolved($relative, $visitor->getUnresolved());
+            $this->discoveryFacts = [...$this->discoveryFacts, ...$this->anchored($discoveryVisitor->getFacts(), Str::beforeLast($relative, '/'))];
             foreach ($visitor->getPairs() as $pair) {
                 $pairs[] = $pair;
             }
@@ -206,6 +328,7 @@ final class ListenerScanner implements Scanner
         foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
+            $this->collectUnresolved($relative, $visitor->getUnresolved());
             foreach ($visitor->getPairs() as $pair) {
                 $pairs[] = $pair;
             }
@@ -235,6 +358,9 @@ final class ListenerScanner implements Scanner
 
         foreach ($this->scanFiles($appRoot) as $file) {
             $this->walker->walk($file->getPathname(), [$arrayVisitor, $callVisitor]);
+            $relative = $this->relativePath($appRoot, $file->getPathname());
+            $this->collectUnresolved($relative, $arrayVisitor->getUnresolved());
+            $this->collectUnresolved($relative, $callVisitor->getUnresolved());
             foreach ($arrayVisitor->getSubscribers() as $fqcn) {
                 $seen[$fqcn] = true;
             }
@@ -266,6 +392,7 @@ final class ListenerScanner implements Scanner
             $this->walker->walk($absolute, [$visitor]);
 
             $relative = $this->relativePath($appRoot, $absolute);
+            $this->collectUnresolved($relative, $visitor->getUnresolved());
 
             foreach ($visitor->getClasses() as $class) {
                 if ($class->fqcn !== $fqcn) {
@@ -388,6 +515,8 @@ final class ListenerScanner implements Scanner
     {
         return match ($registration) {
             ListenerRegistration::SUBSCRIBER => 4,
+            ListenerRegistration::MODEL_HOOK,
+            ListenerRegistration::DISCOVERY_UNVERIFIED => 0,
             ListenerRegistration::LISTEN_ARRAY => 3,
             ListenerRegistration::EVENT_LISTEN_CALL => 2,
             ListenerRegistration::AUTO_DISCOVERED => 1,

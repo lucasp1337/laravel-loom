@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Dto\SubscriberClassRecord;
 use Lucasp\Loom\Index\ListenerRegistration;
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\ListenerRef;
+use Lucasp\Loom\Support\EloquentEventName;
 use PhpParser\Node;
 
 /**
@@ -29,12 +33,17 @@ use PhpParser\Node;
  * - `[Other::class, 'method']`: a regular listener entry for `Other`, whose
  *   `registration` becomes `subscriber`, the highest precedence, as the
  *   subscriber is what registers it at runtime;
+ * - a `'Class@method'` string or `Class::class.'@method'`: as the tuple form;
  * - a closure or arrow function: a closure listener.
+ *
+ * An event or handler of any other shape is recorded as unresolved.
  *
  * @internal
  */
 final class SubscriberClassVisitor extends CollectingVisitor
 {
+    use RecordsUnresolvedRegistrations;
+
     /** @var list<SubscriberClassRecord> */
     private array $classes = [];
 
@@ -44,6 +53,7 @@ final class SubscriberClassVisitor extends CollectingVisitor
     {
         $this->classes = [];
         $this->currentClassFqcn = null;
+        $this->resetUnresolved();
     }
 
     public function leaveNode(Node $node): null
@@ -110,8 +120,10 @@ final class SubscriberClassVisitor extends CollectingVisitor
                 if ($item->key === null) {
                     continue;
                 }
-                $event = $this->eventFromKey($item->key);
+                $event = ListenerRef::event($item->key);
                 if ($event === null) {
+                    $this->recordUnresolved($item->key, UnresolvedReason::UNREADABLE_LISTENER);
+
                     continue;
                 }
 
@@ -123,13 +135,15 @@ final class SubscriberClassVisitor extends CollectingVisitor
                     continue;
                 }
 
-                // String-keyed handlers (e.g. 'eloquent.*') belong to ObserverScanner.
-                if (! $item->key instanceof Node\Expr\ClassConstFetch) {
+                // `eloquent.{hook}: {Model}` handlers belong to ObserverScanner.
+                if (EloquentEventName::is($event)) {
                     continue;
                 }
 
                 $methodName = $this->extractMethodName($item->value);
                 if ($methodName === null) {
+                    $this->recordUnresolved($item->value, UnresolvedReason::UNREADABLE_LISTENER);
+
                     continue;
                 }
 
@@ -261,8 +275,10 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return;
         }
 
-        $event = $this->eventFromKey($eventValue);
+        $event = ListenerRef::event($eventValue);
         if ($event === null) {
+            $this->recordUnresolved($eventValue, UnresolvedReason::UNREADABLE_LISTENER);
+
             return;
         }
 
@@ -274,19 +290,25 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return;
         }
 
+        // `eloquent.{hook}: {Model}` handlers belong to ObserverScanner.
+        if (EloquentEventName::is($event)) {
+            return;
+        }
+
         // [Class::class, 'method'] tuple.
         if ($listenerValue instanceof Node\Expr\Array_) {
             if (count($listenerValue->items) < 2) {
+                $this->recordUnresolved($listenerValue, UnresolvedReason::UNREADABLE_LISTENER);
+
                 return;
             }
             $classItem = $listenerValue->items[0];
             $methodItem = $listenerValue->items[1];
 
             $classFqcn = ClassRef::fromClassConstant($classItem->value);
-            if ($classFqcn === null) {
-                return;
-            }
-            if (! $methodItem->value instanceof Node\Scalar\String_) {
+            if ($classFqcn === null || ! $methodItem->value instanceof Node\Scalar\String_) {
+                $this->recordUnresolved($listenerValue, UnresolvedReason::UNREADABLE_LISTENER);
+
                 return;
             }
             $methodName = $methodItem->value->value;
@@ -302,13 +324,6 @@ final class SubscriberClassVisitor extends CollectingVisitor
             return;
         }
 
-        // Bare string method: Laravel binds it to the subscriber instance.
-        if ($listenerValue instanceof Node\Scalar\String_) {
-            $handles[] = new ListenerHandle(event: $event, method: $listenerValue->value);
-
-            return;
-        }
-
         $bareFqcn = ClassRef::fromClassConstant($listenerValue);
         if ($bareFqcn !== null) {
             if ($this->isOwnClass($bareFqcn)) {
@@ -318,26 +333,38 @@ final class SubscriberClassVisitor extends CollectingVisitor
             }
 
             $foreignPairs[] = new ListenerPair(event: $event, listener: $bareFqcn, method: 'handle');
+
+            return;
         }
+
+        $folded = ListenerRef::fold($listenerValue);
+        if ($folded === null) {
+            $this->recordUnresolved($listenerValue, UnresolvedReason::UNREADABLE_LISTENER);
+
+            return;
+        }
+
+        // `Class@method`: the class callable, or this subscriber's own method.
+        $resolved = Str::contains($folded, '@') ? ListenerRef::fromString($folded) : null;
+        if ($resolved !== null) {
+            if ($this->isOwnClass($resolved['listener'])) {
+                $handles[] = new ListenerHandle(event: $event, method: $resolved['method']);
+
+                return;
+            }
+
+            $foreignPairs[] = new ListenerPair(event: $event, listener: $resolved['listener'], method: $resolved['method']);
+
+            return;
+        }
+
+        // Bare string method: Laravel binds it to the subscriber instance.
+        $handles[] = new ListenerHandle(event: $event, method: $folded);
     }
 
     private function isOwnClass(string $fqcn): bool
     {
         return $fqcn === 'self' || $fqcn === 'static' || $fqcn === $this->currentClassFqcn;
-    }
-
-    private function eventFromKey(Node\Expr $expr): ?string
-    {
-        $direct = ClassRef::fromClassConstant($expr);
-        if ($direct !== null) {
-            return $direct;
-        }
-
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        return null;
     }
 
     private function extractMethodName(Node\Expr $value): ?string

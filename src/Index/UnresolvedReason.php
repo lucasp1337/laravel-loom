@@ -17,4 +17,6 @@ enum UnresolvedReason: string
     case STRING_CONCATENATION = 'string_concatenation';
     case CONDITIONAL_DISPATCH = 'conditional_dispatch';
     case CLASS_NOT_FOUND = 'class_not_found';
+    case UNREADABLE_LISTENER = 'unreadable_listener';
+    case UNREADABLE_MODEL_HOOK = 'unreadable_model_hook';
 }

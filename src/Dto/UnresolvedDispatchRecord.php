@@ -13,7 +13,7 @@ namespace Lucasp\Loom\Dto;
 final class UnresolvedDispatchRecord
 {
     /**
-     * @param  'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch'  $reason
+     * @param  'dynamic_class_name'|'container_resolution'|'string_concatenation'|'conditional_dispatch'|'unreadable_listener'|'unreadable_model_hook'  $reason
      */
     public function __construct(
         public ?string $file,

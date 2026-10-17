@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners\Visitors;
 
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Support\Ast\ClassRef;
+use Lucasp\Loom\Support\Ast\ListenerRef;
+use Lucasp\Loom\Support\Fqcn;
 use PhpParser\Node;
 
 /**
  * Collects subscriber FQCNs from `$subscribe` on EventServiceProvider classes.
+ * Items are `Sub::class`, class-name strings or concatenations of such parts,
+ * or `new Sub`; anything else is recorded as unresolved.
  *
  * @internal
  */
 final class SubscribeArrayVisitor extends CollectingVisitor
 {
     use IdentifiesEventServiceProvider;
+    use RecordsUnresolvedRegistrations;
 
     /** @var array<int, string> */
     private array $subscribers = [];
@@ -22,6 +28,7 @@ final class SubscribeArrayVisitor extends CollectingVisitor
     protected function reset(): void
     {
         $this->subscribers = [];
+        $this->resetUnresolved();
     }
 
     public function enterNode(Node $node): null
@@ -59,10 +66,15 @@ final class SubscribeArrayVisitor extends CollectingVisitor
             }
 
             foreach ($prop->default->items as $item) {
-                $fqcn = ClassRef::fromClassConstant($item->value);
-                if ($fqcn !== null) {
-                    $this->subscribers[] = $fqcn;
+                $folded = ListenerRef::fold($item->value)
+            ?? ($item->value instanceof Node\Expr\New_ ? ClassRef::fromInstanceOrConstant($item->value) : null);
+                if ($folded === null || Fqcn::normalize($folded) === '') {
+                    $this->recordUnresolved($item->value, UnresolvedReason::UNREADABLE_LISTENER);
+
+                    continue;
                 }
+
+                $this->subscribers[] = Fqcn::normalize($folded);
             }
         }
     }
