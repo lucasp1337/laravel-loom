@@ -31,6 +31,7 @@ it('produces an empty index that validates against the schema', function () {
             'closure_listeners' => 0,
             'scheduled_tasks' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
             'mailables' => 0,
             'notifications' => 0,
         ]);

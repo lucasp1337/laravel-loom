@@ -66,11 +66,13 @@ final class ValueLists
      * Resolve middleware argument nodes to verbatim identifier strings.
      *
      * Each node is one `->middleware(...)` / `'middleware' => ...` value:
-     *   - String_           → the literal ('auth', 'throttle:60,1', params kept)
-     *   - Array_            → each item value resolved (String_ or Class::class)
-     *   - ClassConstFetch   → FQCN via ClassRef::fromClassConstant
-     * Unresolvable items (variables, concat, keyed array entries) are skipped.
-     * Groups ('web'/'api'), aliases, and withoutMiddleware are NOT expanded.
+     *   - String_           -> the literal ('auth', 'throttle:60,1', params kept)
+     *   - ClassConstFetch   -> FQCN via ClassRef::fromClassConstant
+     *   - Concat            -> folded when every part is a string or `Class::class`
+     *   - Array_            -> each item resolved the same way
+     * Anything else (variables, calls, keyed array entries) is skipped here and
+     * listed by {@see unreadableMiddleware()}. Groups ('web'/'api') and aliases
+     * are NOT expanded.
      *
      * @param  list<Node\Expr>  $nodes
      * @return list<string>
@@ -85,6 +87,60 @@ final class ValueLists
         }
 
         return $out;
+    }
+
+    /**
+     * The middleware expressions {@see middleware()} cannot read, so a caller
+     * can report them instead of dropping them.
+     *
+     * @param  list<Node\Expr>  $nodes
+     * @return list<Node\Expr>
+     */
+    public static function unreadableMiddleware(array $nodes): array
+    {
+        $out = [];
+        foreach ($nodes as $node) {
+            // `[...]`: judge each item; a keyed or spread item is unreadable as a whole
+            if ($node instanceof Node\Expr\Array_) {
+                foreach ($node->items as $item) {
+                    if ($item->key !== null || $item->unpack || self::foldString($item->value) === null) {
+                        $out[] = $item->value;
+                    }
+                }
+
+                continue;
+            }
+
+            if (self::foldString($node) === null) {
+                $out[] = $node;
+            }
+        }
+
+        return $out;
+    }
+
+    /** A string literal, `Class::class`, or a `.` concatenation of them; null otherwise. */
+    public static function foldString(Node\Expr $node): ?string
+    {
+        // 'auth'
+        if ($node instanceof Node\Scalar\String_) {
+            return $node->value;
+        }
+
+        // Foo::class
+        if ($node instanceof Node\Expr\ClassConstFetch) {
+            return ClassRef::fromClassConstant($node);
+        }
+
+        // Foo::class.':admin'
+        if ($node instanceof Node\Expr\BinaryOp\Concat) {
+            $left = self::foldString($node->left);
+            $right = $left === null ? null : self::foldString($node->right);
+
+            return $right === null ? null : $left.$right;
+        }
+
+        return null;
     }
 
     /**
@@ -138,36 +194,20 @@ final class ValueLists
     /** @return list<string> */
     private static function middlewareNames(Node\Expr $node): array
     {
-        if ($node instanceof Node\Scalar\String_) {
-            return [$node->value];
-        }
-
-        if ($node instanceof Node\Expr\ClassConstFetch) {
-            $fqcn = ClassRef::fromClassConstant($node);
-
-            return $fqcn !== null ? [$fqcn] : [];
-        }
-
         if ($node instanceof Node\Expr\Array_) {
             $out = [];
             foreach ($node->items as $item) {
-                if ($item->key !== null) {
-                    continue;
-                }
-                if ($item->value instanceof Node\Scalar\String_) {
-                    $out[] = $item->value->value;
-
-                    continue;
-                }
-                $fqcn = ClassRef::fromClassConstant($item->value);
-                if ($fqcn !== null) {
-                    $out[] = $fqcn;
+                $name = $item->key === null ? self::foldString($item->value) : null;
+                if ($name !== null) {
+                    $out[] = $name;
                 }
             }
 
             return $out;
         }
 
-        return [];
+        $name = self::foldString($node);
+
+        return $name === null ? [] : [$name];
     }
 }

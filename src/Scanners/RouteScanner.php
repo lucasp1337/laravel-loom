@@ -7,45 +7,53 @@ namespace Lucasp\Loom\Scanners;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ChainLink;
 use Lucasp\Loom\Dto\RouteChainEntry;
 use Lucasp\Loom\Dto\RouteEntry;
-use Lucasp\Loom\Index\ResourceAction;
+use Lucasp\Loom\Dto\RouteIssue;
+use Lucasp\Loom\Dto\UnresolvedRouteEntry;
+use Lucasp\Loom\Index\RouteKind;
 use Lucasp\Loom\Index\RouterMethod;
+use Lucasp\Loom\Index\UnresolvedRouteReason;
+use Lucasp\Loom\Scanners\Route\ResourceExpander;
+use Lucasp\Loom\Scanners\Visitors\RouteAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\RouteChainVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Ast\Callables;
-use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\Literal;
 use Lucasp\Loom\Support\Ast\Route\RouteGroupContext;
-use Lucasp\Loom\Support\ResourceFilter;
+use Lucasp\Loom\Support\RegistrarSetter;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
 
 /**
  * Discovers HTTP routes declared via the `Route` facade under routes/ and in
- * the route files that providers and bootstrap/app.php load.
+ * the route files that providers, route files and bootstrap/app.php load.
  *
- * Roots: `Route::get/post/put/patch/delete/options` (one entry), `any` (method
- * `ANY`) and `match([...])` (one entry per listed verb). The action is a tuple,
- * an invokable `Ctrl::class` or one-element tuple (`__invoke`), a legacy
- * `'Ctrl@method'` string, or a closure (both controller fields null). `->name()`
- * on the chain sets the name.
+ * Route calls: `get/post/put/patch/delete/options/query` (one entry), `any`
+ * (method `ANY`), `match([...])` (one entry per listed verb), `view`
+ * (`GET`, kind `view`), `redirect` / `permanentRedirect` (`ANY`, kind
+ * `redirect`) and `fallback` (`GET`, kind `fallback`). A chain may start with
+ * registrar attributes (`Route::middleware('auth')->prefix('v1')->get(...)`).
+ * The action is a tuple, an invokable `Ctrl::class` or one-element tuple
+ * (`__invoke`), a legacy `'Ctrl@method'` string, or a closure (both
+ * controller fields null). `->name()` appends to the name.
  *
  * Groups (array form and fluent form, nested outer to inner) contribute a
  * prefix (always a leading slash, root `/`), a name prefix concatenated as-is,
- * a default controller for bare method-name actions (an action that names a
- * class keeps its own), and middleware. Middleware is verbatim, with
- * parameters kept (`throttle:60,1`) and `::class` resolved: a repeated
- * `middleware()` on a group registrar chain keeps only the last call, nested
- * groups append inner after outer, and calls on a route instance accumulate;
- * exact duplicates are removed. Aliases and groups are not expanded.
+ * a default controller for bare method-name actions, middleware and
+ * `withoutMiddleware` exclusions. Middleware is verbatim, with parameters kept
+ * (`throttle:60,1`), `::class` resolved and `Class::class.':arg'` folded: a
+ * repeated `middleware()` on a registrar chain keeps only the last call,
+ * nested groups append inner after outer, calls on a route instance
+ * accumulate; exact duplicates are removed, then exclusions are removed by
+ * name as written. Aliases and groups are not expanded.
  *
- * `Route::resource` expands to seven routes and `apiResource` to five
- * (no `create`/`edit`), with `{singular}` member parameters, `update` as a
- * single `PUT`, enclosing group context applied, and `->only()`/`->except()`
- * honoured. `names()`, `parameters()`, `scoped()` and `shallow()` are not
- * applied.
+ * The resource family is expanded by {@see ResourceExpander}. Routes whose URI,
+ * resource name or verbs are not literal, `Route::<unknown>()` calls,
+ * unreadable middleware or group attributes, route files that cannot be
+ * followed and attribute routes are reported in `unresolved_routes`.
  *
  * Files loaded under a group inherit its context: see
  * {@see RouteFileLoadVisitor}. A file loaded from two groups is read once per
@@ -57,57 +65,115 @@ final class RouteScanner implements Scanner
 {
     use ScannerFilesystem;
 
+    /** The URI `Route::fallback()` registers before prefixes apply. */
+    private const FALLBACK_URI = '{fallbackPlaceholder}';
+
     private AstWalker $walker;
+
+    private ResourceExpander $resources;
 
     public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null, ?RouteFileDiscovery $routeDiscovery = null)
     {
         $this->routeDiscovery = $routeDiscovery;
         $this->walker = $walker ?? new AstWalker;
         $this->scope = $scope;
+        $this->resources = new ResourceExpander;
     }
 
     /**
-     * @return array{routes: list<RouteEntry>}
+     * @return array{routes: list<RouteEntry>, unresolved_routes: list<UnresolvedRouteEntry>}
      */
     public function scan(string $appRoot): array
     {
         $entries = [];
+        $unresolved = [];
+        $macros = $this->scope()->routeMacros();
 
         foreach ($this->routeFiles($appRoot) as $file) {
             // Fresh visitors per file: walk()===null bypasses beforeTraverse,
             // so reusing one would leak the previous file's entries. A file
             // loaded under several groups is read once per distinct group.
             $inherited = $this->routeDiscovery?->contexts($appRoot, $file->getPathname()) ?? [];
-            $visitors = Arr::map($inherited === [] ? [RouteGroupContext::empty()] : $inherited, fn (RouteGroupContext $context): RouteChainVisitor => new RouteChainVisitor($context));
+            $visitors = Arr::map($inherited === [] ? [RouteGroupContext::empty()] : $inherited, fn (RouteGroupContext $context): RouteChainVisitor => new RouteChainVisitor($context, $macros));
             if ($this->walker->walk($file->getPathname(), $visitors) === null) {
                 continue;
             }
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
             foreach ($visitors as $visitor) {
-                foreach ($this->translate($visitor->getEntries(), $relative) as $entry) {
+                $translated = $this->translate($visitor->getEntries(), $relative);
+                foreach ($translated['routes'] as $entry) {
                     $entries[] = $entry;
+                }
+                foreach ([...$visitor->getIssues(), ...$translated['issues']] as $issue) {
+                    $unresolved[] = new UnresolvedRouteEntry($relative, $issue->line, $issue->expression, $issue->reason);
                 }
             }
         }
 
+        foreach ($this->discoveryProblems($appRoot) as $problem) {
+            $unresolved[] = $problem;
+        }
+        foreach ($this->attributeRoutes($appRoot) as $problem) {
+            $unresolved[] = $problem;
+        }
+
         $entries = array_values(collect($entries)->sort(fn (RouteEntry $a, RouteEntry $b): int => [$a->file, $a->line, $a->method, $a->uri] <=> [$b->file, $b->line, $b->method, $b->uri])->all());
 
-        return ['routes' => $entries];
+        // a file read under several contexts reports the same problem each time
+        $unresolved = array_values(collect($unresolved)
+            ->unique(fn (UnresolvedRouteEntry $e): string => $e->file.':'.$e->line.':'.$e->reason->value.':'.$e->expression)
+            ->sort(fn (UnresolvedRouteEntry $a, UnresolvedRouteEntry $b): int => [$a->file, $a->line, $a->reason->value, $a->expression] <=> [$b->file, $b->line, $b->reason->value, $b->expression])
+            ->all());
+
+        return ['routes' => $entries, 'unresolved_routes' => $unresolved];
     }
 
     /**
-     * @param  list<RouteChainEntry>  $rawEntries
-     * @return list<RouteEntry>
+     * Route-file loading calls that could not be followed or whose group
+     * attributes were not literals, as reported by the discovery pass.
+     *
+     * @return list<UnresolvedRouteEntry>
      */
-    private function translate(array $rawEntries, string $relativeFile): array
+    private function discoveryProblems(string $appRoot): array
+    {
+        if ($this->routeDiscovery === null) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($this->routeDiscovery->unresolved($appRoot) as $path) {
+            $out[] = new UnresolvedRouteEntry($this->relativePath($appRoot, $path->file), $path->line, $path->expression, $path->problem->reason());
+        }
+        foreach ($this->routeDiscovery->unresolvedAttributes($appRoot) as $attribute) {
+            $out[] = new UnresolvedRouteEntry($this->relativePath($appRoot, $attribute->file), $attribute->line, $attribute->loader->value.': group '.$attribute->attribute->value, UnresolvedRouteReason::DYNAMIC_GROUP_ATTRIBUTE);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Controllers that declare routes with attributes, which Loom does not read.
+     *
+     * @return list<UnresolvedRouteEntry>
+     */
+    private function attributeRoutes(string $appRoot): array
     {
         $out = [];
-        foreach ($rawEntries as $raw) {
-            $name = $this->groupName($raw->groupNamePrefix, $this->resolveName($raw));
+        foreach ($this->scanFiles($appRoot) as $file) {
+            $source = @file_get_contents($file->getPathname());
+            // cheap pre-filter: no attribute syntax, no attribute routes
+            if ($source === false || ! Str::contains($source, '#[')) {
+                continue;
+            }
 
-            foreach ($this->expand($raw, $relativeFile, $name) as $entry) {
-                $out[] = $entry;
+            $visitor = new RouteAttributeVisitor;
+            if ($this->walker->walk($file->getPathname(), [$visitor]) === null) {
+                continue;
+            }
+            $relative = $this->relativePath($appRoot, $file->getPathname());
+            foreach ($visitor->getIssues() as $issue) {
+                $out[] = new UnresolvedRouteEntry($relative, $issue->line, $issue->expression, $issue->reason);
             }
         }
 
@@ -115,24 +181,47 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Apply the enclosing group's cumulative prefix segments to a route's own
-     * uri. Always leading-slash; root collapses to '/'. Ungrouped routes (empty
-     * prefix) stay byte-identical to slice 1.
-     *
-     * @param  list<string>  $groupPrefix
+     * @param  list<RouteChainEntry>  $rawEntries
+     * @return array{routes: list<RouteEntry>, issues: list<RouteIssue>}
      */
-    private function groupUri(array $groupPrefix, string $ownUri): string
+    private function translate(array $rawEntries, string $relativeFile): array
     {
-        $segments = [];
-        foreach ($groupPrefix as $p) {
-            $t = trim($p, '/');
-            if ($t !== '') {
-                $segments[] = $t;
+        $routes = [];
+        $issues = [];
+        foreach ($rawEntries as $raw) {
+            $expanded = $this->expand($raw, $relativeFile);
+            foreach ($expanded['routes'] as $route) {
+                $routes[] = $route;
+            }
+            foreach ([...$raw->issues, ...$expanded['issues']] as $issue) {
+                $issues[] = $issue;
             }
         }
-        $own = trim($ownUri, '/');
-        if ($own !== '') {
-            $segments[] = $own;
+
+        return ['routes' => $routes, 'issues' => $issues];
+    }
+
+    /**
+     * The URI of a route: its own, under the enclosing groups' prefixes, under
+     * the prefix the chain sets before the call, under every `->prefix()`
+     * written after it. Always leading-slash; root collapses to '/'.
+     */
+    private function uriOf(RouteChainEntry $raw, string $ownUri): string
+    {
+        // Route::prefix('b')->get(..)->prefix('a'): each later prefix sits further out
+        $after = collect($raw->chain)->slice(1)
+            ->filter(static fn (ChainLink $link): bool => $link->method === RegistrarSetter::PREFIX->value)
+            ->map(static fn (ChainLink $link): string => Literal::string($link->args->valueAt(0)) ?? '')
+            ->reverse()
+            ->values()
+            ->all();
+
+        $segments = [];
+        foreach ([...$after, $raw->leading->prefix ?? '', ...$raw->groupPrefix, $ownUri] as $part) {
+            $trimmed = Str::trim($part, '/');
+            if ($trimmed !== '') {
+                $segments[] = $trimmed;
+            }
         }
         $joined = Arr::join($segments, '/');
 
@@ -140,12 +229,18 @@ final class RouteScanner implements Scanner
     }
 
     /**
-     * Concatenate the group name prefix with the leaf name (no separator). Empty
-     * result becomes null, so ungrouped unnamed routes stay null as in slice 1.
+     * The route name: the enclosing groups' prefix, the chain's own `name`,
+     * then every `->name()` written after the call, concatenated as Laravel
+     * appends them. Null when empty.
      */
-    private function groupName(string $groupNamePrefix, ?string $leafName): ?string
+    private function nameOf(RouteChainEntry $raw): ?string
     {
-        $full = $groupNamePrefix.($leafName ?? '');
+        $after = collect($raw->chain)->slice(1)
+            ->filter(static fn (ChainLink $link): bool => $link->method === RegistrarSetter::NAME->value)
+            ->map(static fn (ChainLink $link): string => Literal::string($link->args->valueAt(0)) ?? '')
+            ->implode('');
+
+        $full = $raw->groupNamePrefix.$raw->leading->name.$after;
 
         return $full === '' ? null : $full;
     }
@@ -153,190 +248,68 @@ final class RouteScanner implements Scanner
     /**
      * Expand one raw chain into one entry per HTTP verb it declares.
      *
-     * @return list<RouteEntry>
+     * @return array{routes: list<RouteEntry>, issues: list<RouteIssue>}
      */
-    private function expand(RouteChainEntry $raw, string $relativeFile, ?string $name): array
+    private function expand(RouteChainEntry $raw, string $relativeFile): array
     {
+        // resource, apiResource, singleton, apiSingleton and the array forms
+        if ($raw->root->resourceKind() !== null) {
+            return $this->resources->expand($raw, $relativeFile);
+        }
+
         $args = $raw->rootArgs;
 
-        if ($raw->rootMethod === RouterMethod::MATCH) {
-            return $this->expandMatch($raw, $relativeFile, $name);
+        $shape = match ($raw->root) {
+            // Route::match([verbs], uri, action)
+            RouterMethod::MATCH => ['uri' => 1, 'action' => 2, 'kind' => null],
+            // Route::view(uri, view, ...) and the redirects: no controller of their own
+            RouterMethod::VIEW => ['uri' => 0, 'action' => null, 'kind' => RouteKind::VIEW],
+            RouterMethod::REDIRECT, RouterMethod::PERMANENT_REDIRECT => ['uri' => 0, 'action' => null, 'kind' => RouteKind::REDIRECT],
+            // Route::fallback(action): the URI is the router's placeholder
+            RouterMethod::FALLBACK => ['uri' => null, 'action' => 0, 'kind' => RouteKind::FALLBACK],
+            // Route::get(uri, action) ... Route::any(uri, action)
+            default => ['uri' => 0, 'action' => 1, 'kind' => null],
+        };
+
+        $verbs = match ($raw->root) {
+            RouterMethod::MATCH => $this->verbList(Literal::strictStringList($args->valueAt(0))),
+            RouterMethod::VIEW, RouterMethod::FALLBACK => ['GET'],
+            RouterMethod::REDIRECT, RouterMethod::PERMANENT_REDIRECT => ['ANY'],
+            default => [(string) $raw->root->verb()],
+        };
+
+        // match([...]) with verbs that are not a literal list
+        if ($verbs === []) {
+            return ['routes' => [], 'issues' => [new RouteIssue(UnresolvedRouteReason::DYNAMIC_VERBS, $raw->line, $raw->expression)]];
         }
 
-        if (collect(RouterMethod::resourceRoots())->containsStrict($raw->rootMethod)) {
-            return $this->expandResource($raw, $relativeFile);
-        }
-
-        $method = $raw->rootMethod === RouterMethod::ANY
-            ? 'ANY'
-            : RouterMethod::VERB_MAP[$raw->rootMethod];
-
-        $ownUri = Literal::string($args->valueAt(0));
+        $ownUri = $shape['uri'] === null ? self::FALLBACK_URI : Literal::string($args->valueAt($shape['uri']));
+        // a non-literal URI: no route can be placed
         if ($ownUri === null) {
-            return [];
+            return ['routes' => [], 'issues' => [new RouteIssue(UnresolvedRouteReason::DYNAMIC_URI, $raw->line, $raw->expression)]];
         }
-        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
 
-        $action = Callables::routeAction($args->valueAt(1), $raw->groupController);
+        $actionNode = $shape['action'] === null ? null : $args->valueAt($shape['action']);
+        $action = Callables::routeAction($actionNode, $raw->controller);
 
-        return [new RouteEntry(
-            method: $method,
-            uri: $uri,
-            name: $name,
-            controllerFqcn: $action['fqcn'],
-            controllerMethod: $action['method'],
-            middleware: $raw->middleware,
-            file: $relativeFile,
-            line: $raw->line,
-            dispatches: [],
-            endLine: Callables::closureEndLine($args->valueAt(1)),
-        )];
-    }
-
-    /**
-     * `Route::match([verbs], uri, action)` — one entry per uppercased verb,
-     * all sharing uri/action/name.
-     *
-     * @return list<RouteEntry>
-     */
-    private function expandMatch(RouteChainEntry $raw, string $relativeFile, ?string $name): array
-    {
-        $args = $raw->rootArgs;
-
-        $verbs = $this->verbList(Literal::strictStringList($args->valueAt(0)));
-        $ownUri = Literal::string($args->valueAt(1));
-        if ($verbs === [] || $ownUri === null) {
-            return [];
-        }
-        $uri = $this->groupUri($raw->groupPrefix, $ownUri);
-
-        $action = Callables::routeAction($args->valueAt(2), $raw->groupController);
-
-        $out = [];
+        $routes = [];
         foreach ($verbs as $verb) {
-            $out[] = new RouteEntry(
+            $routes[] = new RouteEntry(
                 method: $verb,
-                uri: $uri,
-                name: $name,
+                uri: $this->uriOf($raw, $ownUri),
+                name: $this->nameOf($raw),
                 controllerFqcn: $action['fqcn'],
                 controllerMethod: $action['method'],
                 middleware: $raw->middleware,
                 file: $relativeFile,
                 line: $raw->line,
                 dispatches: [],
-                endLine: Callables::closureEndLine($args->valueAt(2)),
+                endLine: Callables::closureEndLine($actionNode),
+                kind: $shape['kind'],
             );
         }
 
-        return $out;
-    }
-
-    /**
-     * `Route::resource(name, Controller)` / `apiResource(...)` — one entry per
-     * registered action. The action set is filtered by chain `->only(...)` /
-     * `->except(...)`; names and uris use Laravel defaults (custom
-     * `->names()`/`->parameters()` overrides are out of scope).
-     *
-     * @return list<RouteEntry>
-     */
-    private function expandResource(RouteChainEntry $raw, string $relativeFile): array
-    {
-        $args = $raw->rootArgs;
-
-        $resourceName = Literal::string($args->valueAt(0));
-        if ($resourceName === null) {
-            return [];
-        }
-        $resourceName = trim($resourceName, '/');
-        if ($resourceName === '') {
-            return [];
-        }
-
-        // Controller may be unresolvable (variable, dynamic) — still expand.
-        $controllerFqcn = ClassRef::fromClassConstant($args->valueAt(1));
-
-        $actions = $this->filterResourceActions($raw, $this->defaultResourceActions($raw->rootMethod));
-
-        $param = $this->memberParameter($resourceName);
-        $nameBase = Str::replace('/', '.', $resourceName);
-
-        $out = [];
-        foreach ($actions as $action) {
-            $ownUri = $resourceName.Str::replace('{param}', '{'.$param.'}', $action->suffix());
-
-            $out[] = new RouteEntry(
-                method: $action->method(),
-                uri: $this->groupUri($raw->groupPrefix, $ownUri),
-                name: $raw->groupNamePrefix.$nameBase.'.'.$action->value,
-                controllerFqcn: $controllerFqcn,
-                controllerMethod: $action->value,
-                middleware: $raw->middleware,
-                file: $relativeFile,
-                line: $raw->line,
-                dispatches: [],
-            );
-        }
-
-        return $out;
-    }
-
-    /**
-     * The default action set for a resource root, before only/except filtering.
-     *
-     * @return list<ResourceAction>
-     */
-    private function defaultResourceActions(string $rootMethod): array
-    {
-        return $rootMethod === RouterMethod::API_RESOURCE
-            ? ResourceAction::apiSet()
-            : ResourceAction::fullSet();
-    }
-
-    /**
-     * Apply chain `->only([...])` then `->except([...])` filters, preserving the
-     * canonical action order. Unrecognised option methods are ignored.
-     *
-     * @param  list<ResourceAction>  $actions
-     * @return list<ResourceAction>
-     */
-    private function filterResourceActions(RouteChainEntry $raw, array $actions): array
-    {
-        $only = null;
-        $except = [];
-
-        $chain = $raw->chain;
-        // Index 0 is the root call; modifiers start at index 1.
-        foreach (collect($chain)->slice(1)->all() as $link) {
-            match (ResourceFilter::tryFrom($link->method)) {
-                // ->only(['index', 'show'])
-                ResourceFilter::ONLY => $only = $link->args->stringValues(),
-                // ->except(['create', 'edit'])
-                ResourceFilter::EXCEPT => $except = $link->args->stringValues(),
-                // any other chain modifier does not narrow the action set
-                null => null,
-            };
-        }
-
-        if ($only !== null) {
-            $actions = array_values(Arr::where($actions, fn (ResourceAction $a): bool => collect($only)->containsStrict($a->value)));
-        }
-        if ($except !== []) {
-            $actions = array_values(Arr::where($actions, fn (ResourceAction $a): bool => ! collect($except)->containsStrict($a->value)));
-        }
-
-        return $actions;
-    }
-
-    /**
-     * The member route parameter: the singular of the resource name's last
-     * segment, via Laravel's own inflector for faithful pluralisation rules.
-     */
-    private function memberParameter(string $resourceName): string
-    {
-        $segments = explode('/', $resourceName);
-        $last = $segments[count($segments) - 1];
-
-        return Str::singular($last);
+        return ['routes' => $routes, 'issues' => []];
     }
 
     /**
@@ -349,32 +322,9 @@ final class RouteScanner implements Scanner
     private function verbList(?array $names): array
     {
         $verbs = collect($names ?? [])
-            ->map(static fn (string $name): string => strtoupper($name))
+            ->map(static fn (string $name): string => Str::upper($name))
             ->filter(static fn (string $verb): bool => collect(RouterMethod::EMITTED_VERBS)->containsStrict($verb));
 
         return array_values($verbs->all());
-    }
-
-    /**
-     * Scan chain links for a `->name(<string>)` call. Last-wins; null when
-     * absent or unresolvable.
-     */
-    private function resolveName(RouteChainEntry $raw): ?string
-    {
-        $name = null;
-
-        // Index 0 is the root call; modifiers start at index 1.
-        $chain = $raw->chain;
-        for ($i = 1, $n = count($chain); $i < $n; $i++) {
-            if ($chain[$i]->method !== 'name') {
-                continue;
-            }
-            $label = Literal::string($chain[$i]->args->valueAt(0));
-            if ($label !== null) {
-                $name = $label;
-            }
-        }
-
-        return $name;
     }
 }

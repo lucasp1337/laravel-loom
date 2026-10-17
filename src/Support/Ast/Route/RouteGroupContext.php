@@ -29,6 +29,8 @@ final readonly class RouteGroupContext
      * @param  ?string  $inheritedController  default controller FQCN inherited from a loading call, used when no group in this file sets one
      * @param  list<string>  $inheritedMiddleware  middleware inherited from a loading call, applied before this file's own
      * @param  list<RouteGroupAttribute>  $unresolved  attributes of the enclosing groups that were not static literals
+     * @param  list<Node\Expr>  $excludedNodes  cumulative `withoutMiddleware` argument nodes, outermost first
+     * @param  list<string>  $inheritedExcluded  exclusions inherited from a loading call
      */
     public function __construct(
         public array $prefixSegments,
@@ -38,6 +40,8 @@ final readonly class RouteGroupContext
         public ?string $inheritedController = null,
         public array $inheritedMiddleware = [],
         public array $unresolved = [],
+        public array $excludedNodes = [],
+        public array $inheritedExcluded = [],
     ) {}
 
     /** The empty context used when no group encloses a route. */
@@ -66,6 +70,8 @@ final readonly class RouteGroupContext
             inheritedController: $own->controllerNode !== null ? null : $this->inheritedController,
             inheritedMiddleware: $this->inheritedMiddleware,
             unresolved: [...$this->unresolved, ...$own->unresolved],
+            excludedNodes: [...$this->excludedNodes, ...$own->excludedNodes],
+            inheritedExcluded: $this->inheritedExcluded,
         );
     }
 
@@ -86,6 +92,8 @@ final readonly class RouteGroupContext
             inheritedController: $this->controllerNode !== null ? null : ($this->inheritedController ?? $outer->inheritedController),
             inheritedMiddleware: [...$outer->inheritedMiddleware, ...$this->inheritedMiddleware],
             unresolved: $this->unresolved,
+            excludedNodes: $this->excludedNodes,
+            inheritedExcluded: [...$outer->inheritedExcluded, ...$this->inheritedExcluded],
         );
     }
 
@@ -100,6 +108,8 @@ final readonly class RouteGroupContext
             inheritedController: $this->controller(),
             inheritedMiddleware: $this->middleware(),
             unresolved: $this->unresolved,
+            excludedNodes: [],
+            inheritedExcluded: $this->excluded(),
         );
     }
 
@@ -122,6 +132,17 @@ final readonly class RouteGroupContext
         return [...$this->inheritedMiddleware, ...ValueLists::middleware($this->middlewareNodes)];
     }
 
+    /**
+     * Group `withoutMiddleware` names, outermost first; call only once the
+     * file's names have been resolved.
+     *
+     * @return list<string>
+     */
+    public function excluded(): array
+    {
+        return [...$this->inheritedExcluded, ...ValueLists::middleware($this->excludedNodes)];
+    }
+
     /** Stable identity of the applied attributes, for deduplicating contexts. */
     public function key(): string
     {
@@ -132,6 +153,7 @@ final readonly class RouteGroupContext
             $resolved->namePrefix,
             $resolved->inheritedController,
             $resolved->inheritedMiddleware,
+            $resolved->inheritedExcluded,
         ], JSON_THROW_ON_ERROR);
     }
 }

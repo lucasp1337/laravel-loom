@@ -22,4 +22,5 @@ enum Sections: string
     case MAILABLES = 'mailables';
     case NOTIFICATIONS = 'notifications';
     case ROUTES = 'routes';
+    case UNRESOLVED_ROUTES = 'unresolved_routes';
 }

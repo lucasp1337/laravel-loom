@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\CrossLink;
 
+use Illuminate\Support\Str;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
@@ -89,8 +90,8 @@ final class UnindexedTargetPhase implements CrossLinkPhase
                 continue;
             }
             $expression = $entry[Field::EXPRESSION->value] ?? null;
-            if (is_string($expression) && str_ends_with($expression, '::class')) {
-                $keys[($entry[Field::FILE->value] ?? '').':'.($entry[Field::LINE->value] ?? '').':'.substr($expression, 0, -7)] = true;
+            if (is_string($expression) && Str::endsWith($expression, '::class')) {
+                $keys[($entry[Field::FILE->value] ?? '').':'.($entry[Field::LINE->value] ?? '').':'.Str::beforeLast($expression, '::class')] = true;
             }
         }
 

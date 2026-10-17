@@ -16,6 +16,7 @@ php artisan vendor:publish --tag=loom-config
 | `scan.paths` | `['app']` | Directories `loom:scan` walks, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. See [How directories resolve](#how-directories-resolve). |
 | `scan.route_paths` | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
 | `scan.discover_routes` | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in `bootstrap/app.php`. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. See [Route files](#route-files). |
+| `scan.route_macros` | `[]` | Router macros that register routes, mapped to the router method they behave like: `['softDeletableResource' => 'resource']`. A listed macro is read as that method; any other `Route::<unknown>()` call is reported in `unresolved_routes`. Methods: get, post, put, patch, delete, options, any, match, resource, apiResource, singleton, apiSingleton, view, redirect, permanentRedirect, fallback. |
 | `scan.psr4_paths` | `false` | Also scan every directory in `composer.json`'s `autoload.psr-4`. `autoload-dev` is not included. |
 | `scan.composer_files` | `[]` | composer.json files, as globs relative to the project root (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read for class lookup and whose directories are scanned. Files listed in the root composer.json's `extra.merge-plugin.include` are read for class lookup without being listed here. |
 | `scan.exclude` | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. See [Exclude globs](#exclude-globs). |
@@ -45,6 +46,7 @@ Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` 
 | `Route::group($attributes, $path)` and `Route::...->group($path)` | `$path`, or an array of paths |
 | `->withRouting(web:, api:, commands:)` in `bootstrap/app.php` | a path, or for `web` and `api` an array of paths |
 | `->withCommands([...])` | file entries; directories are skipped |
+| `require` / `include` inside a route group closure, or at the top of a route file | the path expression |
 
 Paths resolve when built from string literals, `.` concatenation, `__DIR__`, `DIRECTORY_SEPARATOR`, `dirname()`, `base_path()` and `app_path()` (assuming `app/`). A discovered file is searched for further loading calls. Loom looks for these calls in the files under `scan.paths`, the route files, `bootstrap/app.php`, and the providers in `bootstrap/providers.php` and `config/app.php`, so a module provider outside `scan.paths` is still found when the app registers it.
 
@@ -72,7 +74,7 @@ A loaded file's routes inherit the group around the loading call:
 | `withRouting(api: $path)` | middleware `api` and prefix `api`, or the literal `apiPrefix:` |
 | `Route::controller(C::class)->group($path)` | default controller for bare method-name actions |
 
-`loadRoutesFrom()` on its own adds nothing. Groups inside the loaded file nest inside the loading group, and a file that loads another passes the combined attributes on. A file loaded from two places is read once per loading group and can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded; `domain`, `where` and `namespace` of the loading group are not recorded. An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`) is not guessed: the file is still read and its routes carry the attributes that did resolve, and `-v` lists these under "Group attributes not applied". With `scan.discover_routes` off no loading call is followed, so no group is applied.
+`loadRoutesFrom()` on its own adds nothing. Groups inside the loaded file nest inside the loading group, and a file that loads another passes the combined attributes on. A file loaded from two places is read once per loading group and can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded; `domain`, `where` and `namespace` of the loading group are not recorded. An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`) is not guessed: the file is still read and its routes carry the attributes that did resolve, and `unresolved_routes` lists these as `dynamic_group_attribute`. With `scan.discover_routes` off no loading call is followed, so no group is applied.
 
 ## Locating classes
 

@@ -209,19 +209,25 @@ A `->job(...)` for a class in `vendor/` gives a valid target with no matching ro
 
 ### Middleware shows `web` or `auth`, not the classes
 
-Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `throttle`) aren't expanded to classes, and `->withoutMiddleware(...)` isn't subtracted. Read the value as "what this route declared", not "what runs".
+Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `throttle`) aren't expanded to classes. `->withoutMiddleware(...)` on a route or group is subtracted by name as written, so `withoutMiddleware(Authenticate::class)` does not remove an `auth` entry. Read the value as "what this route declared, minus what it excluded", not "what runs".
 
-When a group chain calls `middleware()` more than once, Loom keeps only the last call. Nested groups append the inner list after the outer one, calls on a route accumulate, and exact duplicates are removed.
+When a group chain calls `middleware()` more than once, Loom keeps only the last call. Nested groups append the inner list after the outer one, calls on a route accumulate, and exact duplicates are removed. An entry that is not a literal (`$list`, a call) is not guessed: it is listed in `unresolved_routes` as `dynamic_middleware`. `Class::class.':arg'` is folded.
 
 ### Resource routes have the wrong names or URIs
 
-`Route::resource()` and `Route::apiResource()` expand to the default [resource routes](https://laravel.com/docs/controllers#resource-controllers). These are ignored: `->names(...)`, `->parameters(...)`, `->scoped(...)`, `->shallow()`, and nested names like `photos.comments` (treated as one flat name). `Route::resources([...])` and `Route::apiResources([...])` emit nothing, so call `resource()` per controller.
+`Route::resource()`, `apiResource()`, `singleton()` and `apiSingleton()` follow Laravel's resource rules, including the options array and `->only()`, `->except()`, `->names()`, `->parameters()`, `->shallow()` and the middleware modifiers. A value that is not a literal is not guessed: the defaults are used and the call is listed in `unresolved_routes` as `dynamic_resource_options`. `->scoped()` does not change routes and is ignored. A resource name that is a variable is `dynamic_resource` and emits nothing.
 
 ### A route is missing entirely
 
-Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Attribute routes from a package are not found.
+Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups, `require` calls inside route groups and `bootstrap/app.php` load by a path it can resolve. Check `unresolved_routes` (or `php artisan loom:scan -v`): a path it could not follow is `route_file_dynamic`, `route_file_relative`, `route_file_outside_root` or `route_file_not_found`. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply.
 
-If a loaded file's routes have the wrong prefix or middleware, the loading group used a value Loom can't read (`->prefix($prefix)`); `-v` lists these under "Group attributes not applied". Use a literal there.
+Other reasons a route is absent, each listed in `unresolved_routes`:
+
+- `unknown_route_call`: `Route::something(...)` is a macro or a package helper. Map it to the router method it behaves like in `scan.route_macros`, for example `'softDeletableResource' => 'resource'`.
+- `dynamic_uri`, `dynamic_verbs`, `dynamic_resource`: the URI, the `match()` verbs or the resource name is a variable or an expression.
+- `attribute_route`: a controller declares the route with an attribute. Loom does not read attribute routes; use a route file or the facade.
+
+If a loaded file's routes have the wrong prefix or middleware, the group used a value Loom can't read (`->prefix($prefix)`); it is listed as `dynamic_group_attribute`. Use a literal there.
 
 ## When nothing shows up for a file
 

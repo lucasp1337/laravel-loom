@@ -68,6 +68,9 @@ final class SortPhase implements CrossLinkPhase
             Sections::ROUTES->value => [
                 $file, $line, Field::METHOD->value, Field::URI->value, Field::NAME->value,
             ],
+            Sections::UNRESOLVED_ROUTES->value => [
+                $file, $line, Field::EXPRESSION->value, Field::REASON->value,
+            ],
             Sections::UNRESOLVED_DISPATCHES->value => [
                 $file, $line, Field::EXPRESSION->value, Field::REASON->value,
             ],

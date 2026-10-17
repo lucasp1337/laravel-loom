@@ -19,6 +19,7 @@ final readonly class UnresolvedRoutePath
         public int $line,
         public RouteFileLoader $loader,
         public RoutePathProblem $problem,
+        public string $expression = '',
     ) {}
 
     public function message(): string

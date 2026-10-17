@@ -8,6 +8,7 @@ use FilesystemIterator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Lucasp\Loom\Index\RouterMethod;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -36,6 +37,9 @@ final class ScanScope
     /** @var list<string> */
     private array $composerFiles;
 
+    /** @var array<string, RouterMethod> macro name to the router method it expands like */
+    private array $routeMacros = [];
+
     /** @var array<string, list<string>> */
     private array $resolved = [];
 
@@ -51,13 +55,20 @@ final class ScanScope
      * @param  list<string>  $routePaths
      * @param  bool  $discoverRoutes  also read route files that providers and bootstrap/app.php load
      * @param  list<string>  $composerFiles  composer.json globs whose PSR-4 maps are read besides the root one
+     * @param  array<string, string>  $routeMacros  `Route::<macro>()` name to the router method it behaves like; entries naming no router method are ignored
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [])
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [], array $routeMacros = [])
     {
         $this->composerFiles = $composerFiles;
         $this->discoverRoutes = $discoverRoutes;
+        foreach ($routeMacros as $macro => $base) {
+            $method = RouterMethod::tryFrom($base);
+            if ($method !== null) {
+                $this->routeMacros[(string) $macro] = $method;
+            }
+        }
         $normalised = [];
         foreach ($paths as $path) {
             $normalised[] = self::normalisePath($path);
@@ -101,6 +112,7 @@ final class ScanScope
             $routePaths,
             ($config[ScanConfigKey::DISCOVER_ROUTES->value] ?? true) !== false,
             $composerFiles,
+            self::macroMap($config[ScanConfigKey::ROUTE_MACROS->value] ?? null),
         );
     }
 
@@ -275,6 +287,28 @@ final class ScanScope
     public function composerFiles(): array
     {
         return $this->composerFiles;
+    }
+
+    /**
+     * Configured route macros.
+     *
+     * @return array<string, RouterMethod>
+     */
+    public function routeMacros(): array
+    {
+        return $this->routeMacros;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function macroMap(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return Arr::where($value, static fn (mixed $base, mixed $macro): bool => is_string($macro) && is_string($base));
     }
 
     public function discoversRoutes(): bool

@@ -17,4 +17,5 @@ enum ScanConfigKey: string
     case ROUTE_PATHS = 'route_paths';
     case EXCLUDE = 'exclude';
     case DISCOVER_ROUTES = 'discover_routes';
+    case ROUTE_MACROS = 'route_macros';
 }

@@ -20,6 +20,7 @@ enum SchemaSection: string
     case ClosureListeners = 'closure_listeners';
     case ScheduledTasks = 'scheduled_tasks';
     case Routes = 'routes';
+    case UnresolvedRoutes = 'unresolved_routes';
     case Mailables = 'mailables';
     case Notifications = 'notifications';
 
@@ -35,6 +36,7 @@ enum SchemaSection: string
             self::ClosureListeners => 'Closure and arrow-function listener registrations.',
             self::ScheduledTasks => 'Task-scheduler entries.',
             self::Routes => 'HTTP routes with their middleware and the dispatches their action makes.',
+            self::UnresolvedRoutes => 'Route forms that could not be read in full: macros, non-literal URIs, middleware or group attributes, unfollowed route files, attribute routes.',
             self::Mailables => 'Mailable classes and where they are sent from.',
             self::Notifications => 'Notification classes, their channels and where they are sent from.',
         };

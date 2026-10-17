@@ -34,6 +34,7 @@ final class SectionRegistry
         ['section' => Sections::CLOSURE_LISTENERS, 'listed' => true],
         ['section' => Sections::SCHEDULED_TASKS, 'listed' => true],
         ['section' => Sections::ROUTES, 'listed' => true],
+        ['section' => Sections::UNRESOLVED_ROUTES, 'listed' => true],
         ['section' => Sections::MAILABLES, 'listed' => true],
         ['section' => Sections::NOTIFICATIONS, 'listed' => true],
     ];

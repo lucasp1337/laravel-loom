@@ -153,20 +153,25 @@ Pinned by [ScheduleScannerEndToEndTest], [ScheduleScannerTest].
 
 Loom reads these as routes:
 
-- `Route::get()`, `post()`, `put()`, `patch()`, `delete()`, `options()`, `any()` and `match()`, in `routes/` and in route files that are loaded. `match()` gives one route per verb.
-- Route files loaded by `loadRoutesFrom()`, `Route::group()` with a path, or `withRouting(web:, api:, commands:)`, when the path is a literal, `__DIR__`, `__FILE__`, `DIRECTORY_SEPARATOR`, `dirname()`, `base_path()`, `app_path()` or a concatenation of these.
-- Groups with prefix, name, controller and middleware, including the group that loads a route file. `withRouting()` loads `web` under the `web` middleware and `api` under the `api` middleware with the `api` prefix.
+- `Route::get()`, `post()`, `put()`, `patch()`, `delete()`, `options()`, `query()`, `any()` and `match()`, in `routes/` and in route files that are loaded. `match()` gives one route per verb.
+- Chains that start with attributes: `Route::middleware('auth')->prefix('v1')->name('v1.')->get(...)`, also before `match()`, `any()` and the resource methods.
+- `Route::view()` (`GET`), `redirect()` and `permanentRedirect()` (`ANY`) and `fallback()` (`GET`, URI `/{fallbackPlaceholder}`). They carry `kind` `view`, `redirect` or `fallback`.
+- Route files loaded by `loadRoutesFrom()`, `Route::group()` with a path, `withRouting(web:, api:, commands:)`, or a `require` / `include` inside a route group or at the top of a route file, when the path is a literal, `__DIR__`, `__FILE__`, `DIRECTORY_SEPARATOR`, `dirname()`, `base_path()`, `app_path()` or a concatenation of these.
+- Groups with prefix, name, controller, middleware and `withoutMiddleware`, including the group that loads a route file. `withRouting()` loads `web` under the `web` middleware and `api` under the `api` middleware with the `api` prefix.
 - Tuple, invokable, `Class@method` and closure actions.
-- `Route::resource()` and `apiResource()`, with `->only()` and `->except()`.
+- `Route::resource()`, `apiResource()`, `singleton()`, `apiSingleton()` and the array forms `resources()`, `apiResources()`, `softDeletableResources()`, `singletons()`, `apiSingletons()`. Names, URIs and verbs follow Laravel: `update` is `PUT` and `PATCH`, nested `a.b` gives `a/{a}/b/{b}`, wildcards are singular with `-` as `_`, and `admin/photos` prefixes the URI only. Options are read from the literal options array and from `->only()`, `->except()`, `->names()`, `->name()`, `->parameters()`, `->parameter()`, `->shallow()`, `->creatable()`, `->destroyable()`, `->middleware()`, `->middlewareFor()`, `->withoutMiddleware()` and `->withoutMiddlewareFor()`.
+- Router macros named in [`scan.route_macros`](scan-config.md), read as the router method they behave like.
 - Events and jobs dispatched in the controller method, or in the closure of a closure route, as `dispatches`.
 
-Group middleware is what the chain ends up with: a second `->middleware()` on a group chain replaces the first, nested groups add the inner list after the outer one, and `->middleware()` calls on a single route accumulate. See [route groups](https://laravel.com/docs/routing#route-group-middleware).
+Group middleware is what the chain ends up with: a second `->middleware()` on a group chain replaces the first, nested groups add the inner list after the outer one, and `->middleware()` calls on a single route accumulate. `withoutMiddleware` removes entries by the name as written, after all lists are joined. `Class::class.':arg'` is read as `Class:arg`. See [route groups](https://laravel.com/docs/routing#route-group-middleware).
 
-Does not read: middleware group and alias expansion, `withoutMiddleware`, `names()`, `parameters()`, `scoped()`, `shallow()`, `Route::resources()`, attribute routes and variable actions. Route files loaded from a computed, relative or out-of-root path are listed by `loom:scan -v`, as are non-literal group attributes. The loading group's `domain`, `where` and `namespace` are not recorded.
+Not read, and listed in `unresolved_routes` instead: `Route::<name>()` calls that are not router methods (macros, package helpers), routes whose URI, resource name or `match()` verbs are not literals, resource options that are not literals (the defaults are used), middleware entries that are not literals, non-literal group attributes, route files loaded from a computed, relative or out-of-root path, and controllers that declare routes with attributes (`#[Get]`, `#[Resource]` and the like). Attribute routes are not read: Laravel has no route attributes of its own, so each one is reported with its source.
+
+Does not read: middleware group and alias expansion, `scoped()`, variable actions, and the loading group's `domain`, `where` and `namespace`. A `prefix` on a chain that ends in a resource call is ignored, as Laravel ignores it.
 
 `app_path()` is taken as `app/`; a `useAppPath()` override is a runtime change Loom cannot see.
 
-Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTest], [RouteChainMiddlewareTest], [RouteScannerEndToEndTest].
+Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTest], [RouteChainMiddlewareTest], [RouteScannerEndToEndTest], [RouteFormsTest].
 
 ## Everywhere
 
@@ -204,6 +209,7 @@ Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTe
 [ObserverClassVisitorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/ObserverClassVisitorTest.php
 [ObserverScannerTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/ObserverScannerTest.php
 [RouteChainMiddlewareTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/RouteChainMiddlewareTest.php
+[RouteFormsTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteFormsTest.php
 [RouteFileDiscoveryTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteFileDiscoveryTest.php
 [RouteGroupInheritanceTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteGroupInheritanceTest.php
 [RouteScannerEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/RouteScannerEndToEndTest.php
