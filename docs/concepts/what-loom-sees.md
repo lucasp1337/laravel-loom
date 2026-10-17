@@ -108,7 +108,10 @@ Read that as "an event fires here and I can't tell which". The reason says why:
 - `container_resolution`: the class comes from `app()`, `resolve()` or `->make()`.
 - `conditional_dispatch`: a ternary whose branches don't both resolve to a class.
 - `dynamic_list`: a list of jobs built at runtime, such as `Bus::chain($jobs)` or a spread item.
-- `target_not_indexed`: the class is named, but it is not an indexed event, job, mailable or notification.
+- `class_not_found`: the class is named, but no file under your scan paths declares it (a package class, a typo, an excluded path).
+- `target_not_indexed`: a file declares the class, but it is not an indexed event, job, mailable or notification. A dispatch gets `class_not_found` or `target_not_indexed`, never both.
+- `unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, `Event::subscribe()`) whose event or handler is not a literal.
+- `unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable.
 
 A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
 

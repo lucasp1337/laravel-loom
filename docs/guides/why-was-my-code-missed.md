@@ -89,7 +89,9 @@ Entries in `unresolved_dispatches` carry a `reason`. Each one points at the line
 | `conditional_dispatch` | a ternary whose branches aren't both `new X` | Split into two `if` branches, each with its own `event(new ...)` |
 | `dynamic_list` | `Bus::chain($jobs)` or a `...$jobs` item, where the list is built at runtime | Write the list as an array literal of `new X` items |
 | `class_not_found` | `event(new Registered)` where no file under your scan paths declares the class (a package class, a typo, an excluded path) | Nothing to fix for a package class; otherwise add its directory to `scan.paths` or fix the name |
-| `target_not_indexed` | `StartLogDrain::dispatch()` where `StartLogDrain` is not an event, job, mailable or notification Loom indexed | Make it a job (`ShouldQueue`, or place it under `Jobs/`) or an event so it gets a row |
+| `unreadable_listener` | `Event::listen($name, ...)` or a listener held in a variable | Use `::class` references and `[Listener::class, 'method']` tuples |
+| `unreadable_model_hook` | `static::creating($callback)` where the callback is not a closure or readable callable | Pass a closure or a `[Class::class, 'method']` callable |
+| `target_not_indexed` | `StartLogDrain::dispatch()` where a file declares `StartLogDrain` but it is not an event, job, mailable or notification Loom indexed (a dispatch gets this or `class_not_found`, never both) | Make it a job (`ShouldQueue`, or place it under `Jobs/`) or an event so it gets a row |
 
 A ternary where both branches are `new X()` is fine. Loom records both.
 
