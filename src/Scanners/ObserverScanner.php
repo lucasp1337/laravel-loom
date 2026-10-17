@@ -41,6 +41,9 @@ use Lucasp\Loom\Support\Sorting;
  * are not observable, so they are never hooks. An observer with no matching
  * method is still emitted with `hooks: []`.
  *
+ * Both sections are written here and nowhere else: the cross-link pass reads
+ * `model_events[]` but never regenerates it.
+ *
  * `model_events[]` has one entry per (model, hook) that has at least one
  * handler: observer hook methods, the `Event::listen('eloquent.*')` strings
  * and `$listen` keys, and model hook registrations (`static::creating(...)`,

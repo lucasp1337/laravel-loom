@@ -153,6 +153,13 @@ $dispatch['line'] = $node->getStartLine();
 
 Method context (for `dispatched_from.method`): track the current `ClassMethod` and the enclosing `Class_` in visitor state, then concatenate.
 
+## Conventions that have caused regressions
+
+- **Read on `leaveNode`, not `enterNode`.** `NameResolver` rewrites inner names as it descends, so in `enterNode` of an outer node (a `FuncCall`) the `New_->class` or `ClassConstFetch->class` is not resolved yet. The one exception is `namespacedName` on the class node itself.
+- **Read call arguments through `Support\Ast`.** Use `Args::of($call->args)`, `CallSite` and `CallChain::from()`; do not name `PhpParser\Node\Arg` (`AstConfinementTest`).
+- **Dispatch forms are table rows.** To support a new form, add a row to `DispatchRules` and a case in `tests/Unit/Dispatch/DispatchRuleMatcherTest.php`; never add shape checks to `DispatchSiteVisitor` or `EventDispatchSiteVisitor`.
+- **Static only.** No `Reflection` on the scanned app's classes; read source with `file_get_contents`. Reflection is fine only for the running Laravel application.
+
 ## Critical rules
 
 1. **Never assume `NameResolver` ran.** Always check `getAttribute('resolvedName')` returns non-null before using. If null, you have a programmer error elsewhere — crash loudly.

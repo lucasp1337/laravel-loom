@@ -13,7 +13,13 @@ use Lucasp\Loom\Index\Sections;
  * `notified_from` arrays on the target entry (event, job, mailable, or
  * notification) from each finalized dispatch site. Needs resolved kinds and
  * closure ownership, so it runs after the disambiguation and ownership phases.
- * A site owned by a route closure is recorded with the route as its origin.
+ * A site owned by a route closure is recorded with the route as its origin
+ * (`method` is `VERB uri`); a site owned by a closure listener has no reverse
+ * edge, since a closure has no class and method to name. Every entry shares
+ * `$defs/dispatchSite`: `{file, line, method}` plus an optional `mode`, an
+ * optional `overrides` (only when a modifier resolved statically) and, on
+ * `notified_from` only, an optional literal `channels` filter. Absent values
+ * are omitted, never emitted empty.
  *
  * @internal
  */

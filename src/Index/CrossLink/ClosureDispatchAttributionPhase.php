@@ -13,6 +13,10 @@ use Lucasp\Loom\Index\Sections;
  * one file), so attribution is purely positional: a site belongs to a closure
  * when they share a file and the site's line falls within the closure's span.
  *
+ * Each `closure_listeners[]` entry carries `end_line` (the closing line of the
+ * body) for this span test, and only resolved targets land in its
+ * `dispatches[]`; an unresolved one stays in `unresolved_dispatches[]`.
+ *
  * Reads the site's closure tag, so it runs after {@see ClosureOwnershipPhase}
  * and {@see AmbiguousDisambiguationPhase}.
  *

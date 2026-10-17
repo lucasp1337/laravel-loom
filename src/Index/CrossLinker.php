@@ -27,6 +27,11 @@ use Lucasp\Loom\Index\CrossLink\UnindexedTargetPhase;
  * run before attribution, and sorting runs last. A new relation is a new phase
  * in the list below.
  *
+ * Two scanners never write the same field: a field with two writers is drift to
+ * fix, not to merge. After the last phase `IndexBuilder` strips the
+ * underscore-prefixed internal sections (`_dispatch_sites`), which the schema
+ * rejects by design.
+ *
  * @internal
  */
 final class CrossLinker

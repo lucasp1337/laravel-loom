@@ -10,7 +10,9 @@ use JsonException;
  * Hydrates an {@see Index} from a Loom index JSON document — the inverse of
  * {@see Index::toArray()}. This is the supported entry point for library
  * consumers (UI, MCP server, custom tooling) that read a previously written
- * `index.json` rather than running a scan in-process.
+ * `index.json` rather than running a scan in-process. Consumers read the
+ * `Index\Model` value objects it returns, never the scanner-side `Dto\*Entry`
+ * classes, which are internal build inputs.
  *
  * @api
  */

@@ -30,6 +30,10 @@ If a PR changes output shape without:
 
 you reject it. No exceptions. The schema is the contract.
 
+## Commit convention
+
+Commits that change scanner output cite the schema section, e.g. `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
+
 ## Required reading
 
 1. `AGENTS.md` — the canonical example output
