@@ -18,6 +18,7 @@ use Lucasp\Loom\Scanners\Dispatch\DispatchTarget;
 use Lucasp\Loom\Support\Ast\Args;
 use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Ast\CallSite;
+use Lucasp\Loom\Support\Ast\LocalAssignments;
 use Lucasp\Loom\Support\Ast\CallKind;
 use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\RelativeClassName;
@@ -54,6 +55,14 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private int $closureDepth = 0;
 
+    /**
+     * One frame per function body being walked: the dispatch arguments that are
+     * a bare variable, resolved when the body is left and every assignment is known.
+     *
+     * @var list<list<array{name: string, resolve: \Closure(Node\Expr): bool, fallback: \Closure(): void}>>
+     */
+    private array $pendingByFunction = [];
+
     /** @var list<DispatchSiteRecord> */
     private array $sites = [];
 
@@ -77,6 +86,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
     {
         $this->methodCallStack = [];
         $this->closureDepth = 0;
+        $this->pendingByFunction = [];
         $this->sites = [];
         $this->unresolved = [];
         $this->callEdges = [];
@@ -93,6 +103,10 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
         $this->enterClassScope($node);
 
+        if ($node instanceof Node\FunctionLike) {
+            $this->pendingByFunction[] = [];
+        }
+
         if ($node instanceof Node\Expr\Closure || $node instanceof Node\Expr\ArrowFunction) {
             $this->closureDepth++;
         }
@@ -102,6 +116,10 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     public function leaveNode(Node $node): null
     {
+        if ($node instanceof Node\FunctionLike) {
+            $this->resolvePending($node);
+        }
+
         $call = CallSite::of($node);
         if ($call !== null) {
             $this->recordSameClassCall($call);
@@ -232,8 +250,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
 
     private function recordSiteFromArg(CallSite $call, DispatchRule $rule): void
     {
-        $args = $call->args();
-        $argValue = $args->valueAt($rule->argIndex);
+        $argValue = $call->args()->valueAt($rule->argIndex);
         if ($argValue === null) {
             return;
         }
@@ -241,37 +258,128 @@ final class DispatchSiteVisitor extends CollectingVisitor
         $resolved = $this->classRef($argValue);
 
         if ($resolved !== null) {
-            if ($this->shouldSkipResolved()) {
-                return;
-            }
-
-            // Argument-instance chain + Mail/Notification receiver chain
-            // (`Mail::to(...)->locale(...)->send(...)`); a static call has no
-            // receiver links.
-            $innerLinks = CallChain::methodLinks($argValue);
-            $receiverLinks = $call->receiverLinks();
-
-            $this->sites[] = new DispatchSiteRecord(
-                classFqcn: $this->currentClassFqcn(),
-                method: $this->currentMethod(),
-                target: $resolved,
-                form: $rule->form,
-                provisionalKind: $rule->kind,
-                file: null,
-                line: $call->line(),
-                confidence: Confidence::HIGH->value,
-                overrides: $this->overridesFrom($innerLinks, $receiverLinks),
-                mode: $rule->mode,
-                // Only the facade form takes a channel filter argument.
-                channels: $rule->channelsAt !== null ? $this->channelFilterFrom($args, $rule->channelsAt) : null,
-                inClosure: $this->inClosure(),
-                expression: $this->renderExpression($call->node(), $rule->label()),
-            );
+            $this->emitFromArgument($call, $rule, $resolved, $argValue);
 
             return;
         }
 
+        if ($this->deferVariable($call, $rule, $argValue, fn (Node\Expr $value): bool => $this->emitTargets($value, fn (string $target, Node\Expr $node) => $this->emitFromArgument($call, $rule, $target, $node)))) {
+            return;
+        }
+
         $this->recordUnresolved($call, $argValue, $rule);
+    }
+
+    /** One site for an argument-form call (`Mail::send($m)`, `$u->notify($n)`), with the receiver-chain overrides. */
+    private function emitFromArgument(CallSite $call, DispatchRule $rule, string $target, Node\Expr $argValue): void
+    {
+        if ($this->shouldSkipResolved()) {
+            return;
+        }
+
+        // Argument-instance chain + Mail/Notification receiver chain
+        // (`Mail::to(...)->locale(...)->send(...)`); a static call has no
+        // receiver links.
+        $innerLinks = CallChain::methodLinks($argValue);
+        $receiverLinks = $call->receiverLinks();
+
+        $this->sites[] = new DispatchSiteRecord(
+            classFqcn: $this->currentClassFqcn(),
+            method: $this->currentMethod(),
+            target: $target,
+            form: $rule->form,
+            provisionalKind: $rule->kind,
+            file: null,
+            line: $call->line(),
+            confidence: Confidence::HIGH->value,
+            overrides: $this->overridesFrom($innerLinks, $receiverLinks),
+            mode: $rule->mode,
+            // Only the facade form takes a channel filter argument.
+            channels: $rule->channelsAt !== null ? $this->channelFilterFrom($call->args(), $rule->channelsAt) : null,
+            inClosure: $this->inClosure(),
+            expression: $this->renderExpression($call->node(), $rule->label()),
+        );
+    }
+
+    /**
+     * Defer a dispatch argument that is a bare local variable until its function
+     * body has been walked: if the body assigns it exactly once, the assigned
+     * expression stands in for it ({@see resolvePending()}). False when the
+     * argument is not such a variable and the caller must report it now.
+     *
+     * @param  \Closure(Node\Expr): bool  $resolve  emits for the assigned expression; false when it cannot
+     * @param  UnresolvedReason|null  $reason  the reason to report when it stays unresolved; null classifies the variable
+     */
+    private function deferVariable(CallSite $call, DispatchRule $rule, Node\Expr $value, \Closure $resolve, ?UnresolvedReason $reason = null): bool
+    {
+        if (! $value instanceof Node\Expr\Variable || ! is_string($value->name) || $this->pendingByFunction === [] || $this->shouldSkipUnresolved()) {
+            return false;
+        }
+
+        $this->pendingByFunction[count($this->pendingByFunction) - 1][] = [
+            'name' => $value->name,
+            'resolve' => $resolve,
+            'fallback' => $reason !== null
+                ? fn () => $this->recordUnresolvedWithReason($call, $rule, $reason)
+                : fn () => $this->recordUnresolved($call, $value, $rule),
+        ];
+
+        return true;
+    }
+
+    /** Resolve the variables deferred in the function body being left. */
+    private function resolvePending(Node\FunctionLike $function): void
+    {
+        $pending = array_pop($this->pendingByFunction) ?? [];
+        if ($pending === []) {
+            return;
+        }
+
+        $assignments = LocalAssignments::of($function);
+        foreach ($pending as $item) {
+            $value = $assignments->singleValue($item['name']);
+            if ($value === null || ! $item['resolve']($value)) {
+                $item['fallback']();
+            }
+        }
+    }
+
+    /**
+     * Emit one site per class a value names: `new X`, `X::class`, or a ternary
+     * whose branches both do (recursively). False, emitting nothing, otherwise.
+     *
+     * @param  \Closure(string, Node\Expr): void  $emit
+     */
+    private function emitTargets(Node\Expr $value, \Closure $emit): bool
+    {
+        $targets = $this->targetsOf($value);
+        if ($targets === null) {
+            return false;
+        }
+
+        foreach ($targets as [$target, $node]) {
+            $emit($target, $node);
+        }
+
+        return true;
+    }
+
+    /** @return list<array{0: string, 1: Node\Expr}>|null */
+    private function targetsOf(Node\Expr $value): ?array
+    {
+        $single = $this->classRef($value);
+        if ($single !== null) {
+            return [[$single, $value]];
+        }
+
+        if (! $value instanceof Node\Expr\Ternary || $value->if === null) {
+            return null;
+        }
+
+        $then = $this->targetsOf($value->if);
+        $else = $this->targetsOf($value->else);
+
+        return $then !== null && $else !== null ? [...$then, ...$else] : null;
     }
 
     private function recordHelperOrFacade(CallSite $call, DispatchRule $rule): void
@@ -306,6 +414,12 @@ final class DispatchSiteVisitor extends CollectingVisitor
             return;
         }
 
+        // The outer PendingDispatch chain is only on the stack now; keep it for the deferred emit
+        $outerLinks = $this->outerChainLinks($call);
+        if ($this->deferVariable($call, $rule, $first, fn (Node\Expr $value): bool => $this->emitTargets($value, fn (string $target, Node\Expr $node) => $this->emitResolved($call, $rule, $target, $node, $outerLinks)))) {
+            return;
+        }
+
         $this->recordUnresolved($call, $first, $rule);
     }
 
@@ -324,7 +438,18 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         if (! $first instanceof Node\Expr\Array_) {
-            $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_LIST);
+            // `$jobs = [new A, new B]; Bus::chain($jobs)`: the list literal assigned to the variable
+            $traced = $this->deferVariable($call, $rule, $first, function (Node\Expr $value) use ($call, $rule): bool {
+                if (! $value instanceof Node\Expr\Array_) {
+                    return false;
+                }
+                $this->recordJobItems($call, $rule, $value);
+
+                return true;
+            }, UnresolvedReason::DYNAMIC_LIST);
+            if (! $traced) {
+                $this->recordUnresolvedWithReason($call, $rule, UnresolvedReason::DYNAMIC_LIST);
+            }
 
             return;
         }
@@ -387,7 +512,10 @@ final class DispatchSiteVisitor extends CollectingVisitor
         return $this->resolveClassName(ClassRef::fromInstanceOrConstant($expr));
     }
 
-    private function emitResolved(CallSite $call, DispatchRule $rule, string $targetFqcn, Node\Expr $argValue): void
+    /**
+     * @param  list<CallSite>|null  $outerLinks  the PendingDispatch chain, when it was captured before the call left the stack
+     */
+    private function emitResolved(CallSite $call, DispatchRule $rule, string $targetFqcn, Node\Expr $argValue, ?array $outerLinks = null): void
     {
         if ($this->shouldSkipResolved()) {
             return;
@@ -397,7 +525,7 @@ final class DispatchSiteVisitor extends CollectingVisitor
         // `dispatch(...)` / `event(...)`. Inner links first so an outer
         // modifier wins on a same-key conflict.
         $innerLinks = CallChain::methodLinks($argValue);
-        $outerLinks = $this->outerChainLinks($call);
+        $outerLinks ??= $this->outerChainLinks($call);
 
         $this->sites[] = new DispatchSiteRecord(
             classFqcn: $this->currentClassFqcn(),
