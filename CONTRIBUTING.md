@@ -17,60 +17,33 @@ Rules for consumer docs:
 5. Make no version-specific framework claims.
 6. Leave out what does nothing for the reader: provenance and history.
 
-The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `vendor/bin/pest`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
+The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `just test`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
 
 Reference pages carry generated regions: a block between `<!-- generated:NAME -->` and `<!-- /generated:NAME -->` markers, built from `schema/loom-index.schema.json`, the MCP tool classes, `config/loom.php` and the Artisan command signatures. After changing any of those, run `just docs-generate`; `just docs-check` (and `tests/Docs/ReferenceDriftTest.php`) fails when a committed page is stale. The full steps and how to add a region are under [Documentation site](#documentation-site).
 
 ## Prerequisites
 
-- PHP **8.3+** with `ext-mbstring`, `ext-xml`, `ext-dom`, `ext-xmlwriter`
-- Composer 2
-- Docker (optional but recommended — see below)
+- Docker
+- [just](https://github.com/casey/just)
 
-The required PHP extensions are common but not universal. If your host PHP lacks them, use the Docker image bundled with the repo.
+Nothing else is needed on the host; PHP and Composer run inside the image.
 
-## Local toolchain
+## Toolchain
 
-Install dependencies:
-
-```bash
-composer install
-```
-
-Run the toolchain:
-
-```bash
-vendor/bin/phpstan analyse        # level 8, must be zero errors
-vendor/bin/pint --test            # dry-run; vendor/bin/pint to apply
-vendor/bin/pest                   # full test suite
-```
-
-All three must pass before any commit.
-
-## Docker toolchain via `just`
-
-If your host PHP lacks the required extensions (common on minimal Linux installs or PHP 8.5 builds), the repo ships a `Justfile` that wraps every common task in a Docker container. Install [just](https://github.com/casey/just), then:
+Just and Docker are the only supported toolchain: no local PHP, no composer scripts. Install [Docker](https://docs.docker.com/get-docker/) and [just](https://github.com/casey/just), then:
 
 ```bash
 just build           # build the Docker dev image (once)
 just install         # composer install inside the container
-just check           # full toolchain: PHPStan + Pint --test + Pest
+just verify          # the full gate, fail-fast; must pass before any commit
+just fix             # apply rector, pint and regenerate docs
 just test            # just the Pest suite
-just phpstan         # just PHPStan
-just pint            # apply Pint formatting
-just shell           # interactive shell inside the container
+just test-filter X   # a focused Pest run
 ```
 
-Run `just` with no arguments to see every recipe.
+Run `just` with no arguments to see every recipe. `just verify` runs Pint, PHPStan (level 8), Rector (dry run), Pest, the benchmark count gate, the generated-docs check and the strict docs build, and stops at the first failure.
 
-The Dockerfile installs `mbstring`, `xml`, `dom`, `xmlwriter`, and `zip` on top of `php:8.3-cli-alpine`. Composer is included.
-
-If you'd rather skip `just`, the raw equivalents are:
-
-```bash
-docker build -t laravel-loom-dev:latest .
-docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest
-```
+The Dockerfile installs `mbstring`, `xml`, `dom`, `xmlwriter`, and `zip` on top of `php:8.3-cli-alpine`, plus Composer.
 
 ## Documentation site
 
@@ -82,8 +55,6 @@ just docs-check      # fail if a generated region drifted from its source; write
 just docs-serve      # regenerate, then live-reload preview at http://localhost:8000
 just docs-build      # check, then strict build from a scratch copy (fails on broken links)
 ```
-
-`composer docs:generate` and `composer docs:check` run the same script without Docker.
 
 ### Generated regions
 
@@ -119,15 +90,14 @@ which scanners run. Add or remove scanners there, not in each consumer.
 ## Benchmarking
 
 The benchmark suite measures scan cost across deterministic generated apps and
-gates on entry counts (not wall time). The `composer` scripts run on the host;
-`just bench [...]` runs them in Docker:
+gates on entry counts (not wall time):
 
 ```bash
-composer bench                            # run all sizes, print the table
-php benchmarks/bench.php --size=medium    # one size
-php benchmarks/bench.php --json           # machine-readable
-composer bench:baseline                   # (re)write benchmarks/baseline.json
-composer bench:assert                     # fail on count drift vs baseline
+just bench                  # run all sizes, print the table
+just bench --size=medium    # one size
+just bench --json           # machine-readable
+just bench-baseline         # (re)write benchmarks/baseline.json
+just bench --assert         # fail on count drift vs baseline
 ```
 
 Regenerate and review the baseline whenever a change legitimately moves the
@@ -173,7 +143,7 @@ docs/                       # consumer-facing docs (published site)
 | New UI page | a Livewire component in `Ui/Livewire/`, a view in `resources/views/livewire/`, registered in `LoomUiServiceProvider` | `tests/Feature/Ui/PagesTest.php` |
 | New UI section column | `Ui/SectionPresentation.php` | `tests/Unit/Ui/SectionPresentationTest.php` |
 | New config key | `config/loom.php` (its comment becomes the docs row), plus `Support/ScanConfigKey.php` for `scan.*` or `Ui/LoomConfig.php` for `ui.*` | `tests/Docs/ReferenceDriftTest.php` |
-| New generated docs region | a `Region` case or `RegionPrefix`, a `RegionSource` in `tools/Pages/`, a marker pair on the page | `tests/Docs/ReferenceDriftTest.php`; run `composer docs:generate` |
+| New generated docs region | a `Region` case or `RegionPrefix`, a `RegionSource` in `tools/Pages/`, a marker pair on the page | `tests/Docs/ReferenceDriftTest.php`; run `just docs-generate` |
 
 ## Adding a scanner
 
@@ -225,8 +195,8 @@ If you fork the repo to build a different Laravel introspection tool, the agents
 `rector.php` applies the mechanical style rules to `src/`:
 
 ```bash
-composer rector       # dry run, exits non-zero on a diff
-composer rector:fix   # apply, then run Pint to import the new class names
+just rector       # dry run, exits non-zero on a diff
+just fix          # apply rector, then pint to import the new class names, then regenerate docs
 ```
 
 Project rules live in `tools/rector/` (tests in `tests/Rector/`):

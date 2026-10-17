@@ -10,7 +10,7 @@ A scanner can quietly start under- or over-counting, or scan cost can regress, w
 
 ## Decision
 
-1. **Gate on counts.** `composer bench:assert` fails only when section or per-scanner counts drift from the committed `benchmarks/baseline.json`. Counts are reproducible, so green on one machine is green on another, and a drift means a scanner's behaviour against a fixed app shape changed, which is exactly the regression worth catching. Wall time is measured and stored as informational `reference_ms`, and can be gated opt-in with `--time-threshold` for same-machine A/B runs.
+1. **Gate on counts.** `just bench --assert` fails only when section or per-scanner counts drift from the committed `benchmarks/baseline.json`. Counts are reproducible, so green on one machine is green on another, and a drift means a scanner's behaviour against a fixed app shape changed, which is exactly the regression worth catching. Wall time is measured and stored as informational `reference_ms`, and can be gated opt-in with `--time-threshold` for same-machine A/B runs.
 2. **Generate the app, do not commit it.** `AppGenerator` writes a wired Laravel-shaped app to the system temp dir from three fixed profiles (`tiny`, `medium`, `large`). The same profile gives identical files and counts.
 
 ## Rejected
@@ -22,4 +22,4 @@ A scanner can quietly start under- or over-counting, or scan cost can regress, w
 
 - The gate is stable across machines and CI, and the runner uses `DefaultScanners`, so it benchmarks what `loom:scan` runs.
 - Time regressions are not caught automatically.
-- The baseline is regenerated (`composer bench:baseline`) and reviewed whenever counts legitimately move.
+- The baseline is regenerated (`just bench-baseline`) and reviewed whenever counts legitimately move.

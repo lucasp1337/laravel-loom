@@ -32,12 +32,13 @@ You are the quality inspector for Laravel Loom. You hold the line on static anal
 ## Commands you run
 
 ```bash
-./vendor/bin/phpstan analyse --memory-limit=2G
-./vendor/bin/pint --test
-./vendor/bin/pest
+just verify   # full gate
+just phpstan
+just pint-check
+just test
 ```
 
-Or use the `/run-checks` slash command which sequences these.
+Or use the `/run-checks` slash command, which runs `just verify`.
 
 ## AST-code-specific smells
 
@@ -148,9 +149,9 @@ Fixtures are excluded because they include intentionally broken / unresolvable c
 
 Before approving a PR, verify:
 
-- [ ] `./vendor/bin/phpstan` clean
-- [ ] `./vendor/bin/pint --test` clean
-- [ ] `./vendor/bin/pest` green
+- [ ] `just phpstan` clean
+- [ ] `just pint-check` clean
+- [ ] `just test` green
 - [ ] Public methods have parameter and return types
 - [ ] PHPDoc on non-obvious public methods (especially scanner output shapes — link to schema section)
 - [ ] No mutable visitor state without reset path

@@ -1,49 +1,20 @@
 ---
-description: Run the full quality check sequence (PHPStan, Pint, Pest)
+description: Run the full quality gate (`just verify`)
 ---
 
-Run all quality checks for Laravel Loom. Halt on first failure and report clearly.
-
-## Sequence
-
-Execute in order. Stop immediately on any non-zero exit.
+Run the full gate for Laravel Loom. Just + Docker only: never run php or composer directly.
 
 ```bash
-./vendor/bin/phpstan analyse --memory-limit=2G --no-progress
+just verify
 ```
 
-If this fails:
-- Read the PHPStan output
-- Invoke `quality-inspector` to interpret and fix
-- Do not proceed to Pint until PHPStan is clean
+It stops at the first failure: Pint, PHPStan, Rector (dry run), Pest, benchmark count gate, generated-docs check, strict docs build.
 
-```bash
-./vendor/bin/pint --test
-```
+On failure:
+- Pint, Rector or stale generated docs: run `just fix`, show what changed, re-run `just verify`.
+- PHPStan: read the output and invoke `quality-inspector`.
+- Pest: read the failing output, invoke `test-engineer`, and report file:line of the failing assertion. Use `just test-filter X` to iterate.
 
-If this fails:
-- Run `./vendor/bin/pint` (without `--test`) to auto-fix
-- Re-run `--test` to confirm clean
-- Do not proceed to Pest until Pint is clean
+On success: report a one-line summary.
 
-```bash
-./vendor/bin/pest
-```
-
-If this fails:
-- Read the failing test output
-- Invoke `test-engineer` to diagnose
-- Report the failure with file:line of the failing assertion
-
-## Reporting
-
-On success: report a one-line summary like `All checks passed: PHPStan (clean), Pint (clean), Pest (N tests, M assertions).`
-
-On failure: report which check failed, the relevant output excerpt, and which agent was invoked to address it. Do not auto-commit.
-
-## Do not
-
-- Skip a check because "it usually passes"
-- Auto-fix Pint without showing what changed
-- Mark complete with any check failing
-- Continue past a failing check
+Do not auto-commit, skip a check, or dispatch GitHub CI.

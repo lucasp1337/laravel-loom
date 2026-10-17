@@ -57,12 +57,11 @@ Docker.
 
 | Command                                   | What it does                                            |
 |-------------------------------------------|---------------------------------------------------------|
-| `composer bench`                          | Run all sizes, print the table.                         |
-| `php benchmarks/bench.php --size=medium`  | Run one size only.                                      |
-| `php benchmarks/bench.php --json`         | Machine-readable output.                                |
-| `composer bench:baseline`                 | (Re)write `benchmarks/baseline.json`.                   |
-| `composer bench:assert`                   | Fail (exit 1) if section/scanner counts drift.          |
-| `just bench [...]`                        | Any of the above, in Docker.                            |
+| `just bench`                              | Run all sizes, print the table.                         |
+| `just bench --size=medium`                | Run one size only.                                      |
+| `just bench --json`                       | Machine-readable output.                                |
+| `just bench-baseline`                     | (Re)write `benchmarks/baseline.json`.                   |
+| `just bench --assert`                     | Fail (exit 1) if section/scanner counts drift.          |
 
 Other flags:
 
@@ -80,16 +79,16 @@ it records the file count, per-section counts, per-scanner counts, and a
 Update it deliberately when a scanner change legitimately moves the counts:
 
 ```bash
-composer bench:baseline   # re-run all sizes and overwrite baseline.json
+just bench-baseline   # re-run all sizes and overwrite baseline.json
 ```
 
 Then review the diff — the count changes should match the behaviour change you
 shipped. A surprising delta is the signal the assertion exists to catch. Commit
 the updated baseline alongside the change.
 
-## Using `bench:assert` in CI
+## Using `just bench --assert` in CI
 
-`composer bench:assert` regenerates the apps, scans them, and compares the live
+`just bench --assert` regenerates the apps, scans them, and compares the live
 counts against `baseline.json`. Any drift in a section or per-scanner count is a
 non-zero exit. Because the generator is deterministic, this is stable across
 machines — a green run on one box is green on another.

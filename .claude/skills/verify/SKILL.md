@@ -1,23 +1,19 @@
 ---
 name: verify
-description: Run every local check before committing or opening a PR (tests, PHPStan, Pint, benchmark gate, generated docs, Rector). Use after any change to src/, tests/, schema/, config/ or docs/.
+description: Run every check before committing or opening a PR (Pint, PHPStan, Rector, Pest, benchmark gate, generated docs, strict docs build). Use after any change to src/, tests/, schema/, config/ or docs/.
 ---
 
 # Verify
 
-Run from the repo root. The host `php` is 8.5 without `ext-xml`; use `php8.3`. A fresh worktree needs `php8.3 $(which composer) install` first.
+Run from the repo root. Just + Docker only: never run php or composer directly. A fresh worktree needs `just build` and `just install` first.
 
 ```
-php8.3 vendor/bin/pest </dev/null
-php8.3 vendor/bin/phpstan analyse --memory-limit=1G --no-progress
-php8.3 vendor/bin/pint --test
-php8.3 benchmarks/bench.php --assert
-php8.3 tools/generate-reference.php --check
-php8.3 vendor/bin/rector process --dry-run --ansi
+just verify
 ```
 
-- Pint failures: run `php8.3 vendor/bin/pint`, then re-run the test.
-- Rector (`composer rector` runs the same dry run) failures: `php8.3 vendor/bin/rector process --ansi`, then Pint.
-- Stale generated docs: `php8.3 tools/generate-reference.php`, review the diff.
-- When docs changed, also run `just docs-check`, and `just docs-build` for the strict site build (both use Docker).
-- Never dispatch GitHub CI to verify; run the checks locally.
+It runs Pint, PHPStan, Rector (dry run), Pest, the benchmark count gate, the generated-docs check and the strict docs build, and stops at the first failure.
+
+- Pint, Rector or stale generated docs: `just fix` (rector, then pint, then docs-generate), review the diff, re-run `just verify`.
+- Focused run while iterating: `just test-filter X`.
+- Counts legitimately moved: `just bench-baseline`, review the diff.
+- Never dispatch GitHub CI to verify.

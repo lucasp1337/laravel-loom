@@ -10,8 +10,8 @@ use Rector\Php80\Rector\Switch_\ChangeSwitchToMatchRector;
 
 /**
  * Project Rector config: only mechanical, output-preserving rewrites that the
- * house style asks for (see CONTRIBUTING.md). `composer rector` is a dry run
- * that fails on a diff; `composer rector:fix` applies it. Rewritten calls use
+ * house style asks for (see CONTRIBUTING.md). `just rector` is a dry run
+ * that fails on a diff; `just fix` applies it. Rewritten calls use
  * fully qualified class names; run Pint afterwards to import them.
  */
 return RectorConfig::configure()

@@ -1,5 +1,5 @@
 {
-    "_note": "Counts are deterministic and asserted by `composer bench:assert`. reference_ms is informational — wall time is hardware-dependent and only gated when --time-threshold is passed on the same machine.",
+    "_note": "Counts are deterministic and asserted by `just bench --assert`. reference_ms is informational — wall time is hardware-dependent and only gated when --time-threshold is passed on the same machine.",
     "profiles": {
         "tiny": {
             "files": 19,

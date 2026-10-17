@@ -16,29 +16,14 @@ Invoke `schema-guardian` with:
 
 ## Implementation
 
-If a CLI validator is installed (e.g. `vendor/bin/json-schema-validate`), use it:
+Use the repo's own validator, `IndexBuilder::validate()`, in Docker (no local php):
 
 ```bash
-vendor/bin/json-schema-validate schema/loom-index.schema.json $ARGUMENTS
-```
-
-If not, run a small PHP script:
-
-```bash
-php -r "
-require 'vendor/autoload.php';
-\$validator = new \JsonSchema\Validator();
-\$data = json_decode(file_get_contents('$ARGUMENTS'));
-\$schema = json_decode(file_get_contents('schema/loom-index.schema.json'));
-\$validator->validate(\$data, \$schema);
-if (\$validator->isValid()) {
-    echo 'VALID' . PHP_EOL;
-    exit(0);
-}
-foreach (\$validator->getErrors() as \$error) {
-    printf('[%s] %s' . PHP_EOL, \$error['property'], \$error['message']);
-}
-exit(1);
+docker run --rm -v "$(pwd):/app" -v "$(dirname $ARGUMENTS):/in:ro" laravel-loom-dev:latest php -r "
+require '/app/vendor/autoload.php';
+\$errors = (new Lucasp\\Loom\\Index\\IndexBuilder())->validate(json_decode(file_get_contents('/in/$(basename $ARGUMENTS)'), true));
+echo \$errors === [] ? 'VALID' : json_encode(\$errors, JSON_PRETTY_PRINT), PHP_EOL;
+exit(\$errors === [] ? 0 : 1);
 "
 ```
 

@@ -46,19 +46,6 @@
             "Lucasp\\Loom\\Rector\\": "tools/rector/"
         }
     },
-    "scripts": {
-        "test": "vendor/bin/pest",
-        "test-coverage": "vendor/bin/pest --coverage",
-        "analyse": "vendor/bin/phpstan analyse",
-        "format": "vendor/bin/pint",
-        "docs:generate": "php tools/generate-reference.php",
-        "docs:check": "php tools/generate-reference.php --check",
-        "bench": "php benchmarks/bench.php",
-        "bench:assert": "php benchmarks/bench.php --assert",
-        "bench:baseline": "php benchmarks/bench.php --baseline",
-        "rector": "vendor/bin/rector process --dry-run --ansi",
-        "rector:fix": "vendor/bin/rector process --ansi"
-    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {

@@ -4,10 +4,11 @@ Loom: static analyzer for Laravel wiring that emits a deterministic JSON index. 
 
 ## Verify
 
-Use the `verify` skill. All checks green before every commit.
+Run `just verify` (the `verify` skill). All green before every commit; `just fix` applies rewrites.
 
 ## Hard rules
 
+- Just + Docker only: no local php/composer exec.
 - Static only: no runtime container, no reflection of the scanned app, no `artisan event:list`.
 - Never drop silently: an unreadable form becomes an `unresolved_*` entry with a reason.
 - Never guess Laravel behaviour: verify against framework source or laravel.com.

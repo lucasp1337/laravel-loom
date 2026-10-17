@@ -15,7 +15,7 @@ use Lucasp\Loom\Support\ScanScope;
  * The canonical scanner set `loom:scan` runs. Single source of truth so the
  * CLI, the benchmark suite, and any consumer build the same index. Never
  * re-list scanners elsewhere: the benchmark gates on per-scanner counts, so a
- * change here that moves output fails `composer bench:assert`.
+ * change here that moves output fails `just bench --assert`.
  *
  * @internal
  */
