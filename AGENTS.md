@@ -1,193 +1,33 @@
 # AGENTS.md
 
-Operational guide for AI agents working on this repo. Humans should read `README.md` and `docs/` (consumer-facing) or `CONTRIBUTING.md` and `docs/contributing/` (contributor-only) instead.
+Loom: static analyzer for Laravel wiring that emits a deterministic JSON index. PHP 8.3+, Laravel 12+, `nikic/php-parser` only. How it works: `docs/contributing/architecture.md`.
 
-This file is for the parts that don't fit anywhere else: conventions that aren't enforced by tests, mistakes that have been made before, and the boundaries between subagents.
+## Verify
 
----
+Use the `verify` skill. All checks green before every commit.
 
-## Scope
+## Hard rules
 
-Loom emits a JSON index of event-driven Laravel primitives. Sections emitted today: `events`, `listeners`, `closure_listeners`, `observers`, `model_events`, `jobs`, `scheduled_tasks`, `mailables`, `notifications`, `routes`, `unresolved_routes`, `unresolved_dispatches`. All are in `schema/loom-index.schema.json`.
+- Static only: no runtime container, no reflection of the scanned app, no `artisan event:list`.
+- Never drop silently: an unreadable form becomes an `unresolved_*` entry with a reason.
+- Never guess Laravel behaviour: verify against framework source or laravel.com.
+- Schema changes go through `schema-guardian` (`change-schema` skill).
+- No new commands, flags or output formats without an issue.
+- Out of scope: models, migrations, policies, runtime tracing, code-quality metrics. Unsure, ask.
+- DTOs between components, never associative arrays.
+- Docs: one home per fact; generated or tested, never restated. Don't explain Laravel mechanics. The code wins over docs.
+- No new dependency without justification.
 
-Anything an agent codes against must already exist in `schema/loom-index.schema.json`. The schema rejects unknown top-level properties; don't introduce new sections without going through the schema-guardian.
+## Where detail lives
 
-Out of scope, and not just "later":
+| Topic | Home |
+|---|---|
+| Per-class behaviour | class docblock |
+| AST and visitor rules | `ast-specialist` agent |
+| Procedures | skills: `verify`, `change-schema`; command `/add-scanner` |
+| Decisions | `docs/contributing/adr/` |
+| Human setup | `CONTRIBUTING.md` |
 
-- Data-model and access-control primitives — models, migrations, validators, policies, gates
-- Runtime tracing / queue worker observation
-- Code-quality metrics (complexity, fat-class detection, line counts)
-- Visualization features beyond the read-only browser UI (`src/Ui`)
-- Laravel < 11
+## Commits and PRs
 
-Loom's domain is the *control flow* of a Laravel app — what dispatches what, what handles what, what runs when. Routes and schedules are part of that (an HTTP request fires a controller method; cron fires a job at 2am), even though they aren't strictly "event-driven" in the `Event::dispatch()` sense. Models and migrations are not.
-
-When a subagent proposes a feature, the test is: *does this enrich the existing schema, make an existing consumer more useful, or close a documented gap?* If not, decline or file an issue for later.
-
----
-
-## Repo layout
-
-```
-src/
-  LoomServiceProvider.php          # registers the artisan commands, the MCP server, and the UI
-  Console/
-    ScanCommand.php                 # loom:scan — writes storage/loom/index.json
-    ShowCommand.php                 # loom:show [filter] — prints the index
-    DiffCommand.php                 # loom:diff — compares two indexes
-    CheckCommand.php                # loom:check — policy gate over an index
-    McpCommand.php                  # loom:mcp — embedded MCP server over stdio
-  Contracts/
-    Scanner.php                     # the one-method contract every scanner implements
-  Index/
-    Index.php                       # immutable value object — serializes to JSON; typed getters/lookups (public consumer API)
-    IndexBuilder.php                # orchestrates scanners + runs the cross-link pass
-    IndexLoader.php                 # hydrates an Index from a written index.json (public consumer API)
-    Model/                          # final readonly read-model value objects (public consumer API)
-  Check/                            # loom:check rules, runner, formatters
-  Diff/                             # loom:diff engine
-  Mcp/                              # embedded MCP server (depends on Query)
-  Query/                            # IndexQuery + IndexSource/SnapshotIndexSource + DTOs/enums: transport-agnostic questions over the Index (shared by MCP and UI)
-  Ui/                               # read-only browser UI (Livewire + Alpine + vendored cytoscape); depends on Query, never on Mcp
-  Scanners/
-    EventScanner.php
-    ListenerScanner.php
-    ObserverScanner.php
-    JobsScanner.php
-    ScheduleScanner.php
-    MailableScanner.php
-    NotificationScanner.php
-    RouteScanner.php
-    DispatchScanner.php
-    Discovery/                      # ClassPrimitiveDiscovery + one ClassSpec per class-based primitive (event, job, mailable, notification)
-    Schedule/                       # CronHelper / ScheduleModifier / ScheduleConstraint enums: the schedule chain-method tables
-    Dispatch/                       # DispatchRules (the table of recognised dispatch forms), DispatchRule, DispatchRuleMatcher
-    Visitors/                       # CollectingVisitor subclasses (state reset is built in)
-  Support/
-    AppPath.php                     # app root + relative path joins/relativising (never rtrim/DIRECTORY_SEPARATOR by hand)
-    Ast/                            # the only non-visitor home of php-parser (PhpParserConfinementTest): AstWalker (parser + NameResolver; walkSource() for snippets and tests), Route/ (route-group context), QueueConfig, Args/Arg (argument access, positional + named), CallSite, CallChain, Literal, ClassRef, Callables, ValueLists, EventsDispatcher
-    ScanScope.php                   # scan directories + exclude globs; every scanner walks files through it
-    ComposerPsr4Map.php             # composer.json autoload.psr-4 lookup behind Psr4ClassLocator
-    ClassHierarchyResolver.php      # cross-file extends/implements/use-trait resolver (lazy; each consumer builds its own)
-    Fqcn.php                        # the one home for class-name strings: normalize, short, namespaceOf, same, split*Member (FqcnConfinementTest forbids ltrim-style copies)
-
-schema/
-  loom-index.schema.json           # the contract for every index Loom emits
-
-tests/
-  Unit/                             # visitor-level tests, heredoc snippets run through runVisitor() (tests/Pest.php) -> AstWalker::walkSource()
-  Feature/                          # scanner + IndexBuilder tests, fixture-driven
-  Fixtures/                         # minimal app trees per scenario
-
-docs/                               # consumer-facing docs (published site) — no src paths, ADR or issue refs
-  contributing/                     # contributor-only: architecture, class-hierarchy, add-a-scanner, adr/
-CONTRIBUTING.md                     # toolchain, Docker workflow, docs rules; links to the add-a-scanner page
-```
-
----
-
-## Conventions that aren't enforced by tests
-
-These have caused regressions. Don't rediscover them.
-
-**Visitors read on `leaveNode`, not `enterNode`.** `AstWalker` attaches `NameResolver` first. NameResolver rewrites `Node\Name` references as it descends — so by the time you're in `enterNode` for an outer node (e.g. a `FuncCall`), the inner `New_->class` or `ClassConstFetch->class` you want to read has NOT been resolved yet. `EventClassVisitor` is the one exception (it reads `$node->namespacedName` on the class itself, which NameResolver sets before descent). Everywhere else, use `leaveNode`. We've shipped this bug at least twice. The full set of visitor conventions is in [architecture](docs/contributing/architecture.md#visitor-conventions).
-
-**Read call arguments through `Support\Ast`.** Visitors and scanners do not name `PhpParser\Node\Arg`: use `Args::of($call->args)` (`at()`, `valueAt()`, `named()`, `lookup()`, `hasUnpack()`, `isFirstClassCallable()`), `CallSite` for one call and `CallChain::from()` for a fluent chain. `AstConfinementTest` enforces it.
-
-**Dispatch forms are table rows.** `DispatchSiteVisitor` and `EventDispatchSiteVisitor` recognise calls through `Scanners\Dispatch\DispatchRuleMatcher` over `DispatchRules`. To support a new dispatch form, add a row (call shape, form, kind, mode) and a case in `tests/Unit/Dispatch/DispatchRuleMatcherTest.php`; do not add shape checks to a visitor.
-
-**One source of truth per output field.**
-- `events[*].handled_by` — populated by the cross-link pass from `listeners[*].handles`. Each entry is a `{listener, method}` pair. Listener scanners don't write to event entries. Closure registrations in `closure_listeners[]` are intentionally NOT joined back into `handled_by` — that field's shape requires an FQCN + method, which closures lack.
-- `events[*].dispatched_from` — populated by the cross-link pass from DispatchScanner's `_dispatch_sites`.
-- `listeners[*].dispatches` / `observers[*].dispatches` / `jobs[*].dispatches` — same; cross-link from DispatchScanner. The job join keys on enclosing method `handle`.
-- `jobs[*].dispatched_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'job'` matching a job FQCN. Same model as `events[*].dispatched_from`; both reference `$defs/dispatchSite`.
-- `mailables[*].sent_from` and `notifications[*].notified_from` — populated by the cross-link pass from dispatch sites with finalized `kind === 'mailable'` / `kind === 'notification'`. Same `$defs/dispatchSite` shape. `DispatchSiteVisitor` emits the corresponding `provisionalKind` values; `DispatchedFromPhase` joins them.
-- `$defs/dispatchSite` carries an **optional** `mode` (`DispatchMode`: `sync`, `after_response`, `push`; omitted for plain dispatches) and an **optional** `overrides` object (`$defs/dispatchOverrides`) alongside `{file, line, method}` — dispatch-time fluent modifiers (`locale`, `mailer`, `connection`, `queue`, `delay`, `after_commit`). It's emitted only when at least one modifier is statically resolved; sites with none have no `overrides` key (additive, non-breaking). All four reverse-reference arrays share the shape, so any may carry it (events rarely do). `$defs/dispatchSite` also carries an **optional, notification-only** `channels` array — the literal channel filter from `Notification::send($users, $n, $channels)` / `sendNow(...)` — emitted only on `notifications[*].notified_from` entries and omitted when absent, empty, or non-literal (additive, non-breaking).
-- `closure_listeners[*].dispatches` — populated by the cross-link pass from DispatchScanner's dispatch sites, using the `$defs/dispatch` shape. Only *registration* closures (closure listeners, closure routes) own the sites inside them; `ClosureOwnershipPhase` hands a site in any other closure (`DB::transaction(fn () => ...)`, `each`, `tap`) to the enclosing class method. Attribution is **positional by source span** (not by enclosing class + method, which closures lack): a site is attributed when it shares a file with the closure listener and its line falls within `[line, end_line]` inclusive. Each `closure_listeners[]` entry carries `end_line` (the closure body's closing line) for this. Resolved dispatches only in `dispatches[]`; an unresolved target inside a closure goes to `unresolved_dispatches[]` like any other. No reverse edge: the target's `dispatched_from[]` does not list the closure (same rationale as `handled_by` skipping closures).
-- `routes[*].dispatches` for a closure route — filled by `RouteDispatchAttributionPhase` by span: the route carries `end_line` (the closure's last line, optional, closure actions only) and a site in `[line, end_line]` of the same file belongs to it. Unlike closure listeners, the event's `dispatched_from` does list the route, with `method` set to `VERB uri`.
-- `$dispatchesEvents` entries are dispatch sites emitted by DispatchScanner (`DispatchesEventsVisitor`), so they reach `events[*].dispatched_from` with `method` `Model::$dispatchesEvents[hook]`.
-- Handler methods and observer hooks come from `ClassHierarchyResolver::effectiveMethods()`, not from the class body alone.
-- `model_events` — emitted directly by ObserverScanner. The cross-link does NOT regenerate them.
-
-If two scanners ever write to the same field, you've drifted from the design — fix the drift, don't merge the writes.
-
-**Generated docs regions.** Blocks between `<!-- generated:NAME -->` markers in `docs/**` are built by `tools/` (`RegionSource` classes in `tools/Pages/`, hand-written prose in `tools/Reference/`). Never edit inside a block; run `just docs-generate`, verify with `just docs-check`, and build the site with `just docs-build`. A region goes on a page by adding its marker pair; see [CONTRIBUTING](CONTRIBUTING.md#generated-regions).
-
-**One scanner list.** The nine-scanner registration set lives once in `Lucasp\Loom\Scanners\DefaultScanners` (`::all()` / `::registerOn($builder)`), consumed by `ScanCommand`, the `just scan`/`scan-json` recipes, and the benchmark runner. Don't re-list scanners anywhere else — add or remove in `DefaultScanners` and every consumer (including `composer bench`) tracks it. The [benchmark suite](benchmarks/README.md) gates on deterministic per-scanner counts, so a list change that moves output is caught by `composer bench:assert`.
-
-**`_dispatch_sites` is internal.** DispatchScanner returns `['unresolved_dispatches' => …, '_dispatch_sites' => …]`. The underscore-prefixed section feeds the cross-link pass and is stripped before the `Index` is constructed. The JSON schema rejects it via `additionalProperties: false` — that's intentional, not a bug.
-
-**Static only.** No `app()->make()`, no `Event::listen()` at runtime, no `\ReflectionClass::getMethods()` for anything Loom analyzes. Loom reads source files via `file_get_contents`. Reflection is fine for inspecting the running Laravel application (e.g. `Application::VERSION`), not for inspecting the app being scanned.
-
-**Unresolved dispatches are first-class output.** When DispatchScanner sees `event($var)` or `event("App\\Events\\{$x}")`, it MUST emit an `unresolved_dispatches` entry. Silently dropping these is a regression. The reason codes are fixed by the schema (`UnresolvedReason`), and each names one code shape: dispatch targets (`dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `dynamic_list`, `string_event_name`, `closure_job`, `view_mail`, `call_result`, `stored_target`, `relative_class_name`, `unsupported_expression`), class lookup (`class_not_found`, `target_not_indexed`) and registrations (`unreadable_event_name`, `untyped_closure_listener`, `unreadable_listener`, `unreadable_subscriber`, `unreadable_model_hook`). A new reason needs an enum case with a `summary()`, the schema description (a test keeps them equal), and an example in `tools/Reference/UnreadForms.php`, which the generated "Forms Loom does not read" page renders and `UnreadFormsTest` scans. `class_not_found` (no file declares the class) and `target_not_indexed` (a file exists, no section row) are mutually exclusive: `UnindexedTargetPhase` enforces that no `dispatches[]` target lacks a section row and drops, without a second entry, a site already listed as `class_not_found`.
-
-**Cite the schema section in commit messages when changing scanner output.** Reviewers (and future you) will thank you. Example: `feat(listeners): widen $listen walk to app/ (cites $defs/listener)`.
-
-**DTOs, not associative arrays, for inter-component data.** Visitors emit `list<SomeDto>` from `src/Dto/`, never `array<int, array{...}>`. Scanners consume DTOs and only build the schema-shaped associative arrays at the emit boundary (the final step of `scan()`). The cross-link pass operates on the schema-shape since that IS the JSON contract — but everything before that boundary is typed. See `CONTRIBUTING.md#data-transfer-dtos-not-arrays`.
-
-**Consumer read model vs scanner DTOs.** The public consumption surface is `IndexLoader`, the typed getters/lookups on `Index`, and the `Lucasp\Loom\Index\Model\` value objects (each `final readonly`, hydrated from the JSON/array shape). That's what external tools (UI, MCP server) depend on. The `Lucasp\Loom\Dto\*Entry` classes are internal scanner build inputs — NOT part of the consumer API; don't expose them or couple consumers to them. See [docs/reference/php-api.md](docs/reference/php-api.md) and [ADR 0005](docs/contributing/adr/0005-index-read-model.md).
-
----
-
-## The cross-link pass
-
-`CrossLinker` (invoked by `IndexBuilder::build()`) is the only place that reads cross-scanner data. It runs an ordered list of `CrossLinkPhase` classes (in `src/Index/CrossLink/`) over a shared `CrossLinkContext`. Each phase's docblock says what it reads and writes; the order lives in `CrossLinker`, and why it matters is in [architecture](docs/contributing/architecture.md#cross-link-pass).
-
-After cross-link, `_dispatch_sites` is stripped from the merged sections before the `Index` is constructed, and `loom:scan` validates the stripped payload.
-
----
-
-## The subagent fleet
-
-| Agent | Domain | When to invoke |
-|---|---|---|
-| `scanner-architect` | Scanner design, discovery strategy, three-concern separation | Adding or redesigning a scanner. Returns the design: discovery, emission, schema impact. |
-| `ast-specialist` | `nikic/php-parser` visitors, NameResolver edge cases | Writing or fixing AST-traversal code |
-| `schema-guardian` | `schema/loom-index.schema.json` | Any change to output shape; veto power on the schema |
-| `test-engineer` | Pest tests, fixture apps, Testbench harness | After any scanner or IndexBuilder change |
-| `quality-inspector` | PHPStan level 8, Pint, AST-code smells | Pre-commit, post-feature |
-| `doc-writer` | README, `docs/`, sample outputs, CHANGELOG | User-facing prose changes |
-
-Slash commands wire chains together:
-- `/add-scanner <Name>` — architect → schema-guardian → ast-specialist → test-engineer → quality-inspector → doc-writer
-- `/run-checks` — PHPStan + Pint + Pest, halt on first failure (run inside Docker if your host lacks ext-xml etc.)
-- `/scan-self <fixture>` — exercise the scanners against a fixture app and inspect the output
-- `/prep-release <version>` — version bump, changelog assembly, tag check
-- `/validate-schema <path>` — validate an arbitrary JSON file against `schema/loom-index.schema.json`
-
----
-
-## Tech invariants
-
-- PHP 8.3+, Laravel 12+
-- `nikic/php-parser` for all AST work — no regex parsing of PHP source
-- `justinrainbow/json-schema` for validation
-- PHPStan level 8, zero errors
-- Pint Laravel preset, fixtures excluded via `pint.json`
-- Pest 3 + Orchestra Testbench
-- Prefer `Illuminate\Support` helpers (`Arr`, `Str`, `Collection`) over native array/string/sort functions where behaviour is identical (native calls are forbidden in `src/` by `tests/Unit/Support/NativeFunctionsTest.php` unless allowlisted with a reason)
-- No `elseif` / `else if` in `src/`: use `match`, a typed enum or guard clauses, and comment each non-obvious branch with the AST shape it handles (`tests/Unit/Support/NoElseifTest.php`)
-- `composer rector` (dry run) / `composer rector:fix` apply the `match` and Illuminate-helper rewrites via `rector.php` and the project rules in `tools/rector/`; run Pint after `rector:fix` (see CONTRIBUTING.md)
-
-Local environment may lack `ext-dom`/`ext-xml`/`ext-mbstring`/`ext-xmlwriter`. The Dockerfile at the repo root provides those: `docker build -t laravel-loom-dev:latest .` then `docker run --rm -v "$(pwd):/app" laravel-loom-dev:latest vendor/bin/pest`.
-
----
-
-## Things to NEVER do
-
-- **Use `php artisan event:list` as a data source.** Loom re-derives from source for accuracy, to surface things Laravel's command misses (observers, dispatch sites, unresolved dispatches with file/line), and to work on a checked-out repo without booting the app. The runtime command requires a fully-booted Laravel app; Loom does not.
-- **Modify the schema without `schema-guardian` review.** Schema changes are breaking or near-breaking; they need explicit version-bump reasoning.
-- **Add commands, CLI flags or output formats** beyond the shipped surface (`loom:scan`, `loom:show`, `loom:diff`, `loom:check`, `loom:mcp`) without a maintainer decision. The surface is deliberately small.
-- **Skip cases silently when you can emit `unresolved_dispatches`.** Better to flag a gap than hide it.
-- **Commit failing checks.** PHPStan, Pint, and Pest all green before any commit lands.
-- **Add dependencies without strong justification.** Every new dependency is a contributor friction point.
-
----
-
-## When you are uncertain about scope
-
-See the **Scope** section near the top of this file for what's emitted today vs planned for v1.0. If something doesn't fit either list, stop and ask a human — don't bolt it onto an existing scanner. A genuinely new primitive gets its own scanner via `/add-scanner`.
-
-The behavior contract is what the code does plus what `docs/` says. If you have to choose, the code wins — fix the docs.
-
-**Docs rules.** See [CONTRIBUTING.md](CONTRIBUTING.md#where-docs-live). The agent-specific rules: the code wins, so verify a doc claim against `src/` before relying on it; and never state Laravel behaviour from memory, check the framework source or link its docs.
+Conventional short subject, no body. No issue numbers in code comments. One compact CHANGELOG line per change. No AI or tool attribution anywhere.
