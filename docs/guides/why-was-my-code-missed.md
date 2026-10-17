@@ -173,7 +173,7 @@ public function via(object $notifiable): array
 
 ### A scheduled task is missing
 
-Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under the scan paths. Schedules declared anywhere else (for example a package or a directory outside `scan.paths`) are not scanned.
+Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under the scan paths. Schedules declared anywhere else (for example a package or a directory outside `scan.paths`) are not scanned. `loom:scan -v` lists a `schedule()` body that yielded no task, and a `Schedule` helper that `schedule()` never calls.
 
 **Confirm:** `jq '.scheduled_tasks[] | {target, cron}' storage/loom/index.json` lists the task.
 
@@ -224,4 +224,4 @@ Two checks apply to every primitive.
 
 **The file doesn't parse.** Loom skips files with syntax errors. `php artisan loom:scan -v` lists them with the line and parser message. Fix the file and scan again.
 
-**The code isn't in a scan path.** Loom scans [`scan.paths`](../reference/scan-config.md) (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to `scan.paths`; vendor packages are ignored. Check `scan.exclude` too.
+**The code isn't in a scan path.** Loom scans [`scan.paths`](../reference/scan-config.md) (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to `scan.paths`, or their `composer.json` to `scan.composer_files`; `loom:scan` prints how many files it scanned and warns about PSR-4 directories of nested composer files that sit outside the scan paths; vendor packages are ignored. Check `scan.exclude` too.

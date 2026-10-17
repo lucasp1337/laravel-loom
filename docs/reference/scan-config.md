@@ -17,6 +17,7 @@ php artisan vendor:publish --tag=loom-config
 | `scan.route_paths` | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
 | `scan.discover_routes` | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in `bootstrap/app.php`. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. See [Route files](#route-files). |
 | `scan.psr4_paths` | `false` | Also scan every directory in `composer.json`'s `autoload.psr-4`. `autoload-dev` is not included. |
+| `scan.composer_files` | `[]` | composer.json files, as globs relative to the project root (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read for class lookup and whose directories are scanned. Files listed in the root composer.json's `extra.merge-plugin.include` are read for class lookup without being listed here. |
 | `scan.exclude` | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. See [Exclude globs](#exclude-globs). |
 <!-- /generated:config:scan -->
 

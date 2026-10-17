@@ -29,6 +29,13 @@ return [
         // `autoload-dev` is not included.
         'psr4_paths' => false,
 
+        // composer.json files, as globs relative to the project root
+        // (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read
+        // for class lookup and whose directories are scanned. Files listed in
+        // the root composer.json's `extra.merge-plugin.include` are read for
+        // class lookup without being listed here.
+        'composer_files' => [],
+
         // Globs relative to the project root. A match removes the file, or
         // everything under the matching directory, from every scanner.
         'exclude' => [],
