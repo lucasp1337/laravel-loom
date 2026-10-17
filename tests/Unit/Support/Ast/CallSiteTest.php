@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Lucasp\Loom\Support\Ast\CallKind;
 use Lucasp\Loom\Support\Ast\CallSite;
 use PhpParser\Node;
+use PhpParser\Node\Expr\Variable;
 
 it('wraps a method call', function () {
     $site = CallSite::of(parseExpr("\$mailer->send(\$m, 'x')"));
@@ -12,7 +13,7 @@ it('wraps a method call', function () {
     expect($site)->not->toBeNull()
         ->and($site->kind())->toBe(CallKind::METHOD)
         ->and($site->name())->toBe('send')
-        ->and($site->receiver())->toBeInstanceOf(Node\Expr\Variable::class)
+        ->and($site->receiver())->toBeInstanceOf(Variable::class)
         ->and($site->args()->count())->toBe(2)
         ->and($site->line())->toBe(1);
 });
@@ -63,7 +64,7 @@ it('reads a nullsafe method call as a method call', function () {
 
     expect($site?->kind())->toBe(CallKind::METHOD)
         ->and($site?->name())->toBe('notify')
-        ->and($site?->receiver())->toBeInstanceOf(\PhpParser\Node\Expr\Variable::class)
+        ->and($site?->receiver())->toBeInstanceOf(Variable::class)
         ->and($site?->chainRoot())->toBeNull();
 });
 

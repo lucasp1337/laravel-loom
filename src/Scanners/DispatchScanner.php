@@ -14,9 +14,9 @@ use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
-use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\ScanScope;
 
 /**

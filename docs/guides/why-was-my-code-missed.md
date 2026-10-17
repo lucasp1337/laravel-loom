@@ -85,6 +85,8 @@ Entries in `unresolved_dispatches` carry a `reason`. Each one points at the line
 | `string_concatenation` | `event("App\\Events\\" . $name)` | Use a `::class` reference |
 | `container_resolution` | `event(app(OrderPlaced::class))` or `resolve(...)` | Construct the event with `new` |
 | `conditional_dispatch` | a ternary whose branches aren't both `new X` | Split into two `if` branches, each with its own `event(new ...)` |
+| `dynamic_list` | `Bus::chain($jobs)` or a `...$jobs` item, where the list is built at runtime | Write the list as an array literal of `new X` items |
+| `target_not_indexed` | `StartLogDrain::dispatch()` where `StartLogDrain` is not an event, job, mailable or notification Loom indexed | Make it a job (`ShouldQueue`, or place it under `Jobs/`) or an event so it gets a row |
 
 A ternary where both branches are `new X()` is fine. Loom records both.
 
@@ -104,8 +106,8 @@ Dispatches inside `DB::transaction(fn () => ...)`, `->each(function () {...})`, 
 
 A dispatch inside a handler that a class inherits, or that comes from a trait, is attributed to the class that declares it, not to each listener that reuses it. The event's `dispatched_from` still lists the site.
 
-!!! warning "A listener that dispatches from a helper method"
-    A listener's `dispatches` only includes dispatches made inside the method registered as its handler. If `handle()` calls `$this->issueReceipt()` and that private method fires `ReceiptIssued`, the dispatch still counts toward `ReceiptIssued`'s `dispatched_from`, but it won't appear in `SendReceipt`'s `dispatches`. Fire the event from `handle()` itself for the link to show. The same rule applies to jobs (`handle()`) and observers (the hook methods).
+!!! note "A listener that dispatches from a helper method"
+    If `handle()` calls `$this->issueReceipt()` and that method fires `ReceiptIssued`, the dispatch appears in `SendReceipt`'s `dispatches` with `via: ["issueReceipt"]` and `confidence: medium`. Loom follows `$this->`, `self::` and `static::` calls inside the same class, up to three levels. It does not follow a helper inherited from a parent class or trait, or a call on another object (`$this->service->issue()`); for those the dispatch only counts toward the target's `dispatched_from`. The same applies to jobs (`handle()`), observers (the hook methods) and routes (the controller method).
 
 ### Dispatch options like queue or delay are missing
 
@@ -115,7 +117,7 @@ A dispatch site's `overrides` records only what the chain at that line says: `->
 - Modifiers set on an earlier statement: `$job->onQueue('high'); dispatch($job);`.
 - For notifications, modifiers on the facade before `send`: `Notification::locale('es')->send(...)`. Put them on the notification instance instead: `(new InvoicePaid)->locale('es')`.
 
-A dispatch whose target is a variable (`dispatch($job)`) can't be resolved at all. Pass `new ProcessOrder(...)` directly.
+A dispatch whose target is a variable (`dispatch($job)`) resolves only when the method assigns that variable exactly once, with `new X`, `X::class` or a ternary of those. A parameter, a variable assigned in two branches, or one passed through another object can't be resolved; pass `new ProcessOrder(...)` directly. A wrapper that receives the class name (`$mailer->send(WelcomeMail::class)`) is not followed, so the mailable shows no senders from that call.
 
 ## Queues and jobs
 

@@ -84,7 +84,10 @@ Loom reads these as dispatch sites:
 
 - `event()`, `broadcast()`, `Event::dispatch()`, `dispatch()`, `dispatch_sync()`, and `Bus::dispatch()`, `dispatchSync()`, `dispatchNow()` and `dispatchAfterResponse()`.
 - `X::dispatch()`, `dispatchIf()`, `dispatchUnless()`, `dispatchSync()` and `dispatchAfterResponse()`. Whether `X` is an event or a job is decided when the index is cross-linked.
-- `Bus::chain([...])` and `Bus::batch([...])`, one site per literal item.
+- `Bus::chain([...])` and `Bus::batch([...])`, one site per literal item. A nested array (a chain inside a batch) is read item by item; a list held in a variable that is assigned once is read too.
+- `self::`, `static::` and `parent::` forms (`self::dispatch()`, `new self`), resolved to the class that contains the call.
+- Nullsafe calls such as `$team?->notify(new BackupFailed)`.
+- A target held in a local variable that the method assigns exactly once with `new X`, `X::class` or a ternary of those. A variable that is a parameter, assigned twice, or changed any other way stays unresolved.
 - `Queue::push()`, `pushOn()`, `later()`, `laterOn()` and `bulk()`, and `->afterResponse()`, recorded with a `mode`.
 - The chain modifiers queue, connection, integer delay, `afterCommit`, locale and mailer, recorded as `overrides`.
 
@@ -97,7 +100,7 @@ Does not read: `Queue::pushRaw`, closures registered with `Queue::before`, `afte
 
 `mode` comes from the call that was written. Loom does not evaluate `ShouldQueue` or the queue driver against it, so a `sync` driver is not reflected.
 
-Variable, concatenated, container-resolved and conditional targets are listed in `unresolved_dispatches`. A dispatcher fetched from the container (`app(Dispatcher::class)->dispatch(...)`) is not followed.
+Variable, concatenated, container-resolved and conditional targets, `$class::dispatch()`, and job lists built at runtime are listed in `unresolved_dispatches`. So is a target class that has no row in the index (an action class that is not a job, an event from a package): it is never linked. A dispatcher fetched from the container (`app(Dispatcher::class)->dispatch(...)`) is not followed.
 
 Pinned by [DispatchRuleMatcherTest], [DispatchScannerTest], [BusChainBatchEndToEndTest], [DispatchModeEndToEndTest], [ChainModifierExtractorTest], [ClosureOwnershipPhaseTest], [DispatchSiteVisitorTest].
 
@@ -160,7 +163,7 @@ Pinned by [RouteScannerTest], [RouteFileDiscoveryTest], [RouteGroupInheritanceTe
 - Classes are located through the PSR-4 map in `composer.json` (`App\` to `app/` when there is none). A class that is missing or outside the scan paths is dropped.
 - Files with syntax errors are skipped; `loom:scan` prints their count and `-v` lists them.
 - `vendor/` is opaque, so `queued` and `via()` inherited from a package do not show.
-- A handler's `dispatches[]` lists events and jobs from its registered method only: a dispatch inside a private helper that `handle()` calls is attributed to the event's `dispatched_from` but not to the listener, job or observer. Routes attribute by controller method. Mail and notification sends appear in `mailables[].sent_from` and `notifications[].notified_from` instead.
+- A handler's `dispatches[]` lists events, jobs, mailables and notifications dispatched from its registered method, and from helper methods of the same class that it reaches through `$this->`, `self::` or `static::` calls (up to three levels). A dispatch reached that way carries `via`, the helper names in call order, and `confidence: medium`. Helpers inherited from a parent class or trait, and calls on other objects, are not followed. Routes attribute the same way from the controller method.
 
 [BusChainBatchEndToEndTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Feature/BusChainBatchEndToEndTest.php
 [ChainModifierExtractorTest]: https://github.com/lucasp1337/laravel-loom/blob/main/tests/Unit/Support/ChainModifierExtractorTest.php
