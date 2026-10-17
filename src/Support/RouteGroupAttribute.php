@@ -16,6 +16,7 @@ enum RouteGroupAttribute: string
     case NAME = 'name';
     case CONTROLLER = 'controller';
     case MIDDLEWARE = 'middleware';
+    case WITHOUT_MIDDLEWARE = 'without_middleware';
 
     /** The whole attribute array of `Route::group($attributes, ...)` is not a literal. */
     case ATTRIBUTES = 'attributes';
@@ -32,6 +33,8 @@ enum RouteGroupAttribute: string
             'controller' => self::CONTROLLER,
             // ['middleware' => ['auth']]
             'middleware' => self::MIDDLEWARE,
+            // ['excluded_middleware' => ['auth']]
+            'excluded_middleware' => self::WITHOUT_MIDDLEWARE,
             // domain, where, namespace, ... are not recorded on routes
             default => null,
         };
@@ -49,7 +52,9 @@ enum RouteGroupAttribute: string
             'controller' => self::CONTROLLER,
             // ->middleware('auth') or ->middleware(['auth', 'verified'])
             'middleware' => self::MIDDLEWARE,
-            // domain(), where(), namespace(), withoutMiddleware(), group(), ... are not recorded
+            // ->withoutMiddleware('auth')
+            'withoutMiddleware' => self::WITHOUT_MIDDLEWARE,
+            // domain(), where(), namespace(), group(), ... are not recorded
             default => null,
         };
     }

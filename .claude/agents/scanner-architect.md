@@ -25,7 +25,7 @@ You delegate to those agents and verify their output against your design.
 
 ## Required reading before any task
 
-1. `AGENTS.md` — repo conventions and invariants (visitor reset, NameResolver, cross-link boundaries)
+1. `AGENTS.md` — hard rules; AST and visitor rules are in `.claude/agents/ast-specialist.md`
 2. `docs/contributing/architecture.md` — the scanner contract, three-concern separation, cross-link pass
 3. `docs/reference/schema.md` — the canonical output shape (companion to `schema/loom-index.schema.json`)
 4. `docs/contributing/add-a-scanner.md` — the checklist for adding a scanner

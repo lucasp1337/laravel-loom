@@ -7,10 +7,11 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Lucasp\Loom\Dto\ClosurePairRecord;
 use Lucasp\Loom\Dto\ListenerPair;
 use Lucasp\Loom\Index\ListenerRegistration;
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Support\Ast\Args;
-use Lucasp\Loom\Support\Ast\Callables;
-use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Ast\EventsDispatcher;
+use Lucasp\Loom\Support\Ast\ListenerRef;
+use Lucasp\Loom\Support\EloquentEventName;
 use Lucasp\Loom\Support\Facades;
 use PhpParser\Node;
 
@@ -29,16 +30,20 @@ use PhpParser\Node;
  * the bare basename. A dispatcher typed in a `boot()` parameter or held in a
  * property is not tracked.
  *
- * The first argument is an event class-string or an array of them; a closure
+ * The first argument is an event class-string, a literal event name or an
+ * array of them (`eloquent.*` names belong to ObserverScanner); a closure
  * or arrow function as the first argument infers the event from its first
  * parameter's class type (nullable unwrapped, union gives one per class,
  * untyped, `object` and `mixed` skipped). The second argument takes the same
  * shapes as `$listen` values, or a closure, which becomes a closure listener.
+ * An event or listener of any other shape is recorded as unresolved.
  *
  * @internal
  */
 final class EventListenCallVisitor extends CollectingVisitor
 {
+    use RecordsUnresolvedRegistrations;
+
     /** @var list<ListenerPair> */
     private array $pairs = [];
 
@@ -53,6 +58,7 @@ final class EventListenCallVisitor extends CollectingVisitor
         $this->pairs = [];
         $this->closurePairs = [];
         $this->dispatcherVars = [];
+        $this->resetUnresolved();
     }
 
     public function leaveNode(Node $node): null
@@ -144,7 +150,11 @@ final class EventListenCallVisitor extends CollectingVisitor
 
         // Inferred form: the event comes from the closure's first parameter type.
         if ($first instanceof Node\Expr\Closure || $first instanceof Node\Expr\ArrowFunction) {
-            foreach ($this->eventsFromClosureType($first) as $event) {
+            $events = $this->eventsFromClosureType($first);
+            if ($events === []) {
+                $this->recordUnresolved($first, UnresolvedReason::UNTYPED_CLOSURE_LISTENER);
+            }
+            foreach ($events as $event) {
                 $this->recordClosurePair($event, $first);
             }
 
@@ -153,38 +163,48 @@ final class EventListenCallVisitor extends CollectingVisitor
 
         $second = $args->valueAt(1);
         if ($second === null) {
+            // A lone non-closure argument (e.g. `queueable(...)`) names no readable event.
+            $this->recordUnresolved($first, UnresolvedReason::UNREADABLE_EVENT_NAME);
+
             return;
         }
 
-        // Array first arg: one listener bound to several class-string events.
+        // Array first arg: one listener bound to several events.
         if ($first instanceof Node\Expr\Array_) {
-            foreach (ClassRef::listFrom($first) as $event) {
-                $this->recordListen($event, $second);
+            foreach ($first->items as $item) {
+                $this->recordListen($item->value, $second);
             }
 
             return;
         }
 
-        $event = $this->eventFromValue($first);
+        $this->recordListen($first, $second);
+    }
+
+    private function recordListen(Node\Expr $eventExpr, Node\Expr $listener): void
+    {
+        $event = ListenerRef::event($eventExpr);
         if ($event === null) {
-            return;
-        }
-
-        if ($second instanceof Node\Expr\Closure
-            || $second instanceof Node\Expr\ArrowFunction
-        ) {
-            $this->recordClosurePair($event, $second);
+            $this->recordUnresolved($eventExpr, UnresolvedReason::UNREADABLE_EVENT_NAME);
 
             return;
         }
 
-        // String events (e.g. 'eloquent.*') belong to ObserverScanner.
-        if (! $first instanceof Node\Expr\ClassConstFetch) {
+        if ($listener instanceof Node\Expr\Closure || $listener instanceof Node\Expr\ArrowFunction) {
+            $this->recordClosurePair($event, $listener);
+
             return;
         }
 
-        $resolved = $this->listenerFromValue($second);
+        // `eloquent.{hook}: {Model}` names are model-event handlers; ObserverScanner reads them.
+        if (EloquentEventName::is($event)) {
+            return;
+        }
+
+        $resolved = ListenerRef::listener($listener);
         if ($resolved === null) {
+            $this->recordUnresolved($listener, UnresolvedReason::UNREADABLE_LISTENER);
+
             return;
         }
 
@@ -220,26 +240,6 @@ final class EventListenCallVisitor extends CollectingVisitor
         return array_values(array_unique($events));
     }
 
-    private function recordListen(string $event, Node\Expr $listener): void
-    {
-        if ($listener instanceof Node\Expr\Closure || $listener instanceof Node\Expr\ArrowFunction) {
-            $this->recordClosurePair($event, $listener);
-
-            return;
-        }
-
-        $resolved = $this->listenerFromValue($listener);
-        if ($resolved === null) {
-            return;
-        }
-
-        $this->pairs[] = new ListenerPair(
-            event: $event,
-            listener: $resolved['listener'],
-            method: $resolved['method'],
-        );
-    }
-
     private function recordClosurePair(string $event, Node\Expr\Closure|Node\Expr\ArrowFunction $closure): void
     {
         $this->closurePairs[] = new ClosurePairRecord(
@@ -248,56 +248,6 @@ final class EventListenCallVisitor extends CollectingVisitor
             endLine: $closure->getEndLine(),
             registration: ListenerRegistration::EVENT_LISTEN_CALL,
         );
-    }
-
-    private function eventFromValue(Node\Expr $expr): ?string
-    {
-        $direct = ClassRef::fromClassConstant($expr);
-        if ($direct !== null) {
-            return $direct;
-        }
-
-        if ($expr instanceof Node\Scalar\String_) {
-            return $expr->value;
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array{listener: string, method: string}|null
-     */
-    private function listenerFromValue(Node\Expr $value): ?array
-    {
-        $direct = ClassRef::fromClassConstant($value);
-        if ($direct !== null) {
-            return ['listener' => $direct, 'method' => 'handle'];
-        }
-
-        if ($value instanceof Node\Expr\Array_ && count($value->items) >= 2) {
-            $listener = ClassRef::fromClassConstant($value->items[0]->value);
-            if ($listener === null) {
-                return null;
-            }
-            $methodNode = $value->items[1]->value;
-            if (! $methodNode instanceof Node\Scalar\String_) {
-                return null;
-            }
-
-            return ['listener' => $listener, 'method' => $methodNode->value];
-        }
-
-        if ($value instanceof Node\Expr\Array_ && $value->items !== []) {
-            $listener = ClassRef::fromClassConstant($value->items[0]->value);
-            if ($listener !== null) {
-                return ['listener' => $listener, 'method' => 'handle'];
-            }
-
-            return null;
-        }
-
-        // Closure::fromCallable([...]) and Foo::method(...) first-class callables.
-        return Callables::listener($value);
     }
 
     /** @return list<ListenerPair> */

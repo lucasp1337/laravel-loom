@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Tests\TestCase;
 use PhpParser\Node;
@@ -36,4 +37,38 @@ function parseExpr(string $expr): Node\Expr
     expect($stmt)->toBeInstanceOf(Node\Stmt\Expression::class);
 
     return $stmt->expr;
+}
+
+/** Write a minimal index JSON to a temp file for the MCP tests; returns its path. */
+function mcpTempIndex(array $overrides = []): string
+{
+    $index = array_merge([
+        'schema_version' => '1.0',
+        'loom_version' => '0.3.0',
+        'scanned_at' => '2026-01-01T00:00:00Z',
+        'laravel_version' => '12.x',
+        'events' => [],
+        'listeners' => [],
+        'closure_listeners' => [],
+        'observers' => [],
+        'model_events' => [],
+        'jobs' => [],
+        'mailables' => [],
+        'notifications' => [],
+        'scheduled_tasks' => [],
+        'routes' => [],
+        'unresolved_dispatches' => [],
+        'stats' => [],
+    ], $overrides);
+
+    $path = tempnam(sys_get_temp_dir(), 'loom-mcp-').'.json';
+    file_put_contents($path, json_encode($index));
+
+    return $path;
+}
+
+/** Point the MCP index repository at a snapshot file. */
+function mcpUseIndex(string $path): void
+{
+    app(IndexRepository::class)->useSnapshot($path);
 }

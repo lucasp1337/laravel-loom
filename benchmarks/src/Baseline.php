@@ -16,7 +16,7 @@ use Illuminate\Support\Arr;
  */
 final class Baseline
 {
-    private const NOTE = 'Counts are deterministic and asserted by `composer bench:assert`. '
+    private const NOTE = 'Counts are deterministic and asserted by `just bench --assert`. '
         .'reference_ms is informational — wall time is hardware-dependent and only '
         .'gated when --time-threshold is passed on the same machine.';
 
@@ -52,7 +52,7 @@ final class Baseline
         foreach ($results as $result) {
             $expected = $profiles[$result->profile] ?? null;
             if ($expected === null) {
-                $failures[] = "[{$result->profile}] no baseline entry — run `composer bench:baseline`.";
+                $failures[] = "[{$result->profile}] no baseline entry — run `just bench-baseline`.";
 
                 continue;
             }

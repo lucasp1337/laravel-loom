@@ -12,6 +12,7 @@ use Lucasp\Loom\Dto\JobEntry;
 use Lucasp\Loom\Dto\ListenerEntry;
 use Lucasp\Loom\Dto\ListenerHandle;
 use Lucasp\Loom\Dto\MailableEntry;
+use Lucasp\Loom\Dto\MethodCallEdge;
 use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\NotificationEntry;
@@ -20,6 +21,7 @@ use Lucasp\Loom\Dto\QueueConfigData;
 use Lucasp\Loom\Dto\RouteEntry;
 use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Dto\UnresolvedRouteEntry;
 use RuntimeException;
 
 /**
@@ -65,7 +67,9 @@ final class IndexSerializer
             $entry instanceof ScheduledEntry => $this->scheduled($entry),
             $entry instanceof RouteEntry => $this->route($entry),
             $entry instanceof UnresolvedDispatchEntry => $this->unresolvedDispatch($entry),
+            $entry instanceof UnresolvedRouteEntry => $this->unresolvedRoute($entry),
             $entry instanceof DispatchSiteRecord => $this->dispatchSiteRecord($entry),
+            $entry instanceof MethodCallEdge => ['classFqcn' => $entry->classFqcn, 'caller' => $entry->caller, 'callee' => $entry->callee],
             default => throw new RuntimeException('IndexSerializer cannot serialize '.$entry::class),
         };
     }
@@ -111,6 +115,11 @@ final class IndexSerializer
         // sites (consumed solely by ClosureDispatchAttributionPhase) from all
         // others. Carried on `_dispatch_sites`, stripped before schema validation.
         $out['inClosure'] = $e->inClosure;
+
+        // Internal-only: source of the call, for the target-not-indexed report.
+        if ($e->expression !== null) {
+            $out[Field::EXPRESSION->value] = $e->expression;
+        }
 
         return $out;
     }
@@ -282,7 +291,23 @@ final class IndexSerializer
             $out[Field::END_LINE->value] = $e->endLine;
         }
 
+        // Only view, redirect and fallback routes carry a kind.
+        if ($e->kind !== null) {
+            $out[Field::KIND->value] = $e->kind->value;
+        }
+
         return $out;
+    }
+
+    /** @return array<string, mixed> */
+    public function unresolvedRoute(UnresolvedRouteEntry $e): array
+    {
+        return [
+            Field::FILE->value => $e->file,
+            Field::LINE->value => $e->line,
+            Field::EXPRESSION->value => $e->expression,
+            Field::REASON->value => $e->reason->value,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -297,7 +322,7 @@ final class IndexSerializer
     }
 
     /**
-     * @return array<string, string|int|null>|null
+     * @return array<string, string|int|bool|null>|null
      */
     private function queueConfig(?QueueConfigData $q): ?array
     {
@@ -312,6 +337,7 @@ final class IndexSerializer
             Field::TRIES->value => $q->tries,
             Field::TIMEOUT->value => $q->timeout,
             Field::BACKOFF->value => $q->backoff,
+            Field::AFTER_COMMIT->value => $q->afterCommit,
         ];
     }
 }

@@ -33,7 +33,9 @@ protected $listen = [
 ];
 ```
 
-**The event name or listener is dynamic.** `Event::listen($name, ...)`, string callables like `'SendReceipt@handle'` outside `$listen`, `$obj->method(...)` and `Closure::fromCallable($var)` resolve to nothing. Use `::class` references and `[Listener::class, 'method']` tuples.
+**The event name or listener is dynamic.** `Event::listen($name, ...)`, `$obj->method(...)`, `Closure::fromCallable($var)` and a listener held in a variable can't be resolved. Each one is listed in `unresolved_dispatches` with reason [`unreadable_event_name`](../reference/unread-forms.md#unreadable_event_name), [`unreadable_listener`](../reference/unread-forms.md#unreadable_listener) or [`untyped_closure_listener`](../reference/unread-forms.md#untyped_closure_listener), so you can find it. `'SendReceipt@handle'` and `SendReceipt::class.'@handle'` are read. Use `::class` references and `[Listener::class, 'method']` tuples for the rest.
+
+**The listener is `discovery_unverified`, or missing.** Loom labels a class in `app/Listeners/` as `auto_discovered` only when it can see that event discovery is on: `bootstrap/app.php` calls `Application::configure()` and nothing turns discovery off. `withEvents(false)`, `EventServiceProvider::disableEventDiscovery()` or a legacy bootstrap without a `shouldDiscoverEvents()` override that returns `true` mean such a class is not a listener, so it is left out unless you register it. If `bootstrap/app.php` is missing or `withEvents(...)` gets a non-literal argument, the class appears as `discovery_unverified`.
 
 **The listener registers itself inside a nested closure.** In a subscriber's `subscribe()` method, Loom follows `if`, `foreach` and `try` blocks but not closures inside them, so `collect([...])->each(fn () => $events->listen(...))` is invisible. Register with plain `$events->listen(...)` calls or return an array.
 
@@ -65,7 +67,7 @@ Loom finds events in `app/Events/`, plus any class passed to `event(...)`, `broa
 
 ### A model event handler is missing
 
-`Event::listen('eloquent.created: App\Models\Order', ...)` with a closure doesn't add anything to `model_events[].handled_by`, which only holds `Observer::method` names. The closure is in `closure_listeners` with the raw event string. An observer that only registers through this string form also never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
+A closure hook (`static::created(fn ...)` or `Event::listen('eloquent.created: App\Models\Order', fn ...)`) shows in `model_events[].handled_by` with the method `{closure}` on the model, and in `closure_listeners` with its dispatches. A hook callback Loom can't read (`static::created($callback)`) is listed in `unresolved_dispatches` with reason [`unreadable_model_hook`](../reference/unread-forms.md#unreadable_model_hook). An observer that only registers through the string form never appears in `observers`. Register it with `#[ObservedBy(OrderObserver::class)]` or `Order::observe(OrderObserver::class)` instead.
 
 Hook methods declared on the observer, inherited from a parent observer or provided by a trait are all read. A `booting()` or `booted()` method on an observer is ignored; `Event::listen('eloquent.booted: ...')` strings are read.
 
@@ -77,14 +79,14 @@ Each `'created' => InvoiceCreated::class` entry in a model's `$dispatchesEvents`
 
 ### A dispatch shows up as unresolved
 
-Entries in `unresolved_dispatches` carry a `reason`. Each one points at the line to change:
+Entries in `unresolved_dispatches` carry a `reason` that names the shape of the code, and each reason has one change that makes it readable. [Forms Loom does not read](../reference/unread-forms.md) lists them all with a snippet and the fix. The common ones:
 
-| Reason | What Loom saw | Fix |
-|---|---|---|
-| `dynamic_class_name` | `event($event)` where `$event` is a variable | Pass `new OrderPlaced(...)` or `OrderPlaced::class` at the call |
-| `string_concatenation` | `event("App\\Events\\" . $name)` | Use a `::class` reference |
-| `container_resolution` | `event(app(OrderPlaced::class))` or `resolve(...)` | Construct the event with `new` |
-| `conditional_dispatch` | a ternary whose branches aren't both `new X` | Split into two `if` branches, each with its own `event(new ...)` |
+- [`dynamic_class_name`](../reference/unread-forms.md#dynamic_class_name): `event($event)`. Pass `new OrderPlaced(...)` at the call.
+- [`string_event_name`](../reference/unread-forms.md#string_event_name): `event('service.installed')`. Loom indexes class events.
+- [`closure_job`](../reference/unread-forms.md#closure_job): `dispatch(function () {...})`. Move the work into a job class.
+- [`view_mail`](../reference/unread-forms.md#view_mail): `Mail::send('emails.welcome', $data, fn ...)`. Send a mailable.
+- [`call_result`](../reference/unread-forms.md#call_result) and [`stored_target`](../reference/unread-forms.md#stored_target): the target comes from a call or a property. Construct it at the dispatch.
+- [`class_not_found`](../reference/unread-forms.md#class_not_found) and [`target_not_indexed`](../reference/unread-forms.md#target_not_indexed): the class is named but has no row to link to.
 
 A ternary where both branches are `new X()` is fine. Loom records both.
 
@@ -104,8 +106,8 @@ Dispatches inside `DB::transaction(fn () => ...)`, `->each(function () {...})`, 
 
 A dispatch inside a handler that a class inherits, or that comes from a trait, is attributed to the class that declares it, not to each listener that reuses it. The event's `dispatched_from` still lists the site.
 
-!!! warning "A listener that dispatches from a helper method"
-    A listener's `dispatches` only includes dispatches made inside the method registered as its handler. If `handle()` calls `$this->issueReceipt()` and that private method fires `ReceiptIssued`, the dispatch still counts toward `ReceiptIssued`'s `dispatched_from`, but it won't appear in `SendReceipt`'s `dispatches`. Fire the event from `handle()` itself for the link to show. The same rule applies to jobs (`handle()`) and observers (the hook methods).
+!!! note "A listener that dispatches from a helper method"
+    If `handle()` calls `$this->issueReceipt()` and that method fires `ReceiptIssued`, the dispatch appears in `SendReceipt`'s `dispatches` with `via: ["issueReceipt"]` and `confidence: medium`. Loom follows `$this->`, `self::` and `static::` calls inside the same class, up to three levels. It does not follow a helper inherited from a parent class or trait, or a call on another object (`$this->service->issue()`); for those the dispatch only counts toward the target's `dispatched_from`. The same applies to jobs (`handle()`), observers (the hook methods) and routes (the controller method).
 
 ### Dispatch options like queue or delay are missing
 
@@ -115,13 +117,13 @@ A dispatch site's `overrides` records only what the chain at that line says: `->
 - Modifiers set on an earlier statement: `$job->onQueue('high'); dispatch($job);`.
 - For notifications, modifiers on the facade before `send`: `Notification::locale('es')->send(...)`. Put them on the notification instance instead: `(new InvoicePaid)->locale('es')`.
 
-A dispatch whose target is a variable (`dispatch($job)`) can't be resolved at all. Pass `new ProcessOrder(...)` directly.
+A dispatch whose target is a variable (`dispatch($job)`) resolves only when the method assigns that variable exactly once, with `new X`, `X::class` or a ternary of those. A parameter, a variable assigned in two branches, or one passed through another object can't be resolved; pass `new ProcessOrder(...)` directly. A wrapper that receives the class name (`$mailer->send(WelcomeMail::class)`) is not followed, so the mailable shows no senders from that call.
 
 ## Queues and jobs
 
 ### `queued` is false but my class is queued
 
-Loom decides `queued` by following `extends` chains through your own code to find `implements ShouldQueue`. It doesn't look inside `vendor/`, so a job, mailable, notification or listener that gets `ShouldQueue` from a package's base class reads `false`.
+Loom decides `queued` by following `extends` chains through your own code to find `implements ShouldQueue` or `ShouldQueueAfterCommit`. It doesn't look inside `vendor/`, so a job, mailable, notification or listener that gets `ShouldQueue` from a package's base class reads `false`.
 
 **Fix:** add `implements ShouldQueue` directly to your class. It's redundant at runtime and makes the intent visible.
 
@@ -132,6 +134,8 @@ The same applies to `ShouldBeUnique`, `ShouldBeEncrypted`, `Batchable` and `#[On
 ### `queue_config` values are null
 
 Loom reads class-level properties with literal values, such as `public $tries = 3;` or `public $queue = 'emails';`. It doesn't run `backoff()` or `retryUntil()` methods, and a property set from `config('queue.default')` or a constant stays `null`. Use a literal property if you want the value in the index.
+
+`after_commit` is `null` when the class neither implements `ShouldQueueAfterCommit` nor sets `$afterCommit` or calls `afterCommit()` / `beforeCommit()` in its constructor. It then follows the `after_commit` option of the queue connection, which Loom does not read.
 
 ### A job is missing from the jobs list
 
@@ -153,7 +157,7 @@ Mail::to($order->customer)->send(new OrderReceipt($order));
 
 `channels: []` means Loom couldn't read a channel list. The flag next to it says why:
 
-- **`channels_dynamic: true`**: `via()` exists but isn't a single `return [...]` of string literals and `::class` constants. A conditional, a property, a variable or keyed entries all set the flag. Loom doesn't merge branches, so it shows the gap instead of guessing.
+- **`channels_dynamic: true`**: `via()` isn't a plain literal list. A local array built from literals with `$channels[] = 'slack'` is read, and under an `if` or with several returns `channels` holds every channel that may apply. A call, a property, a variable you didn't build from literals or keyed entries leaves `channels: []`.
 - **`channels_dynamic: false`**: Loom found no `via()` on the class itself. If `via()` lives on a parent class or in a trait, that's why. Declare it on the notification:
 
 ```php
@@ -173,7 +177,7 @@ public function via(object $notifiable): array
 
 ### A scheduled task is missing
 
-Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under the scan paths. Schedules declared anywhere else (for example a package or a directory outside `scan.paths`) are not scanned.
+Loom reads the scheduler from `app/Console/Kernel.php`, `->withSchedule(...)` in `bootstrap/app.php`, `routes/console.php`, and `Schedule::` calls in any file under the scan paths. Schedules declared anywhere else (for example a package or a directory outside `scan.paths`) are not scanned. `loom:scan -v` lists a `schedule()` body that yielded no task, and a `Schedule` helper that `schedule()` never calls.
 
 **Confirm:** `jq '.scheduled_tasks[] | {target, cron}' storage/loom/index.json` lists the task.
 
@@ -204,19 +208,25 @@ A `->job(...)` for a class in `vendor/` gives a valid target with no matching ro
 
 ### Middleware shows `web` or `auth`, not the classes
 
-Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `throttle`) aren't expanded to classes, and `->withoutMiddleware(...)` isn't subtracted. Read the value as "what this route declared", not "what runs".
+Middleware is recorded as written. Groups (`web`, `api`) and aliases (`auth`, `throttle`) aren't expanded to classes. `->withoutMiddleware(...)` on a route or group is subtracted by name as written, so `withoutMiddleware(Authenticate::class)` does not remove an `auth` entry. Read the value as "what this route declared, minus what it excluded", not "what runs".
 
-When a group chain calls `middleware()` more than once, Loom keeps only the last call. Nested groups append the inner list after the outer one, calls on a route accumulate, and exact duplicates are removed.
+When a group chain calls `middleware()` more than once, Loom keeps only the last call. Nested groups append the inner list after the outer one, calls on a route accumulate, and exact duplicates are removed. An entry that is not a literal (`$list`, a call) is not guessed: it is listed in `unresolved_routes` as `dynamic_middleware`. `Class::class.':arg'` is folded.
 
 ### Resource routes have the wrong names or URIs
 
-`Route::resource()` and `Route::apiResource()` expand to the default [resource routes](https://laravel.com/docs/controllers#resource-controllers). These are ignored: `->names(...)`, `->parameters(...)`, `->scoped(...)`, `->shallow()`, and nested names like `photos.comments` (treated as one flat name). `Route::resources([...])` and `Route::apiResources([...])` emit nothing, so call `resource()` per controller.
+`Route::resource()`, `apiResource()`, `singleton()` and `apiSingleton()` follow Laravel's resource rules, including the options array and `->only()`, `->except()`, `->names()`, `->parameters()`, `->shallow()` and the middleware modifiers. A value that is not a literal is not guessed: the defaults are used and the call is listed in `unresolved_routes` as `dynamic_resource_options`. `->scoped()` does not change routes and is ignored. A resource name that is a variable is `dynamic_resource` and emits nothing.
 
 ### A route is missing entirely
 
-Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups and `bootstrap/app.php` load by a path it can resolve. Run `php artisan loom:scan -v`: loads it could not follow are listed under "Route paths not followed" with the reason. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply. Attribute routes from a package are not found.
+Loom reads `*.php` files under `scan.route_paths` (default `routes/`) and the route files that providers, route groups, `require` calls inside route groups and `bootstrap/app.php` load by a path it can resolve. Check `unresolved_routes` (or `php artisan loom:scan -v`): a path it could not follow is `route_file_dynamic`, `route_file_relative`, `route_file_outside_root` or `route_file_not_found`. Fix the path to use `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`. `scan.discover_routes` and `scan.exclude` also apply.
 
-If a loaded file's routes have the wrong prefix or middleware, the loading group used a value Loom can't read (`->prefix($prefix)`); `-v` lists these under "Group attributes not applied". Use a literal there.
+Other reasons a route is absent, each listed in `unresolved_routes`:
+
+- `unknown_route_call`: `Route::something(...)` is a macro or a package helper. Map it to the router method it behaves like in `scan.route_macros`, for example `'softDeletableResource' => 'resource'`.
+- `dynamic_uri`, `dynamic_verbs`, `dynamic_resource`: the URI, the `match()` verbs or the resource name is a variable or an expression.
+- `attribute_route`: a controller declares the route with an attribute. Loom does not read attribute routes; use a route file or the facade.
+
+If a loaded file's routes have the wrong prefix or middleware, the group used a value Loom can't read (`->prefix($prefix)`); it is listed as `dynamic_group_attribute`. Use a literal there.
 
 ## When nothing shows up for a file
 
@@ -224,4 +234,4 @@ Two checks apply to every primitive.
 
 **The file doesn't parse.** Loom skips files with syntax errors. `php artisan loom:scan -v` lists them with the line and parser message. Fix the file and scan again.
 
-**The code isn't in a scan path.** Loom scans [`scan.paths`](../reference/scan-config.md) (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to `scan.paths`; vendor packages are ignored. Check `scan.exclude` too.
+**The code isn't in a scan path.** Loom scans [`scan.paths`](../reference/scan-config.md) (default `app/`), plus `routes/` and loaded route files for routes and `bootstrap/app.php` for the scheduler. Modules and domain directories kept elsewhere need to be added to `scan.paths`, or their `composer.json` to `scan.composer_files`; `loom:scan` prints how many files it scanned and warns about PSR-4 directories of nested composer files that sit outside the scan paths; vendor packages are ignored. Check `scan.exclude` too.

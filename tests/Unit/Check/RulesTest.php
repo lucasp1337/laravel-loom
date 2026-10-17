@@ -28,6 +28,7 @@ function checkValidIndex(array $overrides = []): array
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
         ],
         'events' => [[
             'id' => 'App\\Events\\OrderPlaced',
@@ -56,6 +57,7 @@ function checkValidIndex(array $overrides = []): array
         'mailables' => [],
         'notifications' => [],
         'routes' => [],
+        'unresolved_routes' => [],
     ];
 
     return array_replace($base, $overrides);

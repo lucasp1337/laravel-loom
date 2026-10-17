@@ -85,7 +85,7 @@ it('records container-form listeners with event_listen_call registration and the
     ]);
 });
 
-it('leaves non-listener sections as empty arrays, not null', function () {
+it('leaves non-listener sections empty and reports unreadable registrations', function () {
     $builder = new IndexBuilder;
     $builder->register(new ListenerScanner);
 
@@ -94,11 +94,12 @@ it('leaves non-listener sections as empty arrays, not null', function () {
     expect($payload['events'])->toBe([]);
     expect($payload['observers'])->toBe([]);
     expect($payload['model_events'])->toBe([]);
-    expect($payload['unresolved_dispatches'])->toBe([]);
+    // Listener registrations Loom cannot read are reported, not dropped.
+    expect(collect($payload['unresolved_dispatches'])->pluck('reason')->unique()->all())->toBe(['unreadable_event_name', 'untyped_closure_listener']);
 
     expect($payload['stats']['events'])->toBe(0);
     expect($payload['stats']['observers'])->toBe(0);
-    expect($payload['stats']['unresolved_dispatches'])->toBe(0);
+    expect($payload['stats']['unresolved_dispatches'])->toBe(3);
 });
 
 it('sorts events[*].handled_by by listener asc then method asc', function () {

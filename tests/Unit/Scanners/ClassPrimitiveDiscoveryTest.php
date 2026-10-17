@@ -10,6 +10,7 @@ use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\EventClassSpec;
 use Lucasp\Loom\Scanners\Discovery\JobClassSpec;
 use Lucasp\Loom\Scanners\Discovery\MailableClassSpec;
+use Lucasp\Loom\Scanners\Discovery\NotificationClassSpec;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 
@@ -33,7 +34,7 @@ function discoveryApp(array $files): string
 
 function discoverWith(object $spec, string $root): array
 {
-    return (new ClassPrimitiveDiscovery(new AstWalker, new Psr4ClassLocator))->discover($root, $spec);
+    return (new ClassPrimitiveDiscovery(new AstWalker, new Psr4ClassLocator))->discover($root, $spec)->entries;
 }
 
 it('walks the convention directory and sorts entries by FQCN', function () {
@@ -117,7 +118,7 @@ it('skips dispatch targets that do not resolve to a file', function () {
 
 it('drops queue config for non-queued entries', function () {
     $root = discoveryApp([
-        'app/Mail/Plain.php' => "namespace App\\Mail;\nclass Plain { public \$queue = 'x'; }",
+        'app/Mail/Plain.php' => "namespace App\\Mail;\nclass Plain extends \\Illuminate\\Mail\\Mailable { public \$queue = 'x'; }",
     ]);
 
     $entries = discoverWith(new MailableClassSpec, $root);
@@ -125,6 +126,78 @@ it('drops queue config for non-queued entries', function () {
     expect($entries[0])->toBeInstanceOf(MailableEntry::class);
     expect($entries[0]->queued)->toBeFalse();
     expect($entries[0]->queueConfig)->toBeNull();
+
+    File::deleteDirectory($root);
+});
+
+it('reports an unlocatable dispatch target as class_not_found, once per site', function () {
+    $root = discoveryApp([
+        'app/Http/Controller.php' => "namespace App\\Http;\nuse Illuminate\\Auth\\Events\\Registered;\nclass Controller {\n    public function go(): void { event(new Registered); }\n}",
+    ]);
+
+    $result = (new ClassPrimitiveDiscovery(new AstWalker, new Psr4ClassLocator))->discover($root, new EventClassSpec);
+
+    expect($result->entries)->toBe([])
+        ->and($result->unresolved)->toHaveCount(1)
+        ->and($result->unresolved[0]->file)->toBe('app/Http/Controller.php')
+        ->and($result->unresolved[0]->line)->toBe(6)
+        ->and($result->unresolved[0]->expression)->toBe('Illuminate\\Auth\\Events\\Registered::class')
+        ->and($result->unresolved[0]->reason)->toBe('class_not_found');
+
+    File::deleteDirectory($root);
+});
+
+it('reports an unlocatable Dispatchable target from the job spec only', function () {
+    $root = discoveryApp([
+        'app/Http/Controller.php' => "namespace App\\Http;\nuse App\\Gone;\nclass Controller {\n    public function go(): void { Gone::dispatch(); }\n}",
+    ]);
+    $discovery = new ClassPrimitiveDiscovery(new AstWalker, new Psr4ClassLocator);
+
+    expect($discovery->discover($root, new EventClassSpec)->unresolved)->toBe([])
+        ->and($discovery->discover($root, new JobClassSpec)->unresolved)->toHaveCount(1);
+
+    File::deleteDirectory($root);
+});
+
+it('lists only mailables and notifications under their directories, not helper classes', function () {
+    $root = discoveryApp([
+        'app/Mail/Receipt.php' => "namespace App\\Mail;\nuse Illuminate\\Mail\\Mailable;\nclass Receipt extends Mailable {}",
+        'app/Mail/Modern.php' => "namespace App\\Mail;\nclass Modern { public function envelope() {} }",
+        'app/Mail/MarkdownExtension.php' => "namespace App\\Mail;\nclass MarkdownExtension { public function render() {} }",
+        'app/Notifications/Welcome.php' => "namespace App\\Notifications;\nuse Illuminate\\Notifications\\Notification;\nclass Welcome extends Notification {}",
+        'app/Notifications/Plain.php' => "namespace App\\Notifications;\nclass Plain { public function via() {} }",
+        'app/Notifications/Channels/SlackChannel.php' => "namespace App\\Notifications\\Channels;\nclass SlackChannel { public function send() {} }",
+    ]);
+
+    $mail = array_map(fn ($e): string => $e->fqcn, discoverWith(new MailableClassSpec, $root));
+    $notes = array_map(fn ($e): string => $e->fqcn, discoverWith(new NotificationClassSpec, $root));
+
+    expect($mail)->toBe(['App\\Mail\\Modern', 'App\\Mail\\Receipt'])
+        ->and($notes)->toBe(['App\\Notifications\\Plain', 'App\\Notifications\\Welcome']);
+
+    File::deleteDirectory($root);
+});
+
+it('merges queue settings from constructors, parents and traits, and treats ShouldQueue sub-interfaces as queued', function () {
+    $root = discoveryApp([
+        'app/Jobs/Base.php' => "namespace App\\Jobs;\nuse Illuminate\\Contracts\\Queue\\ShouldQueue;\nabstract class Base implements ShouldQueue { public int \$tries = 5; public \$queue = 'base'; }",
+        'app/Jobs/Child.php' => "namespace App\\Jobs;\nclass Child extends Base { public function __construct() { \$this->onQueue('ssh')->onConnection('redis'); } }",
+        'app/Jobs/Assigned.php' => "namespace App\\Jobs;\nclass Assigned extends Base { public function __construct() { \$this->delay(30); \$this->tries = 2; } }",
+        'app/Jobs/Branched.php' => "namespace App\\Jobs;\nclass Branched extends Base { public function __construct() { if (true) { \$this->onQueue('x'); } } }",
+        'app/Jobs/AfterCommit.php' => "namespace App\\Jobs;\nuse Illuminate\\Contracts\\Queue\\ShouldQueueAfterCommit;\nclass AfterCommit implements ShouldQueueAfterCommit {}",
+    ]);
+
+    $jobs = collect(discoverWith(new JobClassSpec, $root))->keyBy('fqcn');
+
+    expect($jobs['App\\Jobs\\Child']->queued)->toBeTrue()
+        ->and($jobs['App\\Jobs\\Child']->queueConfig->queue)->toBe('ssh')
+        ->and($jobs['App\\Jobs\\Child']->queueConfig->connection)->toBe('redis')
+        ->and($jobs['App\\Jobs\\Child']->queueConfig->tries)->toBe(5)
+        ->and($jobs['App\\Jobs\\Assigned']->queueConfig->delay)->toBe(30)
+        ->and($jobs['App\\Jobs\\Assigned']->queueConfig->tries)->toBe(2)
+        ->and($jobs['App\\Jobs\\Assigned']->queueConfig->queue)->toBe('base')
+        ->and($jobs['App\\Jobs\\Branched']->queueConfig->queue)->toBe('base')
+        ->and($jobs['App\\Jobs\\AfterCommit']->queued)->toBeTrue();
 
     File::deleteDirectory($root);
 });

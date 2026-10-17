@@ -17,7 +17,6 @@ final readonly class NotificationClassRecord
     public function __construct(
         public string $fqcn,
         public int $line,
-        public QueueConfigData $queueConfig,
         public array $channels,
         public bool $channelsDynamic,
     ) {}

@@ -8,6 +8,7 @@ use FilesystemIterator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Lucasp\Loom\Index\RouterMethod;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -33,6 +34,15 @@ final class ScanScope
 
     private bool $discoverRoutes;
 
+    /** @var list<string> */
+    private array $composerFiles;
+
+    /** @var int|null parsed-tree cache budget in bytes; null sizes it from the memory limit, 0 disables it */
+    private ?int $astCacheBytes;
+
+    /** @var array<string, RouterMethod> macro name to the router method it expands like */
+    private array $routeMacros = [];
+
     /** @var array<string, list<string>> */
     private array $resolved = [];
 
@@ -47,12 +57,23 @@ final class ScanScope
      * @param  list<string>  $exclude
      * @param  list<string>  $routePaths
      * @param  bool  $discoverRoutes  also read route files that providers and bootstrap/app.php load
+     * @param  list<string>  $composerFiles  composer.json globs whose PSR-4 maps are read besides the root one
+     * @param  array<string, string>  $routeMacros  `Route::<macro>()` name to the router method it behaves like; entries naming no router method are ignored
+     * @param  int|null  $astCacheMb  megabytes of parsed source kept for reuse across scanners; null sizes it from the memory limit, 0 disables it
      *
      * @throws InvalidArgumentException on a path that is empty, absolute or climbs out of the app root
      */
-    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true)
+    public function __construct(array $paths = [self::DEFAULT_PATH], array $exclude = [], array $routePaths = [self::DEFAULT_ROUTE_PATH], bool $discoverRoutes = true, array $composerFiles = [], array $routeMacros = [], ?int $astCacheMb = null)
     {
+        $this->astCacheBytes = $astCacheMb === null ? null : max(0, $astCacheMb) * 1024 * 1024;
+        $this->composerFiles = $composerFiles;
         $this->discoverRoutes = $discoverRoutes;
+        foreach ($routeMacros as $macro => $base) {
+            $method = RouterMethod::tryFrom($base);
+            if ($method !== null) {
+                $this->routeMacros[(string) $macro] = $method;
+            }
+        }
         $normalised = [];
         foreach ($paths as $path) {
             $normalised[] = self::normalisePath($path);
@@ -80,8 +101,12 @@ final class ScanScope
     {
         $paths = $pathOverride ?? self::stringList($config[ScanConfigKey::PATHS->value] ?? null, [self::DEFAULT_PATH]);
 
-        if (($config[ScanConfigKey::PSR4_PATHS->value] ?? false) === true) {
-            $paths = array_values(collect($paths)->merge(ComposerPsr4Map::fromAppRoot($appRoot)->directories())->all());
+        $composerFiles = self::stringList($config[ScanConfigKey::COMPOSER_FILES->value] ?? null, []);
+
+        // `psr4_paths`: every PSR-4 directory of the root and included composer files; `composer_files` alone: just those files'
+        $all = ($config[ScanConfigKey::PSR4_PATHS->value] ?? false) === true;
+        if ($all || $composerFiles !== []) {
+            $paths = array_values(collect($paths)->merge(ComposerPsr4Map::fromAppRoot($appRoot, $composerFiles, includeRoot: $all)->directories())->all());
         }
 
         $routePaths = $routePathOverride ?? self::stringList($config[ScanConfigKey::ROUTE_PATHS->value] ?? null, [self::DEFAULT_ROUTE_PATH]);
@@ -91,6 +116,9 @@ final class ScanScope
             self::stringList($config[ScanConfigKey::EXCLUDE->value] ?? null, []),
             $routePaths,
             ($config[ScanConfigKey::DISCOVER_ROUTES->value] ?? true) !== false,
+            $composerFiles,
+            self::macroMap($config[ScanConfigKey::ROUTE_MACROS->value] ?? null),
+            self::intOrNull($config[ScanConfigKey::AST_CACHE_MB->value] ?? null),
         );
     }
 
@@ -257,6 +285,50 @@ final class ScanScope
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function composerFiles(): array
+    {
+        return $this->composerFiles;
+    }
+
+    /**
+     * Configured route macros.
+     *
+     * @return array<string, RouterMethod>
+     */
+    public function routeMacros(): array
+    {
+        return $this->routeMacros;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function macroMap(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return Arr::where($value, static fn (mixed $base, mixed $macro): bool => is_string($macro) && is_string($base));
+    }
+
+    /**
+     * Source bytes of parsed files worth keeping for reuse across scanners.
+     * Null leaves the size to the memory limit; 0 turns the cache off.
+     */
+    public function astCacheBytes(): ?int
+    {
+        return $this->astCacheBytes;
+    }
+
+    private static function intOrNull(mixed $value): ?int
+    {
+        return is_int($value) ? $value : null;
     }
 
     public function discoversRoutes(): bool

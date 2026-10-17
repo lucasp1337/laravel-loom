@@ -13,7 +13,9 @@ use Lucasp\Loom\Index\Sections;
  * goes to the closure route whose source span holds it; every other site
  * matches by controller class and method. The payload is shared with
  * {@see DispatchAttributionPhase}, so a dispatch surfaces identically on routes
- * and on listeners.
+ * and on listeners. A closure route carries `end_line` (closure actions only)
+ * for the span test, and unlike a closure listener it does get a reverse edge
+ * on the target's `dispatched_from`.
  *
  * @internal
  */
@@ -45,9 +47,11 @@ final class RouteDispatchAttributionPhase implements CrossLinkPhase
                 continue;
             }
 
-            $key = $classFqcn.'::'.$method;
-            foreach ($routeIndex[$key] ?? [] as $routeIdx) {
-                $context->appendToEntry(Sections::ROUTES, $routeIdx, Field::DISPATCHES->value, $payload);
+            // The controller method itself, or any controller method that reaches it through same-class helper calls
+            foreach ($context->reachingMethods($classFqcn, $method) as $reach) {
+                foreach ($routeIndex[$classFqcn.'::'.$reach['method']] ?? [] as $routeIdx) {
+                    $context->appendToEntry(Sections::ROUTES, $routeIdx, Field::DISPATCHES->value, DispatchEntry::viaHelpers($payload, $reach['via']));
+                }
             }
         }
     }

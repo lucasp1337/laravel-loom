@@ -78,7 +78,7 @@ it('matches a class literally named EventServiceProvider even without extends', 
     expect(runSubscribeArrayVisitor($source))->toBe(['App\\Listeners\\OrderEventSubscriber']);
 });
 
-it('skips non-class-const values in the $subscribe array', function () {
+it('folds string subscribers and records unreadable ones as unresolved', function () {
     $source = <<<'PHP'
     <?php
 
@@ -89,9 +89,10 @@ it('skips non-class-const values in the $subscribe array', function () {
         protected $subscribe = [
             'App\\Listeners\\StringFormSubscriber',
             \App\Listeners\OkSubscriber::class,
+            self::DYNAMIC,
         ];
     }
     PHP;
 
-    expect(runSubscribeArrayVisitor($source))->toBe(['App\\Listeners\\OkSubscriber']);
+    expect(runSubscribeArrayVisitor($source))->toBe(['App\\Listeners\\StringFormSubscriber', 'App\\Listeners\\OkSubscriber']);
 });

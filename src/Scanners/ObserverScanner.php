@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ClosureListenerEntry;
+use Lucasp\Loom\Dto\EloquentListenRecord;
 use Lucasp\Loom\Dto\ModelEventEntry;
 use Lucasp\Loom\Dto\ModelEventHandler;
 use Lucasp\Loom\Dto\ObserverEntry;
 use Lucasp\Loom\Dto\SourceLocation;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Index\ListenerRegistration;
 use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
+use Lucasp\Loom\Scanners\Visitors\ModelHookCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
+use Lucasp\Loom\Support\EloquentEventName;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
 use Lucasp\Loom\Support\ScanScope;
@@ -35,10 +41,21 @@ use Lucasp\Loom\Support\Sorting;
  * are not observable, so they are never hooks. An observer with no matching
  * method is still emitted with `hooks: []`.
  *
+ * Both sections are written here and nowhere else: the cross-link pass reads
+ * `model_events[]` but never regenerates it.
+ *
  * `model_events[]` has one entry per (model, hook) that has at least one
- * handler: observer hook methods plus the `Event::listen('eloquent.*')`
- * strings, deduplicated on `handler::method` with the observer winning. A pair
- * with no handler is not emitted.
+ * handler: observer hook methods, the `Event::listen('eloquent.*')` strings
+ * and `$listen` keys, and model hook registrations (`static::creating(...)`,
+ * see {@see ModelHookCallVisitor}), deduplicated on `handler::method` with the
+ * observer winning. A pair with no handler is not emitted.
+ *
+ * A closure model hook is a handler with method `{closure}` on the model, and
+ * a `closure_listeners[]` entry (registration `model_hook`, event
+ * `eloquent.{hook}: {Model}`) that carries the dispatches inside it. A hook
+ * registered in a trait is expanded to every class that uses the trait. A hook
+ * or `eloquent.*` registration that cannot be read is emitted in
+ * `unresolved_dispatches`.
  *
  * @internal
  */
@@ -58,7 +75,7 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * @return array{observers: list<ObserverEntry>, model_events: list<ModelEventEntry>}
+     * @return array{observers: list<ObserverEntry>, model_events: list<ModelEventEntry>, closure_listeners: list<ClosureListenerEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
@@ -71,7 +88,13 @@ final class ObserverScanner implements Scanner
         /** @var array<int, array{model: string, hook: string, handler: string, method: string, file: string, line: int}> $listenEntries */
         $listenEntries = [];
 
+        /** @var list<array{record: EloquentListenRecord, file: string}> $hookRecords */
+        $hookRecords = [];
+        /** @var list<UnresolvedDispatchEntry> $unresolved */
+        $unresolved = [];
+
         foreach ($this->scanFiles($appRoot) as $file) {
+            $hookVisitor = new ModelHookCallVisitor;
             $classVisitor = new ObserverClassVisitor;
             $attrVisitor = new ObservedByAttributeVisitor;
             $observeVisitor = new ObserveCallVisitor;
@@ -82,9 +105,17 @@ final class ObserverScanner implements Scanner
                 $attrVisitor,
                 $observeVisitor,
                 $listenVisitor,
+                $hookVisitor,
             ]);
 
             $relative = $this->relativePath($appRoot, $file->getPathname());
+
+            foreach ([...$listenVisitor->getUnresolved(), ...$hookVisitor->getUnresolved()] as $record) {
+                $unresolved[] = new UnresolvedDispatchEntry($relative, $record->line, $record->expression, $record->reason);
+            }
+            foreach ($hookVisitor->getEntries() as $record) {
+                $hookRecords[] = ['record' => $record, 'file' => $relative];
+            }
 
             foreach ($classVisitor->getClasses() as $class) {
                 $classMap[$class->fqcn] = [
@@ -125,13 +156,79 @@ final class ObserverScanner implements Scanner
             }
         }
 
-        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, new ClassHierarchyResolver($appRoot, $this->walker, $this->scope()));
+        $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
+        $closureListeners = [];
+        foreach ($this->expandTraitHooks($hookRecords, $classMap, $resolver) as $hook) {
+            $record = $hook['record'];
+            $listenEntries[] = [
+                'model' => $record->model,
+                'hook' => $record->hook,
+                'handler' => $record->handler,
+                'method' => $record->method,
+                'file' => $hook['file'],
+                'line' => $record->line,
+            ];
+            if ($record->isClosure()) {
+                $closureListeners[] = new ClosureListenerEntry(
+                    event: EloquentEventName::make(ModelHook::from($record->hook), $record->model),
+                    file: $hook['file'],
+                    line: $record->line,
+                    endLine: (int) $record->endLine,
+                    registration: ListenerRegistration::MODEL_HOOK,
+                    queued: false,
+                );
+            }
+        }
+
+        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, $resolver);
         $modelEvents = $this->buildModelEvents($observers, $listenEntries);
 
         return [
             'observers' => $this->emitObservers($observers),
             'model_events' => $this->emitModelEvents($modelEvents),
+            'closure_listeners' => $closureListeners,
+            'unresolved_dispatches' => $unresolved,
         ];
+    }
+
+    /**
+     * A hook registered in a trait runs for every class that uses it, so each
+     * such class gets its own record; a trait nothing uses yields none.
+     *
+     * @param  list<array{record: EloquentListenRecord, file: string}>  $hooks
+     * @param  array<string, array{file: string, line: int}>  $classMap
+     * @return list<array{record: EloquentListenRecord, file: string}>
+     */
+    private function expandTraitHooks(array $hooks, array $classMap, ClassHierarchyResolver $resolver): array
+    {
+        $expanded = [];
+        foreach ($hooks as $hook) {
+            $record = $hook['record'];
+            if (! $record->viaTrait) {
+                $expanded[] = $hook;
+
+                continue;
+            }
+
+            foreach (array_keys($classMap) as $class) {
+                if (! $resolver->isInstantiable($class) || ! collect($resolver->traitsAll($class))->contains($record->model)) {
+                    continue;
+                }
+                $expanded[] = [
+                    'record' => new EloquentListenRecord(
+                        model: $class,
+                        hook: $record->hook,
+                        handler: $record->isClosure() ? $class : $record->handler,
+                        method: $record->method,
+                        line: $record->line,
+                        endLine: $record->endLine,
+                    ),
+                    'file' => $hook['file'],
+                ];
+            }
+        }
+
+        return $expanded;
     }
 
     /**
@@ -249,7 +346,11 @@ final class ObserverScanner implements Scanner
                     'handled_by' => [],
                 ];
             }
-            $acc[$key]['handled_by'][$entry['handler'].'::'.$entry['method']] ??= new ModelEventHandler(
+            // Several closures can share a method name, so they are told apart by location.
+            $handlerKey = $entry['method'] === EloquentListenRecord::CLOSURE_METHOD
+                ? $entry['handler'].'::'.$entry['method'].'@'.$entry['file'].':'.$entry['line']
+                : $entry['handler'].'::'.$entry['method'];
+            $acc[$key]['handled_by'][$handlerKey] ??= new ModelEventHandler(
                 handler: $entry['handler'],
                 method: $entry['method'],
                 file: $entry['file'],

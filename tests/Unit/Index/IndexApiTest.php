@@ -133,6 +133,7 @@ function representativeIndexArray(): array
                     'tries' => 3,
                     'timeout' => 120,
                     'backoff' => 10,
+                    'after_commit' => true,
                 ],
                 'dispatched_from' => [
                     [
@@ -486,6 +487,7 @@ it('hydrates a present queue config on a job', function () {
     expect($job->queueConfig->tries)->toBe(3);
     expect($job->queueConfig->timeout)->toBe(120);
     expect($job->queueConfig->backoff)->toBe(10);
+    expect($job->queueConfig->afterCommit)->toBeTrue();
 });
 
 it('leaves the queue config null when absent on a mailable', function () {

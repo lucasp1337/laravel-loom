@@ -101,12 +101,7 @@ Loom doesn't drop these. Each goes into `unresolved_dispatches` with the express
 }
 ```
 
-Read that as "an event fires here and I can't tell which". The reason says why:
-
-- `dynamic_class_name`: the class is a variable.
-- `string_concatenation`: the name is built by concatenation or interpolation.
-- `container_resolution`: the class comes from `app()`, `resolve()` or `->make()`.
-- `conditional_dispatch`: a ternary whose branches don't both resolve to a class.
+Read that as "an event fires here and I can't tell which". The reason says why, from a variable (`dynamic_class_name`) to a closure dispatched as a job (`closure_job`) to a class with no row to link to (`target_not_indexed`). Every reason, with the code shape it names and the change that fixes it, is on [Forms Loom does not read](../reference/unread-forms.md). A dispatch gets `class_not_found` or `target_not_indexed`, never both.
 
 A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
 
@@ -117,6 +112,6 @@ A growing list means your architecture is getting harder to map, and [`loom:chec
     Loom doesn't read `vendor/`. A job that gets `ShouldQueue` from a parent class in a package reports `queued: false`, and a notification that inherits `via()` from one reports no channels.
 
 !!! note "Handlers record only their own dispatches"
-    A listener, job or observer lists the dispatches made directly in its handler method (`handle()` or the observer hook). A dispatch in a helper that `handle()` calls shows on the target's `dispatched_from` but not in the handler's `dispatches`. Routes are attributed per controller method, or per closure.
+    A listener, job or observer lists the dispatches made in its handler method (`handle()` or the observer hook) and in same-class helpers it reaches through `$this->`, `self::` or `static::` calls. Those carry `via` and `confidence: medium`. Helpers on other objects or inherited from a parent are not followed. Routes are attributed per controller method, or per closure.
 
 If something you expected is missing or wrong, [Why was my code missed?](../guides/why-was-my-code-missed.md) goes symptom by symptom.

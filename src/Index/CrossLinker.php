@@ -14,6 +14,7 @@ use Lucasp\Loom\Index\CrossLink\DispatchedFromPhase;
 use Lucasp\Loom\Index\CrossLink\HandledByPhase;
 use Lucasp\Loom\Index\CrossLink\RouteDispatchAttributionPhase;
 use Lucasp\Loom\Index\CrossLink\SortPhase;
+use Lucasp\Loom\Index\CrossLink\UnindexedTargetPhase;
 
 /**
  * Runs the cross-link pass: an ordered list of {@see CrossLinkPhase}s that
@@ -25,6 +26,11 @@ use Lucasp\Loom\Index\CrossLink\SortPhase;
  * names what it needs from earlier ones. Disambiguation and closure ownership
  * run before attribution, and sorting runs last. A new relation is a new phase
  * in the list below.
+ *
+ * Two scanners never write the same field: a field with two writers is drift to
+ * fix, not to merge. After the last phase `IndexBuilder` strips the
+ * underscore-prefixed internal sections (`_dispatch_sites`), which the schema
+ * rejects by design.
  *
  * @internal
  */
@@ -41,6 +47,7 @@ final class CrossLinker
         $this->phases = $phases ?? [
             new HandledByPhase,
             new AmbiguousDisambiguationPhase,
+            new UnindexedTargetPhase,
             new ClosureOwnershipPhase,
             new DispatchAttributionPhase,
             new ClosureDispatchAttributionPhase,
@@ -86,7 +93,10 @@ final class CrossLinker
         ];
         $observerIndex = $this->indexByFqcnMulti($sections[Sections::OBSERVERS->value]);
 
-        return new CrossLinkContext($sections, $dispatchSites, $singleIndexes, $observerIndex);
+        /** @var array<int, array<string, mixed>> $callEdges */
+        $callEdges = $sections['_method_calls'] ?? [];
+
+        return new CrossLinkContext($sections, $dispatchSites, $singleIndexes, $observerIndex, callEdges: $callEdges);
     }
 
     /**

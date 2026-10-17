@@ -8,6 +8,8 @@ RUN apk add --no-cache git unzip libzip-dev oniguruma-dev $PHPIZE_DEPS \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+RUN echo "memory_limit=-1" > /usr/local/etc/php/conf.d/memory.ini
+
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
     COMPOSER_NO_INTERACTION=1 \
     COMPOSER_MEMORY_LIMIT=-1

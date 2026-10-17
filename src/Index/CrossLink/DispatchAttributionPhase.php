@@ -15,9 +15,13 @@ use Lucasp\Loom\Index\Sections;
  * {@see HandledByPhase}, resolved kinds from {@see AmbiguousDisambiguationPhase}
  * and the cleared closure tags from {@see ClosureOwnershipPhase}.
  *
- * A site is attributed only when its enclosing method is the handler method
- * itself: a dispatch in a helper that `handle()` calls is not attributed to
- * the job, and a non-hook observer method gets none.
+ * A site is attributed when its enclosing method is the handler method, and
+ * also when the handler method reaches that method through same-class calls
+ * (`$this->helper()`, `self::helper()`, `static::helper()`; up to
+ * {@see CrossLinkContext::MAX_HELPER_HOPS} helpers). Such a dispatch carries
+ * `via` (the helpers, in call order) and `confidence: medium`. Helpers inherited
+ * from a parent class or trait, calls on other objects and callables are not
+ * followed. A non-hook observer method gets none.
  *
  * @internal
  */
@@ -48,19 +52,47 @@ final class DispatchAttributionPhase implements CrossLinkPhase
                 continue;
             }
 
-            if (isset($listenerIndex[$classFqcn], $context->listenerMethods[$classFqcn][$method])) {
-                $context->appendToEntry(Sections::LISTENERS, $listenerIndex[$classFqcn], Field::DISPATCHES->value, $payload);
-            }
+            foreach ($context->reachingMethods($classFqcn, $method) as $reach) {
+                $entryPayload = DispatchEntry::viaHelpers($payload, $reach['via']);
+                $entryMethod = $reach['method'];
 
-            if ($method === 'handle' && isset($jobIndex[$classFqcn])) {
-                $context->appendToEntry(Sections::JOBS, $jobIndex[$classFqcn], Field::DISPATCHES->value, $payload);
-            }
+                if (isset($listenerIndex[$classFqcn], $context->listenerMethods[$classFqcn][$entryMethod])) {
+                    $this->appendOnce($context, Sections::LISTENERS, $listenerIndex[$classFqcn], $entryPayload);
+                }
 
-            if (isset($observerHooks[$method], $context->observerIndex[$classFqcn])) {
-                foreach ($context->observerIndex[$classFqcn] as $oIdx) {
-                    $context->appendToEntry(Sections::OBSERVERS, $oIdx, Field::DISPATCHES->value, $payload);
+                if ($entryMethod === 'handle' && isset($jobIndex[$classFqcn])) {
+                    $this->appendOnce($context, Sections::JOBS, $jobIndex[$classFqcn], $entryPayload);
+                }
+
+                if (isset($observerHooks[$entryMethod], $context->observerIndex[$classFqcn])) {
+                    foreach ($context->observerIndex[$classFqcn] as $oIdx) {
+                        $this->appendOnce($context, Sections::OBSERVERS, $oIdx, $entryPayload);
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Append unless the entry already lists the same dispatch: the first
+     * (direct, then shortest) path to a site wins over a longer one.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function appendOnce(CrossLinkContext $context, Sections $section, int $idx, array $payload): void
+    {
+        $existing = $context->sections[$section->value][$idx][Field::DISPATCHES->value] ?? [];
+        foreach ($existing as $dispatch) {
+            if (is_array($dispatch)
+                && ($dispatch[Field::TARGET->value] ?? null) === $payload[Field::TARGET->value]
+                && ($dispatch[Field::KIND->value] ?? null) === $payload[Field::KIND->value]
+                && ($dispatch[Field::FILE->value] ?? null) === $payload[Field::FILE->value]
+                && ($dispatch[Field::LINE->value] ?? null) === $payload[Field::LINE->value]
+            ) {
+                return;
+            }
+        }
+
+        $context->appendToEntry($section, $idx, Field::DISPATCHES->value, $payload);
     }
 }

@@ -21,16 +21,13 @@ final class DispatchEntry
     /**
      * Build the dispatch payload for a `_dispatch_sites` entry, or null when
      * the site can't form a valid dispatch (kind still ambiguous/unknown, or
-     * a missing/mis-typed target, file, or line). Callers skip on null.
-     *
-     * Only AMBIGUOUS and unknown kinds are rejected here; mailable and
-     * notification sites are valid (they feed `sent_from` / `notified_from`).
-     * Handler `dispatches[]` must use {@see self::forHandler()} instead.
+     * a missing/mis-typed target, file, or line). Callers skip on null. Every
+     * resolved kind is valid: event, job, mailable and notification.
      *
      * @param  array<string, mixed>  $site
      * @return array{target: string, kind: string, confidence: string, file: string, line: int}|null
      */
-    public static function fromSite(array $site): ?array
+    public static function forHandler(array $site): ?array
     {
         $kind = $site['provisionalKind'] ?? null;
         $target = $site[Field::TARGET->value] ?? null;
@@ -39,10 +36,13 @@ final class DispatchEntry
         $confidence = $site[Field::CONFIDENCE->value] ?? Confidence::HIGH->value;
 
         if (! is_string($target) || ! is_string($file) || ! is_int($line)
-            || ! is_string($kind) || DispatchKinds::tryFrom($kind) === DispatchKinds::AMBIGUOUS
-            || DispatchKinds::tryFrom($kind) === null
-            || ! is_string($confidence)
+            || ! is_string($kind) || ! is_string($confidence)
         ) {
+            return null;
+        }
+
+        $resolved = DispatchKinds::tryFrom($kind);
+        if ($resolved === null || $resolved === DispatchKinds::AMBIGUOUS) {
             return null;
         }
 
@@ -56,21 +56,23 @@ final class DispatchEntry
     }
 
     /**
-     * Like {@see self::fromSite()} but restricted to the kinds a handler's
-     * `dispatches[]` may carry per the schema (event|job).
+     * Mark a payload as reached through helper methods: `via` lists them in
+     * call order and the confidence drops to medium, since the helper may not
+     * run on every path.
      *
-     * @param  array<string, mixed>  $site
-     * @return array{target: string, kind: string, confidence: string, file: string, line: int}|null
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $via
+     * @return array<string, mixed>
      */
-    public static function forHandler(array $site): ?array
+    public static function viaHelpers(array $payload, array $via): array
     {
-        $payload = self::fromSite($site);
-        if ($payload === null) {
-            return null;
+        if ($via === []) {
+            return $payload;
         }
 
-        $kind = DispatchKinds::tryFrom($payload[Field::KIND->value]);
+        $payload[Field::CONFIDENCE->value] = Confidence::MEDIUM->value;
+        $payload[Field::VIA->value] = $via;
 
-        return $kind === DispatchKinds::EVENT || $kind === DispatchKinds::JOB ? $payload : null;
+        return $payload;
     }
 }

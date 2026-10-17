@@ -4,41 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
 use Laravel\Mcp\Server\Registrar;
-use Lucasp\Loom\Mcp\IndexRepository;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Mcp\Tools\FindUnresolvedDispatchesTool;
-
-function mcpTempIndex(array $overrides = []): string
-{
-    $index = array_merge([
-        'schema_version' => '1.0',
-        'loom_version' => '0.3.0',
-        'scanned_at' => '2026-01-01T00:00:00Z',
-        'laravel_version' => '12.x',
-        'events' => [],
-        'listeners' => [],
-        'closure_listeners' => [],
-        'observers' => [],
-        'model_events' => [],
-        'jobs' => [],
-        'mailables' => [],
-        'notifications' => [],
-        'scheduled_tasks' => [],
-        'routes' => [],
-        'unresolved_dispatches' => [],
-        'stats' => [],
-    ], $overrides);
-
-    $path = tempnam(sys_get_temp_dir(), 'loom-mcp-').'.json';
-    file_put_contents($path, json_encode($index));
-
-    return $path;
-}
-
-function mcpUseIndex(string $path): void
-{
-    app(IndexRepository::class)->useSnapshot($path);
-}
 
 it('serves unresolved dispatches over the MCP tool surface', function () {
     mcpUseIndex(mcpTempIndex([

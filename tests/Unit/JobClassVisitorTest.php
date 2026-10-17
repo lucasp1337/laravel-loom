@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lucasp\Loom\Dto\JobClassRecord;
 use Lucasp\Loom\Dto\QueueConfigData;
+use Lucasp\Loom\Scanners\Visitors\ClassDeclarationVisitor;
 use Lucasp\Loom\Scanners\Visitors\JobClassVisitor;
 
 /**
@@ -14,6 +15,14 @@ function runJobClassVisitor(string $source): array
     $visitor = runVisitor(new JobClassVisitor, $source);
 
     return $visitor->getClasses();
+}
+
+/** Property-default queue settings of the nth declaration in $source. */
+function jobQueueConfig(string $source, int $index): QueueConfigData
+{
+    $visitor = runVisitor(new ClassDeclarationVisitor, $source);
+
+    return $visitor->getDeclarations()[$index]->queue->properties;
 }
 
 it('records fqcn and line for a job class', function () {
@@ -56,7 +65,7 @@ it('leaves queue config empty when no properties are declared', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig)->toEqual(new QueueConfigData(
+    expect(jobQueueConfig($source, 0))->toEqual(new QueueConfigData(
         connection: null,
         queue: null,
         delay: null,
@@ -88,7 +97,7 @@ it('extracts every literal scalar queue-config property', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig)->toEqual(new QueueConfigData(
+    expect(jobQueueConfig($source, 0))->toEqual(new QueueConfigData(
         connection: 'redis',
         queue: 'high',
         delay: 30,
@@ -116,7 +125,7 @@ it('leaves undeclared queue-config properties as null', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig)->toEqual(new QueueConfigData(
+    expect(jobQueueConfig($source, 0))->toEqual(new QueueConfigData(
         connection: null,
         queue: 'low',
         delay: null,
@@ -145,9 +154,9 @@ it('leaves non-scalar initializers as null', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig->queue)->toBeNull();
-    expect($classes[0]->queueConfig->connection)->toBeNull();
-    expect($classes[0]->queueConfig->tries)->toBeNull();
+    expect(jobQueueConfig($source, 0)->queue)->toBeNull();
+    expect(jobQueueConfig($source, 0)->connection)->toBeNull();
+    expect(jobQueueConfig($source, 0)->tries)->toBeNull();
 });
 
 it('extracts queue-config across public, protected, private, and static modifiers', function () {
@@ -170,10 +179,10 @@ it('extracts queue-config across public, protected, private, and static modifier
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig->connection)->toBe('redis');
-    expect($classes[0]->queueConfig->queue)->toBe('mid');
-    expect($classes[0]->queueConfig->tries)->toBe(2);
-    expect($classes[0]->queueConfig->timeout)->toBe(90);
+    expect(jobQueueConfig($source, 0)->connection)->toBe('redis');
+    expect(jobQueueConfig($source, 0)->queue)->toBe('mid');
+    expect(jobQueueConfig($source, 0)->tries)->toBe(2);
+    expect(jobQueueConfig($source, 0)->timeout)->toBe(90);
 });
 
 it('extracts a typed-property initializer', function () {
@@ -193,7 +202,7 @@ it('extracts a typed-property initializer', function () {
     $classes = runJobClassVisitor($source);
 
     expect($classes)->toHaveCount(1);
-    expect($classes[0]->queueConfig->tries)->toBe(3);
+    expect(jobQueueConfig($source, 0)->tries)->toBe(3);
 });
 
 it('skips abstract classes', function () {
@@ -295,6 +304,25 @@ it('emits each concrete class independently when multiple are declared in one fi
 
     expect($classes)->toHaveCount(2);
     expect($classes[0]->fqcn)->toBe('App\\Jobs\\JobOne');
-    expect($classes[0]->queueConfig->tries)->toBe(1);
+    expect(jobQueueConfig($source, 0)->tries)->toBe(1);
     expect($classes[1]->fqcn)->toBe('App\\Jobs\\JobTwo');
 });
+
+it('reads $afterCommit from a property default and the constructor', function (string $body, ?bool $property, ?bool $constructor) {
+    $source = "<?php\nnamespace App\\Jobs;\nclass Charge\n{\n{$body}\n}\n";
+
+    $declaration = runVisitor(new ClassDeclarationVisitor, $source)->getDeclarations()[0]->queue;
+
+    expect($declaration->properties->afterCommit)->toBe($property)
+        ->and($declaration->constructor->afterCommit)->toBe($constructor);
+})->with([
+    'property true' => ['public $afterCommit = true;', true, null],
+    'property false' => ['public $afterCommit = false;', false, null],
+    'property uppercase constant' => ['public $afterCommit = TRUE;', true, null],
+    'property not a literal' => ['public $afterCommit = self::FLAG;', null, null],
+    'constructor afterCommit()' => ['public function __construct() { $this->afterCommit(); }', null, true],
+    'constructor beforeCommit()' => ['public function __construct() { $this->beforeCommit(); }', null, false],
+    'constructor assignment' => ['public function __construct() { $this->afterCommit = true; }', null, true],
+    'constructor chained' => ['public function __construct() { $this->onQueue("x")->afterCommit(); }', null, true],
+    'constructor in a branch' => ['public function __construct($f) { if ($f) { $this->afterCommit(); } }', null, null],
+]);

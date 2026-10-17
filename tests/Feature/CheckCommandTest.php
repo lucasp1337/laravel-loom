@@ -19,6 +19,7 @@ function checkCommandStats(array $overrides = []): array
         'unresolved_dispatches' => 0, 'closure_listeners' => 0,
         'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
         'routes' => 0,
+        'unresolved_routes' => 0,
     ], $overrides);
 }
 
@@ -40,6 +41,7 @@ function checkCommandIndex(array $overrides = []): array
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
         ],
         'events' => [[
             'id' => 'App\\Events\\OrderPlaced',
@@ -68,6 +70,7 @@ function checkCommandIndex(array $overrides = []): array
         'mailables' => [],
         'notifications' => [],
         'routes' => [],
+        'unresolved_routes' => [],
     ];
 
     return array_replace($base, $overrides);
@@ -135,6 +138,7 @@ it('exits 1 when an event is orphaned', function () {
             'unresolved_dispatches' => 0, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);
@@ -153,6 +157,7 @@ it('exits 1 in strict mode with an unresolved dispatch', function () {
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);
@@ -171,6 +176,7 @@ it('does not fail on the same unresolved dispatch without strict mode', function
             'unresolved_dispatches' => 1, 'closure_listeners' => 0,
             'scheduled_tasks' => 0, 'mailables' => 0, 'notifications' => 0,
             'routes' => 0,
+            'unresolved_routes' => 0,
         ],
     ]);
     $path = checkTempIndex($index);

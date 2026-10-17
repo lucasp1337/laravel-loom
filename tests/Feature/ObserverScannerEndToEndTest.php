@@ -34,7 +34,7 @@ it('populates the model_events section with the expected number of entries', fun
 
     $payload = $builder->build(observerEndToEndFixturePath(), '12.x')->toArray();
 
-    expect($payload['model_events'])->toHaveCount(10);
+    expect($payload['model_events'])->toHaveCount(11);
 });
 
 it('includes the known observer FQCNs', function () {

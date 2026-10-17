@@ -29,6 +29,7 @@ Reference for `storage/loom/index.json`. The authority is `schema/loom-index.sch
 | `closure_listeners` | array of [`closure_listeners[]`](#closure_listeners) | Closure and arrow-function listener registrations. |
 | `scheduled_tasks` | array of [`scheduled_tasks[]`](#scheduled_tasks) | Task-scheduler entries. |
 | `routes` | array of [`routes[]`](#routes) | HTTP routes with their middleware and the dispatches their action makes. |
+| `unresolved_routes` | array of [`unresolved_routes[]`](#unresolved_routes) | Route forms that could not be read in full: macros, non-literal URIs, middleware or group attributes, unfollowed route files, attribute routes. |
 | `mailables` | array of [`mailables[]`](#mailables) | Mailable classes and where they are sent from. |
 | `notifications` | array of [`notifications[]`](#notifications) | Notification classes, their channels and where they are sent from. |
 <!-- /generated:schema:top -->
@@ -80,9 +81,9 @@ Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `handler` | string | FQCN of the observer or `Event::listen` target. |
-| `method` | string | Observer hook or listener method. |
-| `file` | [path](#relativepath) | Observer class file, or the file holding the `Event::listen` call. |
+| `handler` | string | FQCN of the observer, `Event::listen` target or hook callback class. For a closure model hook, the model FQCN. |
+| `method` | string | Observer hook or listener method. `{closure}` for a closure model hook; its body is the `closure_listeners[]` entry at the same file and line. |
+| `file` | [path](#relativepath) | Observer class file, or the file holding the `Event::listen` call or model hook registration. |
 | `line` | integer ≥ 1 | Observer class line, or the `Event::listen` call line. |
 <!-- /generated:schema:model_events -->
 
@@ -99,7 +100,7 @@ Listener classes. Handler methods include inherited ones.
 | `file` | [path](#relativepath) | File declaring the class. |
 | `line` | integer ≥ 1 | 1-indexed declaration line. |
 | `handles` | array of object | Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`. |
-| `registration` | one of `listen_array`, `auto_discovered`, `event_listen_call`, `subscriber` | `subscriber`: a subscriber's `subscribe()`.<br>`listen_array`: `$listen`.<br>`event_listen_call`: `Event::listen()`.<br>`auto_discovered`: typed `handle()`.<br>Listed in order of precedence when several find the same listener. |
+| `registration` | enum | `subscriber`: a subscriber's `subscribe()`.<br>`listen_array`: `$listen`.<br>`event_listen_call`: `Event::listen()`.<br>`auto_discovered`: typed `handle()` under a discovery directory, with discovery verified on.<br>`discovery_unverified`: the same, but whether the app runs event discovery could not be read.<br>`model_hook`: only closure listeners carry it.<br>Listed in order of precedence when several find the same listener.<br>Values: `listen_array`, `auto_discovered`, `discovery_unverified`, `event_listen_call`, `subscriber`, `model_hook`. |
 | `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed. |
 | `dispatches` | array of [dispatch](#dispatch) | Events and jobs dispatched from the listener's handler methods. |
 
@@ -152,14 +153,14 @@ Job classes.
 
 ## `unresolved_dispatches[]`
 
-Dispatch sites whose target could not be resolved statically. Never dropped silently.
+Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `file` | [path](#relativepath) | File containing the unresolved dispatch. |
 | `line` | integer ≥ 1 | 1-indexed line of the unresolved dispatch. |
 | `expression` | string | Pretty-printed source of the unresolvable expression. |
-| `reason` | one of `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch` | `dynamic_class_name`: a variable.<br>`container_resolution`: `app()`, `resolve()`, `->make()`.<br>`string_concatenation`: concatenation or interpolation.<br>`conditional_dispatch`: a ternary whose branches cannot be evaluated. |
+| `reason` | enum | `dynamic_class_name`: the target is a variable, or `new $class` / `$class::dispatch()`.<br>`container_resolution`: the target comes from `app()`, `resolve()` or `->make()`.<br>`string_concatenation`: the target is built by concatenation or interpolation.<br>`conditional_dispatch`: a ternary or `match` whose branches cannot be evaluated.<br>`dynamic_list`: a list of dispatch targets built at runtime (a variable, a spread, a collection).<br>`string_event_name`: the event is a string literal such as `'service.installed'`, not a class.<br>`closure_job`: a closure is dispatched as a job, so no class names it.<br>`view_mail`: a mail sent from a view name or array and a closure, so there is no mailable class.<br>`call_result`: the target is what a method, static or function call returns.<br>`stored_target`: the target is read from a property, an array element or a constant.<br>`relative_class_name`: `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read.<br>`unsupported_expression`: an expression form no other reason covers (a `??` coalesce, an anonymous class).<br>`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`.<br>`target_not_indexed`: a class file was found, but it is not an indexed event, job, mailable or notification.<br>`unreadable_event_name`: a registration whose event name or key is not a `::class` reference or a literal Loom can read (a variable, a call, an `eloquent.*` name with an unknown hook).<br>`untyped_closure_listener`: an `Event::listen(function ($e) {...})` closure whose first parameter has no event class type.<br>`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, a subscriber return array) whose handler is not a class reference, a `[Class, method]` tuple, a readable string or a closure.<br>`unreadable_subscriber`: an `Event::subscribe()` call or `$subscribe` entry that is not a `::class` reference, a string literal or `new`.<br>`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable.<br>Values: `dynamic_class_name`, `container_resolution`, `string_concatenation`, `conditional_dispatch`, `dynamic_list`, `string_event_name`, `closure_job`, `view_mail`, `call_result`, `stored_target`, `relative_class_name`, `unsupported_expression`, `class_not_found`, `target_not_indexed`, `unreadable_event_name`, `untyped_closure_listener`, `unreadable_listener`, `unreadable_subscriber`, `unreadable_model_hook`. |
 <!-- /generated:schema:unresolved_dispatches -->
 
 <!-- generated:schema:closure_listeners -->
@@ -175,7 +176,7 @@ Closure and arrow-function registrations, one entry per site, never joined into 
 | `file` | [path](#relativepath) | File holding the closure, not the registration call. |
 | `line` | integer ≥ 1 | 1-indexed first line of the closure. |
 | `end_line` | integer ≥ 1 | 1-indexed last line of the closure; equals `line` for a one-line closure. |
-| `registration` | one of `listen_array`, `event_listen_call`, `subscriber` | `listen_array`: closure in `$listen`.<br>`event_listen_call`: second argument of `Event::listen()`.<br>`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`. |
+| `registration` | one of `listen_array`, `event_listen_call`, `subscriber`, `model_hook` | `listen_array`: closure in `$listen`.<br>`event_listen_call`: second argument of `Event::listen()`.<br>`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`.<br>`model_hook`: a closure passed to a model's static hook registrar (`static::creating(fn ...)`); `event` is the model event id (`eloquent.{hook}: {model}`). |
 | `queued` | boolean | Always `false`; closure queue detection is not done. |
 | `dispatches` | array of [dispatch](#dispatch) | Dispatches attributed to the closure by source span. |
 <!-- /generated:schema:closure_listeners -->
@@ -220,11 +221,11 @@ Scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `targe
 
 ## `routes[]`
 
-HTTP routes, one per route. A route registered against several verbs is reported as `ANY`.
+HTTP routes, one per route and verb. `any()` and `redirect()` routes are reported as `ANY`; a resource `update` is reported as both `PUT` and `PATCH`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `method` | enum | HTTP verb, uppercase.<br>Values: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `ANY`. |
+| `method` | enum | HTTP verb, uppercase.<br>Values: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `QUERY`, `ANY`. |
 | `uri` | string | Route URI with enclosing group prefixes applied; always starts with `/`, the root is `/`. |
 | `name` | string or null | Group name prefix concatenated as-is with the route's own `->name()`; `null` when unnamed. |
 | `controller_fqcn` | string or null | `null` for closure and non-controller routes. |
@@ -233,8 +234,24 @@ HTTP routes, one per route. A route registered against several verbs is reported
 | `file` | [path](#relativepath) | File of the route definition. |
 | `line` | integer ≥ 1 | 1-indexed line of the route definition. |
 | `end_line`? | integer ≥ 1 | Last line of a closure action. Present only for closure actions. |
+| `kind`? | one of `view`, `redirect`, `fallback` | `view`: `Route::view()`. `redirect`: `Route::redirect()` / `permanentRedirect()`. `fallback`: `Route::fallback()`. Omitted for every other route. |
 | `dispatches` | array of [dispatch](#dispatch) | From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Empty when the controller cannot be resolved. Each dispatched event also lists the route in its `dispatched_from`. |
 <!-- /generated:schema:routes -->
+
+<!-- generated:schema:unresolved_routes -->
+<!-- Generated by `just docs-generate`; edit the source, not this block. -->
+
+## `unresolved_routes[]`
+
+Route forms Loom could not read in full. Never dropped silently.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `file` | [path](#relativepath) | File containing the route form. |
+| `line` | integer ≥ 1 | 1-indexed line of the route form. |
+| `expression` | string | Pretty-printed source of the call or expression that could not be read. |
+| `reason` | enum | `unknown_route_call`: `Route::<name>()` is a macro or package helper; map it in `scan.route_macros`.<br>`dynamic_uri`, `dynamic_resource`, `dynamic_verbs`: no route emitted, the URI, resource name or verbs are not literal.<br>`dynamic_resource_options`: a resource option is not literal; the defaults were used.<br>`dynamic_middleware`: a middleware or `withoutMiddleware` entry is not literal; the middleware list may be incomplete.<br>`dynamic_group_attribute`: a group or chain prefix, name, controller or middleware is not literal.<br>`route_file_*`: a route file's path cannot be followed.<br>`attribute_route`: a controller declares a route with an attribute, which Loom does not read.<br>Values: `unknown_route_call`, `dynamic_uri`, `dynamic_resource`, `dynamic_verbs`, `dynamic_resource_options`, `dynamic_middleware`, `dynamic_group_attribute`, `route_file_dynamic`, `route_file_relative`, `route_file_outside_root`, `route_file_not_found`, `attribute_route`. |
+<!-- /generated:schema:unresolved_routes -->
 
 <!-- generated:schema:mailables -->
 <!-- Generated by `just docs-generate`; edit the source, not this block. -->
@@ -268,8 +285,8 @@ Notification classes.
 | `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. |
 | `queue_config` | [queueConfig](#queueconfig) or null | `null` when `queued` is `false`. |
 | `notified_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites whose resolved kind is `notification` and whose target is this class, sorted by `file`, `line`. The only list whose entries may carry `channels`. |
-| `channels` | array of string | From a `via()` that is a single `return [...]` of literal strings (lowercased) or `Class::class` constants (FQCN), in source order. `[]` when `via()` is dynamic, not declared or inherited. |
-| `channels_dynamic` | boolean | `true` only when `via()` exists but is not a single literal-array return; the channels exist but cannot be read statically. |
+| `channels` | array of string | From a `via()` that returns an array of literal strings (lowercased) or `Class::class` constants (FQCN), in source order: a literal array, or a local array built from one with `$x[] = 'literal'` appends. Under branches or with several returns, the union of every channel that may apply. `[]` when `via()` is unreadable, not declared or inherited. |
+| `channels_dynamic` | boolean | `true` only when `via()` exists but `channels` may not be what a call returns: the body is unreadable (`channels` is `[]`), or the channels depend on a branch or on several returns (`channels` is the union). |
 <!-- /generated:schema:notifications -->
 
 ## Shared shapes
@@ -289,7 +306,7 @@ Path relative to the app root, forward-slashed. Never absolute: a leading `/`, `
 
 ### `queueConfig`
 
-Class-level property literals. A key is `null` when the class declares no such property. The literal keeps its own type.
+Class-level queue settings. A key is `null` when the class declares nothing for it. The literal keeps its own type.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -299,6 +316,7 @@ Class-level property literals. A key is `null` when the class declares no such p
 | `tries` | string or integer or null | Literal value of the class's `$tries` property. |
 | `timeout` | string or integer or null | Literal value of the class's `$timeout` property. |
 | `backoff` | string or integer or null | Literal value of the class's `$backoff` property. |
+| `after_commit` | boolean or null | Whether the class dispatches after the open database transaction commits. `true` for `ShouldQueueAfterCommit`, a literal `$afterCommit = true`, or a constructor call `$this->afterCommit()`; `false` for a literal `false` or `$this->beforeCommit()`. On a job, `false` opts out of `ShouldQueueAfterCommit`; on a mailable or notification the interface wins. `null` when the class says nothing: the queue connection's `after_commit` setting decides at runtime. |
 <!-- /generated:shape:queueConfig -->
 
 <!-- generated:shape:dispatchSite -->
@@ -355,11 +373,12 @@ A resolved dispatch made from a class method or closure.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `target` | string | FQCN of the dispatched event or job. |
-| `kind` | one of `event`, `job` | Whether the target is an event or a job. |
-| `confidence` | one of `high`, `medium`, `low` | Always `high` for statically resolved targets; `medium` and `low` are reserved. |
+| `target` | string | FQCN of the dispatched event, job, mailable or notification. |
+| `kind` | one of `event`, `job`, `mailable`, `notification` | Whether the target is an event, a job, a mailable or a notification. |
+| `confidence` | one of `high`, `medium`, `low` | `high` for a target resolved in the handler method itself; `medium` when the call sits in a helper method the handler reaches (see `via`); `low` is reserved. |
 | `file` | [path](#relativepath) | File of the dispatching call. |
 | `line` | integer ≥ 1 | 1-indexed line of the dispatching call. |
+| `via`? | array of string | Present when the call sits in a helper method of the same class that the handler reaches through `$this->`, `self::` or `static::` calls: the helper method names in call order, ending with the method that holds the call. Absent when the handler makes the call itself. |
 <!-- /generated:shape:dispatch -->
 
 ## Determinism
@@ -374,7 +393,7 @@ Two scans of identical source produce byte-identical JSON except `scanned_at`. F
 | `closure_listeners` | `event`, `file`, `line`, `end_line`, `registration` |
 | `scheduled_tasks` | `file`, `line`, `kind`, `target`, `name`, `cron` |
 | `routes` | `file`, `line`, `method`, `uri`, `name` |
-| `unresolved_dispatches` | `file`, `line`, `expression`, `reason` |
+| `unresolved_dispatches`, `unresolved_routes` | `file`, `line`, `expression`, `reason` |
 
 Nested lists use the same rule: dispatch sites by `file`, `line`, `method`, `mode`; `dispatches[]` by `file`, `line`, `target`, `kind`; `handled_by[]` by `listener` (or `handler`), `method`; `handles[]` by `event`, `method`. Arrays whose source order is meaningful (`middleware`, `channels`, `arguments`) keep it. Paths are relative to the app root, so the output does not depend on where you scan from.
 

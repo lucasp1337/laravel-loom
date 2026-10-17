@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Lucasp\Loom\Support\Ast\CallKind;
 use Lucasp\Loom\Support\Ast\CallSite;
 use PhpParser\Node;
+use PhpParser\Node\Expr\Variable;
 
 it('wraps a method call', function () {
     $site = CallSite::of(parseExpr("\$mailer->send(\$m, 'x')"));
@@ -12,7 +13,7 @@ it('wraps a method call', function () {
     expect($site)->not->toBeNull()
         ->and($site->kind())->toBe(CallKind::METHOD)
         ->and($site->name())->toBe('send')
-        ->and($site->receiver())->toBeInstanceOf(Node\Expr\Variable::class)
+        ->and($site->receiver())->toBeInstanceOf(Variable::class)
         ->and($site->args()->count())->toBe(2)
         ->and($site->line())->toBe(1);
 });
@@ -58,9 +59,17 @@ it('returns a null name for dynamic callees', function () {
         ->and(CallSite::of(parseExpr('new $class'))?->name())->toBeNull();
 });
 
-it('does not treat nullsafe calls or other expressions as call sites', function () {
-    expect(CallSite::of(parseExpr('$o?->m()')))->toBeNull()
-        ->and(CallSite::of(parseExpr('$x')))->toBeNull()
+it('reads a nullsafe method call as a method call', function () {
+    $site = CallSite::of(parseExpr('$o?->notify($n)'));
+
+    expect($site?->kind())->toBe(CallKind::METHOD)
+        ->and($site?->name())->toBe('notify')
+        ->and($site?->receiver())->toBeInstanceOf(Variable::class)
+        ->and($site?->chainRoot())->toBeNull();
+});
+
+it('does not treat other expressions as call sites', function () {
+    expect(CallSite::of(parseExpr('$x')))->toBeNull()
         ->and(CallSite::of(parseExpr('Foo::class')))->toBeNull();
 });
 

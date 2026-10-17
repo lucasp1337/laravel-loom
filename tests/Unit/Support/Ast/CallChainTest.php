@@ -64,11 +64,9 @@ it('returns null for an expression that is not a call', function () {
         ->and(CallChain::from(parseExpr('new Foo')))->toBeNull();
 });
 
-it('does not read through a nullsafe call', function () {
-    // `?->` is a different node, so the chain ends there (and is not a chain at all when outermost)
-    expect(CallChain::from(parseExpr('$x?->a()->b()')))->not->toBeNull()
-        ->and(chainNames('$x?->a()->b()'))->toBe(['b'])
-        ->and(CallChain::from(parseExpr('$x->a()?->b()')))->toBeNull();
+it('reads through a nullsafe call like a method call', function () {
+    expect(chainNames('$x?->a()->b()'))->toBe(['a', 'b'])
+        ->and(chainNames('$x->a()?->b()'))->toBe(['a', 'b']);
 });
 
 it('reports each link at the start line of its whole expression', function () {

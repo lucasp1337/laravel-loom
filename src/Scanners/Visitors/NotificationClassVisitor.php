@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners\Visitors;
 
 use Lucasp\Loom\Dto\NotificationClassRecord;
-use Lucasp\Loom\Support\Ast\QueueConfig;
-use Lucasp\Loom\Support\Ast\ValueLists;
+use Lucasp\Loom\Support\Ast\ViaChannels;
 use PhpParser\Node;
 
 /**
  * Collects concrete notification classes and statically resolvable
- * `via()` channels. Non-literal `via()` bodies set channels_dynamic: true.
- * Only a `via()` declared on the class itself is read, and only a body that is
- * a single `return [...]` of string literals and `Class::class` constants.
+ * `via()` channels (see {@see ViaChannels}). Unreadable and conditional
+ * `via()` bodies set channels_dynamic: true. Only a `via()` declared on the
+ * class itself is read.
  *
  * @implements ClassRecordVisitor<NotificationClassRecord>
  *
@@ -46,7 +45,6 @@ final class NotificationClassVisitor extends CollectingVisitor implements ClassR
         $this->classes[] = new NotificationClassRecord(
             fqcn: $node->namespacedName->toString(),
             line: $node->getStartLine(),
-            queueConfig: QueueConfig::extractFrom($node),
             channels: $channels,
             channelsDynamic: $dynamic,
         );
@@ -66,7 +64,9 @@ final class NotificationClassVisitor extends CollectingVisitor implements ClassR
     }
 
     /**
-     * No `via()` → ([], false). Non-literal body → ([], true).
+     * No `via()` gives ([], false). An unreadable body gives ([], true). A
+     * conditional one gives the union of its channels and true: the list may
+     * hold channels that do not apply on every call.
      *
      * @return array{0: list<string>, 1: bool}
      */
@@ -76,27 +76,12 @@ final class NotificationClassVisitor extends CollectingVisitor implements ClassR
             return [[], false];
         }
 
-        $stmts = $via->stmts;
-        if ($stmts === null || count($stmts) !== 1) {
+        $read = ViaChannels::read($via);
+        if ($read === null) {
             return [[], true];
         }
 
-        $only = $stmts[0];
-        if (! $only instanceof Node\Stmt\Return_) {
-            return [[], true];
-        }
-
-        $expr = $only->expr;
-        if ($expr === null) {
-            return [[], true];
-        }
-
-        $channels = ValueLists::channels($expr);
-        if ($channels === null) {
-            return [[], true];
-        }
-
-        return [$channels, false];
+        return [$read['channels'], $read['conditional']];
     }
 
     /** @return list<NotificationClassRecord> */

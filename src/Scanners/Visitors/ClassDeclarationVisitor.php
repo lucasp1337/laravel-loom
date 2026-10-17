@@ -8,6 +8,7 @@ use Lucasp\Loom\Dto\ClassDeclaration;
 use Lucasp\Loom\Dto\MethodDeclaration;
 use Lucasp\Loom\Dto\MethodVisibility;
 use Lucasp\Loom\Dto\TraitAdaptation;
+use Lucasp\Loom\Support\Ast\QueueConfig;
 use PhpParser\Modifiers;
 use PhpParser\Node;
 
@@ -77,6 +78,7 @@ final class ClassDeclarationVisitor extends CollectingVisitor
             isAbstract: $node->isAbstract(),
             methods: $this->collectMethods($node->stmts),
             adaptations: $this->collectAdaptations($node->stmts),
+            queue: QueueConfig::declarationOf($node),
         );
     }
 
@@ -118,6 +120,7 @@ final class ClassDeclarationVisitor extends CollectingVisitor
             line: $node->getStartLine(),
             methods: $this->collectMethods($node->stmts),
             adaptations: $this->collectAdaptations($node->stmts),
+            queue: QueueConfig::declarationOf($node),
         );
     }
 

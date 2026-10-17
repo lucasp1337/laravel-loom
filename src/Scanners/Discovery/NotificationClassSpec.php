@@ -16,7 +16,8 @@ use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 
 /**
- * Notifications: every class under Notifications/, plus notification-kind
+ * Notifications: every concrete class under Notifications/ that is one
+ * (extends Notification or declares via()), plus notification-kind
  * dispatch targets (never ambiguous). Adds the declared `via()` channels.
  *
  * @implements ClassSpec<NotificationClassRecord, NotificationLocation, NotificationEntry>
@@ -45,8 +46,8 @@ final class NotificationClassSpec implements ClassSpec
         return new NotificationLocation(
             file: $relativeFile,
             line: $record->line,
-            queued: $resolver->implementsInterface($record->fqcn, LaravelClasses::SHOULD_QUEUE->value),
-            queueConfig: $record->queueConfig,
+            queued: $resolver->isQueued($record->fqcn),
+            queueConfig: $resolver->queueConfig($record->fqcn, interfaceWinsOverFalse: true),
             channels: $record->channels,
             channelsDynamic: $record->channelsDynamic,
         );
@@ -68,7 +69,7 @@ final class NotificationClassSpec implements ClassSpec
 
             foreach ($visitor->getSites() as $site) {
                 if ($site->provisionalKind === DispatchKinds::NOTIFICATION) {
-                    $seeds[] = new DispatchSeed($site->target, false);
+                    $seeds[] = new DispatchSeed($site->target, false, $site->line);
                 }
             }
         }
@@ -80,6 +81,19 @@ final class NotificationClassSpec implements ClassSpec
     {
         // No seed is ambiguous, so this is never consulted.
         return true;
+    }
+
+    public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool
+    {
+        // A class under Notifications/ is a notification only when it extends
+        // Notification (or an unseen vendor parent) or declares via().
+        return $resolver->mayExtend($record->fqcn, LaravelClasses::NOTIFICATION->value)
+            || isset($resolver->effectiveMethods($record->fqcn)['via']);
+    }
+
+    public function reportsUnlocatableAmbiguous(): bool
+    {
+        return false;
     }
 
     public function entryOf(string $fqcn, object $location): NotificationEntry

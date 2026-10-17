@@ -19,15 +19,10 @@ If missing, list available fixtures under `tests/Fixtures/` and stop.
 
 ### 2. Run the scan
 
-The scanner reads source directly — no need to fully boot the fixture as a Laravel app:
+The scanner reads source directly, so the fixture does not need to boot as a Laravel app:
 
 ```bash
-php -r "
-require 'vendor/autoload.php';
-\$builder = new \Multitude\Loom\Index\IndexBuilder();
-\$index = \$builder->build(__DIR__ . '/tests/Fixtures/${ARGUMENTS:-basic-app}');
-echo json_encode(\$index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-" > /tmp/loom-scan-output.json
+just scan-json "$(pwd)/tests/Fixtures/${ARGUMENTS:-basic-app}" > /tmp/loom-scan-output.json
 ```
 
 ### 3. Validate against schema

@@ -30,5 +30,6 @@ final readonly class ClassDeclaration
         public bool $isAbstract = false,
         public array $methods = [],
         public array $adaptations = [],
+        public ?QueueDeclaration $queue = null,
     ) {}
 }

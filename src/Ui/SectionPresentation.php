@@ -17,6 +17,7 @@ use Lucasp\Loom\Index\Model\Observer;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Model\ScheduledTask;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
+use Lucasp\Loom\Index\Model\UnresolvedRoute;
 use Lucasp\Loom\Index\Sections;
 use Lucasp\Loom\Query\EntityKind;
 use Lucasp\Loom\Query\SortField;
@@ -110,6 +111,17 @@ final class SectionPresentation
                 EntityKind::JOB,
                 NodeType::JOB,
                 shortcut: 'j',
+            ),
+            Sections::UNRESOLVED_ROUTES => new SectionSpec(
+                $section,
+                'Unresolved routes',
+                'No unresolved routes',
+                'Every route form in the route files was read.',
+                [
+                    new ColumnSpec('location', 'Location', static fn (UnresolvedRoute $u): string => $u->file.':'.$u->line, ColumnRole::NAME, SortField::FILE),
+                    self::text('expression', 'Expression', static fn (UnresolvedRoute $u): string => $u->expression),
+                    self::text('reason', 'Reason', static fn (UnresolvedRoute $u): string => $u->reason),
+                ],
             ),
             Sections::UNRESOLVED_DISPATCHES => new SectionSpec(
                 $section,

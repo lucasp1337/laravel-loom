@@ -76,6 +76,17 @@ final class EventClassSpec implements ClassSpec
         return $underDirectory;
     }
 
+    public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool
+    {
+        return true;
+    }
+
+    public function reportsUnlocatableAmbiguous(): bool
+    {
+        // The job spec reports an unlocatable Dispatchable target.
+        return false;
+    }
+
     public function entryOf(string $fqcn, object $location): EventEntry
     {
         return new EventEntry(id: $fqcn, fqcn: $fqcn, file: $location->file, line: $location->line);
@@ -85,7 +96,7 @@ final class EventClassSpec implements ClassSpec
     private function addTargets(array &$seeds, EventDispatchSiteVisitor $visitor): void
     {
         foreach ($visitor->getTargets() as $target) {
-            $seeds[] = new DispatchSeed($target->fqcn, $target->form === DispatchForm::DISPATCHABLE);
+            $seeds[] = new DispatchSeed($target->fqcn, $target->form === DispatchForm::DISPATCHABLE, $target->line);
         }
     }
 
@@ -93,7 +104,7 @@ final class EventClassSpec implements ClassSpec
     private function addMappings(array &$seeds, DispatchesEventsVisitor $visitor): void
     {
         foreach ($visitor->getMappings() as $mapping) {
-            $seeds[] = new DispatchSeed($mapping->eventFqcn, false);
+            $seeds[] = new DispatchSeed($mapping->eventFqcn, false, $mapping->line);
         }
     }
 }

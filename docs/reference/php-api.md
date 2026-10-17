@@ -58,6 +58,7 @@ Each section has a getter on `Index` that returns a `list<X>` of read-model valu
 | `scheduledTasks()` | `list<Model\ScheduledTask>` |
 | `routes()` | `list<Model\Route>` |
 | `unresolvedDispatches()` | `list<Model\UnresolvedDispatch>` |
+| `unresolvedRoutes()` | `list<Model\UnresolvedRoute>` |
 
 ### Lookups
 
@@ -126,8 +127,9 @@ Every value object in `Lucasp\Loom\Index\Model\` is `final readonly` with public
 | `Mailable` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $sentFrom` |
 | `Notification` | `string $fqcn`, `string $file`, `int $line`, `bool $queued`, `?QueueConfig $queueConfig`, `list<DispatchSite> $notifiedFrom`, `list<string> $channels`, `bool $channelsDynamic` |
 | `ScheduledTask` | `ScheduleKind $kind`, `?string $name`, `?string $target`, `list<string> $arguments`, `?string $queue`, `?string $connection`, `?string $cron`, `?Frequency $frequency`, `?string $timezone`, `bool $withoutOverlapping`, `?int $withoutOverlappingExpiresAt`, `bool $onOneServer`, `bool $runInBackground`, `bool $evenInMaintenanceMode`, `list<string> $constraints`, `string $file`, `int $line` |
-| `Route` | `string $method`, `string $uri`, `?string $name`, `?string $controllerFqcn`, `?string $controllerMethod`, `list<string> $middleware`, `string $file`, `int $line`, `list<Dispatch> $dispatches`, `?int $endLine` |
+| `Route` | `string $method`, `string $uri`, `?string $name`, `?string $controllerFqcn`, `?string $controllerMethod`, `list<string> $middleware`, `string $file`, `int $line`, `list<Dispatch> $dispatches`, `?int $endLine`, `?string $kind` |
 | `UnresolvedDispatch` | `string $file`, `int $line`, `string $expression`, `string $reason` |
+| `UnresolvedRoute` | `string $file`, `int $line`, `string $expression`, `string $reason` |
 
 ### Shared models
 
@@ -136,7 +138,7 @@ Every value object in `Lucasp\Loom\Index\Model\` is `final readonly` with public
 | `Dispatch` | `string $target`, `DispatchKinds $kind`, `Confidence $confidence`, `string $file`, `int $line` |
 | `DispatchSite` | `string $file`, `int $line`, `string $method`, `?DispatchMode $mode`, `?DispatchOverrides $overrides`, `?list<string> $channels` |
 | `DispatchOverrides` | `?string $locale`, `?string $mailer`, `?string $connection`, `?string $queue`, `?int $delay`, `?bool $afterCommit` |
-| `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff` |
+| `QueueConfig` | `string\|int\|null $connection`, `string\|int\|null $queue`, `string\|int\|null $delay`, `string\|int\|null $tries`, `string\|int\|null $timeout`, `string\|int\|null $backoff`, `?bool $afterCommit` |
 | `Frequency` | `FrequencyUnit $unit`, `int $every`: a sub-minute schedule frequency (`scheduled_tasks[*].frequency`), present only when `cron` is `null` |
 | `Handle` | `string $event`, `string $method`: a listener's event-to-method binding (`listeners[*].handles`) |
 | `Handler` | `string $listener`, `string $method`: an event's listener-to-method binding (`events[*].handled_by`) |
@@ -163,7 +165,7 @@ Read an enum's backing string with `->value` (for example `$route->dispatches[0]
 Public classes carry `@api` and are listed here:
 
 - `Lucasp\Loom\Index\`: `Index`, `IndexLoader`, `IndexLoadException`, and the enums `Confidence`, `DispatchKinds`, `DispatchMode`, `FrequencyUnit`, `ListenerRegistration`, `ObserverRegistration`, `ScheduleKind`.
-- `Lucasp\Loom\Index\Model\`: the value objects above (`ClosureListener`, `Dispatch`, `DispatchOverrides`, `DispatchSite`, `Event`, `Frequency`, `Handle`, `Handler`, `Job`, `Listener`, `Mailable`, `ModelEvent`, `ModelEventHandler`, `Notification`, `Observer`, `QueueConfig`, `Route`, `ScheduledTask`, `UnresolvedDispatch`).
+- `Lucasp\Loom\Index\Model\`: the value objects above (`ClosureListener`, `Dispatch`, `DispatchOverrides`, `DispatchSite`, `Event`, `Frequency`, `Handle`, `Handler`, `Job`, `Listener`, `Mailable`, `ModelEvent`, `ModelEventHandler`, `Notification`, `Observer`, `QueueConfig`, `Route`, `ScheduledTask`, `UnresolvedDispatch`, `UnresolvedRoute`).
 
 The surface mirrors the [schema](schema.md), so it changes when the schema does.
 

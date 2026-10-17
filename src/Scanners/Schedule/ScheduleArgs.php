@@ -12,17 +12,17 @@ namespace Lucasp\Loom\Scanners\Schedule;
 final class ScheduleArgs
 {
     /**
-     * Split an `H:i` time literal into [hour, minute]; [null, null] when it is
-     * not in that shape.
+     * Split an `H:i` or bare `H` time literal into [hour, minute]; a bare hour
+     * has minute 0. [null, null] when it is not in either shape.
      *
      * @return array{0: ?int, 1: ?int}
      */
     public static function splitTime(string $time): array
     {
-        if (! preg_match('/^(\d{1,2}):(\d{1,2})$/', $time, $m)) {
+        if (! preg_match('/^(\d{1,2})(?::(\d{1,2}))?$/', $time, $m)) {
             return [null, null];
         }
 
-        return [(int) $m[1], (int) $m[2]];
+        return [(int) $m[1], (int) ($m[2] ?? 0)];
     }
 }

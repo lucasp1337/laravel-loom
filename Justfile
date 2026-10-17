@@ -17,12 +17,23 @@ build:
 install:
     {{docker_run}} composer install --no-progress
 
-# Run the full check sequence: PHPStan + Pint --test + Pest.
-check: phpstan pint-check test
+# The full gate, fail-fast: pint, phpstan, rector, pest, bench, generated docs, strict docs build.
+verify: pint-check phpstan rector test (bench "--assert") docs-check docs-build
 
-# Run PHPStan at level 8.
+# Apply every automatic rewrite: rector first, then pint, then regenerate docs.
+fix: rector-fix pint docs-generate
+
+# Run PHPStan (level 8).
 phpstan:
-    {{docker_run}} vendor/bin/phpstan analyse --memory-limit=512M
+    {{docker_run}} vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+# Rector dry run; fails on a diff.
+rector:
+    {{docker_run}} vendor/bin/rector process --dry-run --ansi
+
+# Apply Rector rewrites (run pint after).
+rector-fix:
+    {{docker_run}} vendor/bin/rector process --ansi
 
 # Apply Pint formatting.
 pint:
@@ -32,7 +43,7 @@ pint:
 pint-check:
     {{docker_run}} vendor/bin/pint --test
 
-# Run the Pest test suite.
+# Run the Pest suite (extra args pass through).
 test *args:
     {{docker_run}} vendor/bin/pest {{args}}
 
@@ -40,16 +51,21 @@ test *args:
 coverage:
     {{docker_run}} vendor/bin/pest --coverage --min=0
 
-# Run a single test file or filter (e.g. `just test-filter EventScanner`).
+# Run Pest with a name filter (e.g. `just test-filter EventScanner`).
 test-filter filter:
     {{docker_run}} vendor/bin/pest --filter={{filter}}
 
-# Run the performance benchmark suite (generates tiny/medium/large apps).
-#   just bench               # print a table
-#   just bench --json        # machine-readable
-#   just bench --assert      # fail on count drift vs baseline.json
+# Run the benchmark suite (e.g. `just bench --json`, `just bench --assert`).
 bench *args:
     {{docker_run}} php benchmarks/bench.php {{args}}
+
+# Rewrite benchmarks/baseline.json after a legitimate count change.
+bench-baseline:
+    {{docker_run}} php benchmarks/bench.php --baseline
+
+# Regenerate tests/Fixtures/mcp-golden.json; review the diff.
+golden:
+    docker run --rm -e LOOM_UPDATE_GOLDEN=1 -v $(pwd):/app {{image}} vendor/bin/pest tests/Feature/Mcp/CharacterizationTest.php
 
 # Open an interactive shell in the container.
 shell:

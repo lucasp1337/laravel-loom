@@ -9,7 +9,10 @@ use Lucasp\Loom\Index\Field;
 /**
  * Static queue configuration read off a queueable class (job, mailable,
  * notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`,
- * `$backoff`. Each value is the literal property value, or null when absent.
+ * `$backoff`, and whether the class dispatches after the transaction commits.
+ * Each value is the literal property value, or null when absent; `afterCommit`
+ * is true or false when the source settles it, null when only the queue
+ * connection's config could.
  *
  * @api
  */
@@ -22,6 +25,7 @@ final readonly class QueueConfig
         public string|int|null $tries,
         public string|int|null $timeout,
         public string|int|null $backoff,
+        public ?bool $afterCommit = null,
     ) {}
 
     /** @param  array<string, mixed>  $data */
@@ -34,6 +38,7 @@ final readonly class QueueConfig
             tries: self::scalar($data, Field::TRIES),
             timeout: self::scalar($data, Field::TIMEOUT),
             backoff: self::scalar($data, Field::BACKOFF),
+            afterCommit: Hydrate::nullableBool($data, Field::AFTER_COMMIT),
         );
     }
 

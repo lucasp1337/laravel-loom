@@ -4,6 +4,28 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 
 ## [Unreleased]
 
+### Added
+
+- Model hooks `static::creating(fn)` and the like are read as `model_events` and closure listeners; listener strings `Fqcn@method` and `X::class.'@method'` and string event keys are read.
+- Unreadable listener or hook registrations are listed in `unresolved_dispatches` (`unreadable_listener`, `unreadable_model_hook`).
+- Dispatch sites: nullsafe `?->notify`, `self::`/`static::`/`parent::` targets, `Bus::batch`/`chain` nested arrays and variable lists, single-assignment variable targets, and dispatches in same-class helpers (attributed to handlers up to 3 hops, `via`, confidence `medium`); `dispatches[].kind` adds `mailable` and `notification`.
+- New `unresolved_dispatches` reasons: `class_not_found` (no file declares the class), `target_not_indexed` (class found, no section row), `dynamic_list` (runtime list in `Bus::chain`/`batch`); a dispatch with no row never appears in `dispatches[]` and is reported once.
+- `unresolved_routes` section and `scan.route_macros`; routes: `require` inside a group closure keeps the group, chains starting with `Route::middleware()`/`prefix()`/`name()`, `Route::resource` options and modifier chains, singleton/apiSingleton/array forms, `view`, `redirect`, `fallback`, `query`, `withoutMiddleware`, `Class::class.':arg'` middleware.
+- Schedule: `Schedule` properties and helper methods called from `schedule()`, `Artisan::command()->freq()`, `at()` as `dailyAt`, enclosing `if`/`elseif`/`else` recorded as constraints; unreadable `schedule()` bodies and unreachable helpers listed under skipped files.
+- `unresolved_dispatches` reasons say why: `string_event_name`, `closure_job`, `view_mail`, `call_result`, `stored_target`, `relative_class_name`, `unsupported_expression` for dispatch targets, and `unreadable_event_name`, `untyped_closure_listener`, `unreadable_subscriber` for registrations; `parent::hook()` is reported instead of skipped.
+- Docs page "Forms Loom does not read": every reason with a code example and its fix, generated from the reason enum and scanned in tests.
+- `queue_config.after_commit`: `ShouldQueueAfterCommit`, `$afterCommit`, `afterCommit()` / `beforeCommit()` in the constructor.
+- `scan.ast_cache_mb` sizes the shared parse cache (`null` from the memory limit, `0` off).
+- `scan.composer_files` and merge-plugin includes; `loom:scan` prints scanned counts and warns about nested composer PSR-4 directories outside the scan paths.
+
+### Changed
+
+- A scan parses each PHP file once and shares the name-resolved tree across scanners (about 3x faster on a large app; the cache is bounded by the memory limit).
+- `queue_config` merges parent and trait properties and literal constructor `onQueue`/`onConnection`/`delay`; `ShouldQueueAfterCommit` reads as queued; `via()` building a local array reads as a union with `channels_dynamic`.
+- Plain classes under `Mail/` and `Notifications/` are no longer listed without evidence.
+- Listener `auto_discovered` requires verified discovery, otherwise `discovery_unverified`.
+- `IndexBuilder::build` rejects a relative app root.
+
 ### Fixed
 
 - Observer hook resolution honours `scan.paths` and `scan.exclude` when following parent classes and traits.

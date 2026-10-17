@@ -95,7 +95,7 @@ return [
             'file' => 'app/Jobs/SendMail.php',
             'line' => 6,
             'queued' => true,
-            'queue_config' => null,
+            'queue_config' => ['connection' => null, 'queue' => 'mail', 'delay' => null, 'tries' => 3, 'timeout' => null, 'backoff' => null, 'after_commit' => true],
             'dispatched_from' => [$site('app/Listeners/SendReceipt.php', 9)],
             'dispatches' => [$dispatch('App\\Events\\Pong', 'app/Jobs/SendMail.php', 15)],
         ],

@@ -6,7 +6,7 @@ use Lucasp\Loom\Tools\ReferencePages;
 /**
  * Regenerates the generated regions of the docs, or with --check only lists
  * the pages that drifted and exits non-zero without writing anything.
- * Usage: php tools/generate-reference.php [--check]
+ * Usage: `just docs-generate`, or `just docs-check` for the read-only check.
  */
 
 require __DIR__.'/../vendor/autoload.php';

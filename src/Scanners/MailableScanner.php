@@ -6,6 +6,7 @@ namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\MailableEntry;
+use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
 use Lucasp\Loom\Scanners\Discovery\ClassPrimitiveDiscovery;
 use Lucasp\Loom\Scanners\Discovery\MailableClassSpec;
 use Lucasp\Loom\Support\Ast\AstWalker;
@@ -40,12 +41,14 @@ final class MailableScanner implements Scanner
     }
 
     /**
-     * @return array{mailables: list<MailableEntry>}
+     * @return array{mailables: list<MailableEntry>, unresolved_dispatches: list<UnresolvedDispatchEntry>}
      */
     public function scan(string $appRoot): array
     {
         $discovery = new ClassPrimitiveDiscovery($this->walker, $this->locator, $this->scope);
 
-        return ['mailables' => $discovery->discover($appRoot, new MailableClassSpec)];
+        $result = $discovery->discover($appRoot, new MailableClassSpec);
+
+        return ['mailables' => $result->entries, 'unresolved_dispatches' => $result->unresolved];
     }
 }

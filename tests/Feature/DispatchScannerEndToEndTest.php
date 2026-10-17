@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Lucasp\Loom\Index\IndexBuilder;
 use Lucasp\Loom\Scanners\DispatchScanner;
 use Lucasp\Loom\Scanners\EventScanner;
+use Lucasp\Loom\Scanners\JobsScanner;
 use Lucasp\Loom\Scanners\ListenerScanner;
 use Lucasp\Loom\Scanners\ObserverScanner;
 
@@ -19,6 +20,7 @@ function buildDispatchEndToEndPayload(): array
     $builder->register(new EventScanner);
     $builder->register(new ListenerScanner);
     $builder->register(new ObserverScanner);
+    $builder->register(new JobsScanner);
     $builder->register(new DispatchScanner);
 
     return $builder->build(dispatchEndToEndFixturePath(), '12.x')->toArray();
@@ -38,11 +40,12 @@ function dispatchEntryByFqcn(array $entries, string $fqcn): ?array
     return null;
 }
 
-it('produces a schema-valid index with all four scanners registered', function () {
+it('produces a schema-valid index with every dispatch scanner registered', function () {
     $builder = new IndexBuilder;
     $builder->register(new EventScanner);
     $builder->register(new ListenerScanner);
     $builder->register(new ObserverScanner);
+    $builder->register(new JobsScanner);
     $builder->register(new DispatchScanner);
 
     $payload = $builder->build(dispatchEndToEndFixturePath(), '12.x')->toArray();
@@ -157,12 +160,29 @@ it('populates events[InventoryAdjusted].dispatched_from from the listener', func
 it('records the unresolved_dispatches with file, line, expression, reason', function () {
     $payload = buildDispatchEndToEndPayload();
 
-    expect($payload['unresolved_dispatches'])->toHaveCount(2);
+    // Two unreadable targets in Checkout, plus one event class no file declares.
+    expect($payload['unresolved_dispatches'])->toHaveCount(3);
 
     foreach ($payload['unresolved_dispatches'] as $entry) {
         expect($entry)->toHaveKeys(['file', 'line', 'expression', 'reason']);
-        expect($entry['file'])->toBe('app/Services/Checkout.php');
     }
+
+    $byReason = collect($payload['unresolved_dispatches'])->groupBy('reason');
+    expect($byReason['dynamic_class_name'][0]['file'])->toBe('app/Services/Checkout.php')
+        ->and($byReason['string_concatenation'][0]['file'])->toBe('app/Services/Checkout.php');
+});
+
+it('reports a dispatch of an unlocatable class once as class_not_found, never in dispatches[]', function () {
+    $payload = buildDispatchEndToEndPayload();
+
+    $entries = collect($payload['unresolved_dispatches'])->filter(fn (array $e): bool => str_contains($e['expression'], 'SomeEvent'));
+    expect($entries)->toHaveCount(1)
+        ->and($entries->first()['reason'])->toBe('class_not_found')
+        ->and($entries->first()['expression'])->toBe('App\\Events\\SomeEvent::class')
+        ->and($entries->first()['file'])->toBe('app/Listeners/SendOrderConfirmation.php');
+
+    $listener = dispatchEntryByFqcn($payload['listeners'], 'App\\Listeners\\SendOrderConfirmation');
+    expect(array_column($listener['dispatches'], 'target'))->not->toContain('App\\Events\\SomeEvent');
 });
 
 it('attributes dispatches in non-handle() methods listed in handles[*].method', function () {
@@ -213,5 +233,5 @@ it('matches the expected stats counts', function () {
     expect($payload['stats']['events'])->toBe(3);
     expect($payload['stats']['listeners'])->toBe(2);
     expect($payload['stats']['observers'])->toBe(1);
-    expect($payload['stats']['unresolved_dispatches'])->toBe(2);
+    expect($payload['stats']['unresolved_dispatches'])->toBe(3);
 });

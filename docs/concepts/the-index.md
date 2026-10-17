@@ -149,7 +149,8 @@ The job records where it's dispatched from, and the queue settings it declares:
     "delay": null,
     "tries": 3,
     "timeout": null,
-    "backoff": null
+    "backoff": null,
+    "after_commit": null
   },
   "dispatched_from": [
     {

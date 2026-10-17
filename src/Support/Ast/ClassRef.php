@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Support\Ast;
 
+use Lucasp\Loom\Support\LaravelClasses;
 use PhpParser\Node;
 
 /**
@@ -37,7 +38,7 @@ final class ClassRef
     public static function fromInstanceOrConstant(?Node $expr): ?string
     {
         // Unwrap fluent chains: (new X)->locale('es')->onQueue('q') resolves to X.
-        while ($expr instanceof Node\Expr\MethodCall) {
+        while ($expr instanceof Node\Expr\MethodCall || $expr instanceof Node\Expr\NullsafeMethodCall) {
             $expr = $expr->var;
         }
 
@@ -85,5 +86,12 @@ final class ClassRef
         }
 
         return false;
+    }
+
+    /** True when the class directly declares `ShouldQueue` or a framework sub-interface of it. */
+    public static function declaresQueueInterface(Node\Stmt\Class_ $node): bool
+    {
+        return collect(LaravelClasses::queueInterfaces())
+            ->contains(static fn (string $interface): bool => self::declaresInterface($node, $interface));
     }
 }

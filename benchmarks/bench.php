@@ -7,12 +7,12 @@ declare(strict_types=1);
  * with the production scanner set, and reports wall time, peak memory, and a
  * per-scanner breakdown. See benchmarks/README.md.
  *
- *   php benchmarks/bench.php                  # run all sizes, print a table
- *   php benchmarks/bench.php --size=medium    # one size only
- *   php benchmarks/bench.php --json           # machine-readable output
- *   php benchmarks/bench.php --baseline       # (re)write baseline.json
- *   php benchmarks/bench.php --assert         # fail on count drift vs baseline
- *   php benchmarks/bench.php --assert --time-threshold=0.5   # also gate wall time
+ *   just bench                  # run all sizes, print a table
+ *   just bench --size=medium    # one size only
+ *   just bench --json           # machine-readable output
+ *   just bench --baseline       # (re)write baseline.json
+ *   just bench --assert         # fail on count drift vs baseline
+ *   just bench --assert --time-threshold=0.5   # also gate wall time
  */
 
 use Lucasp\Loom\Benchmarks\AppGenerator;
@@ -68,7 +68,7 @@ if ($flag('baseline')) {
 if ($flag('assert')) {
     $raw = is_file($baselinePath) ? file_get_contents($baselinePath) : false;
     if ($raw === false) {
-        fwrite(STDERR, "no baseline.json — run `composer bench:baseline` first.\n");
+        fwrite(STDERR, "no baseline.json — run `just bench-baseline` first.\n");
         exit(2);
     }
 

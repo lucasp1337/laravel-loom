@@ -22,6 +22,7 @@ use Lucasp\Loom\Support\OptionalPackage;
 use Lucasp\Loom\Support\OptionalPackages;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScanConfigKey;
+use Lucasp\Loom\Support\ScanCoverage;
 use Lucasp\Loom\Support\ScanScope;
 
 /** @internal */
@@ -55,9 +56,14 @@ class ScanCommand extends Command
             return self::FAILURE;
         }
 
+        $coverage = ScanCoverage::counts($appRoot, $scope);
+        if ($coverage['files'] === 0) {
+            $this->warn('No PHP files found in the scan directories: '.Arr::join($scope->paths(), ', '));
+        }
+
         $outputPath = $this->resolveOutputPath();
 
-        $walker = new AstWalker;
+        $walker = new AstWalker($scope->astCacheBytes());
         $builder = new IndexBuilder;
         $discovery = new RouteFileDiscovery($scope, $walker);
         DefaultScanners::registerOn($builder, $scope, $walker, $discovery);
@@ -87,7 +93,9 @@ class ScanCommand extends Command
         $this->hintAtUi();
 
         $skipped = $walker->skippedFiles();
+        $this->line("Scanned {$coverage['files']} PHP files in {$coverage['directories']} directories.");
         $this->line($this->summary($payload, count($skipped)));
+        $this->hintAtUncovered($appRoot, $scope);
 
         if ($skipped !== [] && $this->output->isVerbose()) {
             $this->listSkipped($skipped, $appRoot);
@@ -110,6 +118,17 @@ class ScanCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function hintAtUncovered(string $appRoot, ScanScope $scope): void
+    {
+        $uncovered = ScanCoverage::uncovered($appRoot, $scope);
+        foreach (collect($uncovered)->take(5) as $directory => $composer) {
+            $this->warn("Not scanned: {$directory} (declared in {$composer}). Add it to scan.paths, or list the composer file in scan.composer_files.");
+        }
+        if (count($uncovered) > 5) {
+            $this->warn('... and '.(count($uncovered) - 5).' more directories outside scan.paths.');
+        }
     }
 
     private function hintAtUi(): void

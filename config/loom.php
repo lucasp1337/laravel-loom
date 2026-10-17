@@ -25,9 +25,30 @@ return [
         // for one run.
         'discover_routes' => true,
 
+        // Router macros that register routes, mapped to the router method they
+        // behave like: `['softDeletableResource' => 'resource']`. A listed macro
+        // is read as that method; any other `Route::<unknown>()` call is
+        // reported in `unresolved_routes`. Methods: get, post, put, patch,
+        // delete, options, any, match, resource, apiResource, singleton,
+        // apiSingleton, view, redirect, permanentRedirect, fallback.
+        'route_macros' => [],
+
         // Also scan every directory in `composer.json`'s `autoload.psr-4`.
         // `autoload-dev` is not included.
         'psr4_paths' => false,
+
+        // composer.json files, as globs relative to the project root
+        // (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read
+        // for class lookup and whose directories are scanned. Files listed in
+        // the root composer.json's `extra.merge-plugin.include` are read for
+        // class lookup without being listed here.
+        'composer_files' => [],
+
+        // Megabytes of parsed PHP source kept so each file is parsed once per
+        // scan instead of once per scanner. `null` sizes it from
+        // `memory_limit` (at most 8); `0` turns the cache off. Memory use is
+        // about 10 to 15 times this.
+        'ast_cache_mb' => null,
 
         // Globs relative to the project root. A match removes the file, or
         // everything under the matching directory, from every scanner.

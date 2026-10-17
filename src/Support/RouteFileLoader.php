@@ -15,4 +15,7 @@ enum RouteFileLoader: string
     case ROUTE_GROUP = 'Route::group()';
     case WITH_ROUTING = 'withRouting()';
     case WITH_COMMANDS = 'withCommands()';
+
+    /** `require` / `include` of a file inside a route group or a route file. */
+    case INCLUDE = 'require';
 }
