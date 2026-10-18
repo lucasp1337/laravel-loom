@@ -7,6 +7,8 @@ namespace Lucasp\Loom\Tools;
 use Lucasp\Loom\Tools\Pages\RegionSource;
 use Lucasp\Loom\Tools\Regions\Markers;
 use Lucasp\Loom\Tools\Regions\RegionName;
+use Lucasp\Loom\Tools\Site\LlmsText;
+use Lucasp\Loom\Tools\Site\SiteConfig;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -15,7 +17,8 @@ use RuntimeException;
  * Fills the generated regions of the docs. Sources produce page-independent
  * regions; every `docs/**` markdown page and the README that carries a marker
  * pair for a region gets that region's text between the markers. Only text between a
- * pair of markers is ever rewritten.
+ * pair of markers is ever rewritten. With a site config at the root, the
+ * whole-file {@see LlmsText} outputs are written from the rendered pages too.
  */
 final class ReferencePages
 {
@@ -24,6 +27,8 @@ final class ReferencePages
 
     /** @var list<RegionSource> */
     private readonly array $sources;
+
+    private readonly ?LlmsText $llms;
 
     /**
      * @param  list<RegionSource>|null  $sources  defaults to every discovered source
@@ -34,6 +39,7 @@ final class ReferencePages
         private readonly string $docsDir = 'docs',
     ) {
         $this->sources = $sources ?? SourceRegistry::discover(new SourceContext($root));
+        $this->llms = is_file($root.'/'.SiteConfig::FILE) ? new LlmsText($root, $docsDir) : null;
     }
 
     /**
@@ -79,14 +85,26 @@ final class ReferencePages
     }
 
     /**
-     * Pages whose committed text differs from a fresh render.
+     * The rendered pages and the whole generated files, keyed by path.
+     *
+     * @return array<string, string>
+     */
+    public function outputs(): array
+    {
+        $pages = $this->render();
+
+        return [...$pages, ...($this->llms?->files($pages) ?? [])];
+    }
+
+    /**
+     * Pages and files whose committed text differs from a fresh render.
      *
      * @return list<string>
      */
     public function drifted(): array
     {
         $drifted = [];
-        foreach ($this->render() as $page => $content) {
+        foreach ($this->outputs() as $page => $content) {
             if ($content !== $this->read($page)) {
                 $drifted[] = $page;
             }
@@ -96,14 +114,14 @@ final class ReferencePages
     }
 
     /**
-     * Writes every page whose generated regions differ; returns the changed paths.
+     * Writes every page and file whose generated text differs; returns the changed paths.
      *
      * @return list<string>
      */
     public function write(): array
     {
         $changed = [];
-        foreach ($this->render() as $page => $content) {
+        foreach ($this->outputs() as $page => $content) {
             if ($content !== $this->read($page)) {
                 file_put_contents($this->root.'/'.$page, $content);
                 $changed[] = $page;
@@ -149,8 +167,9 @@ final class ReferencePages
         return [...array_filter(self::ROOT_PAGES, fn (string $page): bool => is_file($this->root.'/'.$page)), ...$pages];
     }
 
+    /** A page's committed text; empty for a generated file not written yet. */
     private function read(string $page): string
     {
-        return (string) file_get_contents($this->root.'/'.$page);
+        return is_file($this->root.'/'.$page) ? (string) file_get_contents($this->root.'/'.$page) : '';
     }
 }

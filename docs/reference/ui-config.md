@@ -1,14 +1,12 @@
 # Index, UI and MCP configuration
 
-Every key outside `scan` (see [Scan configuration](scan-config.md)) with its default and environment variable: the shared `index_path`, the browser UI and the MCP server. For what the UI does, see [Browse the UI](../guides/browse-the-ui.md); for the server, see [Ask an agent](../guides/ask-an-agent.md).
-
-Publish the file to change values that have no environment variable:
+Every key outside `scan` ([Scan configuration](scan-config.md)), with its default and environment variable. Publish the file to change keys without one:
 
 ```bash
 php artisan vendor:publish --tag=loom-config
 ```
 
-The keys are addressed as `loom.index_path`, `loom.ui.enabled` and so on. The `ui` and `mcp` keys live inside arrays of the same name in the published file.
+Keys are addressed as `loom.index_path`, `loom.ui.enabled` and so on. The UI is covered in [Browse the UI](../guides/browse-the-ui.md), the server in [Ask an agent](../guides/ask-an-agent.md).
 
 ## Index
 
@@ -49,7 +47,7 @@ The keys are addressed as `loom.index_path`, `loom.ui.enabled` and so on. The `u
 
 ## The viewLoom gate
 
-The gate is not a config key. By default it allows the `local` environment and denies everything else with a 403. It only runs in environments listed in `ui.environments`; in any other environment the UI isn't mounted and the response is a 404, not a 403. Define `Gate::define('viewLoom', ...)` in your app to replace it. An example is in [Browse the UI](../guides/browse-the-ui.md#open-it-on-staging).
+The default gate allows `local` and refuses everything else with a 403. It runs only where `ui.environments` mounts the UI; elsewhere the answer is a 404. Define your own `viewLoom` gate to replace it, as in [Browse the UI](../guides/browse-the-ui.md#open-it-on-staging).
 
 !!! warning "Route caching hides changes"
-    `path`, `domain` and `middleware` are baked into the route cache when `php artisan route:cache` runs; clear it after changing them. See [route caching](https://laravel.com/docs/12.x/routing#route-caching).
+    `path`, `domain` and `middleware` are frozen by [route caching](https://laravel.com/docs/12.x/routing#route-caching); run `php artisan route:clear` after changing them.

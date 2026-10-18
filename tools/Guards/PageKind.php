@@ -36,7 +36,7 @@ enum PageKind: string
     {
         return match ($this) {
             // The home page is a list of links under its title.
-            self::Landing => new PageOutline(maxDepth: 3, lead: false),
+            self::Landing => new PageOutline(maxDepth: 3, lead: false, code: false),
             self::Concept => new PageOutline(maxDepth: 3, lead: true),
             // A task page: who it is for and what you get, then the steps.
             self::Guide => new PageOutline(maxDepth: 3, lead: true),

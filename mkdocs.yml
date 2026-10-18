@@ -89,6 +89,11 @@ nav:
       - Use with Laravel Boost: guides/use-with-boost.md
       - Gate your CI: guides/gate-your-ci.md
       - Why was my code missed?: guides/why-was-my-code-missed.md
+  - Recipes:
+      - What runs when an event fires: recipes/event-chain.md
+      - What triggers a job: recipes/job-triggers.md
+      - Routes without auth: recipes/routes-without-auth.md
+      - Fail on new unresolved dispatches: recipes/new-unresolved-dispatches.md
   - Reference:
       - Commands: reference/commands.md
       - Check rules and formats: reference/check-rules-and-formats.md

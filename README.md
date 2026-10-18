@@ -14,7 +14,7 @@
 
 Loom is a static analyzer that maps a Laravel app's events, listeners, jobs, mailables, notifications, schedules and routes into a JSON index, a browser UI and an MCP server.
 
-Laravel wires an event up in several places at once: dispatched in a controller, handled by a listener that was auto-discovered from a type hint, and observed by a closure in a provider. Loom reads your source and answers "what happens when `OrderPlaced` fires?" in one lookup, with a file and line for every hop.
+It reads your source, never boots the app, and answers "what happens when `OrderPlaced` fires?" with a file and line for every hop.
 
 ```bash
 composer require lucasp1337/laravel-loom --dev
@@ -49,7 +49,7 @@ php artisan loom:show OrderPlaced
 ```
 <!-- /generated:output:show-event -->
 
-That is an excerpt: the scan wrote `storage/loom/index.json`, and `loom:show` printed it filtered to `OrderPlaced`. Open `/loom` in your local app to browse the same data. [Getting started](docs/getting-started.md) walks through it step by step.
+The scan wrote `storage/loom/index.json`; `loom:show` printed the `OrderPlaced` entry. [Getting started](docs/getting-started.md) walks through it.
 
 ## What you can do with it
 
@@ -57,13 +57,13 @@ That is an excerpt: the scan wrote `storage/loom/index.json`, and `loom:show` pr
 - **Browse it.** A read-only UI at `/loom`: [browse the UI](docs/guides/browse-the-ui.md).
 - **Ask an agent.** `php artisan loom:mcp` serves the index to an MCP client: [ask an agent](docs/guides/ask-an-agent.md).
 - **Gate your CI.** `loom:check` fails pull requests that add dead events or dispatch cycles, and `loom:diff` shows how the architecture changed between branches: [gate your CI](docs/guides/gate-your-ci.md).
-- **Read it from code.** Load the index into typed PHP objects: [PHP API](docs/reference/php-api.md).
+- **Read it from code.** Load the index into typed PHP objects: [PHP API](docs/reference/php-api.md) and [recipes](docs/recipes/event-chain.md).
 
 ## What it is not
 
-- Not a runtime tracer. Loom never boots your app or watches a request, so it reports what your source says, not what a given request did.
-- Not complete for dynamic code. A dispatch like `event($class)` can't be resolved from source. Loom lists it under `unresolved_dispatches` with a file and line instead of guessing.
-- Not a style linter. It has no opinion on your code beyond the [check rules](docs/reference/check-rules-and-formats.md) you turn on.
+- Not a runtime tracer: it reports what your source says, not what a request did.
+- Not complete for dynamic code: `event($class)` is listed under `unresolved_dispatches` with a file and line instead of guessed.
+- Not a style linter: it has no opinion beyond the [check rules](docs/reference/check-rules-and-formats.md).
 
 > [!NOTE]
 > Install with `--dev`. The UI, the MCP server and the `viewLoom` gate then disappear from `composer install --no-dev` production builds. The UI is also mounted only in `local` unless you list more environments in `loom.ui.environments`.

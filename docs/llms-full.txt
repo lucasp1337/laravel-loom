@@ -1,0 +1,4859 @@
+# Laravel Loom
+
+> Static analyzer for Laravel's event-driven primitives — emits a deterministic JSON index.
+
+# Laravel Loom
+
+## Understand it
+
+- [What Loom sees](concepts/what-loom-sees.md): what a scan records and what it can't resolve.
+- [The index](concepts/the-index.md): how to read one flow forward and backward.
+
+## Use it
+
+- [Browse the UI](guides/browse-the-ui.md): the read-only `/loom` dashboard and chain graph.
+- [Ask an agent](guides/ask-an-agent.md): serve the index to an agent through the MCP server.
+- [Use with Laravel Boost](guides/use-with-boost.md): register the MCP server next to Boost's.
+- [Gate your CI](guides/gate-your-ci.md): diff and check the index on every pull request.
+- [Why was my code missed?](guides/why-was-my-code-missed.md): trace a missing entry to its cause.
+
+## Recipes
+
+- [What runs when an event fires](recipes/event-chain.md)
+- [What triggers a job](recipes/job-triggers.md)
+- [Routes without auth](recipes/routes-without-auth.md)
+- [Fail on new unresolved dispatches](recipes/new-unresolved-dispatches.md)
+
+## Look things up
+
+- [Commands](reference/commands.md): every `loom:*` command, flag and exit code.
+- [Check rules and formats](reference/check-rules-and-formats.md): rules, exit codes and output formats.
+- [GitHub Action](reference/action.md): scan, diff and check in a workflow.
+- [MCP tools](reference/mcp-tools.md): the tools `loom:mcp` exposes.
+- [Schema](reference/schema.md): the field-by-field index contract.
+- [PHP API](reference/php-api.md): read the index as typed objects.
+- [What Loom detects](reference/detection/index.md): tested examples for each primitive.
+- [Scan configuration](reference/scan-config.md): what gets scanned.
+- [Index, UI and MCP configuration](reference/ui-config.md): every other config key.
+
+# Getting started
+
+Scan a Laravel 12.41+ or 13 app on PHP 8.3+, follow one event, and see the same data in the browser.
+
+```bash
+composer require lucasp1337/laravel-loom --dev
+php artisan loom:scan
+```
+
+```text
+Loom index written to /var/www/shop/storage/loom/index.json
+Scanned 11 PHP files in 1 directories.
+events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
+```
+
+The scan reads your source and never boots your app. The last line counts each section of the index it wrote.
+
+## Follow an event
+
+Print the index filtered to one event:
+
+```bash
+php artisan loom:show OrderPlaced
+```
+
+```json
+{
+    "id": "App\\Events\\OrderPlaced",
+    "fqcn": "App\\Events\\OrderPlaced",
+    "kind": "class",
+    "file": "app/Events/OrderPlaced.php",
+    "line": 5,
+    "dispatched_from": [
+        {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 11,
+            "method": "App\\Http\\Controllers\\OrderController::store"
+        }
+    ],
+    "handled_by": [
+        {
+            "listener": "App\\Listeners\\SendReceipt",
+            "method": "handle"
+        }
+    ]
+}
+```
+
+`dispatched_from` lists where your code fires the event and `handled_by` every listener that reacts. You never registered `SendReceipt`: Loom linked it through the type hint on `handle()`. The filter applies to events, listeners, observers and model events; other sections print in full ([`loom:show`](reference/commands.md#loomshow)). [The index](concepts/the-index.md) shows how to follow the chain from here.
+
+## Open the UI
+
+With `livewire/livewire` installed, Loom mounts a read-only UI at `/loom` in the `local` environment. It reads the index and never scans. [Browse the UI](guides/browse-the-ui.md) covers the chain graph and opening it elsewhere.
+
+## When it doesn't work
+
+### No index yet
+
+Without a scan, `loom:show` fails:
+
+```text
+Loom index not found at /var/www/shop/storage/loom/index.json. Run `php artisan loom:scan` first.
+```
+
+### A dispatch is missing
+
+A call like `event($class)` lands in `unresolved_dispatches`, with a file and line, because the class isn't named in the source. [Why was my code missed?](guides/why-was-my-code-missed.md) covers the rest.
+
+## Where to next
+
+- [Gate your CI](guides/gate-your-ci.md) on the index.
+- [Ask an agent](guides/ask-an-agent.md) through the MCP server.
+- [Recipes](recipes/event-chain.md) for common questions.
+
+# What Loom sees
+
+Loom reads your source without booting the app and records what it finds, one index section per primitive.
+
+```text
+Loom index written to /var/www/shop/storage/loom/index.json
+Scanned 11 PHP files in 1 directories.
+events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
+```
+
+The sections and their fields are in the [schema](../reference/schema.md#top-level-fields). The code shapes each scanner reads, and the ones it skips, are tested examples under [What Loom detects](../reference/detection/index.md).
+
+## Why a static index
+
+One event is wired in several files: dispatched in a controller, handled by a listener linked only by the type hint on `handle()`, and by a closure a provider registers. Grep finds the dispatch and the closure, not the listener. Loom follows each link and stores it in [one index](the-index.md), so it reports what your code says, not what one request did.
+
+## What Loom can't see
+
+A class picked at runtime has no name in the source. Loom lists each such call in `unresolved_dispatches` or `unresolved_routes` with its file, line and a `reason` instead of dropping it. The [reason table](../reference/detection/index.md#unresolved-reasons) leads from a `reason` to the code that produces it, and `loom:check` can [fail on new ones](../recipes/new-unresolved-dispatches.md).
+
+If something you expected is missing, start at [Why was my code missed?](../guides/why-was-my-code-missed.md)
+
+# The index
+
+A scan writes one JSON document, `storage/loom/index.json`: metadata, `stats`, then one array per primitive.
+
+```json
+{
+  "schema_version": "1.0",
+  "loom_version": "0.4.0",
+  "scanned_at": "2026-01-01T00:00:00Z",
+  "laravel_version": "13.0",
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "events": [ { "...": "..." } ],
+  "model_events": [ { "...": "..." } ],
+  "listeners": [ { "...": "..." } ],
+  "observers": [ { "...": "..." } ],
+  "jobs": [ { "...": "..." } ],
+  "unresolved_dispatches": [ { "...": "..." } ],
+  "closure_listeners": [ { "...": "..." } ],
+  "scheduled_tasks": [ { "...": "..." } ],
+  "routes": [ { "...": "..." } ],
+  "unresolved_routes": [ { "...": "..." } ],
+  "mailables": [ { "...": "..." } ],
+  "notifications": [ { "...": "..." } ]
+}
+```
+
+Every key is always present and `stats` counts each section. Entries are sorted, so two scans of the same source differ only in `scanned_at`, which keeps [`loom:diff`](../guides/gate-your-ci.md#see-what-changed) output stable. The [schema](../reference/schema.md) has the field-by-field contract.
+
+## Reading a relationship
+
+Every relationship is stored once, on whichever side owns it:
+
+| Field | Lives on | Each item |
+| --- | --- | --- |
+| `dispatches` | route, listener, job, observer, closure listener | `{target, kind, confidence, file, line}` |
+| `handled_by` | event | `{listener, method}` |
+| `dispatched_from` | event, job | `{file, line, method}` |
+| `sent_from` | mailable | `{file, line, method}` |
+| `notified_from` | notification | `{file, line, method}` |
+
+Read an event's `handled_by` for its handlers and a job's `dispatched_from` for its callers. `kind` says what a target is, and [`confidence`](../reference/schema.md#dispatchconfidence) how it was resolved.
+
+## A worked example
+
+`POST /orders` runs `OrderController::store`, which dispatches `OrderPlaced`. `SendReceipt` handles it and dispatches a queued `SendMail` job.
+
+```mermaid
+flowchart TD
+    R[POST /orders] -->|dispatches| E(OrderPlaced event)
+    E -->|handled_by| L[SendReceipt]
+    L -->|dispatches| J(SendMail job)
+```
+
+These entries come from a scan of that flow, trimmed to the fields that carry the links. The route:
+
+```json
+{
+    "method": "POST",
+    "uri": "/orders",
+    "name": "orders.store",
+    "controller_fqcn": "App\\Http\\Controllers\\OrderController",
+    "controller_method": "store",
+    "file": "routes/web.php",
+    "line": 6,
+    "dispatches": [
+        {
+            "target": "App\\Events\\OrderPlaced",
+            "kind": "event",
+            "confidence": "high",
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 11
+        }
+    ]
+}
+```
+
+The event:
+
+```json
+{
+    "id": "App\\Events\\OrderPlaced",
+    "file": "app/Events/OrderPlaced.php",
+    "line": 5,
+    "dispatched_from": [
+        {
+            "file": "app/Http/Controllers/OrderController.php",
+            "line": 11,
+            "method": "App\\Http\\Controllers\\OrderController::store"
+        }
+    ],
+    "handled_by": [
+        {
+            "listener": "App\\Listeners\\SendReceipt",
+            "method": "handle"
+        }
+    ]
+}
+```
+
+The listener:
+
+```json
+{
+    "fqcn": "App\\Listeners\\SendReceipt",
+    "file": "app/Listeners/SendReceipt.php",
+    "line": 9,
+    "handles": [
+        {
+            "event": "App\\Events\\OrderPlaced",
+            "method": "handle"
+        }
+    ],
+    "registration": "discovery_unverified",
+    "queued": false,
+    "dispatches": [
+        {
+            "target": "App\\Events\\ReceiptSent",
+            "kind": "event",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 13
+        },
+        {
+            "target": "App\\Jobs\\SendMail",
+            "kind": "job",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 14
+        }
+    ]
+}
+```
+
+The job:
+
+```json
+{
+    "fqcn": "App\\Jobs\\SendMail",
+    "file": "app/Jobs/SendMail.php",
+    "line": 7,
+    "queued": true,
+    "dispatched_from": [
+        {
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 14,
+            "method": "App\\Listeners\\SendReceipt::handle"
+        }
+    ]
+}
+```
+
+The route's `dispatches` names `OrderPlaced`, whose `handled_by` names `SendReceipt`, whose `dispatches` names `SendMail`. Read backward, `SendMail.dispatched_from` points at `SendReceipt::handle`. A closure registered for `OrderPlaced` is not in `handled_by`: it has its own `closure_listeners` entry.
+
+Commit the index if you want a baseline to [diff and check](../guides/gate-your-ci.md) a branch against; otherwise add it to `.gitignore`. The [PHP API](../reference/php-api.md) reads it as typed objects.
+
+# Browse the UI
+
+Open `/loom` in your local app and follow `OrderPlaced` through every listener and job it triggers.
+
+```bash
+composer require livewire/livewire --dev
+php artisan loom:scan
+php artisan serve
+```
+
+Open `http://localhost:8000/loom`. The dashboard counts each primitive, lists orphans (events nobody handles, listeners with no event, unresolved dispatches) and ranks events by fan-out. The UI reads the index and never scans, so scan again after you change code.
+
+## Follow an event
+
+Click **Events**, then `OrderPlaced`. The page lists where the event is dispatched, the listeners that handle it and what they dispatch next. Click **View chain** to see the trail as a graph, one column per hop:
+
+- Click a node to read its facts and open its page.
+- Double-click a node to collapse or expand it.
+- The depth selector sets how many hops are drawn. Depth and selection live in the address bar, so the link reopens the same view.
+
+Jobs, mailables and notifications are leaves, and observers are not drawn. Which calls count as a listener's dispatches is shown in [Dispatches](../reference/detection/dispatches.md).
+
+| Message | Meaning |
+| --- | --- |
+| `Depth limit reached. Raise the depth to expand the remaining events.` | Handlers exist past the edge; pick a higher depth. |
+| `No handlers registered for this event.` | Nothing in the index handles it; see [Why was my code missed?](why-was-my-code-missed.md) |
+| `↺ already shown` | The event was drawn on another branch. It isn't always a loop: the `cyclic-dispatch` rule of [`loom:check`](../reference/check-rules-and-formats.md#rules) reports real cycles. |
+
+## Find things
+
+Each sidebar section is a table you can filter and sort; the address bar keeps the view, so `/loom/listeners?q=Order&sort=dispatch_count&dir=desc` is a saved search. Press `Ctrl K` (`Cmd K`) or `/` to search every section by class, route or file.
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl K` / `Cmd K`, or `/` | Open the palette |
+| Esc | Close the palette or drawer; deselect a node |
+| `g` then `d` | Dashboard |
+| `g` then `e` | Events |
+| `g` then `l` | Listeners |
+| `g` then `o` | Observers |
+| `g` then `j` | Jobs |
+| `g` then `c` | Closure listeners |
+| `g` then `m` | Mailables |
+| `g` then `n` | Notifications |
+| `g` then `r` | Routes |
+
+## When the page isn't what you expect
+
+| You see | Do |
+| --- | --- |
+| 503 `No index found` or `Index could not be loaded` | Run `php artisan loom:scan` |
+| 403 | The `viewLoom` gate refused you; see below |
+| 404 on `/loom` | Add the environment to `ui.environments`, check `ui.enabled`, and run `php artisan route:clear` if routes are cached |
+| `Index is 6 days older than your last commit to app/` | Run `php artisan loom:scan`. The banner compares commits, so it never shows for uncommitted changes or outside a git checkout. |
+
+## Open it on staging
+
+List the environment in `ui.environments`, then define the `viewLoom` gate; yours replaces the default, which allows only `local`:
+
+```php
+Gate::define('viewLoom', fn (?User $user): bool => in_array($user?->email, ['dev@shop.test'], true));
+```
+
+The gate runs on every page load and every click. `production` is ignored unless `ui.allow_in_production` is `true`. The path, domain and kill switch are in [UI configuration](../reference/ui-config.md#browser-ui).
+
+# Ask an agent about your events
+
+Register `loom:mcp` with your MCP client so an agent answers from the index instead of grepping your source.
+
+```json
+{
+  "mcpServers": {
+    "loom": {
+      "command": "php",
+      "args": ["/var/www/shop/artisan", "loom:mcp"]
+    }
+  }
+}
+```
+
+Put that in your client's MCP config, such as `.mcp.json` at the project root, and restart the client. The server needs `laravel/mcp` (`composer require laravel/mcp --dev`). Use an absolute path to `artisan`; under Docker or Sail, run `php artisan loom:mcp` inside the container without a TTY.
+
+## Ask a question
+
+Ask "What happens when an order is placed?". The agent calls `events-following` for `OrderPlaced` and gets the handlers, what they dispatch and the handlers of those, each with a file and line:
+
+```json
+{
+    "root": "App\\Events\\OrderPlaced",
+    "depth": 3,
+    "edges": [
+        {
+            "event": "App\\Events\\OrderPlaced",
+            "handler": "App\\Listeners\\SendReceipt::handle",
+            "handler_kind": "listener",
+            "dispatches": [
+                {
+                    "target": "App\\Events\\ReceiptSent",
+                    "kind": "event",
+                    "confidence": "high",
+                    "file": "app/Listeners/SendReceipt.php",
+                    "line": 13
+                },
+                {
+                    "target": "App\\Jobs\\SendMail",
+                    "kind": "job",
+                    "confidence": "high",
+                    "file": "app/Listeners/SendReceipt.php",
+                    "line": 14
+                }
+            ]
+        },
+        {
+            "event": "App\\Events\\ReceiptSent",
+            "handler": "App\\Listeners\\ArchiveReceipt::handle",
+            "handler_kind": "listener",
+            "dispatches": []
+        },
+        {
+            "event": "App\\Events\\ReceiptSent",
+            "handler": "app/Providers/EventServiceProvider.php:14",
+            "handler_kind": "closure",
+            "dispatches": [
+                {
+                    "target": "App\\Events\\ReceiptLogged",
+                    "kind": "event",
+                    "confidence": "high",
+                    "file": "app/Providers/EventServiceProvider.php",
+                    "line": 15
+                }
+            ]
+        },
+        {
+            "event": "App\\Events\\ReceiptLogged",
+            "handler": "App\\Listeners\\WriteAuditLog::handle",
+            "handler_kind": "listener",
+            "dispatches": []
+        }
+    ],
+    "events_reached": [
+        "App\\Events\\OrderPlaced",
+        "App\\Events\\ReceiptSent",
+        "App\\Events\\ReceiptLogged"
+    ],
+    "cycles": [],
+    "truncated": false
+}
+```
+
+The [MCP tools](../reference/mcp-tools.md#which-tool-answers-what) page lists which tool answers which question, with inputs and real responses. Name classes in full (`App\Events\OrderPlaced`): tools match fully qualified names exactly.
+
+## Where the index comes from
+
+The server reads the index `loom:scan` wrote, at `index_path`, and reloads it when the file changes. With no flag it scans once, on the first tool call, if the file is missing. On a shared machine or in CI, make a missing index an error:
+
+```bash
+php artisan loom:mcp --no-scan
+```
+
+```text
+ERROR  No index at [storage/loom/index.json] and --no-scan is set. Run `php artisan loom:scan` first.
+```
+
+`--scan` scans before serving, `--no-scan` never scans and `--snapshot=PATH` serves another file; see [Commands](../reference/commands.md#loommcp). The server answers from your last scan, not your working tree, so rescan after you change code.
+
+!!! warning "Keep stdout clean"
+    Client and server talk JSON-RPC over stdout. A stray `echo`, a `dd()` or a PHP notice breaks the connection: log to a file and set `display_errors=stderr` for the CLI.
+
+## What the agent can't see
+
+A dispatch like `event($this->followUp)` names no class, so it is never a `target`. `find-unresolved-dispatches` lists these:
+
+```json
+{
+    "count": 1,
+    "unresolved_dispatches": [
+        {
+            "file": "app/Jobs/SendMail.php",
+            "line": 13,
+            "expression": "event($this->followUp)",
+            "reason": "stored_target"
+        }
+    ]
+}
+```
+
+Check this list before you trust "nothing listens to X". Each dispatch carries a [`confidence`](../reference/schema.md#dispatchconfidence); chain responses report `truncated` when `depth` cut them short.
+
+# Use Loom with Laravel Boost
+
+Teach agents in a [Laravel Boost](https://laravel.com/docs/boost) project when to call Loom, and register its server next to Boost's.
+
+```json
+{
+  "mcpServers": {
+    "laravel-boost": {
+      "command": "php",
+      "args": ["artisan", "boost:mcp"]
+    },
+    "loom": {
+      "command": "php",
+      "args": ["artisan", "loom:mcp"]
+    }
+  }
+}
+```
+
+Boost registers only its own server, so add the `loom` entry to your MCP config yourself and restart the agent. The server needs `laravel/mcp`; [Ask an agent](ask-an-agent.md) covers Docker, paths and what to ask.
+
+## What Boost picks up
+
+Loom ships two files under `resources/boost/`, which Boost reads from each direct Composer dependency:
+
+| File | Boost loads it as | It says |
+| --- | --- | --- |
+| `resources/boost/guidelines/core.blade.php` | A guideline, every session | When to call Loom, which tool answers what, and not to guess unresolved dispatches |
+| `resources/boost/skills/loom/SKILL.md` | A skill, on demand | Workflows for impact analysis, orphans and tracing a route to its events |
+
+Run `php artisan boost:install` (or `boost:update`) and select Loom when Boost lists third-party packages. The guideline tells agents to run `php artisan loom:scan` after changing events, listeners, jobs or routes.
+
+# Gate your CI on architecture
+
+Fail pull requests that add a dead event, a dispatch loop or an unresolved dispatch, and show reviewers what changed.
+
+```bash
+php artisan loom:scan
+php artisan loom:check
+```
+
+```text
+orphan-listeners — Every listener handles at least one event
+  ✗ Listener App\Listeners\AuditOrders handles no events.
+orphan-events — Every event is dispatched or handled
+  ✗ Event App\Events\OrderCancelled is never dispatched and never handled.
+cyclic-dispatch — No cyclic event/job dispatch chains
+  ✗ Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
+3 violation(s) across 3 rule(s).
+```
+
+The branch added a listener pair that dispatch each other's events; the app also has an unused event and an untyped listener. `loom:check` exits `1` on a violation and `2` when it couldn't run, so fail the job on any non-zero code. Each rule and its fix is in [Check rules](../reference/check-rules-and-formats.md#rules).
+
+Without a reference point `unresolved-dispatches` checks nothing. Compare against a baseline to [fail on new unresolved dispatches](../recipes/new-unresolved-dispatches.md), or pass `--strict` to fail on all of them.
+
+## See what changed
+
+`loom:diff` lists what moved between two indexes:
+
+```bash
+php artisan loom:diff .loom/baseline.json storage/loom/index.json
+```
+
+```text
+events
+  + {"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":5,"dispatched_from":[{"file":"app/Listeners/ReserveStock.php","line":12,"method":"App\\Listeners\\ReserveStock::handle"}],"handled_by":[{"listener":"App\\Listeners\\RecountStock","method":"handle"}]}
+  ~ App\Events\OrderPlaced
+      handled_by:
+        + {"listener":"App\\Listeners\\ReserveStock","method":"handle"}
+      dispatched_from:
+        + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
+
+listeners
+  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
+
+unresolved_dispatches
+  + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
+```
+
+`+` is an added entry and `~` one whose links changed. Like `git diff --exit-code`, it exits `1` when anything changed and `2` on bad input, so a bare `loom:diff` step fails the job; fail only on `2`.
+
+## Run both on every pull request
+
+The Loom Action scans the branch, runs `loom:check`, diffs against the base branch and posts one sticky PR comment:
+
+```yaml
+name: Loom
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  loom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lucasp1337/laravel-loom@v0.4.0
+        with:
+          strict: "true"
+```
+
+The job fails with the exit code of `loom:check`. The Action never passes a baseline, so set `strict: "true"` or unresolved dispatches go unchecked. If the base branch can't be scanned, the diff is skipped and the job still passes. Inputs, outputs and the fork limit are in the [Action reference](../reference/action.md).
+
+# Why was my code missed?
+
+When an entry is missing or a link is empty, first look for its file in the unresolved lists.
+
+```bash
+php artisan loom:scan
+jq '.unresolved_dispatches[], .unresolved_routes[] | select(.file == "app/Http/Controllers/OrderController.php")' storage/loom/index.json
+```
+
+**1. Read the reason.** Loom lists a call it recognised but could not resolve, with its file, line and `reason`. Find the reason in the [reason table](../reference/detection/index.md#unresolved-reasons); it links to the example that produces it, next to the form Loom does read.
+
+**2. Find your code shape on the primitive's page.** Some forms leave no trace. Compare your code with the examples for [listeners](../reference/detection/listeners.md), [jobs](../reference/detection/jobs.md), [routes](../reference/detection/routes.md) and the rest under [What Loom detects](../reference/detection/index.md). A line marked `✗ not recorded` is a form Loom skips.
+
+**3. Check that the file was scanned.** `php artisan loom:scan -v` lists files skipped for syntax errors. Code outside [`scan.paths`](../reference/scan-config.md), or under `scan.exclude`, is never read.
+
+If your code matches a form the docs say is read and still doesn't show up, [open an issue](https://github.com/lucasp1337/laravel-loom/issues) with the snippet.
+
+# What runs when an event fires
+
+Follow `handled_by` and `dispatches` from one event down to the last handler.
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+
+$index = (new IndexLoader)->fromFile('storage/loom/index.json');
+
+$follow = function (string $event, string $indent = '', array $path = []) use (&$follow, $index): void {
+    if (in_array($event, $path, true)) {
+        echo "{$indent}(cycle)\n";
+
+        return;
+    }
+
+    // Listener classes, then closures registered for the event.
+    $handlers = collect($index->handlersOf($event))
+        ->mapWithKeys(fn ($handler) => [
+            "{$handler->listener}::{$handler->method}" => $index->findListener($handler->listener)?->dispatches ?? [],
+        ])
+        ->merge(collect($index->closureListeners())->where('event', $event)->mapWithKeys(fn ($closure) => [
+            "closure at {$closure->file}:{$closure->line}" => $closure->dispatches,
+        ]));
+
+    foreach ($handlers as $handler => $dispatches) {
+        echo "{$indent}{$handler}\n";
+        foreach ($dispatches as $dispatch) {
+            echo "{$indent}  → {$dispatch->kind->value} {$dispatch->target}\n";
+            $follow($dispatch->target, "{$indent}    ", [...$path, $event]);
+        }
+    }
+};
+
+$follow('App\Events\OrderPlaced');
+```
+
+```text title="Output"
+App\Listeners\SendReceipt::handle
+  → event App\Events\ReceiptSent
+    App\Listeners\ArchiveReceipt::handle
+    closure at app/Providers/EventServiceProvider.php:14
+      → event App\Events\ReceiptLogged
+        App\Listeners\WriteAuditLog::handle
+  → job App\Jobs\SendMail
+```
+
+A listener's `dispatches` covers its whole class. The `events-following` [MCP tool](../reference/mcp-tools.md) returns the same chain as JSON, with a depth limit. Loading the index is covered in the [PHP API](../reference/php-api.md).
+
+# What triggers a job
+
+Before you change a job, walk back from it to every event and route that leads to it.
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+
+$index = (new IndexLoader)->fromFile('storage/loom/index.json');
+
+// Walks back from a dispatching method to the events and routes that reach it.
+$callers = function (string $method, string $indent = '', array $path = []) use (&$callers, $index): void {
+    foreach ($index->routes() as $route) {
+        if ("{$route->controllerFqcn}::{$route->controllerMethod}" === $method) {
+            echo "{$indent}route {$route->method} {$route->uri}\n";
+        }
+    }
+
+    $listener = $index->findListener(strstr($method, '::', true) ?: $method);
+    foreach ($listener?->handles ?? [] as $handle) {
+        echo "{$indent}handles {$handle->event}\n";
+        foreach (in_array($handle->event, $path, true) ? [] : $index->dispatchersOf($handle->event) as $site) {
+            echo "{$indent}  dispatched from {$site->method}\n";
+            $callers($site->method, "{$indent}    ", [...$path, $handle->event]);
+        }
+    }
+};
+
+foreach ($index->findJob('App\Jobs\SendMail')?->dispatchedFrom ?? [] as $site) {
+    echo "dispatched from {$site->method}\n";
+    $callers($site->method, '  ');
+}
+```
+
+```text title="Output"
+dispatched from App\Listeners\SendReceipt::handle
+  handles App\Events\OrderPlaced
+    dispatched from App\Http\Controllers\OrderController::store
+      route POST /orders
+```
+
+Each step reads one link: the job's `dispatched_from`, the listener's `handles`, the event's `dispatched_from`, and the route whose controller method matches. The `impact-of-change` [MCP tool](../reference/mcp-tools.md) looks the other way: what a class handles, and which events would lose their last handler.
+
+# Routes without auth
+
+List every route whose middleware has no `auth` entry.
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+
+$index = (new IndexLoader)->fromFile('storage/loom/index.json');
+
+foreach ($index->routes() as $route) {
+    $guarded = collect($route->middleware)->contains(fn (string $name): bool => str_starts_with($name, 'auth'));
+
+    if (! $guarded) {
+        echo "{$route->method} {$route->uri}  {$route->file}:{$route->line}\n";
+    }
+}
+```
+
+```text title="Output"
+GET /health  routes/web.php:8
+```
+
+Middleware names are recorded as written, with groups such as `web` not expanded ([`routes[]`](../reference/schema.md#routes)), so a group that adds `auth` elsewhere is not seen here.
+
+# Fail on new unresolved dispatches
+
+Accept the dispatches Loom can't resolve today and fail the build on any new one.
+
+```bash
+# Once, from a scan of your main branch:
+mkdir -p .loom && cp storage/loom/index.json .loom/baseline.json
+
+# On every branch:
+php artisan loom:scan
+php artisan loom:check --baseline=.loom/baseline.json --skip=orphan-listeners --skip=orphan-events --skip=cyclic-dispatch
+```
+
+```text
+unresolved-dispatches — No new unresolved dispatches (strict: none at all)
+  ✗ Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
+1 violation(s) across 1 rule(s).
+```
+
+Only the dispatch the branch added fails, and the command exits `1`. Entries match on file, line and expression, so moving old code makes it look new: refresh the baseline when you accept it. Drop the `--skip` options to run every [rule](../reference/check-rules-and-formats.md#rules); `--strict` fails on every unresolved dispatch.
+
+# Commands
+
+Loom adds five Artisan commands, which read or write one index, by default `storage/loom/index.json`.
+
+```bash
+php artisan loom:scan                    # scan the app and write the index
+php artisan loom:show OrderPlaced        # print the index, filtered
+php artisan loom:diff old.json new.json  # compare two indexes
+php artisan loom:check                   # run the policy rules
+php artisan loom:mcp                     # serve the index over MCP
+```
+
+## loom:scan
+
+```bash
+php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [-v]
+```
+
+Parses the app without booting it, validates the result against the [schema](schema.md) and writes the index. The directories come from [scan configuration](scan-config.md).
+
+| Option | Meaning |
+| --- | --- |
+| `--output=` | Write the index here instead of the configured `index_path`. A relative path resolves from the project root. The MCP server and UI keep reading `index_path`. |
+| `--path=` | Scan this directory instead of `scan.paths`. Relative to the project root; glob patterns allowed. Repeatable. |
+| `--route-path=` | Read routes from this directory instead of `scan.route_paths`. Same rules as `--path`. Repeatable. |
+| `--no-discover-routes` | Do not follow route-file loading calls for this run, as if `scan.discover_routes` were false. Wins over the config value. |
+
+It prints the path written, the files read and a count per section. `-v` also lists each skipped file with its parser message and each route-file path not followed, with its reason:
+
+```text
+Loom index written to /var/www/shop/storage/loom/index.json
+Scanned 16 PHP files in 1 directories.
+events: 5, listeners: 6, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 2, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 1
+Skipped files:
+  app/Broken.php:8  Syntax error, unexpected '}', expecting T_VARIABLE
+```
+
+A skipped file is skipped by every scanner and doesn't change the exit code.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Index written, with or without skipped files |
+| `1` | A scan path is invalid or matches no directory, the index failed schema validation, or the output could not be written. Nothing is written. |
+
+## loom:show
+
+```bash
+php artisan loom:show [filter]
+```
+
+Prints the index as pretty JSON.
+
+| Argument | Meaning |
+| --- | --- |
+| `filter` | Optional substring (a class or method name); keeps only events, listeners, observers and `model_events` entries whose JSON text contains it. |
+
+The filter matches each entry's JSON text in events, listeners, observers and model events; other sections print in full. A filter with `/` or `\` never matches, because the JSON escapes them.
+
+Exit `0` when printed, `1` when the index is missing, unreadable or not valid JSON.
+
+## loom:diff
+
+```bash
+php artisan loom:diff old.json new.json --format=markdown
+```
+
+Compares two indexes by entry: added, removed and changed, not a text diff.
+
+| Argument or option | Meaning |
+| --- | --- |
+| `old` | Path to the old `index.json`. |
+| `new` | Path to the new `index.json`. |
+| `--format=` | Output format: text (default), json or markdown. |
+
+Exit codes and output formats are in [Check rules and formats](check-rules-and-formats.md#exit-codes).
+
+## loom:check
+
+```bash
+php artisan loom:check [index] --strict --baseline=main-index.json
+```
+
+Runs the policy rules against an index and fails when one is violated.
+
+| Argument or option | Meaning |
+| --- | --- |
+| `index` | Path to the index to check (default: `storage/loom/index.json`). |
+| `--baseline=` | Path to an older `index.json`, for growth checks. |
+| `--strict` | Treat any unresolved dispatch as a failure. |
+| `--skip=` | Rule key to skip. Repeatable. |
+| `--format=` | Output format: text (default), json or markdown. |
+
+Rules, exit codes and formats are in [Check rules and formats](check-rules-and-formats.md).
+
+## loom:mcp
+
+```bash
+php artisan loom:mcp
+```
+
+Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio that serves the index and reloads it when the file changes. [MCP tools](mcp-tools.md) lists what it answers.
+
+| Option | Meaning |
+| --- | --- |
+| `--snapshot=` | Serve this index file instead of the default (`storage/loom/index.json`); it is never auto-scanned. |
+| `--scan` | Run `loom:scan` before serving; cannot be combined with `--snapshot`. |
+| `--no-scan` | Never auto-scan; the snapshot must already exist. |
+
+Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false` or the server isn't registered.
+
+Every config key is in [Index, UI and MCP configuration](ui-config.md) and [Scan configuration](scan-config.md).
+
+# Check rules and output formats
+
+The rules, exit codes and output formats of `loom:check` and `loom:diff`; the walkthrough is [Gate your CI](../guides/gate-your-ci.md).
+
+```bash
+php artisan loom:check storage/loom/index.json --baseline=.loom/baseline.json --format=json
+php artisan loom:diff .loom/baseline.json storage/loom/index.json --format=markdown
+```
+
+Both read finished index files and need no source tree. Arguments and options are in [Commands](commands.md#loomcheck); in `loom:diff`, entries only in `new` are added and entries only in `old` are removed.
+
+## Rules
+
+| Key | Fails when | What to do |
+| --- | --- | --- |
+| `schema` | The index doesn't validate against the Loom schema. | Re-run `loom:scan`. |
+| `orphan-listeners` | A listener handles no events. | Type-hint the event on `handle()`, register the listener, or delete it. |
+| `orphan-events` | An event is never dispatched and never handled. | Delete it, or add the dispatch or listener that was meant to exist. |
+| `unresolved-dispatches` | See below. | Make the dispatched class a literal class name, or accept it into the baseline. |
+| `cyclic-dispatch` | A chain of dispatches loops back to its start. | Break one link in the reported chain. |
+
+### Unresolved dispatches, baseline and strict
+
+| Flags | Behaviour |
+| --- | --- |
+| Neither `--baseline` nor `--strict` | Passes without checking anything. |
+| `--baseline=PATH` | Fails on any unresolved dispatch not in the baseline. |
+| `--strict` | Fails on every unresolved dispatch, whatever the baseline says. |
+
+Baseline entries match by file, line and expression, so moved code looks new; see the [recipe](../recipes/new-unresolved-dispatches.md).
+
+### Cycle detection
+
+`cyclic-dispatch` draws an edge from each event or job to what its handlers dispatch, and reports one representative cycle per back-edge: fix it, re-run, and the next one surfaces.
+
+## Exit codes
+
+| Command | Code | Meaning | What to do |
+| --- | --- | --- | --- |
+| check | `0` | Every rule that ran passed. | Nothing. |
+| check | `1` | A rule found a violation. | Fix it or change the policy. Fail the job. |
+| check | `2` | Nothing was checked: bad path, invalid JSON, unknown `--format`, unknown `--skip` key. | Fix the invocation. Fail the job too. |
+| diff | `0` | No semantic changes. | Nothing. |
+| diff | `1` | Changes exist. Not an error. | Post the diff. Fail only if you want drift to block. |
+| diff | `2` | A path isn't a file, the JSON is invalid, or `--format` is unknown. | Fix the invocation. |
+
+## Check output
+
+### text
+
+Rules with violations, then a count; a passing run prints `All checks passed.` With `--baseline`:
+
+```text
+orphan-listeners — Every listener handles at least one event
+  ✗ Listener App\Listeners\AuditOrders handles no events.
+orphan-events — Every event is dispatched or handled
+  ✗ Event App\Events\OrderCancelled is never dispatched and never handled.
+unresolved-dispatches — No new unresolved dispatches (strict: none at all)
+  ✗ Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
+cyclic-dispatch — No cyclic event/job dispatch chains
+  ✗ Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
+4 violation(s) across 4 rule(s).
+```
+
+### json
+
+Every rule appears, skipped ones included, so a consumer can tell what was enforced. The same run:
+
+```json
+{
+    "passed": false,
+    "violation_count": 4,
+    "rules": [
+        {
+            "key": "schema",
+            "description": "Index validates against the JSON schema",
+            "skipped": false,
+            "violations": []
+        },
+        {
+            "key": "orphan-listeners",
+            "description": "Every listener handles at least one event",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Listener App\\Listeners\\AuditOrders handles no events.",
+                    "context": {
+                        "fqcn": "App\\Listeners\\AuditOrders",
+                        "file": "app/Listeners/AuditOrders.php",
+                        "line": 5
+                    }
+                }
+            ]
+        },
+        {
+            "key": "orphan-events",
+            "description": "Every event is dispatched or handled",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Event App\\Events\\OrderCancelled is never dispatched and never handled.",
+                    "context": {
+                        "fqcn": "App\\Events\\OrderCancelled"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "unresolved-dispatches",
+            "description": "No new unresolved dispatches (strict: none at all)",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)",
+                    "context": {
+                        "reason": "dynamic_class_name",
+                        "file": "app/Services/Notifier.php",
+                        "line": 9,
+                        "expression": "event($eventClass)"
+                    }
+                }
+            ]
+        },
+        {
+            "key": "cyclic-dispatch",
+            "description": "No cyclic event/job dispatch chains",
+            "skipped": false,
+            "violations": [
+                {
+                    "message": "Cyclic dispatch: App\\Events\\InventoryAdjusted → App\\Events\\OrderPlaced → App\\Events\\InventoryAdjusted",
+                    "context": {
+                        "cycle": [
+                            "App\\Events\\InventoryAdjusted",
+                            "App\\Events\\OrderPlaced",
+                            "App\\Events\\InventoryAdjusted"
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}
+```
+
+With `--skip=orphan-events` that rule reports as skipped:
+
+```json
+{
+    "key": "orphan-events",
+    "description": "Every event is dispatched or handled",
+    "skipped": true,
+    "violations": []
+}
+```
+
+### markdown
+
+One section per failing rule, ready for a PR comment:
+
+```markdown
+## loom:check
+
+### orphan-listeners — Every listener handles at least one event
+- Listener App\Listeners\AuditOrders handles no events.
+
+### orphan-events — Every event is dispatched or handled
+- Event App\Events\OrderCancelled is never dispatched and never handled.
+
+### unresolved-dispatches — No new unresolved dispatches (strict: none at all)
+- Unresolved dispatch (dynamic_class_name) at app/Services/Notifier.php:9: event($eventClass)
+
+### cyclic-dispatch — No cyclic event/job dispatch chains
+- Cyclic dispatch: App\Events\InventoryAdjusted → App\Events\OrderPlaced → App\Events\InventoryAdjusted
+```
+
+## Diff output
+
+Sorted, so the same pair of indexes always gives the same output. No changes prints `No semantic changes.`, or `{}` as JSON.
+
+### text
+
+`+` added, `-` removed, `~` changed with its changed members below. From a branch that added an event, two listeners and an unresolved dispatch:
+
+```text
+events
+  + {"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":5,"dispatched_from":[{"file":"app/Listeners/ReserveStock.php","line":12,"method":"App\\Listeners\\ReserveStock::handle"}],"handled_by":[{"listener":"App\\Listeners\\RecountStock","method":"handle"}]}
+  ~ App\Events\OrderPlaced
+      handled_by:
+        + {"listener":"App\\Listeners\\ReserveStock","method":"handle"}
+      dispatched_from:
+        + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
+
+listeners
+  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
+
+unresolved_dispatches
+  + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
+```
+
+### json
+
+Each non-empty section has `added`, `removed` and `changed`, with full entries. The same diff:
+
+```json
+{
+    "events": {
+        "added": [
+            {
+                "id": "App\\Events\\InventoryAdjusted",
+                "fqcn": "App\\Events\\InventoryAdjusted",
+                "kind": "class",
+                "file": "app/Events/InventoryAdjusted.php",
+                "line": 5,
+                "dispatched_from": [
+                    {
+                        "file": "app/Listeners/ReserveStock.php",
+                        "line": 12,
+                        "method": "App\\Listeners\\ReserveStock::handle"
+                    }
+                ],
+                "handled_by": [
+                    {
+                        "listener": "App\\Listeners\\RecountStock",
+                        "method": "handle"
+                    }
+                ]
+            }
+        ],
+        "removed": [],
+        "changed": [
+            {
+                "identity": "App\\Events\\OrderPlaced",
+                "field_changes": [],
+                "sublist_changes": [
+                    {
+                        "field": "handled_by",
+                        "added": [
+                            {
+                                "listener": "App\\Listeners\\ReserveStock",
+                                "method": "handle"
+                            }
+                        ],
+                        "removed": []
+                    },
+                    {
+                        "field": "dispatched_from",
+                        "added": [
+                            {
+                                "file": "app/Listeners/RecountStock.php",
+                                "line": 12,
+                                "method": "App\\Listeners\\RecountStock::handle"
+                            }
+                        ],
+                        "removed": []
+                    }
+                ]
+            }
+        ]
+    },
+    "listeners": {
+        "added": [
+            {
+                "fqcn": "App\\Listeners\\RecountStock",
+                "file": "app/Listeners/RecountStock.php",
+                "line": 8,
+                "handles": [
+                    {
+                        "event": "App\\Events\\InventoryAdjusted",
+                        "method": "handle"
+                    }
+                ],
+                "registration": "discovery_unverified",
+                "queued": false,
+                "dispatches": [
+                    {
+                        "target": "App\\Events\\OrderPlaced",
+                        "kind": "event",
+                        "confidence": "high",
+                        "file": "app/Listeners/RecountStock.php",
+                        "line": 12
+                    }
+                ]
+            },
+            {
+                "fqcn": "App\\Listeners\\ReserveStock",
+                "file": "app/Listeners/ReserveStock.php",
+                "line": 8,
+                "handles": [
+                    {
+                        "event": "App\\Events\\OrderPlaced",
+                        "method": "handle"
+                    }
+                ],
+                "registration": "discovery_unverified",
+                "queued": false,
+                "dispatches": [
+                    {
+                        "target": "App\\Events\\InventoryAdjusted",
+                        "kind": "event",
+                        "confidence": "high",
+                        "file": "app/Listeners/ReserveStock.php",
+                        "line": 12
+                    }
+                ]
+            }
+        ],
+        "removed": [],
+        "changed": []
+    },
+    "unresolved_dispatches": {
+        "added": [
+            {
+                "file": "app/Services/Notifier.php",
+                "line": 9,
+                "expression": "event($eventClass)",
+                "reason": "dynamic_class_name"
+            }
+        ],
+        "removed": [],
+        "changed": []
+    }
+}
+```
+
+### markdown
+
+The same diff:
+
+```markdown
+## events
+
+- **added** `{"id":"App\\Events\\InventoryAdjusted","fqcn":"App\\Events\\InventoryAdjusted","kind":"class","file":"app/Events/InventoryAdjusted.php","line":5,"dispatched_from":[{"file":"app/Listeners/ReserveStock.php","line":12,"method":"App\\Listeners\\ReserveStock::handle"}],"handled_by":[{"listener":"App\\Listeners\\RecountStock","method":"handle"}]}`
+- **changed** `App\Events\OrderPlaced`
+  - `handled_by`:
+    - `+` `{"listener":"App\\Listeners\\ReserveStock","method":"handle"}`
+  - `dispatched_from`:
+    - `+` `{"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}`
+
+## listeners
+
+- **added** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
+- **added** `{"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}`
+
+## unresolved_dispatches
+
+- **added** `{"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}`
+```
+
+## What the diff compares
+
+`scanned_at`, `loom_version`, `laravel_version` and `stats` are ignored. Entries match by identity:
+
+| Section | Matched by |
+| --- | --- |
+| events, listeners, jobs, mailables, notifications | `fqcn` |
+| observers | `fqcn` and `observes` |
+| model_events | `id` |
+| scheduled_tasks | `file`, `line`, `kind`, `target` |
+| unresolved_dispatches | `file`, `line`, `expression` |
+| closure_listeners | `file`, `line`, `event`, `registration` |
+
+Cross-link arrays such as `handled_by` and `dispatches` compare by membership: a member is added or removed, never edited.
+
+Reordering `notifications.channels` counts as a change. Closure listeners are only added or removed.
+
+# GitHub Action reference
+
+The Loom composite action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment. The walkthrough is [Gate your CI](../guides/gate-your-ci.md).
+
+```yaml
+name: Loom
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  loom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lucasp1337/laravel-loom@v0.4.0
+```
+
+Your app must require `lucasp1337/laravel-loom` as a dev dependency: the action runs `composer install`, then `php artisan loom:scan`.
+
+## Inputs
+
+| Input | Default | Effect | Consequence |
+| --- | --- | --- | --- |
+| `php-version` | `8.3` | PHP version installed, with `dom`, `mbstring` and `xml`. | Must satisfy your app's `composer.json`. |
+| `laravel-version` | empty | Laravel version to report. Empty reads it from `composer.lock`. | Informational only. |
+| `strict` | `false` | Runs `loom:check --strict`. | Left off, unresolved dispatches are never checked. |
+| `comment-on-pr` | `true` | Posts or updates a sticky PR comment with the check result and diff. | Needs `pull-requests: write`. Does nothing outside `pull_request` events. |
+| `fail-on-diff` | `false` | Fails the build when the diff reports changes. | Every PR that touches architecture goes red. |
+| `working-directory` | `.` | Directory holding `artisan` and `composer.json`. | In a subdirectory the base-branch diff is skipped. |
+
+## Outputs
+
+| Output | Value | Watch for |
+| --- | --- | --- |
+| `index-path` | Absolute path to the `index.json` the scan wrote. | Use it in later steps, such as `loom:check --baseline`. |
+| `unresolved-count` | Number of unresolved-dispatch violations from `loom:check`. | Always `0` unless `strict` is `true`: the action never passes a baseline. |
+| `diff-summary` | One line about the diff. | Empty outside `pull_request` events. |
+
+`diff-summary` is one of:
+
+| Value | Meaning |
+| --- | --- |
+| `No architectural changes vs <base>.` | The diff exited `0`. |
+| `Architectural changes detected vs <base>.` | The diff exited `1`. The full diff is in the PR comment. |
+| `loom:diff failed (exit N).` | Input error. The build isn't failed for it. |
+| `Diff skipped (no base index could be built).` | The base branch couldn't be scanned. |
+
+## What fails the build
+
+| Condition | Build |
+| --- | --- |
+| `loom:check` exits `1` (policy violation) | Fails with exit `1`. |
+| `loom:check` exits `2` (couldn't run) | Fails with exit `2`. |
+| Diff finds changes, `fail-on-diff` is `false` | Passes. |
+| Diff finds changes, `fail-on-diff` is `true` | Fails with exit `1`. |
+| Diff skipped or errored | Passes, whatever `fail-on-diff` says. |
+
+Without `strict`, `unresolved-dispatches` checks nothing; the other [rules](check-rules-and-formats.md#rules) always run.
+
+!!! warning "A missing diff is not a clean diff"
+    The base index is built by installing and scanning the base branch in a temporary worktree. If that fails, as on the first PR that adds Loom, the diff is skipped and the build passes.
+
+## Permissions
+
+| Permission | Why |
+| --- | --- |
+| `contents: read` | Checkout and the base-branch fetch. |
+| `pull-requests: write` | Posting and updating the comment. |
+
+!!! warning "Fork PRs can't comment"
+    On fork PRs `GITHUB_TOKEN` is read-only, so the comment step fails the job. Set `comment-on-pr: "false"` there and read the job log.
+
+## What the comment contains
+
+The comment holds the diff summary, the [markdown output](check-rules-and-formats.md#markdown) of `loom:check`, and any diff in a collapsed block. Later pushes edit it in place.
+
+# MCP tools
+
+Every tool `php artisan loom:mcp` serves, with its inputs, a real response and its errors. To register the server, read [Ask an agent](../guides/ask-an-agent.md).
+
+```bash
+php artisan loom:mcp --no-scan
+```
+
+All tools are read-only and return one JSON document as text. Renaming or removing a tool, input or output key is a major change; adding an optional one is minor.
+
+The responses below come from a small order app: `POST /orders` fires `OrderPlaced`; `SendReceipt` handles it, fires `ReceiptSent` and queues `SendMail`; `ArchiveReceipt` and a closure handle `ReceiptSent`, and the closure fires `ReceiptLogged`. `OrderCancelled` is unused and `AuditOrders` handles no event.
+
+## Which tool answers what
+
+| Tool | Answers | Inputs |
+| --- | --- | --- |
+| [`list-entities`](#list-entities) | What did the scan find in one section? | `section` |
+| [`get-entity`](#get-entity) | What is the full record for one class? | `kind`, `fqcn` |
+| [`dispatch-sites-for`](#dispatch-sites-for) | Where is this event fired? | `event_fqcn` |
+| [`handlers-for`](#handlers-for) | Who handles this event? | `event_fqcn` |
+| [`dispatches-from`](#dispatches-from) | What does this method fire directly? | `method_fqcn` |
+| [`events-following`](#events-following) | What does this event set off, transitively? | `event_fqcn`, `depth` |
+| [`events-from-method`](#events-from-method) | What does this method set off, transitively? | `method_fqcn`, `depth` |
+| [`route-to-events`](#route-to-events) | What does this HTTP route set off? | `method`, `uri`, `depth` |
+| [`impact-of-change`](#impact-of-change) | What does removing or renaming this class affect? | `fqcn`, `change` |
+| [`find-orphans`](#find-orphans) | Which events and listeners are dead weight? | none |
+| [`find-unresolved-dispatches`](#find-unresolved-dispatches) | Which dispatches could Loom not resolve? | none |
+
+## Conventions
+
+- Class names are fully qualified and case-sensitive (`App\Events\OrderPlaced`); JSON escapes the backslashes.
+- `depth` counts handler-to-dispatch hops, default `3`. Values outside `1` to `6` are clamped, not rejected, and the response echoes the depth used.
+- `method_fqcn` is `Class::method`, `Class@method`, or a bare `Class` for every method it has.
+- A handler is `Class::method` for a listener and `file:line` for a closure; `handler_kind` is `listener` or `closure` accordingly.
+- Errors come back as text, not JSON. An empty result is not an error unless a tool says so.
+
+### Chain output
+
+`events-following`, `events-from-method`, `route-to-events` and `impact-of-change` embed the same chain, with:
+
+- `truncated`: `true` when `depth` cut a chain short.
+- `cycles`: events revisited on a path; each event is expanded once.
+- `events_reached`: the events whose handlers were expanded.
+
+## Lookups
+
+Find a class or list a section of the index.
+
+### `list-entities`
+
+Lists one section of the index verbatim, with a count. Use it to find a class name before asking about it.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `section` | string | required | The index section to list. One of `events`, `listeners`, `observers`, `model_events`, `jobs`, `unresolved_dispatches`, `closure_listeners`, `scheduled_tasks`, `mailables`, `notifications`, `routes`, `unresolved_routes`. |
+
+Called with `section` = `jobs`, it returns:
+
+```json
+{
+  "section": "jobs",
+  "count": 1,
+  "items": [
+    {
+      "fqcn": "App\\Jobs\\SendMail",
+      "file": "app/Jobs/SendMail.php",
+      "line": 7,
+      "queued": true,
+      "queue_config": {
+        "connection": null,
+        "queue": null,
+        "delay": null,
+        "tries": null,
+        "timeout": null,
+        "backoff": null,
+        "after_commit": null
+      },
+      "dispatched_from": [
+        {
+          "file": "app/Listeners/SendReceipt.php",
+          "line": 14,
+          "method": "App\\Listeners\\SendReceipt::handle"
+        }
+      ],
+      "dispatches": []
+    }
+  ]
+}
+```
+
+- `items` are the entries of that section of the [index](schema.md), unchanged.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `section` = `widgets` | `Unknown section [widgets]; expected one of: events, listeners, observers, model_events, jobs, unresolved_dispatches, closure_listeners, scheduled_tasks, mailables, notifications, routes, unresolved_routes.` |
+
+### `get-entity`
+
+Fetches one class's record by kind and fully qualified name.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `kind` | string | required | The kind of entity to fetch. One of `event`, `listener`, `observer`, `job`, `mailable`, `notification`. |
+| `fqcn` | string | required | The fully-qualified class name of the entity. |
+
+Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it returns:
+
+```json
+{
+  "kind": "listener",
+  "fqcn": "App\\Listeners\\SendReceipt",
+  "found": true,
+  "entity": {
+    "fqcn": "App\\Listeners\\SendReceipt",
+    "file": "app/Listeners/SendReceipt.php",
+    "line": 9,
+    "handles": [
+      {
+        "event": "App\\Events\\OrderPlaced",
+        "method": "handle"
+      }
+    ],
+    "registration": "discovery_unverified",
+    "queued": false,
+    "dispatches": [
+      {
+        "target": "App\\Events\\ReceiptSent",
+        "kind": "event",
+        "confidence": "high",
+        "file": "app/Listeners/SendReceipt.php",
+        "line": 13
+      },
+      {
+        "target": "App\\Jobs\\SendMail",
+        "kind": "job",
+        "confidence": "high",
+        "file": "app/Listeners/SendReceipt.php",
+        "line": 14
+      }
+    ]
+  }
+}
+```
+
+- `entity` is the raw index entry, the same one `list-entities` and `index.json` carry.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `kind` = `job`, `fqcn` = `App\Nope` | `No job found for App\Nope.` |
+| `kind` = `route`, `fqcn` = `x` | `Unknown kind [route]; expected one of: event, listener, observer, job, mailable, notification.` |
+
+## Edges
+
+One hop, no recursion.
+
+### `dispatch-sites-for`
+
+Lists every place that dispatches the event: the file, the line and the method that contains the call.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `event_fqcn` | string | required | Fully-qualified event class name, e.g. App\Events\OrderPlaced. |
+
+Called with `event_fqcn` = `App\Events\OrderPlaced`, it returns:
+
+```json
+{
+  "event": "App\\Events\\OrderPlaced",
+  "count": 1,
+  "dispatch_sites": [
+    {
+      "file": "app/Http/Controllers/OrderController.php",
+      "line": 11,
+      "method": "App\\Http\\Controllers\\OrderController::store"
+    }
+  ]
+}
+```
+
+- An event nothing fires returns `count` `0` and an empty list, not an error.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `event_fqcn` = `""` | `event_fqcn is required.` |
+
+### `handlers-for`
+
+Lists the listeners and the closure listeners bound to an event.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `event_fqcn` | string | required | Fully-qualified event class name, e.g. App\Events\OrderPlaced. |
+
+Called with `event_fqcn` = `App\Events\ReceiptSent`, it returns:
+
+```json
+{
+  "event": "App\\Events\\ReceiptSent",
+  "count": 2,
+  "listeners": [
+    {
+      "listener": "App\\Listeners\\ArchiveReceipt",
+      "method": "handle",
+      "queued": false
+    }
+  ],
+  "closure_listeners": [
+    {
+      "file": "app/Providers/EventServiceProvider.php",
+      "line": 14,
+      "queued": false
+    }
+  ]
+}
+```
+
+- `count` is listeners plus closure listeners.
+- A closure listener has no class name, so it is identified by `file` and `line`.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `event_fqcn` = `""` | `event_fqcn is required.` |
+
+### `dispatches-from`
+
+Lists the events and jobs one method dispatches, with the file and line of each call.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `method_fqcn` | string | required | Method reference: Class::method, Class@method, or a bare Class for every method, e.g. App\Http\Controllers\OrderController::store. |
+
+Called with `method_fqcn` = `App\Http\Controllers\OrderController::store`, it returns:
+
+```json
+{
+  "method_fqcn": "App\\Http\\Controllers\\OrderController::store",
+  "count": 1,
+  "dispatches": [
+    {
+      "target": "App\\Events\\OrderPlaced",
+      "kind": "event",
+      "confidence": "high",
+      "file": "app/Http/Controllers/OrderController.php",
+      "line": 11
+    }
+  ]
+}
+```
+
+- Only routes resolve to an exact method. For a listener, observer or job the answer covers the whole class.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `method_fqcn` = `""` | `method_fqcn is required.` |
+
+## Chains
+
+Follow dispatches transitively, down to `depth` hops.
+
+### `events-following`
+
+Follows an event to its handlers, what they dispatch, and the handlers of those events, down to `depth` hops.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `event_fqcn` | string | required | The fully-qualified class name of the event to follow. |
+| `depth` | integer | `3` | How many handler→dispatch hops to follow (clamped to 1..6). |
+
+Called with `event_fqcn` = `App\Events\OrderPlaced`, it returns:
+
+```json
+{
+  "root": "App\\Events\\OrderPlaced",
+  "depth": 3,
+  "edges": [
+    {
+      "event": "App\\Events\\OrderPlaced",
+      "handler": "App\\Listeners\\SendReceipt::handle",
+      "handler_kind": "listener",
+      "dispatches": [
+        {
+          "target": "App\\Events\\ReceiptSent",
+          "kind": "event",
+          "confidence": "high",
+          "file": "app/Listeners/SendReceipt.php",
+          "line": 13
+        },
+        {
+          "target": "App\\Jobs\\SendMail",
+          "kind": "job",
+          "confidence": "high",
+          "file": "app/Listeners/SendReceipt.php",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "event": "App\\Events\\ReceiptSent",
+      "handler": "App\\Listeners\\ArchiveReceipt::handle",
+      "handler_kind": "listener",
+      "dispatches": []
+    },
+    {
+      "event": "App\\Events\\ReceiptSent",
+      "handler": "app/Providers/EventServiceProvider.php:14",
+      "handler_kind": "closure",
+      "dispatches": [
+        {
+          "target": "App\\Events\\ReceiptLogged",
+          "kind": "event",
+          "confidence": "high",
+          "file": "app/Providers/EventServiceProvider.php",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "event": "App\\Events\\ReceiptLogged",
+      "handler": "App\\Listeners\\WriteAuditLog::handle",
+      "handler_kind": "listener",
+      "dispatches": []
+    }
+  ],
+  "events_reached": [
+    "App\\Events\\OrderPlaced",
+    "App\\Events\\ReceiptSent",
+    "App\\Events\\ReceiptLogged"
+  ],
+  "cycles": [],
+  "truncated": false
+}
+```
+
+- Each edge is one handler of one event.
+- An event that is not in the index returns an empty `edges` list, not an error.
+- See [Chain output](#chain-output) for `truncated`, `cycles` and `events_reached`.
+
+### `events-from-method`
+
+Starts from a method: what it dispatches, then the chain that follows each dispatched event.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `method_fqcn` | string | required | The method to start from, e.g. App\Http\Controllers\OrderController::store. |
+| `depth` | integer | `3` | How many handler→dispatch hops to follow per chain (clamped to 1..6). |
+
+Called with `method_fqcn` = `App\Http\Controllers\OrderController::store`, `depth` = `1`, it returns:
+
+```json
+{
+  "method_fqcn": "App\\Http\\Controllers\\OrderController::store",
+  "dispatches": [
+    {
+      "target": "App\\Events\\OrderPlaced",
+      "kind": "event",
+      "confidence": "high",
+      "file": "app/Http/Controllers/OrderController.php",
+      "line": 11
+    }
+  ],
+  "chains": [
+    {
+      "root": "App\\Events\\OrderPlaced",
+      "depth": 1,
+      "edges": [
+        {
+          "event": "App\\Events\\OrderPlaced",
+          "handler": "App\\Listeners\\SendReceipt::handle",
+          "handler_kind": "listener",
+          "dispatches": [
+            {
+              "target": "App\\Events\\ReceiptSent",
+              "kind": "event",
+              "confidence": "high",
+              "file": "app/Listeners/SendReceipt.php",
+              "line": 13
+            },
+            {
+              "target": "App\\Jobs\\SendMail",
+              "kind": "job",
+              "confidence": "high",
+              "file": "app/Listeners/SendReceipt.php",
+              "line": 14
+            }
+          ]
+        }
+      ],
+      "events_reached": [
+        "App\\Events\\OrderPlaced"
+      ],
+      "cycles": [],
+      "truncated": true
+    }
+  ]
+}
+```
+
+- `dispatches` is what `dispatches-from` returns; `chains` holds one `events-following` result per dispatched event.
+- This call used `depth` `1`, so `truncated` is `true`: the chain stops before the handlers of `ReceiptSent`.
+- An unknown method returns empty `dispatches` and `chains`.
+- Method granularity is exact only for routes; a listener, observer or job resolves at class level.
+
+### `route-to-events`
+
+Resolves a route to its controller method, then behaves like `events-from-method`. The verb is case-insensitive; the URI is matched exactly, with or without a leading slash.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `method` | string | required | The HTTP verb, e.g. GET or POST (case-insensitive). |
+| `uri` | string | required | The route URI, e.g. orders or /orders (leading slash optional). |
+| `depth` | integer | `3` | How many handler→dispatch hops to follow per chain (clamped to 1..6). |
+
+Called with `method` = `POST`, `uri` = `/orders`, `depth` = `1`, it returns:
+
+```json
+{
+  "route": {
+    "method": "POST",
+    "uri": "/orders",
+    "name": "orders.store",
+    "controller_fqcn": "App\\Http\\Controllers\\OrderController",
+    "controller_method": "store",
+    "middleware": [
+      "auth"
+    ],
+    "file": "routes/web.php",
+    "line": 6
+  },
+  "note": null,
+  "chain": {
+    "method_fqcn": "App\\Http\\Controllers\\OrderController::store",
+    "dispatches": [
+      {
+        "target": "App\\Events\\OrderPlaced",
+        "kind": "event",
+        "confidence": "high",
+        "file": "app/Http/Controllers/OrderController.php",
+        "line": 11
+      }
+    ],
+    "chains": [
+      {
+        "root": "App\\Events\\OrderPlaced",
+        "depth": 1,
+        "edges": [
+          {
+            "event": "App\\Events\\OrderPlaced",
+            "handler": "App\\Listeners\\SendReceipt::handle",
+            "handler_kind": "listener",
+            "dispatches": [
+              {
+                "target": "App\\Events\\ReceiptSent",
+                "kind": "event",
+                "confidence": "high",
+                "file": "app/Listeners/SendReceipt.php",
+                "line": 13
+              },
+              {
+                "target": "App\\Jobs\\SendMail",
+                "kind": "job",
+                "confidence": "high",
+                "file": "app/Listeners/SendReceipt.php",
+                "line": 14
+              }
+            ]
+          }
+        ],
+        "events_reached": [
+          "App\\Events\\OrderPlaced"
+        ],
+        "cycles": [],
+        "truncated": true
+      }
+    ]
+  }
+}
+```
+
+A closure route has no controller method to follow, so `chain` is `null` and `note` says why. Called with `method` = `GET`, `uri` = `/health`, it returns:
+
+```json
+{
+  "route": {
+    "method": "GET",
+    "uri": "/health",
+    "name": null,
+    "controller_fqcn": null,
+    "controller_method": null,
+    "middleware": [],
+    "file": "routes/web.php",
+    "line": 8
+  },
+  "note": "Route has no resolved controller (closure or unresolved action); no event chain available.",
+  "chain": null
+}
+```
+
+- `chain` holds what `events-from-method` returns.
+- `note` is always present: `null` when `chain` resolved, a sentence when it did not.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `method` = `DELETE`, `uri` = `nope` | `No route found for DELETE nope.` |
+
+## Analysis
+
+Review questions over the whole graph.
+
+### `impact-of-change`
+
+Reports what removing or renaming an event, listener or job touches. `change` only changes the wording of `notes`.
+
+| Input | Type | Required / default | Notes |
+| --- | --- | --- | --- |
+| `fqcn` | string | required | The fully-qualified class name being changed (event, listener, or job). |
+| `change` | string | `remove` | The kind of change being made. Affects the framing of the notes only. One of `remove`, `rename`. |
+
+Called with `fqcn` = `App\Listeners\SendReceipt`, it returns:
+
+```json
+{
+  "fqcn": "App\\Listeners\\SendReceipt",
+  "change": "remove",
+  "kind": "listener",
+  "handles": [
+    "App\\Events\\OrderPlaced"
+  ],
+  "would_orphan_events": [
+    "App\\Events\\OrderPlaced"
+  ],
+  "dispatches": [
+    {
+      "target": "App\\Events\\ReceiptSent",
+      "kind": "event",
+      "confidence": "high",
+      "file": "app/Listeners/SendReceipt.php",
+      "line": 13
+    },
+    {
+      "target": "App\\Jobs\\SendMail",
+      "kind": "job",
+      "confidence": "high",
+      "file": "app/Listeners/SendReceipt.php",
+      "line": 14
+    }
+  ],
+  "notes": [
+    "Removing this class would leave 1 event with no remaining handler: App\\Events\\OrderPlaced.",
+    "Downstream dispatches from this class are listed; their own chains are not expanded here."
+  ]
+}
+```
+
+For an event the report lists who fires it, who handles it, and the chain downstream. Called with `fqcn` = `App\Events\OrderPlaced`, it returns:
+
+```json
+{
+  "fqcn": "App\\Events\\OrderPlaced",
+  "change": "remove",
+  "kind": "event",
+  "dispatchers": [
+    {
+      "file": "app/Http/Controllers/OrderController.php",
+      "line": 11,
+      "method": "App\\Http\\Controllers\\OrderController::store"
+    }
+  ],
+  "handlers": [
+    {
+      "handler": "App\\Listeners\\SendReceipt::handle",
+      "handler_kind": "listener"
+    }
+  ],
+  "downstream": {
+    "root": "App\\Events\\OrderPlaced",
+    "depth": 3,
+    "edges": [
+      {
+        "event": "App\\Events\\OrderPlaced",
+        "handler": "App\\Listeners\\SendReceipt::handle",
+        "handler_kind": "listener",
+        "dispatches": [
+          {
+            "target": "App\\Events\\ReceiptSent",
+            "kind": "event",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 13
+          },
+          {
+            "target": "App\\Jobs\\SendMail",
+            "kind": "job",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 14
+          }
+        ]
+      },
+      {
+        "event": "App\\Events\\ReceiptSent",
+        "handler": "App\\Listeners\\ArchiveReceipt::handle",
+        "handler_kind": "listener",
+        "dispatches": []
+      },
+      {
+        "event": "App\\Events\\ReceiptSent",
+        "handler": "app/Providers/EventServiceProvider.php:14",
+        "handler_kind": "closure",
+        "dispatches": [
+          {
+            "target": "App\\Events\\ReceiptLogged",
+            "kind": "event",
+            "confidence": "high",
+            "file": "app/Providers/EventServiceProvider.php",
+            "line": 15
+          }
+        ]
+      },
+      {
+        "event": "App\\Events\\ReceiptLogged",
+        "handler": "App\\Listeners\\WriteAuditLog::handle",
+        "handler_kind": "listener",
+        "dispatches": []
+      }
+    ],
+    "events_reached": [
+      "App\\Events\\OrderPlaced",
+      "App\\Events\\ReceiptSent",
+      "App\\Events\\ReceiptLogged"
+    ],
+    "cycles": [],
+    "truncated": false
+  },
+  "notes": [
+    "Removing this event orphans its 1 handler; its 1 dispatch site would dispatch a missing class.",
+    "Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here."
+  ]
+}
+```
+
+A class Loom does not know gets `kind` `unknown` and a note instead of a chain. Called with `fqcn` = `App\Nope`, it returns:
+
+```json
+{
+  "fqcn": "App\\Nope",
+  "change": "remove",
+  "kind": "unknown",
+  "dispatchers": [],
+  "handlers": [],
+  "downstream": null,
+  "notes": [
+    "No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled."
+  ]
+}
+```
+
+- For a listener, `handles` are the events it handles and `would_orphan_events` are those whose only handler it is. A job has the same keys, with empty `handles`.
+- For an event, each `handlers` entry is `{ handler, handler_kind }`, named like a chain edge.
+- `notes` call out what static analysis cannot determine, such as dynamic dispatches.
+
+Errors come back as a text message instead of JSON:
+
+| Called with | Returns |
+| --- | --- |
+| `fqcn` = `App\Events\OrderPlaced`, `change` = `explode` | `Unknown change [explode]; expected one of: remove, rename.` |
+
+### `find-orphans`
+
+Lists events that nothing fires and nothing handles, and listeners that handle no event.
+
+Takes no input.
+
+Called with no input, it returns:
+
+```json
+{
+  "orphan_events": [
+    {
+      "fqcn": "App\\Events\\OrderCancelled",
+      "kind": "class",
+      "file": "app/Events/OrderCancelled.php",
+      "line": 5
+    }
+  ],
+  "idle_listeners": [
+    {
+      "fqcn": "App\\Listeners\\AuditOrders",
+      "file": "app/Listeners/AuditOrders.php",
+      "line": 5
+    }
+  ]
+}
+```
+
+- An event fired only from a dispatch Loom could not resolve can look orphaned. Cross-check with `find-unresolved-dispatches`.
+
+### `find-unresolved-dispatches`
+
+Lists every dispatch Loom could not trace to a class, with the raw expression and a reason code.
+
+Takes no input.
+
+Called with no input, it returns:
+
+```json
+{
+  "count": 1,
+  "unresolved_dispatches": [
+    {
+      "file": "app/Jobs/SendMail.php",
+      "line": 13,
+      "expression": "event($this->followUp)",
+      "reason": "stored_target"
+    }
+  ]
+}
+```
+
+- Each `reason` links to the code that produces it in [What Loom detects](detection/index.md#unresolved-reasons).
+
+# Schema
+
+Reference for `storage/loom/index.json`, generated from `schema/loom-index.schema.json`.
+
+```json
+{
+  "schema_version": "1.0",
+  "loom_version": "0.4.0",
+  "scanned_at": "2026-01-01T00:00:00Z",
+  "laravel_version": "13.0",
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "events": [ { "...": "..." } ],
+  "model_events": [ { "...": "..." } ],
+  "listeners": [ { "...": "..." } ],
+  "observers": [ { "...": "..." } ],
+  "jobs": [ { "...": "..." } ],
+  "unresolved_dispatches": [ { "...": "..." } ],
+  "closure_listeners": [ { "...": "..." } ],
+  "scheduled_tasks": [ { "...": "..." } ],
+  "routes": [ { "...": "..." } ],
+  "unresolved_routes": [ { "...": "..." } ],
+  "mailables": [ { "...": "..." } ],
+  "notifications": [ { "...": "..." } ]
+}
+```
+
+- Every top-level field is required; arrays may be empty but never `null`. A trailing `?` marks an optional field.
+- The schema rejects unknown top-level keys; the [PHP API](php-api.md) ignores them.
+- `file` is a [relative, forward-slashed path](#relativepath) and `line` is 1-indexed.
+- `dispatched_from`, `handled_by`, `dispatches`, `sent_from` and `notified_from` are joined across sections after the scan, and empty when nothing matches.
+
+## Top-level fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema_version` | string | Version of this document shape, `MAJOR.MINOR`, which consumers key on. |
+| `loom_version` | string | Semver of the Loom package that wrote the file, for information only. |
+| `scanned_at` | string | ISO 8601 UTC timestamp ending in `Z`, the only field that differs between two scans of identical source. |
+| `laravel_version` | string | Laravel version detected in the scanned app. |
+| `stats` | object | One integer count per section, keyed by section name; always mirrors the array sizes. |
+| `events` | array of [`events[]`](#events) | Event classes, where each is fired and which listeners handle it. |
+| `model_events` | array of [`model_events[]`](#model_events) | Eloquent model events with the observers and `Event::listen` calls that handle them. |
+| `listeners` | array of [`listeners[]`](#listeners) | Listener classes, the events they handle and what they dispatch. |
+| `observers` | array of [`observers[]`](#observers) | Observer classes, the model each one observes and the hooks it implements. |
+| `jobs` | array of [`jobs[]`](#jobs) | Job classes with their queue settings, where they are dispatched and what they dispatch. |
+| `unresolved_dispatches` | array of [`unresolved_dispatches[]`](#unresolved_dispatches) | Dispatch calls whose target could not be resolved statically. |
+| `closure_listeners` | array of [`closure_listeners[]`](#closure_listeners) | Closure and arrow-function listener registrations. |
+| `scheduled_tasks` | array of [`scheduled_tasks[]`](#scheduled_tasks) | Task-scheduler entries. |
+| `routes` | array of [`routes[]`](#routes) | HTTP routes with their middleware and the dispatches their action makes. |
+| `unresolved_routes` | array of [`unresolved_routes[]`](#unresolved_routes) | Route forms that could not be read in full: macros, non-literal URIs, middleware or group attributes, unfollowed route files, attribute routes. |
+| `mailables` | array of [`mailables[]`](#mailables) | Mailable classes and where they are sent from. |
+| `notifications` | array of [`notifications[]`](#notifications) | Notification classes, their channels and where they are sent from. |
+
+## `events[]`
+
+Event classes.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Canonical identifier; the FQCN for class events. |
+| `fqcn` | string | Fully qualified class name. |
+| `kind` | one of `class` | Only `class` today. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `dispatched_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites that fire this event. |
+| `handled_by` | array of object | Listeners from `listeners[].handles` that handle this event, one per listener and method; closure listeners are not included. |
+
+### `events[].handled_by[]`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `listener` | string | Listener FQCN. |
+| `method` | string | Handler method on the listener. |
+
+## `model_events[]`
+
+Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent.*')` strings.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | `eloquent.{event}: {model FQCN}`. |
+| `kind` | one of `model_event` | Always `model_event`. |
+| `model` | string | FQCN of the model. |
+| `event` | [enum](#model_eventsevent) | Eloquent hook name; `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings. |
+| `handled_by` | array of object | Observers and `Event::listen` targets that handle this model event, deduplicated. |
+
+### `model_events[].event`
+
+`retrieved`, `creating`, `created`, `updating`, `updated`, `saving`, `saved`, `deleting`, `deleted`, `restoring`, `restored`, `replicating`, `trashed`, `forceDeleting`, `forceDeleted`, `booting`, `booted`.
+
+### `model_events[].handled_by[]`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `handler` | string | FQCN of the observer, `Event::listen` target or hook callback class, or of the model for a closure model hook. |
+| `method` | string | Observer hook or listener method, or `{closure}` for a closure model hook whose body is the `closure_listeners[]` entry at the same file and line. |
+| `file` | [path](#relativepath) | Observer class file, or the file holding the `Event::listen` call or model hook registration. |
+| `line` | integer ≥ 1 | Observer class line, or the `Event::listen` call line. |
+
+## `listeners[]`
+
+Listener classes. Handler methods include inherited ones.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fqcn` | string | Fully qualified class name. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `handles` | array of object | Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`. |
+| `registration` | [enum](#listenersregistration) | How the listener was registered; when several registrations find it, the first value in the list wins. |
+| `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait. |
+| `dispatches` | array of [dispatch](#dispatch) | Events and jobs dispatched from the listener's handler methods. |
+
+### `listeners[].registration`
+
+| Value | Meaning |
+| --- | --- |
+| `subscriber` | Inside a subscriber's `subscribe()`, as a return-array value or an `$events->listen()` call. |
+| `listen_array` | An entry of `$listen`. |
+| `event_listen_call` | An `Event::listen()` call. |
+| `auto_discovered` | A typed `handle()` under a discovery directory, with event discovery verified on; class listeners only. |
+| `discovery_unverified` | The same, but whether the app runs event discovery could not be read; class listeners only. |
+| `model_hook` | A closure passed to a model's static hook registrar such as `static::creating(fn ...)`; closure listeners only. |
+
+### `listeners[].handles[]`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `event` | string | FQCN of the event class. |
+| `method` | string | Handler method, `handle` when the registration names none (auto-discovery, a bare `Listener::class`). |
+
+## `observers[]`
+
+Observer classes. One observer registered against N models gives N entries; when a pair is found through both paths, `attribute` wins over `observe_call`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fqcn` | string | Fully qualified class name. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `observes` | string | FQCN of the observed model. |
+| `registration` | [enum](#observersregistration) | How the observer was registered. |
+| `hooks` | array of [enum](#observershooks) | Observable model events the observer has a method for, sorted. |
+| `dispatches` | array of [dispatch](#dispatch) | Dispatches made from the observer's hook methods. |
+
+### `observers[].registration`
+
+| Value | Meaning |
+| --- | --- |
+| `observe_call` | `Model::observe(Observer::class)`, including `static::observe()` in `booted()`. |
+| `attribute` | An `#[ObservedBy]` attribute on the model. |
+
+### `observers[].hooks`
+
+Same values as [`model_events[].event`](#model_eventsevent) without `booting`, `booted`.
+
+## `jobs[]`
+
+Job classes.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fqcn` | string | Fully qualified class name. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait. |
+| `queue_config` | [queueConfig](#queueconfig) or null | `null` when `queued` is `false`. |
+| `dispatched_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites whose resolved kind is `job` and whose target is this class. |
+| `dispatches` | array of [dispatch](#dispatch) | Dispatches made from the job's `handle` method. |
+
+## `unresolved_dispatches[]`
+
+Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `file` | [path](#relativepath) | File containing the unresolved dispatch. |
+| `line` | integer ≥ 1 | 1-indexed line of the unresolved dispatch. |
+| `expression` | string | Pretty-printed source of the unresolvable expression. |
+| `reason` | [enum](#unresolved_dispatchesreason) | Why the dispatch or registration could not be resolved. |
+
+### `unresolved_dispatches[].reason`
+
+| Value | Meaning |
+| --- | --- |
+| `dynamic_class_name` | The target is a variable, or `new $class` / `$class::dispatch()`. |
+| `container_resolution` | The target comes from `app()`, `resolve()` or `->make()`. |
+| `string_concatenation` | The target is built by concatenation or interpolation. |
+| `conditional_dispatch` | A ternary or `match` whose branches cannot be evaluated. |
+| `dynamic_list` | A list of dispatch targets built at runtime (a variable, a spread, a collection). |
+| `string_event_name` | The event is a string literal such as `'service.installed'`, not a class. |
+| `closure_job` | A closure is dispatched as a job, so no class names it. |
+| `view_mail` | A mail sent from a view name or array and a closure, so there is no mailable class. |
+| `call_result` | The target is what a method, static or function call returns. |
+| `stored_target` | The target is read from a property, an array element or a constant. |
+| `relative_class_name` | `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read. |
+| `unsupported_expression` | An expression form no other reason covers (a `??` coalesce, an anonymous class). |
+| `class_not_found` | The target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`. |
+| `target_not_indexed` | A class file was found, but it is not an indexed event, job, mailable or notification. |
+| `unreadable_event_name` | A registration whose event name or key is not a `::class` reference or a literal Loom can read (a variable, a call, an `eloquent.*` name with an unknown hook). |
+| `untyped_closure_listener` | An `Event::listen(function ($e) {...})` closure whose first parameter has no event class type. |
+| `unreadable_listener` | A listener registration (`$listen`, `Event::listen()`, a subscriber return array) whose handler is not a class reference, a `[Class, method]` tuple, a readable string or a closure. |
+| `unreadable_subscriber` | An `Event::subscribe()` call or `$subscribe` entry that is not a `::class` reference, a string literal or `new`. |
+| `unreadable_model_hook` | A `static::creating(...)` style hook whose callback is not a closure or readable callable. |
+
+## `closure_listeners[]`
+
+Closure and arrow-function registrations, one entry per site, never joined into `events[].handled_by`. Not deduplicated. Dispatches inside `[line, end_line]` of the file belong to it, nested closures included. Filter by `event` to find the closures for an event.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `event` | string | FQCN for `::class` registrations, else the raw event string (`eloquent.{hook}: {model}` for a model hook). |
+| `file` | [path](#relativepath) | File holding the closure, not the registration call. |
+| `line` | integer ≥ 1 | 1-indexed first line of the closure. |
+| `end_line` | integer ≥ 1 | 1-indexed last line of the closure; equals `line` for a one-line closure. |
+| `registration` | [enum](#closure_listenersregistration) | How the closure was registered. |
+| `queued` | boolean | Always `false`; closure queue detection is not done. |
+| `dispatches` | array of [dispatch](#dispatch) | Dispatches attributed to the closure by source span. |
+
+### `closure_listeners[].registration`
+
+Same values as [`listeners[].registration`](#listenersregistration) without `auto_discovered`, `discovery_unverified`.
+
+## `scheduled_tasks[]`
+
+Scheduler entries, one per chain. Deduplicated on `file`, `line`, `kind`, `target`; kernel and bootstrap forms win over the facade form. Join a `job` target to `jobs[]` client-side.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | [enum](#scheduled_taskskind) | What the entry runs, which also decides what `target` holds. |
+| `name` | string or null | The `->name()` label verbatim, or `null`. |
+| `target` | string or null | Depends on `kind`; `null` for an inline closure. |
+| `arguments` | array of string | For the `command` kind, the literal parameters of `->command(Class::class, [...])` as strings, keyed ones as `key=value`; otherwise `[]`. |
+| `queue` | string or null | `job` kind only: the second argument of `->job($job, $queue)`. |
+| `connection` | string or null | `job` kind only: the third argument of `->job($job, $queue, $connection)`. |
+| `cron` | string or null | Canonical five-field expression from the last frequency helper in the chain (`daily` is `0 0 * * *`), or `null` when that helper is unrecognised or takes a variable. |
+| `frequency` | object or null | Sub-minute interval from the `everySecond` to `everyThirtySeconds` helpers, else `null`; never set together with `cron`. |
+| `timezone` | string or null | From `->timezone()`. |
+| `without_overlapping` | boolean | `->withoutOverlapping()` appears in the chain. |
+| `without_overlapping_expires_at` | integer or null | Expiry minutes from a literal `->withoutOverlapping($minutes)` argument, else `null`. |
+| `on_one_server` | boolean | `->onOneServer()` appears in the chain. |
+| `run_in_background` | boolean | `->runInBackground()` appears in the chain. |
+| `even_in_maintenance_mode` | boolean | `->evenInMaintenanceMode()` appears in the chain. |
+| `constraints` | array of string | Opaque labels for non-cron restrictions, sorted, such as `weekdays`, `between(8:00,17:00)`, `when(closure)` or `environments(production,staging)`. |
+| `file` | [path](#relativepath) | File of the root call (`->command`, `->job`, `->call`, `->exec`). |
+| `line` | integer ≥ 1 | Line of the root call, not the trailing modifier. |
+
+### `scheduled_tasks[].kind`
+
+| Value | Meaning |
+| --- | --- |
+| `command` | `->command()`; `target` is the signature verbatim, options included, or the command FQCN. |
+| `job` | `->job()`; `target` is the job FQCN. |
+| `closure` | `->call()`; `target` is `null` for an inline closure, else `Class::method`. |
+| `exec` | `->exec()`; `target` is the shell string. |
+
+### `scheduled_tasks[].frequency`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unit` | one of `seconds` | Only `seconds` today. |
+| `every` | integer ≥ 1 | Interval length in `unit`. |
+
+## `routes[]`
+
+HTTP routes, one per route and verb. `any()` and `redirect()` routes are reported as `ANY`; a resource `update` is reported as both `PUT` and `PATCH`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `method` | [enum](#routesmethod) | HTTP verb, uppercase. |
+| `uri` | string | Route URI with enclosing group prefixes applied; always starts with `/`, the root is `/`. |
+| `name` | string or null | Group name prefix concatenated as-is with the route's own `->name()`; `null` when unnamed. |
+| `controller_fqcn` | string or null | `null` for closure and non-controller routes. |
+| `controller_method` | string or null | `null` for closure and non-controller routes. |
+| `middleware` | array of string | Middleware names as written, in source order, including those inherited from enclosing groups, with aliases and groups not expanded. |
+| `file` | [path](#relativepath) | File of the route definition. |
+| `line` | integer ≥ 1 | 1-indexed line of the route definition. |
+| `end_line`? | integer ≥ 1 | Last line of a closure action, present only for closure actions. |
+| `kind`? | [enum](#routeskind) | The router helper that registered a route with no controller of its own; omitted for every other route. |
+| `dispatches` | array of [dispatch](#dispatch) | Dispatches from the controller method, or within `[line, end_line]` of the file for a closure route; empty when the controller cannot be resolved. |
+
+### `routes[].method`
+
+`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `QUERY`, `ANY`.
+
+### `routes[].kind`
+
+| Value | Meaning |
+| --- | --- |
+| `view` | `Route::view()`. |
+| `redirect` | `Route::redirect()` or `Route::permanentRedirect()`. |
+| `fallback` | `Route::fallback()`. |
+
+## `unresolved_routes[]`
+
+Route forms Loom could not read in full. Never dropped silently.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `file` | [path](#relativepath) | File containing the route form. |
+| `line` | integer ≥ 1 | 1-indexed line of the route form. |
+| `expression` | string | Pretty-printed source of the call or expression that could not be read. |
+| `reason` | [enum](#unresolved_routesreason) | Why the route form could not be read in full. |
+
+### `unresolved_routes[].reason`
+
+| Value | Meaning |
+| --- | --- |
+| `unknown_route_call` | `Route::<name>()` is a macro or package helper; map it in `scan.route_macros`. |
+| `dynamic_uri` | The URI is not a string literal; no route is emitted. |
+| `dynamic_resource` | The resource name or list of resources is not literal; no route is emitted. |
+| `dynamic_verbs` | The verbs of `Route::match()` are not a literal list; no route is emitted. |
+| `dynamic_resource_options` | A resource option such as `only` or `names` is not literal; the defaults were used. |
+| `dynamic_middleware` | A middleware or `withoutMiddleware` entry is not literal; the middleware list may be incomplete. |
+| `dynamic_group_attribute` | A group or chain prefix, name, controller or middleware is not literal; routes inside may miss it. |
+| `route_file_dynamic` | A route file path is not literal, so the file is not read. |
+| `route_file_relative` | A route file path is relative to the working directory, so the file is not read. |
+| `route_file_outside_root` | A route file path lies outside the app root, so the file is not read. |
+| `route_file_not_found` | A route file path does not exist. |
+| `attribute_route` | A controller declares a route with an attribute, which Loom does not read. |
+
+## `mailables[]`
+
+Mailable classes.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fqcn` | string | Fully qualified class name. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. |
+| `queue_config` | [queueConfig](#queueconfig) or null | `null` when `queued` is `false`. |
+| `sent_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites whose resolved kind is `mailable` and whose target is this class, sorted by `file`, `line`. |
+
+## `notifications[]`
+
+Notification classes.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fqcn` | string | Fully qualified class name. |
+| `file` | [path](#relativepath) | File declaring the class. |
+| `line` | integer ≥ 1 | 1-indexed declaration line. |
+| `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface. |
+| `queue_config` | [queueConfig](#queueconfig) or null | `null` when `queued` is `false`. |
+| `notified_from` | array of [dispatchSite](#dispatchsite) | Dispatch sites whose resolved kind is `notification` and whose target is this class; only these may carry `channels`. |
+| `channels` | array of string | Channels from `via()` in source order, as lowercased names or `Class::class` FQCNs, the union across branches and returns, or `[]` when `via()` is unreadable, missing or inherited. |
+| `channels_dynamic` | boolean | `true` when `via()` exists but `channels` may differ from what a call returns, because the body is unreadable or depends on a branch or several returns. |
+
+## Shared shapes
+
+Referenced from several sections above.
+
+### `relativePath`
+
+Path relative to the app root, forward-slashed. Never absolute: a leading `/`, `\` or drive letter is rejected.
+
+### `queueConfig`
+
+Class-level queue settings. A key is `null` when the class declares nothing for it. The literal keeps its own type.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `connection` | string or integer or null | Literal value of the class's `$connection` property. |
+| `queue` | string or integer or null | Literal value of the class's `$queue` property. |
+| `delay` | string or integer or null | Literal value of the class's `$delay` property. |
+| `tries` | string or integer or null | Literal value of the class's `$tries` property. |
+| `timeout` | string or integer or null | Literal value of the class's `$timeout` property. |
+| `backoff` | string or integer or null | Literal value of the class's `$backoff` property. |
+| `after_commit` | boolean or null | Whether the class dispatches after the open database transaction commits, or `null` when the class says nothing and the queue connection's `after_commit` setting decides. |
+
+### `dispatchSite`
+
+One place where a class is dispatched, sent or notified from. Shared by every `dispatched_from`, `sent_from` and `notified_from` list.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `file` | [path](#relativepath) | File of the dispatch site. |
+| `line` | integer ≥ 1 | 1-indexed line of the dispatch site. |
+| `method` | string | Origin of the call: `Class::method`, `VERB /uri` for a route closure, or `Class::$dispatchesEvents[hook]` for a model entry. |
+| `mode`? | [enum](#dispatchsitemode) | How the call form executes, without evaluating `ShouldQueue` or the sync driver; omitted for plain forms. |
+| `overrides`? | [dispatchOverrides](#dispatchoverrides) | Dispatch-time modifiers found at the call site, omitted when none. |
+| `channels`? | array of string | Lowercased channel names or channel-class FQCNs from the literal filter of `Notification::send($users, $n, $channels)` or `sendNow(...)`, omitted when absent, empty or non-literal. |
+
+#### `dispatchSite.mode`
+
+| Value | Meaning |
+| --- | --- |
+| `sync` | Runs inline in the current process. |
+| `after_response` | Runs after the HTTP response is sent. |
+| `push` | Pushed straight onto a queue. |
+
+#### Call forms by `mode`
+
+| `mode` | Call forms |
+| --- | --- |
+| `sync` | `X::dispatchSync()`, `dispatch_sync()`, `Bus::dispatchSync()`, `Bus::dispatchNow()`, `Mail::sendNow()`, `Notification::sendNow()`, `->notifyNow()` |
+| `after_response` | `X::dispatchAfterResponse()`, `Bus::dispatchAfterResponse()`, `->afterResponse()` on a dispatch chain |
+| `push` | `Queue::push/pushOn/later/laterOn/bulk()`, `Mail::queue/onQueue/queueOn/later/laterOn()` |
+| omitted | `dispatch()`, `X::dispatch()`, `Mail::send()`, `Notification::send()`, `$user->notify()` |
+
+`->afterResponse()` and `->afterResponse(true)` give `after_response`. `->afterResponse(false)` cancels an earlier `->afterResponse()` in the same chain, and a non-literal argument is ignored.
+
+### `dispatchOverrides`
+
+Fluent modifiers found at the call site. Only keys that were found are present; a non-literal argument leaves its key absent.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `locale`? | string | From `->locale('es')`. |
+| `mailer`? | string | From `->mailer('ses')`. |
+| `connection`? | string | From `->onConnection('redis')`. |
+| `queue`? | string | From `->onQueue('high')`. |
+| `delay`? | integer ≥ 0 | From `->delay(60)`, integer seconds only; `now()->addMinutes(5)` and variables leave it absent. |
+| `after_commit`? | boolean | From `->afterCommit()`; only ever `true`. |
+
+### `dispatch`
+
+A resolved dispatch made from a class method or closure.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `target` | string | FQCN of the dispatched event, job, mailable or notification. |
+| `kind` | one of `event`, `job`, `mailable`, `notification` | Whether the target is an event, a job, a mailable or a notification. |
+| `confidence` | [enum](#dispatchconfidence) | How sure the scanner is of the target. |
+| `file` | [path](#relativepath) | File of the dispatching call. |
+| `line` | integer ≥ 1 | 1-indexed line of the dispatching call. |
+| `via`? | array of string | The same-class helper methods, in call order, that lead from the handler to the call; absent when the handler makes the call itself. |
+
+#### `dispatch.confidence`
+
+| Value | Meaning |
+| --- | --- |
+| `high` | The target is resolved in the handler method itself. |
+| `medium` | The call sits in a helper method the handler reaches (see `via`). |
+| `low` | Reserved; not emitted today. |
+
+## Determinism
+
+Two scans of identical source differ only in `scanned_at`. Each section is ordered by:
+
+| Section | Order |
+|---|---|
+| `events`, `model_events` | `id` |
+| `listeners`, `jobs`, `mailables`, `notifications` | `fqcn` |
+| `observers` | `fqcn`, `observes` |
+| `closure_listeners` | `event`, `file`, `line`, `end_line`, `registration` |
+| `scheduled_tasks` | `file`, `line`, `kind`, `target`, `name`, `cron` |
+| `routes` | `file`, `line`, `method`, `uri`, `name` |
+| `unresolved_dispatches`, `unresolved_routes` | `file`, `line`, `expression`, `reason` |
+
+Nested lists: dispatch sites by `file`, `line`, `method`, `mode`; `dispatches[]` by `file`, `line`, `target`, `kind`; `handled_by[]` by `listener` (or `handler`), `method`; `handles[]` by `event`, `method`. `middleware`, `channels` and `arguments` keep source order.
+
+## Versioning
+
+Key on `schema_version` (`MAJOR.MINOR`, major pinned by the schema), never on `loom_version`.
+
+| Change | Bump |
+| --- | --- |
+| New optional field, new enum value, new section; required field made optional | Minor |
+| New required field; optional field made required | Major |
+| Field renamed, retyped or removed; enum value or section removed | Major |
+| Bug fix that doesn't change shape | None |
+
+### Reader behaviour
+
+`IndexLoader`, `loom:check` and `loom:diff` load any minor of the same major and ignore unknown keys. A missing `schema_version` or another major is refused with a message to re-run `php artisan loom:scan`; `loom:diff` exits `2` on mixed majors.
+
+From `1.0`, the field names, enum values and nullability on this page, and the [MCP tool](mcp-tools.md) names and inputs, follow the table above.
+
+!!! warning "Validate with the producer's schema"
+    `additionalProperties: false` makes an older copy of the schema reject a later minor.
+
+## Open enums
+
+These enums gain values in minor releases, so tolerate values you don't know:
+
+- `kind` on dispatch entries
+- `registration` on listeners and observers
+- `reason` on `unresolved_dispatches[]`
+- [`confidence`](#dispatchconfidence), ordered `high > medium > low`
+- `routes[].method`
+- `model_events[].event` and `observers[].hooks[]`, which follow [Eloquent's model events](https://laravel.com/docs/12.x/eloquent#events)
+- `scheduled_tasks[].kind` and `scheduled_tasks[].frequency.unit`
+
+Pin the Loom version your tooling reads, check the [changelog](https://github.com/lucasp1337/laravel-loom/blob/main/CHANGELOG.md) before upgrading, and rescan after every upgrade.
+
+# PHP API
+
+Read a Loom index as typed objects. Each snippet runs in the test suite against a small order app; the output below it is what it printed. Fields mirror the [schema](schema.md) in camelCase.
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+
+$index = (new IndexLoader)->fromFile('storage/loom/index.json');
+
+echo $index->schemaVersion, "\n";
+echo count($index->events()), ' events, ', count($index->routes()), " routes\n";
+```
+
+```text title="Output"
+1.0
+4 events, 2 routes
+```
+
+## Look up an entry
+
+```php
+$listener = $index->findListener('App\Listeners\SendReceipt');
+
+echo "{$listener->file}:{$listener->line}\n";
+echo $listener->registration->value, "\n";
+
+var_dump($index->findListener('App\Listeners\Missing'));
+```
+
+```text title="Output"
+app/Listeners/SendReceipt.php:9
+discovery_unverified
+NULL
+```
+
+## Walk the graph
+
+```php
+$event = 'App\Events\OrderPlaced';
+
+foreach ($index->dispatchersOf($event) as $site) {
+    echo "dispatched from {$site->method}\n";
+}
+
+foreach ($index->handlersOf($event) as $handler) {
+    echo "handled by {$handler->listener}::{$handler->method}\n";
+
+    foreach ($index->findListener($handler->listener)?->dispatches ?? [] as $dispatch) {
+        echo "  dispatches {$dispatch->kind->value} {$dispatch->target}\n";
+    }
+}
+```
+
+```text title="Output"
+dispatched from App\Http\Controllers\OrderController::store
+handled by App\Listeners\SendReceipt::handle
+  dispatches event App\Events\ReceiptSent
+  dispatches job App\Jobs\SendMail
+```
+
+## Handle errors
+
+```php
+use Lucasp\Loom\Index\IndexLoader;
+use Lucasp\Loom\Index\IndexLoadException;
+
+try {
+    (new IndexLoader)->fromJson('{"schema_version": "2.0"}');
+} catch (IndexLoadException $e) {
+    echo $e->getMessage(), "\n";
+}
+```
+
+```text title="Output"
+Loom index uses schema 2.0, newer than the supported 1.0. Upgrade laravel-loom, or re-run `php artisan loom:scan` with the installed version.
+```
+
+## Public classes
+
+Only these classes carry `@api`; everything else is `@internal` and may change in any release.
+
+### `Lucasp\Loom\Index`
+
+| Class | Summary |
+| --- | --- |
+| `Confidence` | Resolution confidence emitted on `dispatches[*].confidence` and carried on dispatch sites: how sure the scanner is that a dispatch target was resolved correctly. |
+| `DispatchKinds` | The kind of a dispatch target, on `dispatches[*].kind`. |
+| `DispatchMode` | How a dispatch site executes, recorded on the optional `mode` of `$defs/dispatchSite`. |
+| `FrequencyUnit` | The unit of a sub-minute scheduling frequency, emitted on `scheduled_tasks[*].frequency.unit`. |
+| `Index` | Immutable Loom index and the stable, documented consumption surface. |
+| `IndexLoadException` | Thrown by `IndexLoader` when a Loom index cannot be read, decoded, or structurally recognised as an index payload. |
+| `IndexLoader` | Hydrates an `Index` from a Loom index JSON document, the inverse of `Index::toArray()`. |
+| `ListenerRegistration` | How a listener registration was discovered, emitted on `listeners[*].registration` and `closure_listeners[*].registration`. |
+| `ObserverRegistration` | How an observer registration was discovered, emitted on `observers[*].registration`. |
+| `ScheduleKind` | The kind of work a scheduled entry runs, emitted on `scheduled_tasks[*].kind`: an artisan command, a queued/dispatched job, an inline closure, or a shell command via `exec()`. |
+
+### `Lucasp\Loom\Index\Model`
+
+| Class | Summary |
+| --- | --- |
+| `ClosureListener` | An anonymous (closure) listener bound to an event, with its source span and what it dispatches. |
+| `Dispatch` | A resolved dispatch edge: a source (listener, observer, job, route, …) dispatches `target` of a given `kind` from a source location. |
+| `DispatchOverrides` | Fluent modifiers applied at a dispatch site (e.g. `->onQueue('high')`, `->delay(60)`, `->afterCommit()`). |
+| `DispatchSite` | A source location that dispatches an event, sends a mailable, or notifies a notification. |
+| `Event` | A discovered event class, with the sites that dispatch it and the listeners that handle it. |
+| `Frequency` | A sub-minute scheduling frequency such as `everyTenSeconds`, emitted on `scheduled_tasks[*].frequency` in place of a cron expression. |
+| `Handle` | An event-to-method binding declared by a class listener, emitted on `listeners[*].handles`. |
+| `Handler` | A listener-and-method that handles an event, emitted on `events[*].handled_by`. |
+| `Job` | A queueable/dispatchable job: its queue configuration, the sites that dispatch it, and what it dispatches in turn. |
+| `Listener` | A class listener: the events/methods it handles, how it was registered, and what it dispatches. |
+| `Mailable` | A mailable class: its queue configuration and the sites that send it. |
+| `ModelEvent` | An Eloquent model lifecycle event (e.g. `created`, `saving`) and the observers/listeners that handle it. |
+| `ModelEventHandler` | A handler (observer hook or `Event::listen` target) attached to a model event, emitted on `model_events[*].handled_by`. |
+| `Notification` | A notification class: its queue configuration, the channels it sends on, and the sites that notify it. |
+| `Observer` | A model observer: the model it observes, which lifecycle hooks it defines, and what it dispatches. |
+| `QueueConfig` | Static queue configuration read off a queueable class (job, mailable, notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff`, and whether the class dispatches after the transaction commits. |
+| `Route` | An HTTP route: its verb, URI, name, controller target, middleware, and what the action dispatches. |
+| `ScheduledTask` | A scheduled task (command, job, closure, or shell exec) with its cron expression or sub-minute `frequency` and its modifiers. |
+| `UnresolvedDispatch` | A dispatch site the scanner could not statically resolve to a target, with the raw expression and the reason. |
+| `UnresolvedRoute` | A route form the scanner could not read in full, with the source it saw and the reason. |
+
+# Index, UI and MCP configuration
+
+Every key outside `scan` ([Scan configuration](scan-config.md)), with its default and environment variable. Publish the file to change keys without one:
+
+```bash
+php artisan vendor:publish --tag=loom-config
+```
+
+Keys are addressed as `loom.index_path`, `loom.ui.enabled` and so on. The UI is covered in [Browse the UI](../guides/browse-the-ui.md), the server in [Ask an agent](../guides/ask-an-agent.md).
+
+## Index
+
+| Key | Env variable | Default | Meaning |
+| --- | --- | --- | --- |
+| `index_path` | `LOOM_INDEX_PATH` | `null` | Where `loom:scan` writes the index and where the CLI, MCP server and UI read it. `null` means `storage/loom/index.json`. |
+
+## Browser UI
+
+| Key | Env variable | Default | Meaning |
+| --- | --- | --- | --- |
+| `ui.enabled` | `LOOM_UI_ENABLED` | `true` | Kill switch. When `false`, no routes, pages or gate exist in any environment. The UI is also absent without `livewire/livewire`. |
+| `ui.environments` | none | `['local']` | App environments that mount the UI. Elsewhere nothing is registered and the path returns 404. |
+| `ui.allow_in_production` | none | `false` | Listing `production` in `ui.environments` is ignored unless this is `true`. A warning is logged when it is listed but not allowed. |
+| `ui.path` | `LOOM_PATH` | `loom` | URI prefix the UI is served under. Slashes at either end are trimmed; an empty value falls back to `loom`. |
+| `ui.domain` | `LOOM_DOMAIN` | `null` | Serve the UI only on this domain. `null` serves every domain. |
+| `ui.middleware` | none | `['web']` | Middleware that runs before the `viewLoom` gate check, which always runs. |
+| `ui.index_path` | none | `null` | Overrides `index_path` for the UI only. A non-empty value wins. |
+| `ui.chain_depth` | none | `3` | Depth the chain view opens with. Clamped to 1-6; a non-integer falls back to 3. |
+
+## MCP server
+
+| Key | Env variable | Default | Meaning |
+| --- | --- | --- | --- |
+| `mcp.enabled` | `LOOM_MCP_ENABLED` | `true` | Turns off `loom:mcp` even when laravel/mcp is installed. |
+
+## The viewLoom gate
+
+The default gate allows `local` and refuses everything else with a 403. It runs only where `ui.environments` mounts the UI; elsewhere the answer is a 404. Define your own `viewLoom` gate to replace it, as in [Browse the UI](../guides/browse-the-ui.md#open-it-on-staging).
+
+!!! warning "Route caching hides changes"
+    `path`, `domain` and `middleware` are frozen by [route caching](https://laravel.com/docs/12.x/routing#route-caching); run `php artisan route:clear` after changing them.
+
+# Scan configuration
+
+The `scan` keys of `config/loom.php` decide what `loom:scan` reads. Publish the file to change them:
+
+```bash
+php artisan vendor:publish --tag=loom-config
+```
+
+## Keys
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `scan.paths` | `['app']` | Directories `loom:scan` walks, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. See [How directories resolve](#how-directories-resolve). |
+| `scan.route_paths` | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
+| `scan.discover_routes` | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in `bootstrap/app.php`. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. See [Route files](#route-files). |
+| `scan.route_macros` | `[]` | Router macros that register routes, each mapped to the router method it is read as: `['softDeletableResource' => 'resource']`. Other unknown router calls are listed in `unresolved_routes`. |
+| `scan.psr4_paths` | `false` | Also scan every directory in `composer.json`'s `autoload.psr-4`. `autoload-dev` is not included. |
+| `scan.composer_files` | `[]` | composer.json files, as globs relative to the project root (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read for class lookup and whose directories are scanned. Files listed in the root composer.json's `extra.merge-plugin.include` are read for class lookup without being listed here. |
+| `scan.ast_cache_mb` | `null` | Megabytes of parsed source cached during a scan. `null` sizes it from `memory_limit` (at most 8); `0` turns the cache off. |
+| `scan.exclude` | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. See [Exclude globs](#exclude-globs). |
+
+[`loom:scan`](commands.md#loomscan) options override some keys for one run.
+
+## How directories resolve
+
+Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; if none exist, `loom:scan` exits `1`.
+
+| Layout | `scan.paths` |
+| --- | --- |
+| Default Laravel | `['app']` |
+| `Modules/Billing/Events/...` | `['app', 'Modules/*']` |
+| `Modules/Billing/app/Events/...` | `['app', 'Modules/*/app']` |
+| `lib/Domain/Events/...` | `['lib/Domain']` |
+| `Modules/Billing/routes/web.php` | nothing when a provider loads it with `loadRoutesFrom()`; otherwise `scan.route_paths`: `['routes', 'Modules/*/routes']` |
+
+## Route files
+
+Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` is on, every file loaded by a statically resolvable path from `loadRoutesFrom()`, `Route::group()`, `withRouting()`, `withCommands()` or `require`. Paths built from literals, `__DIR__`, `dirname()`, `base_path()` and `app_path()` resolve, and a loaded file's routes inherit the group around the loading call. The [route examples](detection/routes.md) show each form. A path that can't be followed is counted in the scan summary, and `loom:scan -v` lists it with one of these reasons:
+
+- `path is not statically resolvable`: built from a variable, method call or config value
+- `relative path depends on the working directory`: no `__DIR__` or `base_path()`
+- `path is outside the project root`
+- `no such file`
+
+Build the path from `__DIR__` or `base_path()` with literals, or add its directory to `scan.route_paths`.
+
+## Locating classes
+
+A dispatched class outside a convention directory is found through the [`autoload.psr-4`](https://getcomposer.org/doc/04-schema.md#psr-4) map in `composer.json`, or `App\` → `app/` without one. The file must be inside a scan directory and not excluded.
+
+## Exclude globs
+
+| Pattern | Matches |
+| --- | --- |
+| `app/Legacy` | The directory and everything under it |
+| `app/*/Fakes/*.php` | One directory level between `app/` and `Fakes/` |
+| `**/Fakes` | Any `Fakes` directory at any depth |
+| `app/**/*.generated.php` | Generated files at any depth under `app/` |
+
+`*` and `?` never cross a `/`; `**` does. Matching is case-sensitive and also applies to route files and `bootstrap/app.php`.
+
+# What Loom detects
+
+Each page shows the code shapes Loom reads for one primitive, and the ones it does not. Every example is scanned by the test suite, and the comment at the end of a line is what the index holds for that line:
+
+```php
+public function handle(OrderPlaced $event): void {} // → listeners[SendReceipt].handles.event OrderPlaced
+event($name); // ✗ dynamic_class_name
+```
+
+- `→ section[key].field value`: the entry in that [index section](../schema.md) has that value. Without a key, it is the entry declared on that line.
+- `✗ reason`: the line is listed in `unresolved_dispatches` or `unresolved_routes` with that reason.
+- `✗ not recorded`: nothing in the index points at that line.
+
+- [Events](events.md)
+- [Listeners](listeners.md)
+- [Closure listeners](closure-listeners.md)
+- [Observers and model hooks](observers.md)
+- [Jobs](jobs.md)
+- [Dispatches](dispatches.md)
+- [Mailables](mailables.md)
+- [Notifications](notifications.md)
+- [Schedule](schedule.md)
+- [Routes](routes.md)
+- [Scan scope](scope.md)
+
+## Unresolved reasons
+
+Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page that shows it.
+
+| Reason | Shown on |
+| --- | --- |
+| `dynamic_class_name` | [Dispatches](dispatches.md), [Mailables](mailables.md) |
+| `container_resolution` | [Dispatches](dispatches.md) |
+| `string_concatenation` | [Dispatches](dispatches.md) |
+| `conditional_dispatch` | [Dispatches](dispatches.md) |
+| `dynamic_list` | [Dispatches](dispatches.md) |
+| `string_event_name` | [Dispatches](dispatches.md) |
+| `closure_job` | [Dispatches](dispatches.md) |
+| `view_mail` | [Mailables](mailables.md) |
+| `call_result` | [Dispatches](dispatches.md) |
+| `stored_target` | [Dispatches](dispatches.md) |
+| `relative_class_name` | [Dispatches](dispatches.md) |
+| `unsupported_expression` | [Events](events.md), [Dispatches](dispatches.md) |
+| `class_not_found` | [Dispatches](dispatches.md) |
+| `target_not_indexed` | [Events](events.md), [Jobs](jobs.md), [Dispatches](dispatches.md) |
+| `unreadable_event_name` | [Listeners](listeners.md) |
+| `untyped_closure_listener` | [Closure listeners](closure-listeners.md) |
+| `unreadable_listener` | [Listeners](listeners.md) |
+| `unreadable_subscriber` | [Listeners](listeners.md) |
+| `unreadable_model_hook` | [Observers and model hooks](observers.md) |
+| `unknown_route_call` | [Routes](routes.md) |
+| `dynamic_uri` | [Routes](routes.md) |
+| `dynamic_resource` | [Routes](routes.md) |
+| `dynamic_verbs` | [Routes](routes.md) |
+| `dynamic_resource_options` | [Routes](routes.md) |
+| `dynamic_middleware` | [Routes](routes.md) |
+| `dynamic_group_attribute` | [Routes](routes.md) |
+| `route_file_dynamic` | [Routes](routes.md) |
+| `route_file_relative` | [Routes](routes.md) |
+| `route_file_outside_root` | [Routes](routes.md) |
+| `route_file_not_found` | [Routes](routes.md) |
+| `attribute_route` | [Routes](routes.md) |
+
+# Events
+
+??? example "Events fired with X::dispatch()"
+
+    ```php title="app/Events/OrderCancelled.php"
+    namespace App\Events;
+
+    use Illuminate\Foundation\Events\Dispatchable;
+
+    class OrderCancelled // → events[OrderCancelled]
+    {
+        use Dispatchable;
+    }
+    ```
+
+    ```php title="app/Support/StockLow.php"
+    namespace App\Support;
+
+    use Illuminate\Foundation\Events\Dispatchable;
+
+    class StockLow // ✗ not recorded
+    {
+        use Dispatchable;
+    }
+    ```
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderCancelled;
+    use App\Support\StockLow;
+
+    class OrderController
+    {
+        public function cancel(): void
+        {
+            OrderCancelled::dispatch(); // → events[OrderCancelled].dispatched_from.method OrderController::cancel
+            OrderCancelled::dispatchIf(true); // → events[OrderCancelled].dispatched_from.method OrderController::cancel
+            OrderCancelled::dispatchUnless(false); // → events[OrderCancelled].dispatched_from.method OrderController::cancel
+            StockLow::dispatch(); // ✗ target_not_indexed
+        }
+    }
+    ```
+
+??? example "Classes in app/Events"
+
+    ```php title="app/Events/PaymentFailed.php"
+    namespace App\Events;
+
+    class PaymentFailed {} // → events[PaymentFailed]
+    ```
+
+    ```php title="app/Events/BillingEvent.php"
+    namespace App\Events;
+
+    abstract class BillingEvent {} // → events[BillingEvent]
+    ```
+
+??? example "Fired classes outside app/Events"
+
+    ```php title="app/Billing/RefundIssued.php"
+    namespace App\Billing;
+
+    class RefundIssued {} // → events[RefundIssued]
+    ```
+
+    ```php title="app/Http/Controllers/RefundController.php"
+    namespace App\Http\Controllers;
+
+    use App\Billing\RefundIssued;
+    use Illuminate\Support\Facades\Event;
+
+    class RefundController
+    {
+        public function store(): void
+        {
+            event(new RefundIssued); // → events[RefundIssued].dispatched_from.method RefundController::store
+            broadcast(new RefundIssued); // → events[RefundIssued].dispatched_from.method RefundController::store
+            broadcast_if(true, new RefundIssued); // → events[RefundIssued].dispatched_from.method RefundController::store
+            broadcast_unless(false, new RefundIssued); // → events[RefundIssued].dispatched_from.method RefundController::store
+            Event::dispatch(new RefundIssued); // → events[RefundIssued].dispatched_from.method RefundController::store
+            event(new class {}); // ✗ unsupported_expression
+        }
+    }
+    ```
+
+??? example "A model's $dispatchesEvents map"
+
+    ```php title="app/Models/Invoice.php"
+    namespace App\Models;
+
+    use App\Events\InvoiceCreated;
+    use Illuminate\Database\Eloquent\Model;
+
+    class Invoice extends Model
+    {
+        protected $dispatchesEvents = [
+            'created' => InvoiceCreated::class, // → events[InvoiceCreated].dispatched_from.method Invoice::$dispatchesEvents[created]
+            'deleted' => 'App\Events\InvoiceDeleted', // ✗ not recorded
+        ];
+    }
+    ```
+
+    ```php title="app/Events/InvoiceCreated.php"
+    namespace App\Events;
+
+    class InvoiceCreated {}
+    ```
+
+# Listeners
+
+??? example "Discovered listener, typed to its event"
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class SendReceipt // → listeners.registration auto_discovered
+    {
+        public function handle(OrderPlaced $event): void {} // → listeners[SendReceipt].handles.event OrderPlaced
+    }
+    ```
+
+??? example "Event discovery in other directories"
+
+    ```php title="bootstrap/app.php"
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withEvents(discover: [__DIR__.'/../app/Domain/Orders/Listeners'])
+        ->create();
+    ```
+
+    ```php title="app/Domain/Orders/Listeners/SendReceipt.php"
+    namespace App\Domain\Orders\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class SendReceipt // → listeners.registration auto_discovered
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+??? example "Event discovery turned off"
+
+    ```php title="bootstrap/app.php"
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withEvents(false)
+        ->create();
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class SendReceipt // ✗ not recorded
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+??? example "Event discovery switch Loom cannot read"
+
+    ```php title="bootstrap/app.php"
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withEvents(discover: config('events.paths'))
+        ->create();
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class SendReceipt // → listeners.registration discovery_unverified
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+??? example "Listener typed to a parent event"
+
+    ```php title="app/Events/PaymentEvent.php"
+    namespace App\Events;
+
+    abstract class PaymentEvent {} // → events[PaymentEvent].handled_by.listener ReconcileLedger
+    ```
+
+    ```php title="app/Events/PaymentFailed.php"
+    namespace App\Events;
+
+    class PaymentFailed extends PaymentEvent {} // → events[PaymentFailed].handled_by []
+    ```
+
+    ```php title="app/Listeners/ReconcileLedger.php"
+    namespace App\Listeners;
+
+    use App\Events\PaymentEvent;
+
+    class ReconcileLedger
+    {
+        public function handle(PaymentEvent $event): void {}
+    }
+    ```
+
+??? example "Handler parameter types"
+
+    ```php title="app/Listeners/NotifyWarehouse.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+
+    class NotifyWarehouse
+    {
+        public function __invoke(?OrderPlaced $event): void {} // → listeners[NotifyWarehouse].handles.method __invoke
+    }
+    ```
+
+    ```php title="app/Listeners/LogOrder.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+
+    class LogOrder
+    {
+        public function handleOrder(OrderPlaced|OrderShipped $event): void {} // → listeners[LogOrder].handles.event OrderPlaced → listeners[LogOrder].handles.event OrderShipped
+    }
+    ```
+
+    ```php title="app/Listeners/TrackAnything.php"
+    namespace App\Listeners;
+
+    class TrackAnything
+    {
+        public function handle($event): void {} // → listeners[TrackAnything].handles []
+    }
+    ```
+
+    ```php title="app/Listeners/CountStrings.php"
+    namespace App\Listeners;
+
+    class CountStrings
+    {
+        public function handle(string $event): void {} // → listeners[CountStrings].handles []
+    }
+    ```
+
+??? example "Handlers from a parent class or a trait"
+
+    ```php title="app/Listeners/BaseOrderListener.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    abstract class BaseOrderListener // ✗ not recorded
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/ReserveStock.php"
+    namespace App\Listeners;
+
+    class ReserveStock extends BaseOrderListener {} // → listeners.handles.event OrderPlaced
+    ```
+
+    ```php title="app/Listeners/HandlesShipping.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderShipped;
+
+    trait HandlesShipping // ✗ not recorded
+    {
+        public function onShipped(OrderShipped $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/EmailTracking.php"
+    namespace App\Listeners;
+
+    class EmailTracking // → listeners.handles.method handleShipped
+    {
+        use HandlesShipping { onShipped as handleShipped; }
+    }
+    ```
+
+    ```php title="app/Listeners/QuietTracking.php"
+    namespace App\Listeners;
+
+    class QuietTracking // ✗ not recorded
+    {
+        use HandlesShipping { onShipped as protected handleShipped; }
+
+        public function handleNothing(): void {}
+    }
+    ```
+
+??? example "Event discovery with a pre-configure() bootstrap"
+
+    ```php title="bootstrap/app.php"
+    $app = new Illuminate\Foundation\Application(dirname(__DIR__));
+
+    return $app;
+    ```
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        public function shouldDiscoverEvents(): bool
+        {
+            return true;
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class SendReceipt // → listeners.registration auto_discovered
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+??? example "The $listen array"
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use App\Listeners\AuditOrders;
+    use App\Listeners\SendReceipt;
+    use Closure;
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                SendReceipt::class, // → listeners[SendReceipt].registration listen_array
+                [AuditOrders::class, 'onPlaced'], // → listeners[AuditOrders].handles.method onPlaced
+                'App\Listeners\AuditOrders@record', // → listeners[AuditOrders].handles.method record
+            ],
+            OrderShipped::class => [
+                AuditOrders::class.'@onShipped', // → listeners[AuditOrders].handles.method onShipped
+                AuditOrders::onArchived(...), // → listeners[AuditOrders].handles.method onArchived
+                Closure::fromCallable([AuditOrders::class, 'onRefunded']), // → listeners[AuditOrders].handles.method onRefunded
+            ],
+            'orders.*' => [
+                SendReceipt::class, // → listeners[SendReceipt].handles.event orders.*
+            ],
+        ];
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    class SendReceipt
+    {
+        public function handle(object $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/AuditOrders.php"
+    namespace App\Listeners;
+
+    class AuditOrders
+    {
+        public function onPlaced(object $event): void {}
+
+        public function record(object $event): void {}
+
+        public function onShipped(object $event): void {}
+
+        public static function onArchived(object $event): void {}
+
+        public function onRefunded(object $event): void {}
+    }
+    ```
+
+??? example "Event::listen and the events dispatcher"
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use App\Listeners\SendReceipt;
+    use Illuminate\Contracts\Events\Dispatcher;
+    use Illuminate\Support\Facades\Event;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(OrderPlaced::class, SendReceipt::class); // → listeners[SendReceipt].registration event_listen_call
+            Event::listen([OrderPlaced::class, OrderShipped::class], [SendReceipt::class, 'onAny']); // → listeners[SendReceipt].handles.method onAny
+            \Event::listen(OrderShipped::class, [SendReceipt::class, 'onAlias']); // → listeners[SendReceipt].handles.method onAlias
+            \Illuminate\Support\Facades\Event::listen(OrderShipped::class, [SendReceipt::class, 'onFqcn']); // → listeners[SendReceipt].handles.method onFqcn
+            $this->app['events']->listen(OrderShipped::class, [SendReceipt::class, 'onContainer']); // → listeners[SendReceipt].handles.method onContainer
+            app(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onHelper']); // → listeners[SendReceipt].handles.method onHelper
+            resolve(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onResolve']); // → listeners[SendReceipt].handles.method onResolve
+            app('events')->listen(OrderShipped::class, [SendReceipt::class, 'onAppString']); // ✗ not recorded
+
+            $events = $this->app->make(Dispatcher::class);
+            $events->listen(OrderShipped::class, [SendReceipt::class, 'onVariable']); // → listeners[SendReceipt].handles.method onVariable
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    class SendReceipt
+    {
+        public function handle(object $event): void {}
+
+        public function onAny(object $event): void {}
+
+        public function onAlias(object $event): void {}
+
+        public function onFqcn(object $event): void {}
+
+        public function onContainer(object $event): void {}
+
+        public function onHelper(object $event): void {}
+
+        public function onResolve(object $event): void {}
+
+        public function onAppString(object $event): void {}
+
+        public function onVariable(object $event): void {}
+    }
+    ```
+
+??? example "Subscribers"
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Listeners\OrderSubscriber;
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        protected $subscribe = [
+            OrderSubscriber::class, // → listeners[OrderSubscriber].registration subscriber
+        ];
+    }
+    ```
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Listeners\ShippingSubscriber;
+    use Illuminate\Support\Facades\Event;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::subscribe(ShippingSubscriber::class); // → listeners[ShippingSubscriber].registration subscriber
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/OrderSubscriber.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use Illuminate\Events\Dispatcher;
+
+    class OrderSubscriber
+    {
+        public function subscribe(Dispatcher $events): array
+        {
+            return [
+                OrderPlaced::class => 'onPlaced', // → listeners[OrderSubscriber].handles.method onPlaced
+            ];
+        }
+
+        public function onPlaced(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/ShippingSubscriber.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use Illuminate\Events\Dispatcher;
+
+    class ShippingSubscriber
+    {
+        public function subscribe(Dispatcher $events): void
+        {
+            $events->listen(OrderShipped::class, [self::class, 'onShipped']); // → listeners[ShippingSubscriber].handles.method onShipped
+
+            collect([OrderPlaced::class])->each(fn ($event) => $events->listen($event, [self::class, 'onAny'])); // ✗ not recorded
+        }
+
+        public function onShipped(OrderShipped $event): void {}
+
+        public function onAny(object $event): void {}
+    }
+    ```
+
+??? example "Registrations Loom cannot read"
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Listeners\SendReceipt;
+    use Illuminate\Contracts\Events\Dispatcher;
+    use Illuminate\Support\Facades\Event;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function __construct(private Dispatcher $dispatcher) {}
+
+        public function boot(Dispatcher $events, string $name, object $listener, object $subscriber): void
+        {
+            Event::listen($name, SendReceipt::class); // ✗ unreadable_event_name
+            Event::listen(OrderPlaced::class, $listener); // ✗ unreadable_listener
+            Event::listen(OrderPlaced::class, [$this, 'handle']); // ✗ unreadable_listener
+            Event::listen(OrderPlaced::class, 'App\Listeners\SendReceipt::handle'); // ✗ unreadable_listener
+            Event::subscribe($subscriber); // ✗ unreadable_subscriber
+
+            $events->listen(OrderPlaced::class, [SendReceipt::class, 'fromParameter']); // ✗ not recorded
+            $this->dispatcher->listen(OrderPlaced::class, [SendReceipt::class, 'fromProperty']); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    class SendReceipt
+    {
+        public function fromParameter(object $event): void {}
+
+        public function fromProperty(object $event): void {}
+    }
+    ```
+
+# Closure listeners
+
+??? example "Dispatches inside a closure listener"
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\InvoiceSettled;
+    use App\Events\PaymentReceived;
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\Event;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(PaymentReceived::class, function ($event) { // → closure_listeners.queued false
+                event(new InvoiceSettled); // → closure_listeners[PaymentReceived].dispatches.target InvoiceSettled
+
+                collect([1, 2])->each(fn () => ProcessOrder::dispatch()); // → closure_listeners[PaymentReceived].dispatches.target ProcessOrder
+            });
+        }
+    }
+    ```
+
+    ```php title="app/Events/PaymentReceived.php"
+    namespace App\Events;
+
+    class PaymentReceived {} // → events[PaymentReceived].handled_by []
+    ```
+
+    ```php title="app/Events/InvoiceSettled.php"
+    namespace App\Events;
+
+    class InvoiceSettled {} // → events[InvoiceSettled].dispatched_from []
+    ```
+
+??? example "Closure registrations"
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+    use Illuminate\Support\Facades\Event;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        protected $listen = [
+            OrderPlaced::class => [
+                fn (OrderPlaced $event) => null, // → closure_listeners.registration listen_array
+            ],
+            'orders.archived' => [
+                function ($event) {}, // → closure_listeners.event orders.archived
+            ],
+        ];
+
+        public function boot(): void
+        {
+            Event::listen(OrderPlaced::class, fn ($event) => null); // → closure_listeners.registration event_listen_call
+            Event::listen(function (OrderShipped $event) {}); // → closure_listeners.event OrderShipped
+            Event::listen(fn (OrderPlaced|OrderShipped $event) => null); // → closure_listeners.event OrderPlaced → closure_listeners.event OrderShipped
+            Event::listen(fn ($event) => null); // ✗ untyped_closure_listener
+            Event::listen(fn (object $event) => null); // ✗ untyped_closure_listener
+            Event::subscribe(\App\Listeners\OrderSubscriber::class);
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/OrderSubscriber.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderShipped;
+    use Illuminate\Events\Dispatcher;
+
+    class OrderSubscriber
+    {
+        public function subscribe(Dispatcher $events): array
+        {
+            return [
+                OrderShipped::class => fn (OrderShipped $event) => null, // → closure_listeners.registration subscriber
+            ];
+        }
+    }
+    ```
+
+# Observers and model hooks
+
+??? example "eloquent.* event strings"
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Listeners\AuditOrder;
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+    use Illuminate\Support\Facades\Event;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        protected $listen = [
+            'eloquent.deleted: App\Models\Order' => [
+                AuditOrder::class, // → model_events[eloquent.deleted: App\Models\Order].handled_by.handler AuditOrder
+            ],
+        ];
+
+        public function boot(): void
+        {
+            Event::listen('eloquent.created: App\Models\Order', 'App\Listeners\AuditOrder@created'); // → model_events[eloquent.created: App\Models\Order].handled_by.method created
+            Event::listen('eloquent.updated: App\Models\Order', [AuditOrder::class, 'updated']); // → model_events[eloquent.updated: App\Models\Order].handled_by.method updated
+            Event::listen('eloquent.booted: App\Models\Order', AuditOrder::class); // → model_events[eloquent.booted: App\Models\Order].handled_by.handler AuditOrder
+            Event::listen('eloquent.saved: App\Models\Order', fn ($order) => null); // → model_events[eloquent.saved: App\Models\Order].handled_by.method {closure}
+            $this->app['events']->listen('eloquent.restored: App\Models\Order', AuditOrder::class); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/AuditOrder.php"
+    namespace App\Listeners;
+
+    class AuditOrder
+    {
+        public function handle(): void {}
+
+        public function created(): void {}
+
+        public function updated(): void {}
+    }
+    ```
+
+??? example "Observer hook methods"
+
+    ```php title="app/Models/Order.php"
+    namespace App\Models;
+
+    use App\Observers\OrderObserver;
+    use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+    use Illuminate\Database\Eloquent\Model;
+
+    #[ObservedBy(OrderObserver::class)]
+    class Order extends Model {}
+    ```
+
+    ```php title="app/Observers/BaseObserver.php"
+    namespace App\Observers;
+
+    abstract class BaseObserver
+    {
+        public function deleted(): void {} // → observers[OrderObserver].hooks deleted
+    }
+    ```
+
+    ```php title="app/Observers/TracksRestores.php"
+    namespace App\Observers;
+
+    trait TracksRestores
+    {
+        public function restored(): void {} // → observers[OrderObserver].hooks restored
+    }
+    ```
+
+    ```php title="app/Observers/OrderObserver.php"
+    namespace App\Observers;
+
+    class OrderObserver extends BaseObserver // → observers.hooks ["created","deleted","restored","trashed"]
+    {
+        use TracksRestores;
+
+        protected function created(): void {} // → observers[OrderObserver].hooks created
+
+        public function trashed(): void {} // → observers[OrderObserver].hooks trashed
+
+        public function booted(): void {}
+    }
+    ```
+
+??? example "Model hook registrations"
+
+    ```php title="app/Models/Order.php"
+    namespace App\Models;
+
+    use App\Events\OrderPlaced;
+    use App\Support\OrderHooks;
+    use Illuminate\Database\Eloquent\Model;
+
+    class Order extends Model
+    {
+        protected static function booted(): void
+        {
+            static::created(function (Order $order) { // → model_events[eloquent.created: App\Models\Order].handled_by.method {closure} → closure_listeners.registration model_hook
+                event(new OrderPlaced); // → closure_listeners[eloquent.created: App\Models\Order].dispatches.target OrderPlaced
+            });
+            static::saved([OrderHooks::class, 'saved']); // → model_events[eloquent.saved: App\Models\Order].handled_by.handler OrderHooks
+            static::deleted(OrderHooks::class); // → model_events[eloquent.deleted: App\Models\Order].handled_by.method handle
+            static::updated('App\Support\OrderHooks@updated'); // → model_events[eloquent.updated: App\Models\Order].handled_by.method updated
+        }
+    }
+    ```
+
+    ```php title="app/Models/Concerns/HasUuid.php"
+    namespace App\Models\Concerns;
+
+    trait HasUuid
+    {
+        protected static function bootHasUuid(): void
+        {
+            static::creating(fn ($model) => null); // → model_events[eloquent.creating: App\Models\User].handled_by.method {closure} → model_events[eloquent.creating: App\Models\Invoice].handled_by.method {closure}
+        }
+    }
+    ```
+
+    ```php title="app/Models/User.php"
+    namespace App\Models;
+
+    use App\Models\Concerns\HasUuid;
+    use Illuminate\Database\Eloquent\Model;
+
+    class User extends Model
+    {
+        use HasUuid;
+    }
+    ```
+
+    ```php title="app/Models/Invoice.php"
+    namespace App\Models;
+
+    use App\Models\Concerns\HasUuid;
+    use Illuminate\Database\Eloquent\Model;
+
+    class Invoice extends Model
+    {
+        use HasUuid;
+
+        protected static function boot(): void
+        {
+            parent::boot();
+
+            $callback = fn () => null;
+            static::deleting($callback); // ✗ unreadable_model_hook
+        }
+    }
+    ```
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Models\Order;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(\Closure $callback): void
+        {
+            Order::restored(fn (Order $order) => null); // → model_events[eloquent.restored: App\Models\Order].handled_by.method {closure}
+            Order::retrieved($callback); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Support/OrderHooks.php"
+    namespace App\Support;
+
+    class OrderHooks
+    {
+        public function saved(): void {}
+
+        public function handle(): void {}
+
+        public function updated(): void {}
+    }
+    ```
+
+??? example "Observer registrations"
+
+    ```php title="app/Models/Order.php"
+    namespace App\Models;
+
+    use App\Observers\AuditObserver;
+    use App\Observers\OrderObserver;
+    use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+    use Illuminate\Database\Eloquent\Model;
+
+    #[ObservedBy(OrderObserver::class)] // → observers[OrderObserver].registration attribute
+    class Order extends Model
+    {
+        protected static function booted(): void
+        {
+            static::observe(AuditObserver::class); // → observers[AuditObserver].registration observe_call
+        }
+    }
+    ```
+
+    ```php title="app/Models/Invoice.php"
+    namespace App\Models;
+
+    use App\Observers\AuditObserver;
+    use App\Observers\InvoiceObserver;
+    use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+    use Illuminate\Database\Eloquent\Model;
+
+    #[ObservedBy([InvoiceObserver::class])] // → observers[InvoiceObserver].observes App\Models\Invoice
+    class Invoice extends Model
+    {
+        protected static function booted(): void
+        {
+            self::observe(AuditObserver::class); // → observers[AuditObserver].observes App\Models\Invoice
+        }
+    }
+    ```
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Models\User;
+    use App\Observers\UserObserver;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(string $observer): void
+        {
+            User::observe(UserObserver::class); // → observers[UserObserver].observes App\Models\User
+            User::observe($observer); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Observers/OrderObserver.php"
+    namespace App\Observers;
+
+    class OrderObserver
+    {
+        public function created(): void {}
+    }
+    ```
+
+    ```php title="app/Observers/InvoiceObserver.php"
+    namespace App\Observers;
+
+    class InvoiceObserver
+    {
+        public function created(): void {}
+    }
+    ```
+
+    ```php title="app/Observers/AuditObserver.php"
+    namespace App\Observers;
+
+    class AuditObserver
+    {
+        public function saved(): void {}
+    }
+    ```
+
+    ```php title="app/Observers/UserObserver.php"
+    namespace App\Observers;
+
+    class UserObserver
+    {
+        public function deleted(): void {}
+    }
+    ```
+
+# Jobs
+
+??? example "Queue settings from the constructor"
+
+    ```php title="app/Jobs/BaseJob.php"
+    namespace App\Jobs;
+
+    use Illuminate\Bus\Queueable;
+
+    abstract class BaseJob
+    {
+        use Queueable;
+
+        public function __construct()
+        {
+            $this->onConnection('sqs');
+        }
+    }
+    ```
+
+    ```php title="app/Jobs/ShipOrder.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class ShipOrder extends BaseJob implements ShouldQueue
+    {
+        public $queue = 'default';
+
+        public function __construct(bool $urgent = false)
+        {
+            parent::__construct(); // → jobs[ShipOrder].queue_config.connection sqs
+            $this->onQueue('shipping'); // → jobs[ShipOrder].queue_config.queue shipping
+            $this->delay(60); // → jobs[ShipOrder].queue_config.delay 60
+            $this->afterCommit(); // → jobs[ShipOrder].queue_config.after_commit true
+
+            if ($urgent) {
+                $this->onQueue('urgent');
+            }
+        }
+    }
+    ```
+
+    ```php title="app/Jobs/RestockOrder.php"
+    namespace App\Jobs;
+
+    use Illuminate\Bus\Queueable;
+    use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
+
+    class RestockOrder implements ShouldQueueAfterCommit
+    {
+        use Queueable;
+
+        public function __construct()
+        {
+            $this->queue = 'restock'; // → jobs[RestockOrder].queue_config.queue restock
+            $this->beforeCommit(); // → jobs[RestockOrder].queue_config.after_commit false
+        }
+    }
+    ```
+
+??? example "Classes found as jobs"
+
+    ```php title="app/Jobs/SyncInventory.php"
+    namespace App\Jobs;
+
+    class SyncInventory {} // → jobs[SyncInventory].queued false
+    ```
+
+    ```php title="app/Actions/ChargeCard.php"
+    namespace App\Actions;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+    use Illuminate\Foundation\Bus\Dispatchable;
+
+    class ChargeCard implements ShouldQueue // → jobs[ChargeCard]
+    {
+        use Dispatchable;
+    }
+    ```
+
+    ```php title="app/Actions/VoidCard.php"
+    namespace App\Actions;
+
+    use Illuminate\Foundation\Bus\Dispatchable;
+
+    class VoidCard // ✗ not recorded
+    {
+        use Dispatchable;
+    }
+    ```
+
+    ```php title="app/Actions/RefundCard.php"
+    namespace App\Actions;
+
+    class RefundCard {} // → jobs[RefundCard]
+    ```
+
+    ```php title="app/Http/Controllers/PaymentController.php"
+    namespace App\Http\Controllers;
+
+    use App\Actions\ChargeCard;
+    use App\Actions\RefundCard;
+    use App\Actions\VoidCard;
+    use Illuminate\Support\Facades\Bus;
+
+    class PaymentController
+    {
+        public function store(): void
+        {
+            ChargeCard::dispatch(); // → jobs[ChargeCard].dispatched_from.method PaymentController::store
+            Bus::dispatch(new RefundCard); // → jobs[RefundCard].dispatched_from.method PaymentController::store
+            dispatch(new RefundCard); // → jobs[RefundCard].dispatched_from.method PaymentController::store
+            VoidCard::dispatch(); // ✗ target_not_indexed
+        }
+    }
+    ```
+
+??? example "Queue settings from properties"
+
+    ```php title="app/Jobs/BaseJob.php"
+    namespace App\Jobs;
+
+    abstract class BaseJob
+    {
+        public $tries = 5;
+
+        public $timeout = 120;
+    }
+    ```
+
+    ```php title="app/Jobs/ExportOrders.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class ExportOrders extends BaseJob implements ShouldQueue // → jobs.queue_config.timeout 120
+    {
+        public $connection = 'redis'; // → jobs[ExportOrders].queue_config.connection redis
+
+        public $queue = 'exports'; // → jobs[ExportOrders].queue_config.queue exports
+
+        public $delay = 30; // → jobs[ExportOrders].queue_config.delay 30
+
+        public $tries = 3; // → jobs[ExportOrders].queue_config.tries 3
+
+        public $backoff = 10; // → jobs[ExportOrders].queue_config.backoff 10
+
+        public $afterCommit = false; // → jobs[ExportOrders].queue_config.after_commit false
+    }
+    ```
+
+    ```php title="app/Jobs/ImportOrders.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class ImportOrders implements ShouldQueue // → jobs.queue_config.after_commit null
+    {
+        public $queue = self::QUEUE; // → jobs[ImportOrders].queue_config.queue null
+
+        public const QUEUE = 'imports';
+
+        public function backoff(): array // → jobs[ImportOrders].queue_config.backoff null
+        {
+            return [5];
+        }
+    }
+    ```
+
+??? example "Queued through interfaces and parents"
+
+    ```php title="app/Jobs/SendInvoice.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class SendInvoice implements ShouldQueue {} // → jobs.queued true
+    ```
+
+    ```php title="app/Jobs/QueuedJob.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
+
+    interface QueuedJob extends ShouldQueueAfterCommit {}
+    ```
+
+    ```php title="app/Jobs/BaseJob.php"
+    namespace App\Jobs;
+
+    abstract class BaseJob implements QueuedJob {}
+    ```
+
+    ```php title="app/Jobs/ArchiveOrders.php"
+    namespace App\Jobs;
+
+    class ArchiveOrders extends BaseJob {} // → jobs.queued true → jobs.queue_config.after_commit true
+    ```
+
+    ```php title="app/Jobs/PruneCarts.php"
+    namespace App\Jobs;
+
+    use Illuminate\Queue\CallQueuedClosure;
+
+    class PruneCarts extends CallQueuedClosure {} // → jobs.queued false
+    ```
+
+# Dispatches
+
+??? example "Which method a dispatch counts for"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderPlaced;
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\DB;
+    use Illuminate\Support\Facades\Queue;
+
+    class OrderController
+    {
+        public function store(): void
+        {
+            DB::transaction(fn () => event(new OrderPlaced)); // → events[OrderPlaced].dispatched_from.method OrderController::store
+
+            collect([1, 2])->each(function () {
+                ProcessOrder::dispatch(); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            });
+
+            $notify = fn () => event(new OrderPlaced); // → events[OrderPlaced].dispatched_from.method OrderController::store
+
+            Queue::before(fn () => event(new OrderPlaced)); // → events[OrderPlaced].dispatched_from.method OrderController::store
+
+            collect([1, 2])->each($this->notify(...));
+        }
+
+        private function notify(): void
+        {
+            event(new OrderPlaced); // → events[OrderPlaced].dispatched_from.method OrderController::notify
+        }
+    }
+    ```
+
+    ```php title="app/helpers.php"
+    event(new \App\Events\OrderPlaced); // ✗ not recorded
+    ```
+
+??? example "Bus::chain and Bus::batch"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ChargeOrder;
+    use App\Jobs\ProcessOrder;
+    use App\Jobs\ShipOrder;
+    use Illuminate\Support\Facades\Bus;
+
+    class OrderController
+    {
+        public function store(array $jobs): void
+        {
+            Bus::chain([new ProcessOrder, new ChargeOrder])->dispatch(); // → jobs[ProcessOrder].dispatched_from.method OrderController::store → jobs[ChargeOrder].dispatched_from.method OrderController::store
+            Bus::batch([[new ChargeOrder, new ShipOrder]])->dispatch(); // → jobs[ShipOrder].dispatched_from.method OrderController::store
+
+            $steps = [new ShipOrder];
+            Bus::chain($steps)->dispatch(); // → jobs[ShipOrder].dispatched_from.method OrderController::store
+
+            Bus::chain($jobs)->dispatch(); // ✗ dynamic_list
+            Bus::chain([new ChargeOrder, ...$jobs])->dispatch(); // ✗ dynamic_list → jobs[ChargeOrder].dispatched_from.method OrderController::store
+        }
+    }
+    ```
+
+    ```php title="app/Jobs/ChargeOrder.php"
+    namespace App\Jobs;
+
+    class ChargeOrder {}
+    ```
+
+    ```php title="app/Jobs/ShipOrder.php"
+    namespace App\Jobs;
+
+    class ShipOrder {}
+    ```
+
+??? example "Dispatches reached through helper methods"
+
+    ```php title="app/Listeners/BaseListener.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderShipped;
+
+    abstract class BaseListener
+    {
+        protected function shipped(): void
+        {
+            event(new OrderShipped); // → events[OrderShipped].dispatched_from.method BaseListener::shipped
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Jobs\ProcessOrder;
+    use App\Support\Receipts;
+
+    class SendReceipt extends BaseListener
+    {
+        public function __construct(private Receipts $receipts) {}
+
+        public function handle(OrderPlaced $event): void
+        {
+            ProcessOrder::dispatch(); // → listeners[SendReceipt].dispatches.confidence high
+            $this->issue();
+            $this->shipped();
+            $this->receipts->send();
+        }
+
+        private function issue(): void
+        {
+            self::log();
+        }
+
+        private static function log(): void
+        {
+            ProcessOrder::dispatch(); // → listeners[SendReceipt].dispatches.via ["issue","log"] → listeners[SendReceipt].dispatches.confidence medium
+        }
+    }
+    ```
+
+    ```php title="app/Support/Receipts.php"
+    namespace App\Support;
+
+    use App\Jobs\ProcessOrder;
+
+    class Receipts
+    {
+        public function send(): void
+        {
+            ProcessOrder::dispatch(); // → jobs[ProcessOrder].dispatched_from.method Receipts::send
+        }
+    }
+    ```
+
+??? example "Job dispatch calls and their mode"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\Bus;
+    use Illuminate\Support\Facades\Queue;
+
+    class OrderController
+    {
+        public function store(): void
+        {
+            dispatch(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            ProcessOrder::dispatch(); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            ProcessOrder::dispatchIf(true); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            ProcessOrder::dispatchUnless(false); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            Bus::dispatch(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+
+            dispatch_sync(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode sync
+            ProcessOrder::dispatchSync(); // → jobs[ProcessOrder].dispatched_from.mode sync
+            Bus::dispatchSync(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode sync
+            Bus::dispatchNow(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode sync
+
+            ProcessOrder::dispatchAfterResponse(); // → jobs[ProcessOrder].dispatched_from.mode after_response
+            Bus::dispatchAfterResponse(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode after_response
+            dispatch(new ProcessOrder)->afterResponse(); // → jobs[ProcessOrder].dispatched_from.mode after_response
+
+            Queue::push(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::pushOn('orders', new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::later(60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::laterOn('orders', 60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::bulk([new ProcessOrder]); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::pushRaw('{"job":"x"}'); // ✗ not recorded
+        }
+    }
+    ```
+
+??? example "Targets held in a local variable"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use App\Jobs\ProcessOrder;
+
+    class OrderController
+    {
+        public function store(bool $express): void
+        {
+            $event = new OrderPlaced;
+            event($event); // → events[OrderPlaced].dispatched_from.method OrderController::store
+
+            $shipped = OrderShipped::class;
+            event($shipped); // → events[OrderShipped].dispatched_from.method OrderController::store
+
+            $next = $express ? new OrderShipped : new OrderPlaced;
+            event($next); // → events[OrderShipped].dispatched_from.method OrderController::store → events[OrderPlaced].dispatched_from.method OrderController::store
+        }
+
+        public function update(OrderPlaced $event, bool $express): void
+        {
+            event($event); // ✗ dynamic_class_name
+
+            $job = new ProcessOrder;
+            if ($express) {
+                $job = new ProcessOrder;
+            }
+            dispatch($job); // ✗ dynamic_class_name
+        }
+    }
+    ```
+
+??? example "Chain modifiers at the dispatch"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ProcessOrder;
+    use App\Mail\OrderReceipt;
+    use Illuminate\Support\Facades\Mail;
+
+    class OrderController
+    {
+        public function store(int $seconds): void
+        {
+            ProcessOrder::dispatch()->onQueue('high')->onConnection('redis'); // → jobs[ProcessOrder].dispatched_from.overrides {"queue":"high","connection":"redis"}
+            dispatch(new ProcessOrder)->delay(60)->afterCommit(); // → jobs[ProcessOrder].dispatched_from.overrides {"delay":60,"after_commit":true}
+            Mail::to('a@example.com')->locale('es')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.locale es
+            Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides null
+            Mail::to('a@example.com')->send((new OrderReceipt)->mailer('postmark')); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
+
+            ProcessOrder::dispatch()->delay(now()->addMinutes(5)); // → jobs[ProcessOrder].dispatched_from.overrides null
+            ProcessOrder::dispatch()->delay($seconds); // → jobs[ProcessOrder].dispatched_from.overrides null
+
+            $job = new ProcessOrder;
+            $job->onQueue('high');
+            dispatch($job); // → jobs[ProcessOrder].dispatched_from.overrides null
+        }
+    }
+    ```
+
+??? example "self and static"
+
+    ```php title="app/Jobs/BaseSync.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+    use Illuminate\Foundation\Bus\Dispatchable;
+
+    abstract class BaseSync implements ShouldQueue
+    {
+        use Dispatchable;
+    }
+    ```
+
+    ```php title="app/Jobs/SyncStock.php"
+    namespace App\Jobs;
+
+    class SyncStock extends BaseSync
+    {
+        public function handle(): void
+        {
+            self::dispatch(); // → jobs[SyncStock].dispatched_from.method SyncStock::handle
+            static::dispatch(); // → jobs[SyncStock].dispatched_from.method SyncStock::handle
+            dispatch(new self); // → jobs[SyncStock].dispatched_from.method SyncStock::handle
+        }
+    }
+    ```
+
+    ```php title="app/Jobs/Concerns/Retries.php"
+    namespace App\Jobs\Concerns;
+
+    trait Retries
+    {
+        public function retry(): void
+        {
+            self::dispatch(); // ✗ relative_class_name
+        }
+    }
+    ```
+
+??? example "String events and closure jobs"
+
+    ```php title="app/Http/Controllers/InstallController.php"
+    namespace App\Http\Controllers;
+
+    class InstallController
+    {
+        public function store(): void
+        {
+            event('service.installed'); // ✗ string_event_name
+            dispatch(function () {}); // ✗ closure_job
+        }
+    }
+    ```
+
+??? example "Named classes with no row to link to"
+
+    ```php title="app/Http/Controllers/RegisterController.php"
+    namespace App\Http\Controllers;
+
+    use App\Support\StartLogDrain;
+    use Illuminate\Auth\Events\Registered;
+
+    class RegisterController
+    {
+        public function store(object $user): void
+        {
+            event(new Registered($user)); // ✗ class_not_found
+            StartLogDrain::dispatch(); // ✗ target_not_indexed
+        }
+    }
+    ```
+
+    ```php title="app/Support/StartLogDrain.php"
+    namespace App\Support;
+
+    class StartLogDrain
+    {
+        public static function dispatch(): void {}
+    }
+    ```
+
+??? example "Targets Loom cannot name"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Contracts\Bus\Dispatcher;
+
+    class OrderController
+    {
+        private OrderPlaced $event;
+
+        public function store(string $class, string $name, bool $urgent, ?OrderPlaced $placed): void
+        {
+            $class::dispatch(); // ✗ dynamic_class_name
+            event(new $class); // ✗ dynamic_class_name
+            event(app(OrderPlaced::class)); // ✗ container_resolution
+            event('App\Events\\'.$name); // ✗ string_concatenation
+            event($urgent ? new OrderShipped : $placed); // ✗ conditional_dispatch
+            event($this->makeEvent()); // ✗ call_result
+            event($this->event); // ✗ stored_target
+            event($placed ?? new OrderPlaced); // ✗ unsupported_expression
+            app(Dispatcher::class)->dispatch(new ProcessOrder); // ✗ not recorded
+
+            event(new OrderPlaced); // → events[OrderPlaced].dispatched_from.method OrderController::store
+            event(OrderPlaced::class); // → events[OrderPlaced].dispatched_from.method OrderController::store
+            event('App\Events\OrderPlaced'); // ✗ string_event_name
+        }
+
+        private function makeEvent(): OrderPlaced
+        {
+            return new OrderPlaced;
+        }
+    }
+    ```
+
+# Mailables
+
+??? example "Mailable classes"
+
+    ```php title="app/Mail/OrderShipped.php"
+    namespace App\Mail;
+
+    use Illuminate\Mail\Mailable;
+
+    class OrderShipped extends Mailable {} // → mailables[OrderShipped]
+    ```
+
+    ```php title="app/Mail/WeeklyDigest.php"
+    namespace App\Mail;
+
+    use Illuminate\Mail\Mailables\Content;
+
+    class WeeklyDigest // → mailables[WeeklyDigest]
+    {
+        public function content(): Content
+        {
+            return new Content(view: 'mail.digest');
+        }
+    }
+    ```
+
+    ```php title="app/Mail/Support/Formatter.php"
+    namespace App\Mail\Support;
+
+    class Formatter {} // ✗ not recorded
+    ```
+
+    ```php title="app/Billing/InvoiceMail.php"
+    namespace App\Billing;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+    use Illuminate\Mail\Mailable;
+
+    class InvoiceMail extends Mailable implements ShouldQueue {} // → mailables[InvoiceMail].queued true
+    ```
+
+    ```php title="app/Http/Controllers/InvoiceController.php"
+    namespace App\Http\Controllers;
+
+    use App\Billing\InvoiceMail;
+    use Illuminate\Support\Facades\Mail;
+
+    class InvoiceController
+    {
+        public function store(): void
+        {
+            Mail::to('a@example.com')->send(new InvoiceMail); // → mailables[InvoiceMail].sent_from.method InvoiceController::store
+        }
+    }
+    ```
+
+??? example "Sending mail"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Mail\OrderReceipt;
+    use Illuminate\Support\Facades\Mail;
+
+    class OrderController
+    {
+        public function store(object $mailable, array $data): void
+        {
+            Mail::send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            Mail::sendNow(new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            Mail::queue(new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            Mail::later(60, new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            Mail::to('a@example.com')->cc('b@example.com')->bcc('c@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            Mail::to('a@example.com')->queue(new OrderReceipt); // → mailables[OrderReceipt].sent_from.method OrderController::store
+
+            Mail::send($mailable); // ✗ dynamic_class_name
+            Mail::send('emails.welcome', $data, fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+            Mail::raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
+            Mail::html('<p>Shipped</p>', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
+        }
+    }
+    ```
+
+# Notifications
+
+??? example "Channels from via()"
+
+    ```php title="app/Notifications/OrderShipped.php"
+    namespace App\Notifications;
+
+    use Illuminate\Notifications\Notification;
+
+    class OrderShipped extends Notification // → notifications.channels ["mail","database"] → notifications.channels_dynamic false
+    {
+        public function via(object $notifiable): array
+        {
+            return ['mail', 'database'];
+        }
+    }
+    ```
+
+    ```php title="app/Notifications/StockLow.php"
+    namespace App\Notifications;
+
+    use Illuminate\Notifications\Notification;
+
+    class StockLow extends Notification // → notifications.channels ["mail","slack"] → notifications.channels_dynamic true
+    {
+        public function via(object $notifiable): array
+        {
+            $channels = ['mail'];
+            if ($notifiable->wantsSlack) {
+                $channels[] = 'slack';
+            }
+
+            return $channels;
+        }
+    }
+    ```
+
+    ```php title="app/Notifications/PriceChanged.php"
+    namespace App\Notifications;
+
+    use Illuminate\Notifications\Notification;
+
+    class PriceChanged extends Notification // → notifications.channels [] → notifications.channels_dynamic true
+    {
+        public function via(object $notifiable): array
+        {
+            return $notifiable->preferredChannels();
+        }
+    }
+    ```
+
+    ```php title="app/Notifications/BaseNotification.php"
+    namespace App\Notifications;
+
+    use Illuminate\Notifications\Notification;
+
+    abstract class BaseNotification extends Notification
+    {
+        public function via(object $notifiable): array
+        {
+            return ['mail'];
+        }
+    }
+    ```
+
+    ```php title="app/Notifications/RefundIssued.php"
+    namespace App\Notifications;
+
+    class RefundIssued extends BaseNotification {} // → notifications.channels [] → notifications.channels_dynamic false
+    ```
+
+??? example "Notification classes and sends"
+
+    ```php title="app/Notifications/OrderShipped.php"
+    namespace App\Notifications;
+
+    use Illuminate\Notifications\Notification;
+
+    class OrderShipped extends Notification {} // → notifications[OrderShipped]
+    ```
+
+    ```php title="app/Billing/PaymentDue.php"
+    namespace App\Billing;
+
+    use Illuminate\Notifications\Notification;
+
+    class PaymentDue extends Notification // → notifications[PaymentDue].channels ["mail"]
+    {
+        public function via(object $notifiable): array
+        {
+            return ['mail'];
+        }
+    }
+    ```
+
+    ```php title="app/Http/Controllers/InvoiceController.php"
+    namespace App\Http\Controllers;
+
+    use App\Billing\PaymentDue;
+    use App\Models\User;
+    use App\Notifications\InvoicePaid;
+    use Illuminate\Support\Facades\Notification;
+
+    class InvoiceController
+    {
+        public function store(User $user, ?User $owner, $users): void
+        {
+            $user->notify(new PaymentDue); // → notifications[PaymentDue].notified_from.method InvoiceController::store
+            $user->notifyNow(new InvoicePaid); // → notifications[InvoicePaid].notified_from.method InvoiceController::store
+            $owner?->notify(new InvoicePaid); // → notifications[InvoicePaid].notified_from.method InvoiceController::store
+            Notification::send($users, new InvoicePaid); // → notifications[InvoicePaid].notified_from.method InvoiceController::store
+            Notification::sendNow($users, new InvoicePaid, ['database']); // → notifications[InvoicePaid].notified_from.channels ["database"]
+            Notification::route('mail', 'ops@example.com')->notify(new InvoicePaid); // → notifications[InvoicePaid].notified_from.method InvoiceController::store
+        }
+    }
+    ```
+
+# Schedule
+
+??? example "Tasks in routes/console.php"
+
+    ```php title="routes/console.php"
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\Artisan;
+    use Illuminate\Support\Facades\Schedule;
+
+    Schedule::command('reports:send')->dailyAt('3:15'); // → scheduled_tasks.kind command → scheduled_tasks.cron 15 3 * * *
+    Schedule::job(new ProcessOrder)->everyFiveMinutes(); // → scheduled_tasks.target App\Jobs\ProcessOrder → scheduled_tasks.cron */5 * * * *
+    Schedule::call(fn () => null)->hourly(); // → scheduled_tasks.kind closure → scheduled_tasks.target null
+    Schedule::exec('node prune.js')->cron('0 4 * * 1'); // → scheduled_tasks.kind exec → scheduled_tasks.cron 0 4 * * 1
+    Schedule::command('invoices:send')->daysOfMonth(1, 15); // → scheduled_tasks.cron 0 0 1,15 * *
+    Schedule::command('taxes:file')->quarterlyOn(10, '8:00'); // → scheduled_tasks.cron 0 8 10 1-12/3 *
+    Schedule::command('queue:work')->everyTenSeconds(); // → scheduled_tasks.cron null → scheduled_tasks.frequency {"every":10,"unit":"seconds"}
+
+    Artisan::command('carts:prune {--days=}', fn () => null)->daily(); // → scheduled_tasks.target carts:prune
+    ```
+
+??? example "Groups, conditions and constraints"
+
+    ```php title="routes/console.php"
+    use Illuminate\Support\Facades\Schedule;
+
+    Schedule::daily()->onOneServer()->group(function () {
+        Schedule::command('reports:send'); // → scheduled_tasks.cron 0 0 * * * → scheduled_tasks.on_one_server true
+        Schedule::command('reports:archive')->hourly(); // → scheduled_tasks.cron 0 * * * *
+    });
+
+    if (app()->isProduction()) {
+        Schedule::command('backup:run')->daily()->weekdays()->between('1:00', '5:00')->withoutOverlapping(); // → scheduled_tasks.constraints if(\app()->isProduction()) → scheduled_tasks.constraints weekdays → scheduled_tasks.without_overlapping true
+    }
+
+    Schedule::command('cache:warm')->hourly()->environments('production')->when(fn () => true); // → scheduled_tasks.constraints when(closure)
+    Schedule::command('queue:prune')->hourly()->timezone('Europe/Paris')->runInBackground(); // → scheduled_tasks.timezone Europe/Paris → scheduled_tasks.run_in_background true
+    ```
+
+??? example "Console kernel and withSchedule"
+
+    ```php title="app/Console/Kernel.php"
+    namespace App\Console;
+
+    use Illuminate\Console\Scheduling\Schedule;
+    use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+
+    class Kernel extends ConsoleKernel
+    {
+        protected function schedule(Schedule $schedule): void
+        {
+            $schedule->command('reports:send')->weekly()->at('9:30'); // → scheduled_tasks.cron 30 9 * * 0
+            $this->billing($schedule);
+        }
+
+        private function billing(Schedule $schedule): void
+        {
+            $schedule->command('invoices:charge')->monthlyOn(1, '6:00'); // → scheduled_tasks.cron 0 6 1 * *
+        }
+    }
+    ```
+
+    ```php title="bootstrap/app.php"
+    use Illuminate\Console\Scheduling\Schedule;
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withSchedule(function (Schedule $schedule) {
+            $schedule->command('carts:prune')->daily(); // → scheduled_tasks.cron 0 0 * * *
+        })
+        ->create();
+    ```
+
+??? example "Frequencies Loom cannot turn into cron"
+
+    ```php title="routes/console.php"
+    use Illuminate\Support\Facades\Schedule;
+
+    $time = config('reports.time');
+
+    Schedule::command('reports:send')->dailyAt($time); // → scheduled_tasks.cron null
+    Schedule::command('reports:archive')->everyFifteenMinutes()->myMacro(); // → scheduled_tasks.cron null
+    ```
+
+# Routes
+
+??? example "Routes declared with attributes"
+
+    ```php title="app/Http/Controllers/PhotoController.php"
+    namespace App\Http\Controllers;
+
+    use Spatie\RouteAttributes\Attributes\Get;
+
+    class PhotoController
+    {
+        #[Get('/photos')] // ✗ attribute_route
+        public function index(): void {}
+    }
+    ```
+
+??? example "Dispatches from a route's action"
+
+    ```php title="routes/web.php"
+    use App\Events\OrderPlaced;
+    use App\Http\Controllers\OrderController;
+    use Illuminate\Support\Facades\Route;
+
+    Route::post('/orders', [OrderController::class, 'store']);
+
+    Route::post('/orders/{order}/ship', function () {
+        event(new OrderPlaced); // → routes[/orders/{order}/ship].dispatches.target OrderPlaced → events[OrderPlaced].dispatched_from.method POST /orders/{order}/ship
+    });
+    ```
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ProcessOrder;
+
+    class OrderController
+    {
+        public function store(): void
+        {
+            ProcessOrder::dispatch(); // → routes[/orders].dispatches.target ProcessOrder
+        }
+    }
+    ```
+
+??? example "Groups, chains and middleware"
+
+    ```php title="routes/web.php"
+    use App\Http\Controllers\OrderController;
+    use App\Http\Middleware\Audit;
+    use Illuminate\Support\Facades\Route;
+
+    Route::middleware('auth')->prefix('v1')->name('v1.')->get('/orders', [OrderController::class, 'index'])->name('orders'); // → routes.uri /v1/orders → routes.name v1.orders → routes.middleware ["auth"]
+
+    Route::prefix('admin')->middleware('web')->middleware(['auth', 'verified'])->controller(OrderController::class)->group(function () {
+        Route::get('/orders', 'index'); // → routes.uri /admin/orders → routes.middleware ["auth","verified"] → routes.controller_method index
+
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::get('/exports', 'export')->middleware(Audit::class.':strict')->withoutMiddleware('verified'); // → routes.middleware ["auth","throttle:10,1","App\\Http\\Middleware\\Audit:strict"]
+        });
+    });
+    ```
+
+??? example "Resource and singleton routes"
+
+    ```php title="routes/web.php"
+    use App\Http\Controllers\PhotoController;
+    use App\Http\Controllers\ProfileController;
+    use Illuminate\Support\Facades\Route;
+
+    Route::resource('photos', PhotoController::class)->only(['index', 'update']); // → routes[/photos].name photos.index → routes[/photos/{photo}].method PUT → routes[/photos/{photo}].method PATCH
+    Route::apiResource('photos.comments', PhotoController::class)->only('show'); // → routes[/photos/{photo}/comments/{comment}].name photos.comments.show
+    Route::resource('admin/user-photos', PhotoController::class)->only('show'); // → routes[/admin/user-photos/{user_photo}].name user-photos.show
+    Route::resource('albums', PhotoController::class)->except(['create', 'edit', 'destroy'])->names(['index' => 'albums.all']); // → routes[/albums].name albums.all
+    Route::singleton('profile', ProfileController::class); // → routes[/profile].name profile.show → routes[/profile/edit].name profile.edit
+    Route::apiResources(['posts' => PhotoController::class]); // → routes[/posts].name posts.index
+    ```
+
+??? example "Route files loaded by the app"
+
+    ```php title="bootstrap/app.php"
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withRouting(
+            web: __DIR__.'/../routes/web.php',
+            api: __DIR__.'/../routes/api.php',
+        )
+        ->create();
+    ```
+
+    ```php title="routes/web.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/orders', fn () => null); // → routes.middleware ["web"]
+
+    Route::middleware('auth')->group(function () {
+        require __DIR__.'/account.php';
+    });
+    ```
+
+    ```php title="routes/account.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/account', fn () => null); // → routes.middleware ["web","auth"]
+    ```
+
+    ```php title="routes/api.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/orders', fn () => null); // → routes.uri /api/orders → routes.middleware ["api"]
+    ```
+
+    ```php title="app/Providers/BillingServiceProvider.php"
+    namespace App\Providers;
+
+    use Illuminate\Support\Facades\Route;
+    use Illuminate\Support\ServiceProvider;
+
+    class BillingServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            $this->loadRoutesFrom(base_path('modules/billing/routes.php'));
+            Route::prefix('admin')->group(app_path('Admin/routes.php'));
+        }
+    }
+    ```
+
+    ```php title="modules/billing/routes.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/invoices', fn () => null); // → routes.uri /invoices
+    ```
+
+    ```php title="app/Admin/routes.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/reports', fn () => null); // → routes.uri /admin/reports
+    ```
+
+??? example "View, redirect and fallback routes"
+
+    ```php title="routes/web.php"
+    use Illuminate\Support\Facades\Route;
+
+    Route::view('/about', 'pages.about'); // → routes.kind view → routes.method GET
+    Route::redirect('/home', '/dashboard'); // → routes.kind redirect → routes.method ANY
+    Route::permanentRedirect('/start', '/dashboard'); // → routes.kind redirect
+    Route::fallback(fn () => abort(404)); // → routes.kind fallback → routes.uri /{fallbackPlaceholder}
+    ```
+
+??? example "Route files Loom cannot follow"
+
+    ```php title="app/Providers/RouteServiceProvider.php"
+    namespace App\Providers;
+
+    use Illuminate\Support\Facades\Route;
+    use Illuminate\Support\ServiceProvider;
+
+    class RouteServiceProvider extends ServiceProvider
+    {
+        public function boot(string $module): void
+        {
+            $this->loadRoutesFrom(base_path("modules/{$module}/routes.php")); // ✗ route_file_dynamic
+            $this->loadRoutesFrom('routes/admin.php'); // ✗ route_file_relative
+            $this->loadRoutesFrom(__DIR__.'/../../../shared/routes.php'); // ✗ route_file_outside_root
+            Route::group([], base_path('modules/missing/routes.php')); // ✗ route_file_not_found
+        }
+    }
+    ```
+
+??? example "Routes Loom cannot read"
+
+    ```php title="routes/web.php"
+    use App\Http\Controllers\PhotoController;
+    use Illuminate\Support\Facades\Route;
+
+    $uri = '/photos';
+    $verbs = ['get', 'post'];
+    $name = 'photos';
+    $only = ['index'];
+    $middleware = ['auth'];
+    $prefix = 'v2';
+
+    Route::inertia('/about', 'About'); // ✗ unknown_route_call
+    Route::get($uri, [PhotoController::class, 'index']); // ✗ dynamic_uri
+    Route::match($verbs, '/search', [PhotoController::class, 'search']); // ✗ dynamic_verbs
+    Route::resource($name, PhotoController::class); // ✗ dynamic_resource
+    Route::resource('albums', PhotoController::class)->only($only); // ✗ dynamic_resource_options → routes[/albums/{album}/edit].name albums.edit
+    Route::get('/tags', [PhotoController::class, 'tags'])->middleware($middleware); // ✗ dynamic_middleware
+
+    Route::prefix($prefix)->group(function () { // ✗ dynamic_group_attribute
+        Route::get('/feed', [PhotoController::class, 'feed']);
+    });
+    ```
+
+??? example "Verbs and actions"
+
+    ```php title="routes/web.php"
+    use App\Http\Controllers\OrderController;
+    use App\Http\Controllers\ShowDashboard;
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/orders', [OrderController::class, 'index'])->name('orders.index'); // → routes.controller_method index → routes.name orders.index
+    Route::post('/orders', 'App\Http\Controllers\OrderController@store'); // → routes.method POST → routes.controller_method store
+    Route::put('/orders/{order}', [OrderController::class, 'update']); // → routes.method PUT
+    Route::patch('/orders/{order}', [OrderController::class, 'update']); // → routes.method PATCH
+    Route::delete('/orders/{order}', [OrderController::class, 'destroy']); // → routes.method DELETE
+    Route::options('/orders', [OrderController::class, 'options']); // → routes.method OPTIONS
+    Route::any('/ping', [OrderController::class, 'ping']); // → routes.method ANY
+    Route::match(['get', 'post'], '/search', [OrderController::class, 'search']); // → routes.method GET → routes.method POST
+    Route::get('/dashboard', ShowDashboard::class); // → routes.controller_fqcn App\Http\Controllers\ShowDashboard → routes.controller_method __invoke
+    Route::get('/health', fn () => 'ok'); // → routes.controller_fqcn null
+    ```
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    class OrderController {}
+    ```
+
+    ```php title="app/Http/Controllers/ShowDashboard.php"
+    namespace App\Http\Controllers;
+
+    class ShowDashboard
+    {
+        public function __invoke(): void {}
+    }
+    ```
+
+# Scan scope
+
+??? example "A file that does not parse"
+
+    ```php title="app/Events/OrderRefunded.php"
+    namespace App\Events;
+
+    class OrderRefunded // ✗ not recorded
+    {
+        public function __construct(
+    }
+    ```
+
+??? example "Parents in vendor/"
+
+    ```php title="app/Jobs/ImportCatalog.php"
+    namespace App\Jobs;
+
+    use Illuminate\Queue\CallQueuedClosure;
+
+    class ImportCatalog extends CallQueuedClosure {} // → jobs.queued false
+    ```
+
+    ```php title="app/Listeners/SyncSearch.php"
+    namespace App\Listeners;
+
+    use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
+
+    class SyncSearch extends SendEmailVerificationNotification {} // ✗ not recorded
+    ```
+
+    ```php title="app/Notifications/PasswordReset.php"
+    namespace App\Notifications;
+
+    use Illuminate\Auth\Notifications\ResetPassword;
+
+    class PasswordReset extends ResetPassword {} // ✗ not recorded
+    ```
+
+    ```php title="app/Notifications/BackupFailed.php"
+    namespace App\Notifications;
+
+    use Spatie\Backup\Notifications\BaseNotification;
+
+    class BackupFailed extends BaseNotification {} // → notifications.channels [] → notifications.channels_dynamic false
+    ```

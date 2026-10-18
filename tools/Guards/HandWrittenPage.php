@@ -82,6 +82,24 @@ final readonly class HandWrittenPage
         return array_map(static fn (array $match): Heading => new Heading(strlen($match[1]), $match[2]), $matches);
     }
 
+    /**
+     * Whether the page as rendered shows code first: a fence or a collapsible
+     * example right after the H1, or after a one-line lead. Comments, such as
+     * region markers, do not count as blocks.
+     */
+    public function opensWithCode(): bool
+    {
+        $lines = Str::of($this->rendered)
+            ->replaceMatches('/<!--.*?-->/s', '')
+            ->explode("\n")
+            ->map(static fn (string $line): string => trim($line))
+            ->filter()
+            ->values();
+        $isCode = static fn (?string $line): bool => Str::startsWith((string) $line, ['```', '??? example']);
+
+        return $isCode($lines->get(1)) || $isCode($lines->get(2));
+    }
+
     /** The first non-blank block after the H1, or null when the page has nothing after it. */
     public function lead(): ?string
     {
