@@ -13,12 +13,15 @@ use RuntimeException;
 
 /**
  * Fills the generated regions of the docs. Sources produce page-independent
- * regions; every `docs/**` markdown page that carries a marker pair for a
- * region gets that region's text between the markers. Only text between a
+ * regions; every `docs/**` markdown page and the README that carries a marker
+ * pair for a region gets that region's text between the markers. Only text between a
  * pair of markers is ever rewritten.
  */
 final class ReferencePages
 {
+    /** Pages outside the docs directory that may carry regions. */
+    private const ROOT_PAGES = ['README.md'];
+
     /** @var list<RegionSource> */
     private readonly array $sources;
 
@@ -126,7 +129,7 @@ final class ReferencePages
         return $regions;
     }
 
-    /** @return list<string> markdown paths under the docs directory, relative to the root */
+    /** @return list<string> the root pages and the markdown paths under the docs directory, relative to the root */
     private function markdownPages(): array
     {
         $directory = $this->root.'/'.$this->docsDir;
@@ -143,7 +146,7 @@ final class ReferencePages
         }
         sort($pages);
 
-        return $pages;
+        return [...array_filter(self::ROOT_PAGES, fn (string $page): bool => is_file($this->root.'/'.$page)), ...$pages];
     }
 
     private function read(string $page): string
