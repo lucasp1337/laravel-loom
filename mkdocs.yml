@@ -48,6 +48,9 @@ theme:
 extra_css:
   - stylesheets/loom.css
 
+extra_javascript:
+  - javascripts/loom.js
+
 markdown_extensions:
   - admonition
   - tables

@@ -60,6 +60,9 @@ body[data-md-color-scheme="default"] {
   --loom-warn: #8a5a12;
   --loom-warn-bg: #f7ebd2;
   --loom-warn-line: #e8d4a6;
+  --loom-miss: #a3352c;
+  --loom-miss-bg: #f6e0da;
+  --loom-code-bar: #ebe0cc;
 }
 
 body[data-md-color-scheme="slate"] {
@@ -119,6 +122,9 @@ body[data-md-color-scheme="slate"] {
   --loom-warn: #e3b665;
   --loom-warn-bg: #302717;
   --loom-warn-line: #4d3e22;
+  --loom-miss: #f0948a;
+  --loom-miss-bg: #3b221e;
+  --loom-code-bar: #25211d;
 }
 
 /* ---- header ------------------------------------------------------------ */
@@ -356,6 +362,11 @@ body[data-md-color-scheme="slate"] {
   border-bottom: 1px solid var(--loom-border);
   border-radius: 0;
 }
+/* titled blocks: tinted file bar, copy button moved up into it */
+.md-typeset .highlight:has(> .filename) { position: relative; }
+.md-typeset .highlight:has(> .filename) > pre { position: static; }
+.md-typeset .highlight span.filename { padding-right: 48px; background: var(--loom-code-bar); }
+.md-typeset .highlight:has(> .filename) .md-code__nav { top: 3px; right: 6px; background: none; }
 .md-typeset .highlight .gp { color: var(--md-default-fg-color--light); user-select: none; }
 .md-typeset .md-code__button { color: var(--md-default-fg-color--lighter); }
 
@@ -391,8 +402,8 @@ body[data-md-color-scheme="slate"] {
 }
 .md-typeset .admonition:focus-within,
 .md-typeset details:focus-within { box-shadow: none; }
-.md-typeset .admonition > .admonition-title,
-.md-typeset details > summary {
+/* [class] outranks the theme's per-type title tints and icon colours */
+.md-typeset :is(.admonition, details)[class] > :where(.admonition-title, summary) {
   margin: 0 -18px;
   padding: 14px 18px 2px 46px;
   font-weight: 700;
@@ -400,19 +411,71 @@ body[data-md-color-scheme="slate"] {
   background: none;
   border-radius: 0;
 }
-.md-typeset .admonition > .admonition-title::before,
-.md-typeset details > summary::before {
+.md-typeset :is(.admonition, details)[class] > :where(.admonition-title, summary)::before {
   top: 17px;
   left: 18px;
   background-color: var(--adm-fg);
 }
-.md-typeset details > summary::after { color: var(--adm-fg); }
+.md-typeset details[class] > summary::after { color: var(--adm-fg); }
 .md-typeset .admonition > .admonition-title + *,
 .md-typeset details > summary + * { margin-top: 0; }
 html .md-typeset .admonition > :last-child,
 html .md-typeset details > :last-child { margin-bottom: 14px; }
 .md-typeset .admonition p,
 .md-typeset details p { max-width: none; }
+
+/* ---- detection examples (reference/detection) ------------------------- */
+
+/* neutral full-width card: a code specimen, not a callout */
+.md-typeset details.example[class] {
+  --adm-fg: var(--md-default-fg-color);
+  --adm-bg: var(--md-default-bg-color);
+  --adm-line: var(--loom-border);
+  max-width: none;
+  margin: 0 0 12px;
+  padding: 0 16px;
+}
+.md-typeset details.example[class] > summary {
+  margin: 0 -16px;
+  padding: 13px 44px 13px 44px;
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  border-radius: 11px;
+}
+.md-typeset details.example[class] > summary:hover { color: var(--md-primary-fg-color); }
+.md-typeset details.example[class] > summary::before {
+  top: 15px;
+  left: 16px;
+  background-color: var(--md-primary-fg-color);
+  -webkit-mask-image: var(--md-admonition-icon--example);
+  mask-image: var(--md-admonition-icon--example);
+}
+.md-typeset details.example[class] > summary::after {
+  top: 15px;
+  right: 14px;
+  color: var(--md-default-fg-color--lighter);
+}
+.md-typeset details.example[open][class] > summary {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--loom-border);
+  border-radius: 11px 11px 0 0;
+}
+.md-typeset details.example .highlight { margin: 0 0 14px; border-radius: 10px; }
+html .md-typeset details.example > :last-child { margin-bottom: 16px; }
+
+/* outcome markers, classed by javascripts/loom.js */
+.md-typeset .highlight .c1.loom-marker {
+  padding: 1px 7px;
+  margin-left: 2px;
+  font-style: normal;
+  border-radius: 6px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.md-typeset .loom-marker--hit { color: var(--loom-tip); background: var(--loom-tip-bg); }
+.md-typeset .loom-marker--miss { color: var(--loom-miss); background: var(--loom-miss-bg); }
 
 /* ---- tables ------------------------------------------------------------ */
 
