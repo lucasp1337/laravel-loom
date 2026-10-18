@@ -57,7 +57,7 @@ When designing a scanner, document it in the scanner and visitor docblocks, cove
 - **Output.** The schema section(s) it emits to. Sample entry. Ordering and dedupe rules.
 - **Expected behavior.** Edge cases the scanner handles correctly — what works.
 
-Put consumer-facing limitations and triage in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`. Mirror the existing scanner docblocks. Real implementation rationale lives in code comments, not in design docs.
+Put consumer-facing limitations and triage in example cases under `docs/examples/<primitive>/`. Mirror the existing scanner docblocks. Real implementation rationale lives in code comments, not in design docs.
 
 ## Common edge cases to think through
 

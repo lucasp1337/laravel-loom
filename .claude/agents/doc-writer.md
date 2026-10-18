@@ -60,13 +60,13 @@ Two commands. Show output.
 Pasted JSON, real (not invented).
 
 ## What it detects
-Bulleted. Derive from `DefaultScanners` and `docs/reference/what-loom-detects.md`.
+Bulleted. Derive from `DefaultScanners` and the example cases in `docs/examples/`.
 
 ## What it does not detect
-Bulleted. Take it from the limits in `docs/reference/what-loom-detects.md`.
+Bulleted. Take it from the limits in the example cases in `docs/examples/`.
 
 ## Documentation
-Links to docs/contributing/architecture.md, docs/reference/schema.md, docs/reference/what-loom-detects.md, CONTRIBUTING.md.
+Links to docs/contributing/architecture.md, docs/reference/schema.md, docs/reference/detection/index.md, CONTRIBUTING.md.
 
 ## License
 MIT.

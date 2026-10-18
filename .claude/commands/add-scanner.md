@@ -13,7 +13,7 @@ Before writing any code, figure out whether this is a redesign of an existing sc
 2. If `$ARGUMENTS` matches an existing file (with or without the `Scanner.php` suffix), this is a redesign. Confirm with the user before proceeding — they may have meant to extend, not replace.
 3. If `$ARGUMENTS` is something new, surface that this expands Loom's scope. Loom is deliberately narrow: the scanners registered in `src/Scanners/DefaultScanners.php` are the whole set, and scanners are not an extension point (`docs/contributing/adr/0007-scanners-not-an-extension-point.md`). Confirm with the user before designing.
 
-Also check the existing scanner's class docblock and `docs/reference/what-loom-detects.md` for the corresponding behavior notes when a scanner exists. `docs/contributing/add-a-scanner.md` is the checklist.
+Also check the existing scanner's class docblock and the example cases in `docs/examples/` for the corresponding behavior notes when a scanner exists. `docs/contributing/add-a-scanner.md` is the checklist.
 
 ## If scope check passes, run the chain
 
@@ -23,7 +23,7 @@ Delegate to each agent in order. Wait for completion before invoking the next.
 
 Invoke `scanner-architect`:
 
-> Design the `$ARGUMENTS` scanner per `AGENTS.md` and `docs/contributing/architecture.md`. Follow `docs/contributing/add-a-scanner.md`. The scanner and visitor docblocks are the behaviour spec (AST shapes matched and skipped, output, ordering); put consumer-facing limitations in `docs/reference/what-loom-detects.md` and `docs/guides/why-was-my-code-missed.md`.
+> Design the `$ARGUMENTS` scanner per `AGENTS.md` and `docs/contributing/architecture.md`. Follow `docs/contributing/add-a-scanner.md`. The scanner and visitor docblocks are the behaviour spec (AST shapes matched and skipped, output, ordering); put consumer-facing limitations in example cases under `docs/examples/<primitive>/`.
 
 Read the design doc back to the user. Pause for confirmation if anything looks off.
 
@@ -31,7 +31,7 @@ Read the design doc back to the user. Pause for confirmation if anything looks o
 
 Invoke `schema-guardian`:
 
-> Review the schema contribution proposed in the `$ARGUMENTS` scanner design (class docblock and `docs/reference/what-loom-detects.md`). Confirm it fits the existing `schema/loom-index.schema.json` or specify what additions are needed and what version bump they imply.
+> Review the schema contribution proposed in the `$ARGUMENTS` scanner design (class docblock and the example cases in `docs/examples/`). Confirm it fits the existing `schema/loom-index.schema.json` or specify what additions are needed and what version bump they imply.
 
 If schema-guardian requires changes, apply them before continuing.
 

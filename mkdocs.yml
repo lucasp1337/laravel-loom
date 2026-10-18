@@ -48,6 +48,9 @@ theme:
 extra_css:
   - stylesheets/loom.css
 
+extra_javascript:
+  - javascripts/loom.js
+
 markdown_extensions:
   - admonition
   - tables
@@ -95,8 +98,19 @@ nav:
       - PHP API: reference/php-api.md
       - Index, UI and MCP configuration: reference/ui-config.md
       - Scan configuration: reference/scan-config.md
-      - What Loom detects: reference/what-loom-detects.md
-      - Forms Loom does not read: reference/unread-forms.md
+      - What Loom detects:
+          - reference/detection/index.md
+          - Events: reference/detection/events.md
+          - Listeners: reference/detection/listeners.md
+          - Closure listeners: reference/detection/closure-listeners.md
+          - Observers and model hooks: reference/detection/observers.md
+          - Jobs: reference/detection/jobs.md
+          - Dispatches: reference/detection/dispatches.md
+          - Mailables: reference/detection/mailables.md
+          - Notifications: reference/detection/notifications.md
+          - Schedule: reference/detection/schedule.md
+          - Routes: reference/detection/routes.md
+          - Scan scope: reference/detection/scope.md
   - Contributing:
       - Architecture: contributing/architecture.md
       - Class hierarchy: contributing/class-hierarchy.md

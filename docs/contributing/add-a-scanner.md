@@ -15,7 +15,7 @@ If you work with an agent, the `/add-scanner` command runs these steps as a chai
     - A new dispatch form is a row in `DispatchRules` plus a case in `tests/Unit/Dispatch/DispatchRuleMatcherTest.php`, not a shape check in a visitor.
 3. **Emit schema-shaped, sorted arrays** at the end of `scan()`. Inter-component data is a DTO from `src/Dto/`, not an associative array. Report what cannot be resolved as `unresolved_dispatches`, never silently.
 4. **Register** the scanner in `Scanners\DefaultScanners`. That list feeds `loom:scan`, the Justfile and the benchmarks; `just bench --assert` catches output that moves, and `just bench-baseline` rewrites the baseline when the move is intended.
-5. **Document in code.** The scanner and visitor docblocks are the behaviour spec: list the AST shapes matched and the ones skipped. Add the construct to [What Loom detects](../reference/what-loom-detects.md) under its section, with the test that pins it.
+5. **Document in code.** The scanner and visitor docblocks are the behaviour spec: list the AST shapes matched and the ones skipped. Add a case for each construct, read and not read, under `docs/examples/<primitive>/`; `tests/Docs/ExamplesTest.php` documents the format.
 6. **Test in three layers:** heredoc snippets per visitor in `tests/Unit/`, a fixture app under `tests/Fixtures/{name}-fixture-app/` for the scanner, and an `IndexBuilder` run that validates against the schema.
 7. **Run the checks** from [CONTRIBUTING](https://github.com/lucasp1337/laravel-loom/blob/main/CONTRIBUTING.md): PHPStan, Pint and Pest.
 
@@ -29,6 +29,6 @@ Fixtures are minimal trees: no `vendor/`, no autoloader, `namespace App\...` mat
 - [ ] `ClassSpec` or `Scanner` class, visitors and DTOs
 - [ ] `DefaultScanners` registration and a refreshed benchmark baseline
 - [ ] Docblocks listing matched and skipped shapes
-- [ ] Row in `docs/reference/what-loom-detects.md`
+- [ ] Example cases in `docs/examples/<primitive>/`
 - [ ] Unit tests, a fixture app and an `IndexBuilder` test
 - [ ] PHPStan, Pint and Pest green

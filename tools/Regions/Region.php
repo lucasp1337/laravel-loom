@@ -13,5 +13,5 @@ enum Region: string
     case ConfigIndex = 'config:index';
     case ConfigUi = 'config:ui';
     case ConfigMcp = 'config:mcp';
-    case UnreadForms = 'unread-forms';
+    case Examples = 'examples';
 }
