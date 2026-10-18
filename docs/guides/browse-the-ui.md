@@ -114,6 +114,8 @@ By default the UI exists only in the `local` environment. In any other environme
 
 To open it on staging, add the environment to `config/loom.php`:
 
+<!-- illustrative -->
+
 ```php
 'ui' => [
     'environments' => ['local', 'staging'],
@@ -121,6 +123,8 @@ To open it on staging, add the environment to `config/loom.php`:
 ```
 
 Then define the `viewLoom` gate in `App\Providers\AppServiceProvider`. Yours replaces the default:
+
+<!-- illustrative -->
 
 ```php
 use App\Models\User;

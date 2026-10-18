@@ -6,11 +6,15 @@ Someone who has scanned an app and wants to know what ended up in the index and 
 
 Take one event in a checkout app. `OrderController::store` fires it:
 
+<!-- illustrative -->
+
 ```php
 event(new OrderPlaced($order->id));
 ```
 
 `SendOrderConfirmation` reacts to it. Nothing registers that listener; its only link to the event is the type hint:
+
+<!-- illustrative -->
 
 ```php
 public function handle(OrderPlaced $event): void
@@ -20,6 +24,8 @@ public function handle(OrderPlaced $event): void
 ```
 
 A provider adds a second reaction as a closure:
+
+<!-- illustrative -->
 
 ```php
 Event::listen(OrderPlaced::class, function (OrderPlaced $event) {

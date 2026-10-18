@@ -11,13 +11,14 @@ How to develop on Loom locally.
 Rules for consumer docs:
 
 1. One fact, one page. Link instead of restating.
-2. Never hand-write command output or JSON samples; paste what the command really prints.
+2. Never hand-write command output or JSON samples: add an `OutputSample` case (`tools/Reference/`) and place its `output:KEY` region; it runs Loom on `tests/Fixtures/docs-order-app` (plus `docs-order-branch` for check and diff).
 3. No issue, ADR or `src/` references.
 4. Say what Loom records and misses, not how Laravel works. Link the Laravel docs when a reader needs the framework behaviour.
 5. Make no version-specific framework claims.
 6. Leave out what does nothing for the reader: provenance and history.
+7. A `php` fence comes from `docs/examples/` or `docs/snippets/` through a generated region; code no test runs gets `<!-- illustrative -->` above its fence.
 
-The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `just test`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. Fix the docs, not the test.
+The drift-guard test `tests/Docs/DocsInSyncTest.php` (run by `just test`) fails when documented commands, config keys, rules or samples no longer match the code, and when consumer docs contain forbidden references. `tests/Docs/GuardsTest.php` checks the hand-written layer: names of commands, options, config keys, reasons, MCP tools and classes must exist in the code; `php` fences follow rule 7; each page stays within its word budget in `tools/Guards/WordBudget.php` (lower the budget when you trim); and each page follows the heading outline of its kind (`tools/Guards/PageKind.php`). Fix the docs, not the test.
 
 Reference pages carry generated regions: a block between `<!-- generated:NAME -->` and `<!-- /generated:NAME -->` markers, built from `schema/loom-index.schema.json`, the MCP tool classes, `config/loom.php` and the Artisan command signatures. After changing any of those, run `just docs-generate`; `just docs-check` (and `tests/Docs/ReferenceDriftTest.php`) fails when a committed page is stale. The full steps and how to add a region are under [Documentation site](#documentation-site).
 
@@ -143,6 +144,7 @@ docs/                       # consumer-facing docs (published site)
 | New UI page | a Livewire component in `Ui/Livewire/`, a view in `resources/views/livewire/`, registered in `LoomUiServiceProvider` | `tests/Feature/Ui/PagesTest.php` |
 | New UI section column | `Ui/SectionPresentation.php` | `tests/Unit/Ui/SectionPresentationTest.php` |
 | New config key | `config/loom.php` (its comment becomes the docs row), plus `Support/ScanConfigKey.php` for `scan.*` or `Ui/LoomConfig.php` for `ui.*` | `tests/Docs/ReferenceDriftTest.php` |
+| New command output or index sample in the docs | an `OutputSample` case, a marker pair on the page | `tests/Docs/ReferenceDriftTest.php`; run `just docs-generate` |
 | New generated docs region | a `Region` case or `RegionPrefix`, a `RegionSource` in `tools/Pages/`, a marker pair on the page | `tests/Docs/ReferenceDriftTest.php`; run `just docs-generate` |
 
 ## Adding a scanner
