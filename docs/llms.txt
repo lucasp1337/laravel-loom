@@ -1,0 +1,58 @@
+# Laravel Loom
+
+> Static analyzer for Laravel's event-driven primitives — emits a deterministic JSON index.
+
+## Start
+
+- [Laravel Loom](https://lucasp1337.github.io/laravel-loom/)
+- [Getting started](https://lucasp1337.github.io/laravel-loom/getting-started/): Scan a Laravel 12.41+ or 13 app on PHP 8.3+, follow one event, and see the same data in the browser.
+
+## Concepts
+
+- [What Loom sees](https://lucasp1337.github.io/laravel-loom/concepts/what-loom-sees/): Loom reads your source without booting the app and records what it finds, one index section per primitive.
+- [The index](https://lucasp1337.github.io/laravel-loom/concepts/the-index/): A scan writes one JSON document, `storage/loom/index.json`: metadata, `stats`, then one array per primitive.
+
+## Guides
+
+- [Browse the UI](https://lucasp1337.github.io/laravel-loom/guides/browse-the-ui/): Open `/loom` in your local app and follow `OrderPlaced` through every listener and job it triggers.
+- [Ask an agent about your events](https://lucasp1337.github.io/laravel-loom/guides/ask-an-agent/): Register `loom:mcp` with your MCP client so an agent answers from the index instead of grepping your source.
+- [Use Loom with Laravel Boost](https://lucasp1337.github.io/laravel-loom/guides/use-with-boost/): Teach agents in a Laravel Boost project when to call Loom, and register its server next to Boost's.
+- [Gate your CI on architecture](https://lucasp1337.github.io/laravel-loom/guides/gate-your-ci/): Fail pull requests that add a dead event, a dispatch loop or an unresolved dispatch, and show reviewers what changed.
+- [Why was my code missed?](https://lucasp1337.github.io/laravel-loom/guides/why-was-my-code-missed/): When an entry is missing or a link is empty, first look for its file in the unresolved lists.
+
+## Recipes
+
+- [What runs when an event fires](https://lucasp1337.github.io/laravel-loom/recipes/event-chain/): Follow `handled_by` and `dispatches` from one event down to the last handler.
+- [What triggers a job](https://lucasp1337.github.io/laravel-loom/recipes/job-triggers/): Before you change a job, walk back from it to every event and route that leads to it.
+- [Routes without auth](https://lucasp1337.github.io/laravel-loom/recipes/routes-without-auth/): List every route whose middleware has no `auth` entry.
+- [Fail on new unresolved dispatches](https://lucasp1337.github.io/laravel-loom/recipes/new-unresolved-dispatches/): Accept the dispatches Loom can't resolve today and fail the build on any new one.
+
+## Reference
+
+- [Commands](https://lucasp1337.github.io/laravel-loom/reference/commands/): Loom adds five Artisan commands, which read or write one index, by default `storage/loom/index.json`.
+- [Check rules and output formats](https://lucasp1337.github.io/laravel-loom/reference/check-rules-and-formats/): The rules, exit codes and output formats of `loom:check` and `loom:diff`; the walkthrough is Gate your CI.
+- [GitHub Action reference](https://lucasp1337.github.io/laravel-loom/reference/action/): The Loom composite action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment.
+- [MCP tools](https://lucasp1337.github.io/laravel-loom/reference/mcp-tools/): Every tool `php artisan loom:mcp` serves, with its inputs, a real response and its errors.
+- [Schema](https://lucasp1337.github.io/laravel-loom/reference/schema/): Reference for `storage/loom/index.json`, generated from `schema/loom-index.schema.json`.
+- [PHP API](https://lucasp1337.github.io/laravel-loom/reference/php-api/): Read a Loom index as typed objects.
+- [Index, UI and MCP configuration](https://lucasp1337.github.io/laravel-loom/reference/ui-config/): Every key outside `scan` (Scan configuration), with its default and environment variable.
+- [Scan configuration](https://lucasp1337.github.io/laravel-loom/reference/scan-config/): The `scan` keys of `config/loom.php` decide what `loom:scan` reads.
+- [What Loom detects](https://lucasp1337.github.io/laravel-loom/reference/detection/): Each page shows the code shapes Loom reads for one primitive, and the ones it does not.
+- [Events](https://lucasp1337.github.io/laravel-loom/reference/detection/events/)
+- [Listeners](https://lucasp1337.github.io/laravel-loom/reference/detection/listeners/)
+- [Closure listeners](https://lucasp1337.github.io/laravel-loom/reference/detection/closure-listeners/)
+- [Observers and model hooks](https://lucasp1337.github.io/laravel-loom/reference/detection/observers/)
+- [Jobs](https://lucasp1337.github.io/laravel-loom/reference/detection/jobs/)
+- [Dispatches](https://lucasp1337.github.io/laravel-loom/reference/detection/dispatches/)
+- [Mailables](https://lucasp1337.github.io/laravel-loom/reference/detection/mailables/)
+- [Notifications](https://lucasp1337.github.io/laravel-loom/reference/detection/notifications/)
+- [Schedule](https://lucasp1337.github.io/laravel-loom/reference/detection/schedule/)
+- [Routes](https://lucasp1337.github.io/laravel-loom/reference/detection/routes/)
+- [Scan scope](https://lucasp1337.github.io/laravel-loom/reference/detection/scope/)
+
+## Optional
+
+- [Architecture](https://lucasp1337.github.io/laravel-loom/contributing/architecture/): How Loom is wired.
+- [Class hierarchy resolver](https://lucasp1337.github.io/laravel-loom/contributing/class-hierarchy/)
+- [Add a scanner](https://lucasp1337.github.io/laravel-loom/contributing/add-a-scanner/): Scanners are internal (ADR 0007): one class and one entry in `DefaultScanners`.
+- [Architecture Decision Records](https://lucasp1337.github.io/laravel-loom/contributing/adr/): This directory holds load-bearing design decisions: why a path was taken, with the alternatives ruled out.
