@@ -180,7 +180,7 @@ Ask for this list before you trust an "is anything still listening to X?" answer
 
 ### Confidence
 
-Every dispatch carries a `confidence`, always `high` today: the target was named in the source. `medium` and `low` are reserved, so don't read `high` as "verified at runtime". What Loom can't follow is listed in [What Loom detects](../reference/what-loom-detects.md).
+Every dispatch carries a `confidence`, always `high` today: the target was named in the source. `medium` and `low` are reserved, so don't read `high` as "verified at runtime". What Loom can't follow is shown in [What Loom detects](../reference/detection/index.md).
 
 ## When a tool returns nothing
 

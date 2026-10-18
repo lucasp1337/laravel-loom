@@ -33,7 +33,7 @@ Loom reads the source, follows each of those links, and writes them into one ind
 
 ## What Loom records
 
-Each primitive gets its own section in the index, and every entry carries a file and a line. The [schema](../reference/schema.md) has the exact fields and [What Loom detects](../reference/what-loom-detects.md) lists the code shapes each scanner reads.
+Each primitive gets its own section in the index, and every entry carries a file and a line. The [schema](../reference/schema.md) has the exact fields and [What Loom detects](../reference/detection/index.md) shows the code shapes each scanner reads, as tested examples.
 
 | Primitive | Section | Found through |
 | --- | --- | --- |
@@ -88,30 +88,6 @@ Solid edges are stored on the source (a route, listener or job lists what it dis
 
 ## What Loom can't see
 
-Some dispatches can't be resolved from source. `event($class)` could fire anything, a container lookup returns whatever is bound at runtime, and a class name built by string interpolation or picked in a conditional isn't a name yet.
+A class picked at runtime has no name in the source. Loom lists each such call in `unresolved_dispatches` or `unresolved_routes`, with its file, line and a `reason`, instead of dropping it. [What Loom detects](../reference/detection/index.md) shows each form it reads and each one it does not, and its [reason table](../reference/detection/index.md#unresolved-reasons) leads from a `reason` to the code that produces it. [`loom:check`](../guides/gate-your-ci.md) can watch how many there are.
 
-Loom doesn't drop these. Each goes into `unresolved_dispatches` with the expression, a file and line, and a reason:
-
-```json
-{
-  "file": "app/Services/Notifier.php",
-  "line": 9,
-  "expression": "event($eventClass)",
-  "reason": "dynamic_class_name"
-}
-```
-
-Read that as "an event fires here and I can't tell which". The reason says why, from a variable (`dynamic_class_name`) to a closure dispatched as a job (`closure_job`) to a class with no row to link to (`target_not_indexed`). Every reason, with the code shape it names and the change that fixes it, is on [Forms Loom does not read](../reference/unread-forms.md). A dispatch gets `class_not_found` or `target_not_indexed`, never both.
-
-A growing list means your architecture is getting harder to map, and [`loom:check`](../guides/gate-your-ci.md) can watch that count.
-
-!!! warning "An empty `handled_by` isn't always a dead event"
-    A closure listener has no class to point at, so the event lists no handler for it. Check `closure_listeners` for the same event before you call it unhandled. The reverse holds too: dispatches inside a closure listener have no back-edge from the target. A route closure is the exception: the event lists the route as a dispatch site.
-
-!!! warning "Vendor parents are opaque"
-    Loom doesn't read `vendor/`. A job that gets `ShouldQueue` from a parent class in a package reports `queued: false`, and a notification that inherits `via()` from one reports no channels.
-
-!!! note "Handlers record only their own dispatches"
-    A listener, job or observer lists the dispatches made in its handler method (`handle()` or the observer hook) and in same-class helpers it reaches through `$this->`, `self::` or `static::` calls. Those carry `via` and `confidence: medium`. Helpers on other objects or inherited from a parent are not followed. Routes are attributed per controller method, or per closure.
-
-If something you expected is missing or wrong, [Why was my code missed?](../guides/why-was-my-code-missed.md) goes symptom by symptom.
+If something you expected is missing, start at [Why was my code missed?](../guides/why-was-my-code-missed.md).

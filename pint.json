@@ -1,7 +1,8 @@
 {
     "preset": "laravel",
     "exclude": [
-        "tests/Fixtures"
+        "tests/Fixtures",
+        "docs/examples"
     ],
     "rules": {
         "no_superfluous_elseif": true,

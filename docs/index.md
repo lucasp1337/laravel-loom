@@ -9,7 +9,7 @@ hide:
 
 ## Understand it
 
-- [What Loom sees](concepts/what-loom-sees.md): every primitive it records, and the dispatches it admits it can't resolve.
+- [What Loom sees](concepts/what-loom-sees.md): every primitive it records, and how the sections connect.
 - [The index](concepts/the-index.md): how to read one flow forward and backward.
 
 ## Use it
@@ -28,6 +28,6 @@ hide:
 - [MCP tools](reference/mcp-tools.md): the tools `loom:mcp` exposes.
 - [Schema](reference/schema.md): the field-by-field index contract.
 - [PHP API](reference/php-api.md): read the index as typed objects.
-- [What Loom detects](reference/what-loom-detects.md): the code shapes each scanner reads.
+- [What Loom detects](reference/detection/index.md): the code shapes each scanner reads, and the ones it does not.
 - [Scan configuration](reference/scan-config.md): which directories and route files are scanned.
 - [UI configuration](reference/ui-config.md): the keys that control the browser UI.

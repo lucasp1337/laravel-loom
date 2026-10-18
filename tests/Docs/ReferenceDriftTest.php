@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Laravel\Mcp\Server\Attributes\Name;
 use Lucasp\Loom\Index\DispatchMode;
+use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Mcp\Tools\EventsFollowingTool;
 use Lucasp\Loom\Mcp\Tools\EventsFromMethodTool;
@@ -329,4 +330,12 @@ it('documents every route-path reason the scan command can print', function (): 
     }
 
     expect($missing)->toBe([]);
+});
+
+it('keeps the schema reason description equal to the reason summaries', function (): void {
+    $schema = json_decode((string) file_get_contents(referenceRoot().'/schema/loom-index.schema.json'), true);
+
+    $expected = collect(UnresolvedReason::cases())->map(fn (UnresolvedReason $reason): string => "`{$reason->value}`: {$reason->summary()}")->implode("\n");
+
+    expect($schema['$defs']['unresolvedDispatch']['properties']['reason']['description'])->toBe($expected);
 });

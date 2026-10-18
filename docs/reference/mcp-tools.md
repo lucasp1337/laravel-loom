@@ -741,5 +741,5 @@ Called with no input, it returns:
 }
 ```
 
-- The `reason` values and their fixes are in [Why was my code missed](../guides/why-was-my-code-missed.md#a-dispatch-shows-up-as-unresolved).
+- Each `reason` links to the code that produces it in [What Loom detects](detection/index.md#unresolved-reasons).
 <!-- /generated:mcp:analysis -->
