@@ -8,9 +8,8 @@ use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\FrequencyUnit;
 
 /**
- * A sub-minute scheduling frequency (e.g. `everyTenSeconds`), emitted on
- * `scheduled_tasks[*].frequency` when a task runs more often than once a minute and
- * therefore cannot be expressed as a 5-field cron (`cron` stays null).
+ * A sub-minute scheduling frequency such as `everyTenSeconds`, emitted on
+ * `scheduled_tasks[*].frequency` in place of a cron expression.
  *
  * @api
  */

@@ -12,14 +12,18 @@ namespace Lucasp\Loom\Index;
  *
  * @api
  */
-enum DispatchMode: string
+enum DispatchMode: string implements Summarized
 {
-    /** Runs inline in the current process (`dispatchSync`, `sendNow`, `notifyNow`). */
     case SYNC = 'sync';
-
-    /** Runs after the HTTP response is sent (`dispatchAfterResponse`, `->afterResponse()`). */
     case AFTER_RESPONSE = 'after_response';
-
-    /** Pushed straight onto a queue (`Queue::push`, `Mail::queue/later`). */
     case PUSH = 'push';
+
+    public function summary(): string
+    {
+        return match ($this) {
+            self::SYNC => 'runs inline in the current process.',
+            self::AFTER_RESPONSE => 'runs after the HTTP response is sent.',
+            self::PUSH => 'pushed straight onto a queue.',
+        };
+    }
 }

@@ -14,4 +14,6 @@ enum Region: string
     case ConfigUi = 'config:ui';
     case ConfigMcp = 'config:mcp';
     case Examples = 'examples';
+    case PhpApiQuickstart = 'php-api:quickstart';
+    case PhpApiClasses = 'php-api:classes';
 }

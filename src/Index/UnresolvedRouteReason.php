@@ -10,41 +10,36 @@ namespace Lucasp\Loom\Index;
  *
  * @internal
  */
-enum UnresolvedRouteReason: string
+enum UnresolvedRouteReason: string implements Summarized
 {
-    /** `Route::<name>()` is not a router method Loom reads: a macro or package helper. */
     case UNKNOWN_ROUTE_CALL = 'unknown_route_call';
-
-    /** The route URI is not a string literal; no route is emitted. */
     case DYNAMIC_URI = 'dynamic_uri';
-
-    /** The resource name or the array of resources is not literal; no route is emitted. */
     case DYNAMIC_RESOURCE = 'dynamic_resource';
-
-    /** The verbs of `Route::match()` are not a literal list; no route is emitted. */
     case DYNAMIC_VERBS = 'dynamic_verbs';
-
-    /** A resource option or `only` / `except` / `names` / `parameters` value is not literal; defaults were used. */
     case DYNAMIC_RESOURCE_OPTIONS = 'dynamic_resource_options';
-
-    /** A middleware or `withoutMiddleware` entry is not a literal; the route's list may be incomplete. */
     case DYNAMIC_MIDDLEWARE = 'dynamic_middleware';
-
-    /** A group prefix, name, controller or middleware is not a literal; routes inside may miss it. */
     case DYNAMIC_GROUP_ATTRIBUTE = 'dynamic_group_attribute';
-
-    /** A route file's path is not statically resolvable, so the file is not read. */
     case ROUTE_FILE_DYNAMIC = 'route_file_dynamic';
-
-    /** A route file's path is relative to the working directory. */
     case ROUTE_FILE_RELATIVE = 'route_file_relative';
-
-    /** A route file's path lies outside the project root. */
     case ROUTE_FILE_OUTSIDE_ROOT = 'route_file_outside_root';
-
-    /** A route file's path does not exist. */
     case ROUTE_FILE_NOT_FOUND = 'route_file_not_found';
-
-    /** A controller declares a route with an attribute; Loom does not read route attributes. */
     case ATTRIBUTE_ROUTE = 'attribute_route';
+
+    public function summary(): string
+    {
+        return match ($this) {
+            self::UNKNOWN_ROUTE_CALL => '`Route::<name>()` is a macro or package helper; map it in `scan.route_macros`.',
+            self::DYNAMIC_URI => 'the URI is not a string literal; no route is emitted.',
+            self::DYNAMIC_RESOURCE => 'the resource name or list of resources is not literal; no route is emitted.',
+            self::DYNAMIC_VERBS => 'the verbs of `Route::match()` are not a literal list; no route is emitted.',
+            self::DYNAMIC_RESOURCE_OPTIONS => 'a resource option such as `only` or `names` is not literal; the defaults were used.',
+            self::DYNAMIC_MIDDLEWARE => 'a middleware or `withoutMiddleware` entry is not literal; the middleware list may be incomplete.',
+            self::DYNAMIC_GROUP_ATTRIBUTE => 'a group or chain prefix, name, controller or middleware is not literal; routes inside may miss it.',
+            self::ROUTE_FILE_DYNAMIC => 'a route file path is not literal, so the file is not read.',
+            self::ROUTE_FILE_RELATIVE => 'a route file path is relative to the working directory, so the file is not read.',
+            self::ROUTE_FILE_OUTSIDE_ROOT => 'a route file path lies outside the app root, so the file is not read.',
+            self::ROUTE_FILE_NOT_FOUND => 'a route file path does not exist.',
+            self::ATTRIBUTE_ROUTE => 'a controller declares a route with an attribute, which Loom does not read.',
+        };
+    }
 }

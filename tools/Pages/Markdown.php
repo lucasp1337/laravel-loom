@@ -9,10 +9,10 @@ use Illuminate\Support\Arr;
 /** Small markdown builders shared by the page sources. */
 final class Markdown
 {
-    /** Table cell text: pipes escaped, newlines as line breaks. */
+    /** Table cell text: pipes escaped, line breaks folded into spaces. */
     public static function cell(string $text): string
     {
-        return str_replace(['|', "\r\n", "\n"], ['\|', '<br>', '<br>'], trim($text));
+        return str_replace('|', '\|', (string) preg_replace('/\s*\R\s*/', ' ', trim($text)));
     }
 
     /** Wraps option names, config keys, commands and paths in code spans. */

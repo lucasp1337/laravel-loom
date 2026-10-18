@@ -11,10 +11,20 @@ namespace Lucasp\Loom\Index;
  *
  * @api
  */
-enum ScheduleKind: string
+enum ScheduleKind: string implements Summarized
 {
     case COMMAND = 'command';
     case JOB = 'job';
     case CLOSURE = 'closure';
     case EXEC = 'exec';
+
+    public function summary(): string
+    {
+        return match ($this) {
+            self::COMMAND => '`->command()`; `target` is the signature verbatim, options included, or the command FQCN.',
+            self::JOB => '`->job()`; `target` is the job FQCN.',
+            self::CLOSURE => '`->call()`; `target` is `null` for an inline closure, else `Class::method`.',
+            self::EXEC => '`->exec()`; `target` is the shell string.',
+        };
+    }
 }

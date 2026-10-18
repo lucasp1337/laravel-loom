@@ -28,18 +28,18 @@
         "schema_version": {
             "type": "string",
             "pattern": "^1\\.[0-9]+$",
-            "description": "Version of this document shape, `MAJOR.MINOR`. Consumers key on this."
+            "description": "Version of this document shape, `MAJOR.MINOR`, which consumers key on."
         },
         "loom_version": {
             "type": "string",
             "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+",
-            "description": "Semver of the Loom package that wrote the file. Informational."
+            "description": "Semver of the Loom package that wrote the file, for information only."
         },
         "scanned_at": {
             "type": "string",
             "format": "date-time",
             "pattern": "Z$",
-            "description": "ISO 8601 UTC timestamp ending in `Z`. The only field that differs between two scans of identical source."
+            "description": "ISO 8601 UTC timestamp ending in `Z`, the only field that differs between two scans of identical source."
         },
         "laravel_version": {
             "type": "string",
@@ -145,7 +145,7 @@
                             }
                         }
                     },
-                    "description": "Listeners that handle this event, one entry per listener and method, sorted by `listener`, `method`. Taken from `listeners[].handles`; closure listeners are not included."
+                    "description": "Listeners from `listeners[].handles` that handle this event, one per listener and method; closure listeners are not included."
                 }
             },
             "description": "Event classes."
@@ -187,7 +187,7 @@
                         "booting",
                         "booted"
                     ],
-                    "description": "Eloquent hook name. `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings; observer methods match the other values."
+                    "description": "Eloquent hook name; `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings."
                 },
                 "handled_by": {
                     "type": "array",
@@ -198,11 +198,11 @@
                         "properties": {
                             "handler": {
                                 "type": "string",
-                                "description": "FQCN of the observer, `Event::listen` target or hook callback class. For a closure model hook, the model FQCN."
+                                "description": "FQCN of the observer, `Event::listen` target or hook callback class, or of the model for a closure model hook."
                             },
                             "method": {
                                 "type": "string",
-                                "description": "Observer hook or listener method. `{closure}` for a closure model hook; its body is the `closure_listeners[]` entry at the same file and line."
+                                "description": "Observer hook or listener method, or `{closure}` for a closure model hook whose body is the `closure_listeners[]` entry at the same file and line."
                             },
                             "file": {
                                 "$ref": "#/$defs/relativePath",
@@ -215,7 +215,7 @@
                             }
                         }
                     },
-                    "description": "Observers and `Event::listen` targets, sorted by handler and method, deduplicated. The shape differs from `events[].handled_by` because observers are not listeners."
+                    "description": "Observers and `Event::listen` targets that handle this model event, deduplicated."
                 }
             },
             "description": "Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent.*')` strings."
@@ -251,19 +251,19 @@
                             },
                             "method": {
                                 "type": "string",
-                                "description": "Handler method. `handle` when the registration names none (auto-discovery, a bare `Listener::class`); a `[Listener::class, 'foo']` tuple keeps its method."
+                                "description": "Handler method, `handle` when the registration names none (auto-discovery, a bare `Listener::class`)."
                             }
                         }
                     },
                     "description": "Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`."
                 },
                 "registration": {
-                    "enum": ["listen_array", "auto_discovered", "discovery_unverified", "event_listen_call", "subscriber", "model_hook"],
-                    "description": "`subscriber`: a subscriber's `subscribe()`.\n`listen_array`: `$listen`.\n`event_listen_call`: `Event::listen()`.\n`auto_discovered`: typed `handle()` under a discovery directory, with discovery verified on.\n`discovery_unverified`: the same, but whether the app runs event discovery could not be read.\n`model_hook`: only closure listeners carry it.\nListed in order of precedence when several find the same listener."
+                    "enum": ["subscriber", "listen_array", "event_listen_call", "auto_discovered", "discovery_unverified", "model_hook"],
+                    "description": "How the listener was registered; when several registrations find it, the first value in the list wins."
                 },
                 "queued": {
                     "type": "boolean",
-                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed."
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait."
                 },
                 "dispatches": {
                     "type": "array",
@@ -297,7 +297,7 @@
                 },
                 "registration": {
                     "enum": ["observe_call", "attribute"],
-                    "description": "`observe_call` for `Model::observe(Observer::class)`, including `static::observe()` in `booted()`; `attribute` for `#[ObservedBy]`."
+                    "description": "How the observer was registered."
                 },
                 "hooks": {
                     "type": "array",
@@ -350,7 +350,7 @@
                 },
                 "queued": {
                     "type": "boolean",
-                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface. Traits are not followed."
+                    "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait."
                 },
                 "queue_config": {
                     "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/queueConfig" }],
@@ -400,7 +400,7 @@
                 },
                 "after_commit": {
                     "type": ["boolean", "null"],
-                    "description": "Whether the class dispatches after the open database transaction commits. `true` for `ShouldQueueAfterCommit`, a literal `$afterCommit = true`, or a constructor call `$this->afterCommit()`; `false` for a literal `false` or `$this->beforeCommit()`. On a job, `false` opts out of `ShouldQueueAfterCommit`; on a mailable or notification the interface wins. `null` when the class says nothing: the queue connection's `after_commit` setting decides at runtime."
+                    "description": "Whether the class dispatches after the open database transaction commits, or `null` when the class says nothing and the queue connection's `after_commit` setting decides."
                 }
             },
             "description": "Class-level queue settings. A key is `null` when the class declares nothing for it. The literal keeps its own type."
@@ -421,21 +421,21 @@
                 },
                 "method": {
                     "type": "string",
-                    "description": "Origin: `Class::method` (a pass-through closure such as `DB::transaction(fn () => ...)` counts for the enclosing method), `VERB /uri` for a route closure, `Class::$dispatchesEvents[hook]` for a model entry."
+                    "description": "Origin of the call: `Class::method`, `VERB /uri` for a route closure, or `Class::$dispatchesEvents[hook]` for a model entry."
                 },
                 "mode": {
                     "enum": ["sync", "after_response", "push"],
-                    "description": "How the call form executes; omitted for plain forms, whose outcome follows the target's `queued` flag. Describes the call form only: `ShouldQueue` and the sync driver are not evaluated."
+                    "description": "How the call form executes, without evaluating `ShouldQueue` or the sync driver; omitted for plain forms."
                 },
                 "overrides": {
                     "$ref": "#/$defs/dispatchOverrides",
-                    "description": "Dispatch-time modifiers found at the call site. Omitted when none."
+                    "description": "Dispatch-time modifiers found at the call site, omitted when none."
                 },
                 "channels": {
                     "type": "array",
                     "minItems": 1,
                     "items": { "type": "string" },
-                    "description": "Notification-only. The literal channel filter of `Notification::send($users, $n, $channels)` or `sendNow(...)`, which overrides the notification's `via()`. Lowercased names or channel-class FQCNs. Omitted when absent, empty or non-literal."
+                    "description": "Lowercased channel names or channel-class FQCNs from the literal filter of `Notification::send($users, $n, $channels)` or `sendNow(...)`, omitted when absent, empty or non-literal."
                 }
             },
             "description": "One place where a class is dispatched, sent or notified from. Shared by every `dispatched_from`, `sent_from` and `notified_from` list."
@@ -487,7 +487,7 @@
                 },
                 "confidence": {
                     "enum": ["high", "medium", "low"],
-                    "description": "`high` for a target resolved in the handler method itself; `medium` when the call sits in a helper method the handler reaches (see `via`); `low` is reserved."
+                    "description": "How sure the scanner is of the target."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -502,7 +502,7 @@
                     "type": "array",
                     "items": { "type": "string" },
                     "minItems": 1,
-                    "description": "Present when the call sits in a helper method of the same class that the handler reaches through `$this->`, `self::` or `static::` calls: the helper method names in call order, ending with the method that holds the call. Absent when the handler makes the call itself."
+                    "description": "The same-class helper methods, in call order, that lead from the handler to the call; absent when the handler makes the call itself."
                 }
             },
             "description": "A resolved dispatch made from a class method or closure."
@@ -514,7 +514,7 @@
             "properties": {
                 "event": {
                     "type": "string",
-                    "description": "FQCN for `::class` registrations, the raw string for string-keyed ones."
+                    "description": "FQCN for `::class` registrations, else the raw event string (`eloquent.{hook}: {model}` for a model hook)."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -532,7 +532,7 @@
                 },
                 "registration": {
                     "enum": ["listen_array", "event_listen_call", "subscriber", "model_hook"],
-                    "description": "`listen_array`: closure in `$listen`.\n`event_listen_call`: second argument of `Event::listen()`.\n`subscriber`: inside a subscriber's `subscribe()`, as a return-array value or an imperative `$events->listen()`.\n`model_hook`: a closure passed to a model's static hook registrar (`static::creating(fn ...)`); `event` is the model event id (`eloquent.{hook}: {model}`)."
+                    "description": "How the closure was registered."
                 },
                 "queued": {
                     "type": "boolean",
@@ -571,7 +571,7 @@
             "properties": {
                 "kind": {
                     "enum": ["command", "job", "closure", "exec"],
-                    "description": "`command`: `->command()`; `target` is the signature verbatim, options included, or the FQCN.\n`job`: `->job()`; `target` is the FQCN.\n`closure`: `->call()`; `target` is `null` for an inline closure, else `Class::method` (from `[Cls::class, 'method']` or `'Cls@method'`).\n`exec`: `->exec()`; `target` is the shell string."
+                    "description": "What the entry runs, which also decides what `target` holds."
                 },
                 "name": {
                     "type": ["string", "null"],
@@ -584,7 +584,7 @@
                 "arguments": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "`command` kind only, else `[]`. The literal parameters of `->command(Class::class, [...])`: plain items as the stringified value, keyed items as `key=value`, booleans as `true`/`false`; unresolvable items are skipped."
+                    "description": "For the `command` kind, the literal parameters of `->command(Class::class, [...])` as strings, keyed ones as `key=value`; otherwise `[]`."
                 },
                 "queue": {
                     "type": ["string", "null"],
@@ -596,7 +596,7 @@
                 },
                 "cron": {
                     "type": ["string", "null"],
-                    "description": "Canonical five-field expression for every recognised helper (`daily` is `0 0 * * *`; `cron()` passes through). `null` for an unrecognised helper or a variable argument. The last helper in the chain wins."
+                    "description": "Canonical five-field expression from the last frequency helper in the chain (`daily` is `0 0 * * *`), or `null` when that helper is unrecognised or takes a variable."
                 },
                 "frequency": {
                     "oneOf": [
@@ -618,7 +618,7 @@
                             }
                         }
                     ],
-                    "description": "Sub-minute interval for the seven helpers `everySecond` to `everyThirtySeconds`, whose `cron` is `null`; `null` otherwise. At most one of `cron` and `frequency` is set."
+                    "description": "Sub-minute interval from the `everySecond` to `everyThirtySeconds` helpers, else `null`; never set together with `cron`."
                 },
                 "timezone": {
                     "type": ["string", "null"],
@@ -630,7 +630,7 @@
                 },
                 "without_overlapping_expires_at": {
                     "type": ["integer", "null"],
-                    "description": "Expiry minutes from `->withoutOverlapping($minutes)`. `null` without a literal argument."
+                    "description": "Expiry minutes from a literal `->withoutOverlapping($minutes)` argument, else `null`."
                 },
                 "on_one_server": {
                     "type": "boolean",
@@ -647,7 +647,7 @@
                 "constraints": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Opaque labels for non-cron restrictions, sorted ascending. They sit beside `cron`, not inside it.\nDay of week: `weekdays`, `sundays`.\nTime window: `between(8:00,17:00)`.\nConditions: `when(closure)`, `skip(closure)`.\nEnvironments: `environments(production,staging)`."
+                    "description": "Opaque labels for non-cron restrictions, sorted, such as `weekdays`, `between(8:00,17:00)`, `when(closure)` or `environments(production,staging)`."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -689,7 +689,7 @@
                 "middleware": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Names as written, including those inherited from enclosing groups. Aliases and groups are not expanded. Source order."
+                    "description": "Middleware names as written, in source order, including those inherited from enclosing groups, with aliases and groups not expanded."
                 },
                 "file": {
                     "$ref": "#/$defs/relativePath",
@@ -703,16 +703,16 @@
                 "end_line": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Last line of a closure action. Present only for closure actions."
+                    "description": "Last line of a closure action, present only for closure actions."
                 },
                 "kind": {
                     "enum": ["view", "redirect", "fallback"],
-                    "description": "`view`: `Route::view()`. `redirect`: `Route::redirect()` / `permanentRedirect()`. `fallback`: `Route::fallback()`. Omitted for every other route."
+                    "description": "The router helper that registered a route with no controller of its own; omitted for every other route."
                 },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
-                    "description": "From the controller method, or for a closure route the dispatches within `[line, end_line]` of the file. Empty when the controller cannot be resolved. Each dispatched event also lists the route in its `dispatched_from`."
+                    "description": "Dispatches from the controller method, or within `[line, end_line]` of the file for a closure route; empty when the controller cannot be resolved."
                 }
             },
             "description": "HTTP routes, one per route and verb. `any()` and `redirect()` routes are reported as `ANY`; a resource `update` is reported as both `PUT` and `PATCH`."
@@ -780,16 +780,16 @@
                 "notified_from": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatchSite" },
-                    "description": "Dispatch sites whose resolved kind is `notification` and whose target is this class, sorted by `file`, `line`. The only list whose entries may carry `channels`."
+                    "description": "Dispatch sites whose resolved kind is `notification` and whose target is this class; only these may carry `channels`."
                 },
                 "channels": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "From a `via()` that returns an array of literal strings (lowercased) or `Class::class` constants (FQCN), in source order: a literal array, or a local array built from one with `$x[] = 'literal'` appends. Under branches or with several returns, the union of every channel that may apply. `[]` when `via()` is unreadable, not declared or inherited."
+                    "description": "Channels from `via()` in source order, as lowercased names or `Class::class` FQCNs, the union across branches and returns, or `[]` when `via()` is unreadable, missing or inherited."
                 },
                 "channels_dynamic": {
                     "type": "boolean",
-                    "description": "`true` only when `via()` exists but `channels` may not be what a call returns: the body is unreadable (`channels` is `[]`), or the channels depend on a branch or on several returns (`channels` is the union)."
+                    "description": "`true` when `via()` exists but `channels` may differ from what a call returns, because the body is unreadable or depends on a branch or several returns."
                 }
             },
             "description": "Notification classes."
@@ -827,7 +827,7 @@
                         "route_file_not_found",
                         "attribute_route"
                     ],
-                    "description": "`unknown_route_call`: `Route::<name>()` is a macro or package helper; map it in `scan.route_macros`.\n`dynamic_uri`, `dynamic_resource`, `dynamic_verbs`: no route emitted, the URI, resource name or verbs are not literal.\n`dynamic_resource_options`: a resource option is not literal; the defaults were used.\n`dynamic_middleware`: a middleware or `withoutMiddleware` entry is not literal; the middleware list may be incomplete.\n`dynamic_group_attribute`: a group or chain prefix, name, controller or middleware is not literal.\n`route_file_*`: a route file's path cannot be followed.\n`attribute_route`: a controller declares a route with an attribute, which Loom does not read."
+                    "description": "Why the route form could not be read in full."
                 }
             },
             "description": "Route forms Loom could not read in full. Never dropped silently."
@@ -852,7 +852,7 @@
                 },
                 "reason": {
                     "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "string_event_name", "closure_job", "view_mail", "call_result", "stored_target", "relative_class_name", "unsupported_expression", "class_not_found", "target_not_indexed", "unreadable_event_name", "untyped_closure_listener", "unreadable_listener", "unreadable_subscriber", "unreadable_model_hook"],
-                    "description": "`dynamic_class_name`: the target is a variable, or `new $class` / `$class::dispatch()`.\n`container_resolution`: the target comes from `app()`, `resolve()` or `->make()`.\n`string_concatenation`: the target is built by concatenation or interpolation.\n`conditional_dispatch`: a ternary or `match` whose branches cannot be evaluated.\n`dynamic_list`: a list of dispatch targets built at runtime (a variable, a spread, a collection).\n`string_event_name`: the event is a string literal such as `'service.installed'`, not a class.\n`closure_job`: a closure is dispatched as a job, so no class names it.\n`view_mail`: a mail sent from a view name or array and a closure, so there is no mailable class.\n`call_result`: the target is what a method, static or function call returns.\n`stored_target`: the target is read from a property, an array element or a constant.\n`relative_class_name`: `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read.\n`unsupported_expression`: an expression form no other reason covers (a `??` coalesce, an anonymous class).\n`class_not_found`: the target is a class name, but no file declaring it exists in the scanned directories (a vendor class, a missing file, an excluded path); `expression` is `Fqcn::class`.\n`target_not_indexed`: a class file was found, but it is not an indexed event, job, mailable or notification.\n`unreadable_event_name`: a registration whose event name or key is not a `::class` reference or a literal Loom can read (a variable, a call, an `eloquent.*` name with an unknown hook).\n`untyped_closure_listener`: an `Event::listen(function ($e) {...})` closure whose first parameter has no event class type.\n`unreadable_listener`: a listener registration (`$listen`, `Event::listen()`, a subscriber return array) whose handler is not a class reference, a `[Class, method]` tuple, a readable string or a closure.\n`unreadable_subscriber`: an `Event::subscribe()` call or `$subscribe` entry that is not a `::class` reference, a string literal or `new`.\n`unreadable_model_hook`: a `static::creating(...)` style hook whose callback is not a closure or readable callable."
+                    "description": "Why the dispatch or registration could not be resolved."
                 }
             },
             "description": "Dispatch sites and listener or model-hook registrations that could not be resolved statically. Never dropped silently."
