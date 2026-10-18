@@ -25,6 +25,7 @@ enum OutputSample: string
     case IndexJob = 'index-job';
     case Check = 'check';
     case CheckBaseline = 'check-baseline';
+    case CheckNewUnresolved = 'check-new-unresolved';
     case CheckJson = 'check-json';
     case CheckSkipped = 'check-skipped';
     case CheckMarkdown = 'check-markdown';

@@ -36,6 +36,9 @@ final class CommandOutputPages implements RegionSource
         MetaField::LARAVEL_VERSION->value => '13.0',
     ];
 
+    /** Rules skipped to show the unresolved-dispatches rule on its own. */
+    private const ALL_BUT_UNRESOLVED = [RuleKey::ORPHAN_LISTENERS->value, RuleKey::ORPHAN_EVENTS->value, RuleKey::CYCLIC_DISPATCH->value];
+
     private readonly DocsApp $app;
 
     public function __construct(private readonly SourceContext $context)
@@ -82,6 +85,7 @@ final class CommandOutputPages implements RegionSource
             ]),
             OutputSample::Check => $this->check([]),
             OutputSample::CheckBaseline => $this->check(['--baseline' => $this->app->scanned($base)]),
+            OutputSample::CheckNewUnresolved => $this->check(['--baseline' => $this->app->scanned($base), '--skip' => self::ALL_BUT_UNRESOLVED]),
             OutputSample::CheckJson => $this->check(['--baseline' => $this->app->scanned($base), '--format' => 'json']),
             OutputSample::CheckSkipped => $this->json($this->skippedRule()),
             OutputSample::CheckMarkdown => $this->check(['--baseline' => $this->app->scanned($base), '--format' => 'markdown']),

@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Tools\Reference\ApiClasses;
 use Lucasp\Loom\Tools\Reference\ApiSnippet;
-use Lucasp\Loom\Tools\Reference\ApiSnippetRunner;
+use Lucasp\Loom\Tools\Reference\SnippetRunner;
 use Lucasp\Loom\Tools\Regions\GeneratedRegion;
 use Lucasp\Loom\Tools\Regions\Region;
 use Lucasp\Loom\Tools\SourceContext;
@@ -33,12 +33,13 @@ final class PhpApiPages implements RegionSource
 
     private function quickstart(): string
     {
-        $outputs = ApiSnippetRunner::run($this->context->root, $this->context->fixture->indexPath());
+        $root = $this->context->root;
+        $outputs = SnippetRunner::run($root, $this->context->fixture->indexPath(), ApiSnippet::cases());
 
-        return collect(ApiSnippet::cases())->map(function (ApiSnippet $snippet) use ($outputs): string {
-            $code = Str::of((string) file_get_contents($this->context->root.'/'.$snippet->path()))->after('<?php')->trim();
+        return collect(ApiSnippet::cases())->map(static function (ApiSnippet $snippet) use ($root, $outputs): string {
+            $heading = $snippet->title() === null ? '' : "## {$snippet->title()}\n\n";
 
-            return "## {$snippet->title()}\n\n```php\n{$code}\n```\n\n```text title=\"Output\"\n".trim($outputs[$snippet->value])."\n```";
+            return $heading.SnippetRunner::markdown($root, $snippet, $outputs[$snippet->path()]);
         })->implode("\n\n");
     }
 
