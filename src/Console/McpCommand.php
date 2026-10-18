@@ -22,8 +22,8 @@ final class McpCommand extends Command
     use ReadsCommandInput;
 
     protected $signature = 'loom:mcp
-        {--snapshot= : Serve this index file instead of the default (storage/loom/index.json)}
-        {--scan : Run loom:scan before serving}
+        {--snapshot= : Serve this index file instead of the default (storage/loom/index.json); it is never auto-scanned}
+        {--scan : Run loom:scan before serving; cannot be combined with --snapshot}
         {--no-scan : Never auto-scan; the snapshot must already exist}';
 
     protected $description = 'Start the embedded Loom MCP server over stdio';

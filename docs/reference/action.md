@@ -1,13 +1,6 @@
 # GitHub Action reference
 
-Inputs, outputs, permissions and failure behaviour of the Loom composite action. For a walkthrough, see [Gate your CI](../guides/gate-your-ci.md).
-
-The action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment. Reference `lucasp1337/laravel-loom`, not a subpath.
-
-!!! warning "Loom must already be installed in your app"
-    The action runs `composer install` in your app and then `php artisan loom:scan`. If your app doesn't require `lucasp1337/laravel-loom` as a dev dependency, the scan fails with "command not defined".
-
-## Minimal workflow
+The Loom composite action scans your branch, runs `loom:check`, diffs against the pull request's base branch and posts one sticky comment. The walkthrough is [Gate your CI](../guides/gate-your-ci.md).
 
 ```yaml
 name: Loom
@@ -25,24 +18,26 @@ jobs:
       - uses: lucasp1337/laravel-loom@v0.4.0
 ```
 
+Your app must require `lucasp1337/laravel-loom` as a dev dependency: the action runs `composer install`, then `php artisan loom:scan`.
+
 ## Inputs
 
 | Input | Default | Effect | Consequence |
 | --- | --- | --- | --- |
-| `php-version` | `8.3` | PHP version installed, with `dom`, `mbstring` and `xml`. | Must satisfy your app's `composer.json`, or `composer install` fails. |
-| `laravel-version` | empty | Laravel version to report. Empty reads it from `composer.lock`. | Informational. It doesn't change what gets installed. |
-| `strict` | `false` | Runs `loom:check --strict`. | Any unresolved dispatch fails the build. Left off, unresolved dispatches are never checked. |
+| `php-version` | `8.3` | PHP version installed, with `dom`, `mbstring` and `xml`. | Must satisfy your app's `composer.json`. |
+| `laravel-version` | empty | Laravel version to report. Empty reads it from `composer.lock`. | Informational only. |
+| `strict` | `false` | Runs `loom:check --strict`. | Left off, unresolved dispatches are never checked. |
 | `comment-on-pr` | `true` | Posts or updates a sticky PR comment with the check result and diff. | Needs `pull-requests: write`. Does nothing outside `pull_request` events. |
-| `fail-on-diff` | `false` | Fails the build when the diff reports changes. | Every PR that touches architecture goes red. Use it to force review, not as a policy gate. |
-| `working-directory` | `.` | Directory holding `artisan` and `composer.json`. | The base-branch diff assumes the app is at the repository root, so in a subdirectory it is skipped. |
+| `fail-on-diff` | `false` | Fails the build when the diff reports changes. | Every PR that touches architecture goes red. |
+| `working-directory` | `.` | Directory holding `artisan` and `composer.json`. | In a subdirectory the base-branch diff is skipped. |
 
 ## Outputs
 
 | Output | Value | Watch for |
 | --- | --- | --- |
-| `index-path` | Absolute path to the `index.json` the scan wrote. | Point your own later steps at it, for example `loom:check --baseline`. |
-| `unresolved-count` | Number of unresolved-dispatch violations from `loom:check`. | Always `0` unless `strict` is `true`, because the action never passes a baseline. |
-| `diff-summary` | One line about the diff. | See below. Empty on events other than `pull_request`. |
+| `index-path` | Absolute path to the `index.json` the scan wrote. | Use it in later steps, such as `loom:check --baseline`. |
+| `unresolved-count` | Number of unresolved-dispatch violations from `loom:check`. | Always `0` unless `strict` is `true`: the action never passes a baseline. |
+| `diff-summary` | One line about the diff. | Empty outside `pull_request` events. |
 
 `diff-summary` is one of:
 
@@ -63,10 +58,10 @@ jobs:
 | Diff finds changes, `fail-on-diff` is `true` | Fails with exit `1`. |
 | Diff skipped or errored | Passes, whatever `fail-on-diff` says. |
 
-Which rules run: without `strict`, the check runs `schema`, `orphan-listeners`, `orphan-events` and `cyclic-dispatch`. With it, `unresolved-dispatches` runs too. Rule details are in [Check rules and output formats](check-rules-and-formats.md#rules).
+Without `strict`, `unresolved-dispatches` checks nothing; the other [rules](check-rules-and-formats.md#rules) always run.
 
 !!! warning "A missing diff is not a clean diff"
-    The action builds the base index by fetching the base branch into a temporary worktree, installing dependencies and scanning it. If any of that fails, the diff is skipped and the build passes. That includes the first PR that adds Loom, since the base doesn't have it yet.
+    The base index is built by installing and scanning the base branch in a temporary worktree. If that fails, as on the first PR that adds Loom, the diff is skipped and the build passes.
 
 ## Permissions
 
@@ -76,8 +71,8 @@ Which rules run: without `strict`, the check runs `schema`, `orphan-listeners`, 
 | `pull-requests: write` | Posting and updating the comment. |
 
 !!! warning "Fork PRs can't comment"
-    On pull requests from forks, `GITHUB_TOKEN` is read-only, so the comment step fails and takes the job with it. Set `comment-on-pr: "false"` for workflows that run on fork PRs, and read the result from the job log.
+    On fork PRs `GITHUB_TOKEN` is read-only, so the comment step fails the job. Set `comment-on-pr: "false"` there and read the job log.
 
 ## What the comment contains
 
-The comment starts with `# Laravel Loom`, the diff summary line, then the markdown output of `loom:check` (or `All checks passed.`). When the diff found changes, the diff sits below it in a collapsed "Architectural diff" block. Later pushes edit the comment in place. Formats are shown in [Check rules and output formats](check-rules-and-formats.md#markdown).
+The comment holds the diff summary, the [markdown output](check-rules-and-formats.md#markdown) of `loom:check`, and any diff in a collapsed block. Later pushes edit it in place.

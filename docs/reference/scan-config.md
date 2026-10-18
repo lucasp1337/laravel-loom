@@ -1,6 +1,6 @@
 # Scan configuration
 
-Keys under `scan` in `config/loom.php` decide which directories `loom:scan` walks. Publish the file to change them:
+The `scan` keys of `config/loom.php` decide what `loom:scan` reads. Publish the file to change them:
 
 ```bash
 php artisan vendor:publish --tag=loom-config
@@ -16,18 +16,18 @@ php artisan vendor:publish --tag=loom-config
 | `scan.paths` | `['app']` | Directories `loom:scan` walks, relative to the project root. A `*` matches within one path segment (`Modules/*`). Paths outside the project root are rejected. See [How directories resolve](#how-directories-resolve). |
 | `scan.route_paths` | `['routes']` | Directories holding route files, relative to the project root. `*` globs are allowed (`Modules/*/routes`). Read for `routes[]` and for dispatches inside route closures; independent of `scan.paths`. |
 | `scan.discover_routes` | `true` | Also read route files loaded from a statically resolvable path: `loadRoutesFrom()`, `Route::group()` with a file path and the `withRouting()` paths in `bootstrap/app.php`. `false` reads only `scan.route_paths`; `loom:scan --no-discover-routes` does the same for one run. See [Route files](#route-files). |
-| `scan.route_macros` | `[]` | Router macros that register routes, mapped to the router method they behave like: `['softDeletableResource' => 'resource']`. A listed macro is read as that method; any other `Route::<unknown>()` call is reported in `unresolved_routes`. Methods: get, post, put, patch, delete, options, any, match, resource, apiResource, singleton, apiSingleton, view, redirect, permanentRedirect, fallback. |
+| `scan.route_macros` | `[]` | Router macros that register routes, each mapped to the router method it is read as: `['softDeletableResource' => 'resource']`. Other unknown router calls are listed in `unresolved_routes`. |
 | `scan.psr4_paths` | `false` | Also scan every directory in `composer.json`'s `autoload.psr-4`. `autoload-dev` is not included. |
 | `scan.composer_files` | `[]` | composer.json files, as globs relative to the project root (`plugins/*/composer.json`), whose `autoload.psr-4` maps are read for class lookup and whose directories are scanned. Files listed in the root composer.json's `extra.merge-plugin.include` are read for class lookup without being listed here. |
-| `scan.ast_cache_mb` | `null` | Megabytes of parsed PHP source kept so each file is parsed once per scan instead of once per scanner. `null` sizes it from `memory_limit` (at most 8); `0` turns the cache off. Memory use is about 10 to 15 times this. |
+| `scan.ast_cache_mb` | `null` | Megabytes of parsed source cached during a scan. `null` sizes it from `memory_limit` (at most 8); `0` turns the cache off. |
 | `scan.exclude` | `[]` | Globs relative to the project root. A match removes the file, or everything under the matching directory, from every scanner. See [Exclude globs](#exclude-globs). |
 <!-- /generated:config:scan -->
 
-`loom:scan --path=DIR` replaces `scan.paths` for one run and `--route-path=DIR` replaces `scan.route_paths`; `scan.psr4_paths` and `scan.exclude` still apply. `--no-discover-routes` turns off route-file discovery for the run.
+[`loom:scan`](commands.md#loomscan) options override some keys for one run.
 
 ## How directories resolve
 
-Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under every entry of `scan.paths`. Everything else (dispatch sites, `$listen` arrays, observers, `Schedule::` calls, `Console/Kernel.php`) is found anywhere under a scan directory. Directories that don't exist are ignored; if none exist, `loom:scan` exits `1`.
+Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; if none exist, `loom:scan` exits `1`.
 
 | Layout | `scan.paths` |
 | --- | --- |
@@ -39,47 +39,18 @@ Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notification
 
 ## Route files
 
-Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` is on, every file these calls load by a statically resolvable path:
+Loom reads the files under `scan.route_paths` and, while `scan.discover_routes` is on, every file loaded by a statically resolvable path from `loadRoutesFrom()`, `Route::group()`, `withRouting()`, `withCommands()` or `require`. Paths built from literals, `__DIR__`, `dirname()`, `base_path()` and `app_path()` resolve, and a loaded file's routes inherit the group around the loading call. The [route examples](detection/routes.md) show each form. A path that can't be followed is counted in the scan summary, and `loom:scan -v` lists it with one of these reasons:
 
-| Call | Path argument |
-| --- | --- |
-| `$this->loadRoutesFrom($path)` in a service provider | `$path` |
-| `Route::group($attributes, $path)` and `Route::...->group($path)` | `$path`, or an array of paths |
-| `->withRouting(web:, api:, commands:)` in `bootstrap/app.php` | a path, or for `web` and `api` an array of paths |
-| `->withCommands([...])` | file entries; directories are skipped |
-| `require` / `include` inside a route group closure, or at the top of a route file | the path expression |
+- `path is not statically resolvable`: built from a variable, method call or config value
+- `relative path depends on the working directory`: no `__DIR__` or `base_path()`
+- `path is outside the project root`
+- `no such file`
 
-Paths resolve when built from string literals, `.` concatenation, `__DIR__`, `DIRECTORY_SEPARATOR`, `dirname()`, `base_path()` and `app_path()` (assuming `app/`). A discovered file is searched for further loading calls. Loom looks for these calls in the files under `scan.paths`, the route files, `bootstrap/app.php`, and the providers in `bootstrap/providers.php` and `config/app.php`, so a module provider outside `scan.paths` is still found when the app registers it.
-
-The final set is `scan.route_paths` plus discovered files, minus `scan.exclude`. A path that cannot be followed is never dropped silently: the summary line counts it, and `loom:scan -v` lists each one under "Route paths not followed" as `file:line  call: reason`.
-
-| Reason | Meaning |
-| --- | --- |
-| `path is not statically resolvable` | The expression uses a variable, a method call, a config value or another runtime value. |
-| `relative path depends on the working directory` | A path such as `'routes/x.php'` with no `__DIR__` or `base_path()`. |
-| `path is outside the project root` | The file is not under the project root. |
-| `no such file` | The path resolves but names no file. |
-
-Fix the first two by building the path from `__DIR__` or `base_path()` with literals, or add the directory to `scan.route_paths`.
-
-### Group attributes of the loading call
-
-A loaded file's routes inherit the group around the loading call:
-
-| Loading call | Applied to the file's routes |
-| --- | --- |
-| `Route::middleware('web')->prefix('shop')->name('shop.')->group($path)` | prefix `shop`, name prefix `shop.`, middleware `web` |
-| `Route::group(['prefix' => 'x', 'as' => 'x.', 'middleware' => 'auth'], $path)` | the same three attributes |
-| `$this->loadRoutesFrom($path)` inside a `Route::...->group(function () {...})` | the attributes of that group |
-| `withRouting(web: $path)` | middleware `web` |
-| `withRouting(api: $path)` | middleware `api` and prefix `api`, or the literal `apiPrefix:` |
-| `Route::controller(C::class)->group($path)` | default controller for bare method-name actions |
-
-`loadRoutesFrom()` on its own adds nothing. Groups inside the loaded file nest inside the loading group, and a file that loads another passes the combined attributes on. A file loaded from two places is read once per loading group and can appear under two prefixes. Middleware is recorded by name, so `web` and `api` are not expanded; `domain`, `where` and `namespace` of the loading group are not recorded. An attribute that is not a literal (`->prefix($prefix)`, `->middleware($list)`) is not guessed: the file is still read and its routes carry the attributes that did resolve, and `unresolved_routes` lists these as `dynamic_group_attribute`. With `scan.discover_routes` off no loading call is followed, so no group is applied.
+Build the path from `__DIR__` or `base_path()` with literals, or add its directory to `scan.route_paths`.
 
 ## Locating classes
 
-When a dispatch names a class outside a convention directory, Loom finds its file through the `autoload.psr-4` map in `composer.json`, resolved the way [Composer](https://getcomposer.org/doc/04-schema.md#psr-4) resolves it. With no `composer.json` or no `psr-4` entry, `App\` is assumed to map to `app/`. A located file must be inside a scan directory and not excluded, otherwise the class is dropped.
+A dispatched class outside a convention directory is found through the [`autoload.psr-4`](https://getcomposer.org/doc/04-schema.md#psr-4) map in `composer.json`, or `App\` → `app/` without one. The file must be inside a scan directory and not excluded.
 
 ## Exclude globs
 
@@ -90,4 +61,4 @@ When a dispatch names a class outside a convention directory, Loom finds its fil
 | `**/Fakes` | Any `Fakes` directory at any depth |
 | `app/**/*.generated.php` | Generated files at any depth under `app/` |
 
-`*` and `?` never cross a `/`; `**` does. Matching is case-sensitive. Excludes also apply to route files, `routes/console.php` and `bootstrap/app.php`.
+`*` and `?` never cross a `/`; `**` does. Matching is case-sensitive and also applies to route files and `bootstrap/app.php`.

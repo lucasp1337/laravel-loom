@@ -87,6 +87,18 @@ it('keeps every page within its word budget', function (): void {
     expect([...$problems, ...$stale])->toBe([], 'Hand-written words: '.$counts->sum().' of '.array_sum(WordBudget::PAGES));
 });
 
+it('finds code first only right after the title or a one-line lead', function (string $content, bool $opens): void {
+    expect((new HandWrittenPage('docs/guides/x.md', $content))->opensWithCode())->toBe($opens);
+})->with([
+    'fence after the title' => ["# X\n\n```bash\nx\n```\n", true],
+    'fence after a one-line lead' => ["# X\n\nLead.\n\n```bash\nx\n```\n", true],
+    'generated fence after a lead' => ["# X\n\nLead.\n\n<!-- generated:output:scan -->\n<!-- note -->\n\n```text\nx\n```\n<!-- /generated:output:scan -->\n", true],
+    'collapsible example' => ["# X\n\n??? example \"Y\"\n\n    ```php\n    x\n    ```\n", true],
+    'two-line lead' => ["# X\n\nLead one\nline two.\n\n```bash\nx\n```\n", false],
+    'heading before the code' => ["# X\n\nLead.\n\n## Y\n\n```bash\nx\n```\n", false],
+    'no code' => ["# X\n\nLead.\n", false],
+]);
+
 it('follows the outline of its page kind', function (): void {
     $problems = collect(guardedPages())->filter(static fn (HandWrittenPage $page): bool => $page->kind() !== null)->flatMap(static function (HandWrittenPage $page): array {
         $outline = $page->kind()->outline();
@@ -108,6 +120,9 @@ it('follows the outline of its page kind', function (): void {
         }
         if ($outline->lead && ($page->lead() === null || str_starts_with($page->lead(), '#'))) {
             $problems[] = 'needs a lead paragraph under the H1';
+        }
+        if ($outline->code && ! $page->opensWithCode()) {
+            $problems[] = 'must open with code, after at most a one-line lead';
         }
         if ($outline->generated && ! str_contains($page->markdown, '<!-- generated:')) {
             $problems[] = 'needs a generated region';

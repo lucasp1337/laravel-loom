@@ -25,12 +25,9 @@ return [
         // for one run.
         'discover_routes' => true,
 
-        // Router macros that register routes, mapped to the router method they
-        // behave like: `['softDeletableResource' => 'resource']`. A listed macro
-        // is read as that method; any other `Route::<unknown>()` call is
-        // reported in `unresolved_routes`. Methods: get, post, put, patch,
-        // delete, options, any, match, resource, apiResource, singleton,
-        // apiSingleton, view, redirect, permanentRedirect, fallback.
+        // Router macros that register routes, each mapped to the router method
+        // it is read as: `['softDeletableResource' => 'resource']`. Other
+        // unknown router calls are listed in `unresolved_routes`.
         'route_macros' => [],
 
         // Also scan every directory in `composer.json`'s `autoload.psr-4`.
@@ -44,10 +41,8 @@ return [
         // class lookup without being listed here.
         'composer_files' => [],
 
-        // Megabytes of parsed PHP source kept so each file is parsed once per
-        // scan instead of once per scanner. `null` sizes it from
-        // `memory_limit` (at most 8); `0` turns the cache off. Memory use is
-        // about 10 to 15 times this.
+        // Megabytes of parsed source cached during a scan. `null` sizes it from
+        // `memory_limit` (at most 8); `0` turns the cache off.
         'ast_cache_mb' => null,
 
         // Globs relative to the project root. A match removes the file, or
