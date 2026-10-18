@@ -2,6 +2,8 @@
 
 Each page shows the code shapes Loom reads for one primitive, and the ones it does not. Every example is scanned by the test suite, and the comment at the end of a line is what the index holds for that line:
 
+<!-- illustrative -->
+
 ```php
 public function handle(OrderPlaced $event): void {} // → listeners[SendReceipt].handles.event OrderPlaced
 event($name); // ✗ dynamic_class_name

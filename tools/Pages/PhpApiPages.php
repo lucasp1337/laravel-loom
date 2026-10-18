@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Tools\Pages;
 
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Lucasp\Loom\Tools\Reference\ApiClasses;
 use Lucasp\Loom\Tools\Reference\ApiSnippet;
 use Lucasp\Loom\Tools\Reference\ApiSnippetRunner;
 use Lucasp\Loom\Tools\Regions\GeneratedRegion;
 use Lucasp\Loom\Tools\Regions\Region;
 use Lucasp\Loom\Tools\SourceContext;
 use ReflectionClass;
-use RuntimeException;
-use SplFileInfo;
 
 /**
  * The PHP API page: the quickstart snippets with the output they print
@@ -23,8 +21,6 @@ use SplFileInfo;
  */
 final class PhpApiPages implements RegionSource
 {
-    private const NAMESPACE = 'Lucasp\\Loom\\';
-
     public function __construct(private readonly SourceContext $context) {}
 
     public function regions(): array
@@ -49,7 +45,7 @@ final class PhpApiPages implements RegionSource
     /** One table per namespace of the `@api` classes under src/. */
     private function classes(): string
     {
-        return $this->apiClasses()
+        return ApiClasses::api($this->context->root)
             ->groupBy(static fn (ReflectionClass $class): string => $class->getNamespaceName())
             ->sortKeys()
             ->map(static fn (Collection $classes, string $namespace): string => "### `{$namespace}`\n\n".Markdown::table(
@@ -60,18 +56,6 @@ final class PhpApiPages implements RegionSource
                 ])->all()),
             ))
             ->implode("\n\n");
-    }
-
-    /** @return Collection<int, ReflectionClass<object>> sorted by name */
-    private function apiClasses(): Collection
-    {
-        return collect((new Filesystem)->allFiles($this->context->root.'/src'))
-            ->filter(static fn (SplFileInfo $file): bool => str_contains((string) file_get_contents($file->getPathname()), '@api'))
-            ->map(static fn (SplFileInfo $file): string => self::NAMESPACE.str_replace('/', '\\', Str::of($file->getPathname())->after('/src/')->beforeLast('.php')->value()))
-            ->map(static fn (string $class): ReflectionClass => class_exists($class) ? new ReflectionClass($class) : throw new RuntimeException("{$class} does not autoload"))
-            ->filter(static fn (ReflectionClass $class): bool => preg_match('/^\s*\*\s*@api\b/m', (string) $class->getDocComment()) === 1)
-            ->sortBy(static fn (ReflectionClass $class): string => $class->getName())
-            ->values();
     }
 
     /** First sentence of a docblock's first paragraph, `{@see X}` as code. */

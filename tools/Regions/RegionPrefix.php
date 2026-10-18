@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Tools\Regions;
 
-/** Families of regions named `prefix:key`, one per schema section, shape, tool group, command or example primitive. */
+/** Families of regions named `prefix:key`, one per schema section, shape, tool group, command, example primitive or output sample. */
 enum RegionPrefix: string
 {
     case SchemaSection = 'schema';
@@ -12,4 +12,5 @@ enum RegionPrefix: string
     case McpGroup = 'mcp';
     case Command = 'command';
     case Examples = 'examples';
+    case Output = 'output';
 }
