@@ -30,6 +30,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 ### Fixed
 
 - Observer hook resolution honours `scan.paths` and `scan.exclude` when following parent classes and traits.
+- `loom_version` and the MCP server version report `0.4.0` instead of `0.3.0`; a test keeps them in step with the latest changelog release.
 
 ## [0.4.0](https://github.com/lucasp1337/laravel-loom/compare/v0.3.0...v0.4.0) - 2026-10-10
 

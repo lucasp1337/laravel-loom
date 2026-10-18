@@ -14,7 +14,7 @@ it('produces an empty index that validates against the schema', function () {
     expect($builder->validate($payload))->toBe([]);
     expect($payload)
         ->toHaveKeys(['loom_version', 'scanned_at', 'laravel_version', 'stats', 'events', 'listeners', 'observers', 'model_events', 'jobs', 'unresolved_dispatches', 'closure_listeners', 'scheduled_tasks', 'mailables', 'notifications', 'routes'])
-        ->and($payload['loom_version'])->toBe('0.3.0')
+        ->and($payload['loom_version'])->toBe('0.4.0')
         ->and($payload['closure_listeners'])->toBe([])
         ->and($payload['jobs'])->toBe([])
         ->and($payload['scheduled_tasks'])->toBe([])
@@ -61,4 +61,17 @@ it('stamps the current schema_version and rejects absolute file paths', function
 
     $payload['events'][0]['file'] = 'app/A.php';
     expect($builder->validate($payload))->toBe([]);
+});
+
+it('reports the latest released changelog version as loom_version', function () {
+    $changelog = (string) file_get_contents(dirname(__DIR__, 2).'/CHANGELOG.md');
+
+    // First "## [x.y.z]" heading; "## [Unreleased]" does not match.
+    preg_match('/^## \[(\d+\.\d+\.\d+)\]/m', $changelog, $matches);
+
+    expect($matches[1] ?? null)->toBeString('CHANGELOG.md has no released "## [x.y.z]" heading.')
+        ->and(IndexBuilder::LOOM_VERSION)->toBe(
+            $matches[1] ?? null,
+            'IndexBuilder::LOOM_VERSION does not match the latest CHANGELOG.md release; bump the constant when releasing.',
+        );
 });
