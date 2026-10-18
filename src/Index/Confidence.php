@@ -11,9 +11,18 @@ namespace Lucasp\Loom\Index;
  *
  * @api
  */
-enum Confidence: string
+enum Confidence: string implements Summarized
 {
     case HIGH = 'high';
     case MEDIUM = 'medium';
     case LOW = 'low';
+
+    public function summary(): string
+    {
+        return match ($this) {
+            self::HIGH => 'the target is resolved in the handler method itself.',
+            self::MEDIUM => 'the call sits in a helper method the handler reaches (see `via`).',
+            self::LOW => 'reserved; not emitted today.',
+        };
+    }
 }

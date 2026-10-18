@@ -7,7 +7,7 @@ namespace Lucasp\Loom\Index;
 use JsonException;
 
 /**
- * Hydrates an {@see Index} from a Loom index JSON document — the inverse of
+ * Hydrates an {@see Index} from a Loom index JSON document, the inverse of
  * {@see Index::toArray()}. This is the supported entry point for library
  * consumers (UI, MCP server, custom tooling) that read a previously written
  * `index.json` rather than running a scan in-process. Consumers read the

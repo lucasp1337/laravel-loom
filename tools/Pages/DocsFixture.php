@@ -71,6 +71,14 @@ final class DocsFixture
         return ['text' => (string) $response->content(), 'error' => $response->isError()];
     }
 
+    /** Path of the written fixture index, valid while this fixture lives. */
+    public function indexPath(): string
+    {
+        $this->boot();
+
+        return $this->snapshot ?? throw new RuntimeException('The docs fixture index was not written');
+    }
+
     /**
      * Input schema of a tool, as an MCP client sees it.
      *

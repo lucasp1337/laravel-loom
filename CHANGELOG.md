@@ -14,6 +14,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - Schedule: `Schedule` properties and helper methods called from `schedule()`, `Artisan::command()->freq()`, `at()` as `dailyAt`, enclosing `if`/`elseif`/`else` recorded as constraints; unreadable `schedule()` bodies and unreachable helpers listed under skipped files.
 - `unresolved_dispatches` reasons say why: `string_event_name`, `closure_job`, `view_mail`, `call_result`, `stored_target`, `relative_class_name`, `unsupported_expression` for dispatch targets, and `unreadable_event_name`, `untyped_closure_listener`, `unreadable_subscriber` for registrations; `parent::hook()` is reported instead of skipped.
 - Docs: "What Loom detects" pages generated from a tested example corpus (`docs/examples/`), one per primitive, replacing the hand-written detection and unread-forms pages ([#161](https://github.com/lucasp1337/laravel-loom/issues/161)).
+- Docs: schema enums list each value with its meaning, field descriptions are one sentence, and the PHP API page is a tested quickstart plus a generated `@api` class list ([#161](https://github.com/lucasp1337/laravel-loom/issues/161)).
 - `queue_config.after_commit`: `ShouldQueueAfterCommit`, `$afterCommit`, `afterCommit()` / `beforeCommit()` in the constructor.
 - `scan.ast_cache_mb` sizes the shared parse cache (`null` from the memory limit, `0` off).
 - `scan.composer_files` and merge-plugin includes; `loom:scan` prints scanned counts and warns about nested composer PSR-4 directories outside the scan paths.

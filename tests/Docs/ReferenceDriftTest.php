@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Laravel\Mcp\Server\Attributes\Name;
 use Lucasp\Loom\Index\DispatchMode;
-use Lucasp\Loom\Index\UnresolvedReason;
 use Lucasp\Loom\Mcp\LoomMcpServer;
 use Lucasp\Loom\Mcp\Tools\EventsFollowingTool;
 use Lucasp\Loom\Mcp\Tools\EventsFromMethodTool;
@@ -76,6 +75,7 @@ function referencePageNames(): array
         'docs/reference/scan-config.md',
         'docs/reference/ui-config.md',
         'docs/reference/commands.md',
+        'docs/reference/php-api.md',
     ];
 }
 
@@ -332,10 +332,34 @@ it('documents every route-path reason the scan command can print', function (): 
     expect($missing)->toBe([]);
 });
 
-it('keeps the schema reason description equal to the reason summaries', function (): void {
+it('renders no <br> on any generated page', function (): void {
+    $pages = array_keys(array_filter(
+        (new ReferencePages(referenceRoot()))->render(),
+        static fn (string $content): bool => str_contains(referenceProse($content), '<br>'),
+    ));
+
+    expect($pages)->toBe([]);
+});
+
+it('keeps every schema field description to one sentence', function (): void {
     $schema = json_decode((string) file_get_contents(referenceRoot().'/schema/loom-index.schema.json'), true);
+    $long = [];
 
-    $expected = collect(UnresolvedReason::cases())->map(fn (UnresolvedReason $reason): string => "`{$reason->value}`: {$reason->summary()}")->implode("\n");
+    $walk = static function (array $node, string $path) use (&$walk, &$long): void {
+        foreach ($node['properties'] ?? [] as $field => $property) {
+            // Outside code spans, a line break or a period followed by more text starts a second sentence.
+            $text = (string) preg_replace('/`[^`]*`/', 'x', (string) ($property['description'] ?? ''));
+            if (preg_match('/\R|[.!?]\s+\S/', $text) === 1) {
+                $long[] = "{$path}.{$field}";
+            }
+        }
+        foreach ($node as $key => $value) {
+            if (is_array($value)) {
+                $walk($value, is_string($key) && $key !== 'properties' ? "{$path}/{$key}" : $path);
+            }
+        }
+    };
+    $walk($schema, '');
 
-    expect($schema['$defs']['unresolvedDispatch']['properties']['reason']['description'])->toBe($expected);
+    expect($long)->toBe([]);
 });

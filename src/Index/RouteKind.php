@@ -10,14 +10,18 @@ namespace Lucasp\Loom\Index;
  *
  * @internal
  */
-enum RouteKind: string
+enum RouteKind: string implements Summarized
 {
-    /** `Route::view()`. */
     case VIEW = 'view';
-
-    /** `Route::redirect()` / `Route::permanentRedirect()`. */
     case REDIRECT = 'redirect';
-
-    /** `Route::fallback()`. */
     case FALLBACK = 'fallback';
+
+    public function summary(): string
+    {
+        return match ($this) {
+            self::VIEW => '`Route::view()`.',
+            self::REDIRECT => '`Route::redirect()` or `Route::permanentRedirect()`.',
+            self::FALLBACK => '`Route::fallback()`.',
+        };
+    }
 }

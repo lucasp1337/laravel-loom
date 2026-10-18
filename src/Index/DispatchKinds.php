@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index;
 
 /**
- * Dispatch-kind tags on `_dispatch_sites[].provisionalKind` and the
- * cross-linked `kind` field. `AMBIGUOUS` is the pre-disambiguation
- * marker for `X::dispatch()` (Dispatchable trait); the cross-link
- * pass resolves it to `EVENT` or `JOB` before any phase reads the kind.
+ * The kind of a dispatch target, on `dispatches[*].kind`.
+ *
+ * Also tags `_dispatch_sites[].provisionalKind`: `AMBIGUOUS` marks
+ * `X::dispatch()` (Dispatchable trait) until the cross-link pass resolves it
+ * to `EVENT` or `JOB`, before any phase reads the kind.
  *
  * @api
  */
