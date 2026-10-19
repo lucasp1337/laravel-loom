@@ -17,6 +17,7 @@ namespace Lucasp\Loom\Index;
 enum UnresolvedReason: string implements Summarized
 {
     case DYNAMIC_CLASS_NAME = 'dynamic_class_name';
+    case DYNAMIC_METHOD_NAME = 'dynamic_method_name';
     case CONTAINER_RESOLUTION = 'container_resolution';
     case STRING_CONCATENATION = 'string_concatenation';
     case CONDITIONAL_DISPATCH = 'conditional_dispatch';
@@ -40,13 +41,14 @@ enum UnresolvedReason: string implements Summarized
     {
         return match ($this) {
             self::DYNAMIC_CLASS_NAME => 'the target is a variable, or `new $class` / `$class::dispatch()`.',
+            self::DYNAMIC_METHOD_NAME => 'a dispatching facade called with a variable method name (`Bus::$method($job)`), so the call it makes is unknown.',
             self::CONTAINER_RESOLUTION => 'the target comes from `app()`, `resolve()` or `->make()`.',
             self::STRING_CONCATENATION => 'the target is built by concatenation or interpolation.',
             self::CONDITIONAL_DISPATCH => 'a ternary or `match` whose branches cannot be evaluated.',
             self::DYNAMIC_LIST => 'a list of dispatch targets built at runtime (a variable, a spread, a collection).',
             self::STRING_EVENT_NAME => 'the event is a string literal such as `\'service.installed\'`, not a class.',
             self::CLOSURE_JOB => 'a closure is dispatched as a job, so no class names it.',
-            self::VIEW_MAIL => 'a mail sent from a view name or array and a closure, so there is no mailable class.',
+            self::VIEW_MAIL => 'a mail built from a view, an array, raw text or HTML (`Mail::send(\'view\', ...)`, `Mail::raw()`), so there is no mailable class.',
             self::CALL_RESULT => 'the target is what a method, static or function call returns.',
             self::STORED_TARGET => 'the target is read from a property, an array element or a constant.',
             self::RELATIVE_CLASS_NAME => '`self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read.',

@@ -21,7 +21,9 @@ class OrderController
 
         Mail::send($mailable); // ✗ dynamic_class_name
         Mail::send('emails.welcome', $data, fn ($message) => $message->to('a@example.com')); // ✗ view_mail
-        Mail::raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
-        Mail::html('<p>Shipped</p>', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
+        Mail::raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+        Mail::html('<p>Shipped</p>', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+        Mail::plain('emails.shipped', $data, fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+        Mail::mailer('ses')->raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
     }
 }

@@ -60,7 +60,7 @@ final class EventDispatchSiteVisitor extends CollectingVisitor
             DispatchTarget::PENDING_ARGUMENT => $this->resolveClassName(ClassRef::fromInstanceOrConstant($call->args()->valueAt($rule->argIndex))),
             // `X::dispatch(...)`: the class itself
             DispatchTarget::STATIC_CLASS => $this->resolveClassName($call->className()),
-            DispatchTarget::ARGUMENT, DispatchTarget::LIST_ITEMS => null,
+            DispatchTarget::ARGUMENT, DispatchTarget::LIST_ITEMS, DispatchTarget::VIEW_MAIL => null,
         };
 
         if ($fqcn !== null) {

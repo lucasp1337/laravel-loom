@@ -34,4 +34,7 @@ enum DispatchTarget
 
     /** The class the static call is made on (`Job::dispatch()`). */
     case STATIC_CLASS;
+
+    /** No class at all (`Mail::raw($text, $cb)`): always an unresolved `view_mail`. */
+    case VIEW_MAIL;
 }

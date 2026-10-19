@@ -312,7 +312,8 @@
             $this->app['events']->listen(OrderShipped::class, [SendReceipt::class, 'onContainer']); // → listeners[SendReceipt].handles.method onContainer
             app(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onHelper']); // → listeners[SendReceipt].handles.method onHelper
             resolve(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onResolve']); // → listeners[SendReceipt].handles.method onResolve
-            app('events')->listen(OrderShipped::class, [SendReceipt::class, 'onAppString']); // ✗ not recorded
+            app('events')->listen(OrderShipped::class, [SendReceipt::class, 'onAppString']); // → listeners[SendReceipt].handles.method onAppString
+            resolve('events')->listen(OrderShipped::class, [SendReceipt::class, 'onResolveString']); // → listeners[SendReceipt].handles.method onResolveString
 
             $events = $this->app->make(Dispatcher::class);
             $events->listen(OrderShipped::class, [SendReceipt::class, 'onVariable']); // → listeners[SendReceipt].handles.method onVariable
@@ -340,6 +341,8 @@
         public function onResolve(object $event): void {}
 
         public function onAppString(object $event): void {}
+
+        public function onResolveString(object $event): void {}
 
         public function onVariable(object $event): void {}
     }

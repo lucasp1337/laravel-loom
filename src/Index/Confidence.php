@@ -22,7 +22,7 @@ enum Confidence: string implements Summarized
         return match ($this) {
             self::HIGH => 'the target is resolved in the handler method itself.',
             self::MEDIUM => 'the call sits in a helper method the handler reaches (see `via`).',
-            self::LOW => 'reserved; not emitted today.',
+            self::LOW => 'a caller passes the class to a method that dispatches `new $param` or `$param`; the site is the call.',
         };
     }
 }

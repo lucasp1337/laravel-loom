@@ -33,6 +33,8 @@ class OrderController
         Queue::later(60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
         Queue::laterOn('orders', 60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
         Queue::bulk([new ProcessOrder]); // → jobs[ProcessOrder].dispatched_from.mode push
+        Queue::push('App\Jobs\ProcessOrder@handle'); // → jobs[ProcessOrder].dispatched_from.mode push
+        Queue::push('App\Support\SyncInventory@fire'); // ✗ class_not_found
         Queue::pushRaw('{"job":"x"}'); // ✗ not recorded
     }
 }

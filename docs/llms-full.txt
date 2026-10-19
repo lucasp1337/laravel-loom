@@ -2211,13 +2211,14 @@ Dispatch sites and listener or model-hook registrations that could not be resolv
 | Value | Meaning |
 | --- | --- |
 | `dynamic_class_name` | The target is a variable, or `new $class` / `$class::dispatch()`. |
+| `dynamic_method_name` | A dispatching facade called with a variable method name (`Bus::$method($job)`), so the call it makes is unknown. |
 | `container_resolution` | The target comes from `app()`, `resolve()` or `->make()`. |
 | `string_concatenation` | The target is built by concatenation or interpolation. |
 | `conditional_dispatch` | A ternary or `match` whose branches cannot be evaluated. |
 | `dynamic_list` | A list of dispatch targets built at runtime (a variable, a spread, a collection). |
 | `string_event_name` | The event is a string literal such as `'service.installed'`, not a class. |
 | `closure_job` | A closure is dispatched as a job, so no class names it. |
-| `view_mail` | A mail sent from a view name or array and a closure, so there is no mailable class. |
+| `view_mail` | A mail built from a view, an array, raw text or HTML (`Mail::send('view', ...)`, `Mail::raw()`), so there is no mailable class. |
 | `call_result` | The target is what a method, static or function call returns. |
 | `stored_target` | The target is read from a property, an array element or a constant. |
 | `relative_class_name` | `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read. |
@@ -2460,7 +2461,7 @@ A resolved dispatch made from a class method or closure.
 | --- | --- |
 | `high` | The target is resolved in the handler method itself. |
 | `medium` | The call sits in a helper method the handler reaches (see `via`). |
-| `low` | Reserved; not emitted today. |
+| `low` | A caller passes the class to a method that dispatches `new $param` or `$param`; the site is the call. |
 
 ## Determinism
 
@@ -2768,6 +2769,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 | Reason | Shown on |
 | --- | --- |
 | `dynamic_class_name` | [Dispatches](dispatches.md), [Mailables](mailables.md) |
+| `dynamic_method_name` | [Dispatches](dispatches.md) |
 | `container_resolution` | [Dispatches](dispatches.md) |
 | `string_concatenation` | [Dispatches](dispatches.md) |
 | `conditional_dispatch` | [Dispatches](dispatches.md) |
@@ -3219,7 +3221,8 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
             $this->app['events']->listen(OrderShipped::class, [SendReceipt::class, 'onContainer']); // → listeners[SendReceipt].handles.method onContainer
             app(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onHelper']); // → listeners[SendReceipt].handles.method onHelper
             resolve(Dispatcher::class)->listen(OrderShipped::class, [SendReceipt::class, 'onResolve']); // → listeners[SendReceipt].handles.method onResolve
-            app('events')->listen(OrderShipped::class, [SendReceipt::class, 'onAppString']); // ✗ not recorded
+            app('events')->listen(OrderShipped::class, [SendReceipt::class, 'onAppString']); // → listeners[SendReceipt].handles.method onAppString
+            resolve('events')->listen(OrderShipped::class, [SendReceipt::class, 'onResolveString']); // → listeners[SendReceipt].handles.method onResolveString
 
             $events = $this->app->make(Dispatcher::class);
             $events->listen(OrderShipped::class, [SendReceipt::class, 'onVariable']); // → listeners[SendReceipt].handles.method onVariable
@@ -3247,6 +3250,8 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
         public function onResolve(object $event): void {}
 
         public function onAppString(object $event): void {}
+
+        public function onResolveString(object $event): void {}
 
         public function onVariable(object $event): void {}
     }
@@ -4016,6 +4021,30 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     class ShipOrder {}
     ```
 
+??? example "Facade calls with a variable method name"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\Bus;
+
+    class OrderController
+    {
+        public function store(bool $sync, string $method): void
+        {
+            $call = 'dispatchSync';
+            Bus::$call(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode sync
+            Bus::{'dispatch'}(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            Bus::{'dispatchIf'}(true, new ProcessOrder); // ✗ not recorded
+
+            Bus::$method(new ProcessOrder); // ✗ dynamic_method_name
+            $mode = $sync ? 'dispatchSync' : 'dispatch';
+            Bus::$mode(new ProcessOrder); // ✗ dynamic_method_name
+        }
+    }
+    ```
+
 ??? example "Dispatches reached through helper methods"
 
     ```php title="app/Listeners/BaseListener.php"
@@ -4110,6 +4139,8 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
             Queue::later(60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
             Queue::laterOn('orders', 60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
             Queue::bulk([new ProcessOrder]); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::push('App\Jobs\ProcessOrder@handle'); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::push('App\Support\SyncInventory@fire'); // ✗ class_not_found
             Queue::pushRaw('{"job":"x"}'); // ✗ not recorded
         }
     }
@@ -4167,7 +4198,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
             ProcessOrder::dispatch()->onQueue('high')->onConnection('redis'); // → jobs[ProcessOrder].dispatched_from.overrides {"queue":"high","connection":"redis"}
             dispatch(new ProcessOrder)->delay(60)->afterCommit(); // → jobs[ProcessOrder].dispatched_from.overrides {"delay":60,"after_commit":true}
             Mail::to('a@example.com')->locale('es')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.locale es
-            Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides null
+            Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
             Mail::to('a@example.com')->send((new OrderReceipt)->mailer('postmark')); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
 
             ProcessOrder::dispatch()->delay(now()->addMinutes(5)); // → jobs[ProcessOrder].dispatched_from.overrides null
@@ -4176,6 +4207,89 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
             $job = new ProcessOrder;
             $job->onQueue('high');
             dispatch($job); // → jobs[ProcessOrder].dispatched_from.overrides null
+        }
+    }
+    ```
+
+??? example "Classes passed to a method that dispatches its parameter"
+
+    ```php title="app/Services/Messenger.php"
+    namespace App\Services;
+
+    use Illuminate\Support\Facades\Mail;
+
+    class Messenger implements Sends
+    {
+        public function mail(string $mailClass, string $to): void
+        {
+            Mail::to($to)->send(new $mailClass); // ✗ dynamic_class_name
+        }
+
+        public function fire(object $event): void
+        {
+            event($event); // ✗ dynamic_class_name
+        }
+
+        public function reuse(string $mailClass): void
+        {
+            $mailClass = $mailClass.'Mail';
+            Mail::send(new $mailClass); // ✗ dynamic_class_name
+        }
+    }
+    ```
+
+    ```php title="app/Services/Sends.php"
+    namespace App\Services;
+
+    interface Sends
+    {
+        public function mail(string $mailClass, string $to): void;
+    }
+    ```
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderPlaced;
+    use App\Jobs\ProcessOrder;
+    use App\Mail\OrderReceipt;
+    use App\Services\Messenger;
+    use App\Services\Sends;
+
+    class OrderController
+    {
+        public function __construct(private Messenger $messenger, private Sends $sends) {}
+
+        public function store(Messenger $messenger, object $anything): void
+        {
+            app(Messenger::class)->mail(mailClass: OrderReceipt::class, to: 'a@example.com'); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            $this->messenger->mail(OrderReceipt::class, 'a@example.com'); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            $messenger->fire(new OrderPlaced); // → events[OrderPlaced].dispatched_from.method OrderController::store
+            $this->queue(ProcessOrder::class); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            $messenger->reuse(OrderReceipt::class); // ✗ not recorded
+            $messenger->fire($anything); // ✗ not recorded
+            $this->sends->mail(OrderReceipt::class, 'a@example.com'); // ✗ not recorded
+        }
+
+        private function queue(string $job): void
+        {
+            $job::dispatch(); // ✗ dynamic_class_name
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Mail\OrderReceipt;
+    use App\Services\Messenger;
+
+    class SendReceipt
+    {
+        public function handle(OrderPlaced $event): void
+        {
+            (new Messenger)->mail(OrderReceipt::class, 'a@example.com'); // → listeners[SendReceipt].dispatches.confidence low
         }
     }
     ```
@@ -4377,8 +4491,10 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 
             Mail::send($mailable); // ✗ dynamic_class_name
             Mail::send('emails.welcome', $data, fn ($message) => $message->to('a@example.com')); // ✗ view_mail
-            Mail::raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
-            Mail::html('<p>Shipped</p>', fn ($message) => $message->to('a@example.com')); // ✗ not recorded
+            Mail::raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+            Mail::html('<p>Shipped</p>', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+            Mail::plain('emails.shipped', $data, fn ($message) => $message->to('a@example.com')); // ✗ view_mail
+            Mail::mailer('ses')->raw('Shipped', fn ($message) => $message->to('a@example.com')); // ✗ view_mail
         }
     }
     ```

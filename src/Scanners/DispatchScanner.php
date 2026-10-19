@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Scanners;
 
 use Lucasp\Loom\Contracts\Scanner;
+use Lucasp\Loom\Dto\ClassArgumentCall;
 use Lucasp\Loom\Dto\DispatchesEventsMapping;
 use Lucasp\Loom\Dto\DispatchSiteRecord;
 use Lucasp\Loom\Dto\MethodCallEdge;
+use Lucasp\Loom\Dto\ParamDispatchRecord;
 use Lucasp\Loom\Dto\UnresolvedDispatchEntry;
+use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchForm;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Scanners\Visitors\DispatchesEventsVisitor;
 use Lucasp\Loom\Scanners\Visitors\DispatchSiteVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
+use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\Fqcn;
 use Lucasp\Loom\Support\RouteFileDiscovery;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -42,6 +46,12 @@ use Lucasp\Loom\Support\ScanScope;
  * `static::m()`) as a caller/callee pair per class; the cross-link pass walks
  * them so a dispatch in a helper is also attributed to the handler methods
  * that reach it (see DispatchAttributionPhase).
+ *
+ * A dispatch on a parameter of its method (`new $mailClass`) stays unresolved,
+ * and each call that passes a class for that parameter on a receiver of known
+ * class (`app(MailService::class)->send(WelcomeMail::class)`) becomes a site at
+ * the call with confidence `low`. The called method is looked up through
+ * parents and traits.
  *
  * A target that cannot be resolved is emitted as an unresolved dispatch with a
  * reason: `dynamic_class_name` (a variable), `string_concatenation` (concat or
@@ -86,6 +96,11 @@ final class DispatchScanner implements Scanner
         /** @var array<string, MethodCallEdge> $edges */
         $edges = [];
 
+        /** @var list<ParamDispatchRecord> $paramDispatches */
+        $paramDispatches = [];
+        /** @var list<ClassArgumentCall> $classArgumentCalls */
+        $classArgumentCalls = [];
+
         $seen = [];
         foreach ([...$this->scanFiles($appRoot), ...$this->routeFiles($appRoot)] as $file) {
             if (isset($seen[$file->getPathname()])) {
@@ -102,6 +117,14 @@ final class DispatchScanner implements Scanner
             foreach ($visitor->getSites() as $site) {
                 $site->file = $relative;
                 $sites[] = $site;
+            }
+
+            foreach ($visitor->getParamDispatches() as $dispatch) {
+                $paramDispatches[] = $dispatch;
+            }
+            foreach ($visitor->getClassArgumentCalls() as $call) {
+                $call->file = $relative;
+                $classArgumentCalls[] = $call;
             }
 
             foreach ($visitor->getCallEdges() as $edge) {
@@ -122,6 +145,8 @@ final class DispatchScanner implements Scanner
             }
         }
 
+        $sites = [...$sites, ...$this->callerSites($appRoot, $paramDispatches, $classArgumentCalls)];
+
         $unresolved = array_values(collect($unresolved)->sort(fn (UnresolvedDispatchEntry $a, UnresolvedDispatchEntry $b): int => [$a->file, $a->line] <=> [$b->file, $b->line])->all());
         $sites = array_values(collect($sites)->sort(fn (DispatchSiteRecord $a, DispatchSiteRecord $b): int => [$a->file, $a->line, $a->target] <=> [$b->file, $b->line, $b->target])->all());
 
@@ -130,6 +155,64 @@ final class DispatchScanner implements Scanner
             '_dispatch_sites' => $sites,
             '_method_calls' => array_values(collect($edges)->sortKeys()->all()),
         ];
+    }
+
+    /**
+     * One site per call that passes a class for a dispatched parameter, at the call.
+     *
+     * @param  list<ParamDispatchRecord>  $paramDispatches
+     * @param  list<ClassArgumentCall>  $calls
+     * @return list<DispatchSiteRecord>
+     */
+    private function callerSites(string $appRoot, array $paramDispatches, array $calls): array
+    {
+        if ($paramDispatches === [] || $calls === []) {
+            return [];
+        }
+
+        $byMethod = collect($paramDispatches)->groupBy(fn (ParamDispatchRecord $dispatch): string => $dispatch->key());
+        $names = collect($paramDispatches)->mapWithKeys(fn (ParamDispatchRecord $dispatch): array => [strtolower($dispatch->method) => true]);
+        $resolver = null;
+        $sites = [];
+
+        foreach ($calls as $call) {
+            // No dispatching method has this name: nothing to look up
+            if (! $names->has(strtolower($call->method))) {
+                continue;
+            }
+
+            // The receiver's own method first; the hierarchy index is built only for a parent or trait method
+            $key = ParamDispatchRecord::keyOf($call->receiverClass, $call->method);
+            if (! $byMethod->has($key)) {
+                $resolver ??= new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
+                $method = $resolver->effectiveMethods($call->receiverClass)[strtolower($call->method)] ?? null;
+                $key = ParamDispatchRecord::keyOf($method->definedIn ?? $call->receiverClass, $call->method);
+            }
+
+            foreach ($byMethod->get($key, []) as $dispatch) {
+                $target = $call->argumentFor($dispatch->position, $dispatch->parameter);
+                if ($target === null) {
+                    continue;
+                }
+
+                $sites[] = new DispatchSiteRecord(
+                    classFqcn: $call->callerClass,
+                    method: $call->callerMethod,
+                    target: $target,
+                    form: $dispatch->form,
+                    provisionalKind: $dispatch->kind,
+                    file: $call->file,
+                    line: $call->line,
+                    confidence: Confidence::LOW->value,
+                    overrides: $dispatch->overrides,
+                    mode: $dispatch->mode,
+                    inClosure: $call->inClosure,
+                    expression: $call->expression,
+                );
+            }
+        }
+
+        return $sites;
     }
 
     /** A `$dispatchesEvents` entry is an event dispatched by the model on that hook. */
