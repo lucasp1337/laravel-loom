@@ -68,7 +68,11 @@ final class McpCommand extends Command
         $repository->scanWith($scanOptions);
 
         // Silent: anything on stdout before the server starts would corrupt the JSON-RPC stream.
-        if ($this->option('scan') && $this->callSilently('loom:scan', $scanOptions) !== self::SUCCESS) {
+        // The auto-scan runs now, so a failed scan stops here instead of failing every tool call.
+        $scanned = $this->option('scan')
+            ? $this->callSilently('loom:scan', $scanOptions) === self::SUCCESS
+            : $repository->scanIfMissing();
+        if (! $scanned) {
             $this->components->error('loom:scan failed; not starting the MCP server.');
 
             return self::FAILURE;

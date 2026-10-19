@@ -20,8 +20,14 @@ class Kernel extends ConsoleKernel
         (new BillingTasks)->register($schedule);
         BillingTasks::nightly($schedule);
 
+        (new CleanupTasks)->register($schedule);
+
         if (app()->isProduction()) {
             app(CleanupTasks::class)->register($schedule);
+        }
+
+        if (config('cleanup.staging')) {
+            resolve(CleanupTasks::class)->register($schedule);
         }
 
         $this->reports->register($schedule); // ✗ not recorded
@@ -61,7 +67,7 @@ class CleanupTasks
 {
     public function register(Schedule $schedule): void
     {
-        $schedule->command('logs:prune')->weekly(); // → scheduled_tasks.constraints if(app()->isProduction())
+        $schedule->command('logs:prune')->weekly(); // → scheduled_tasks.constraints [] → scheduled_tasks.constraints ["if(app()->isProduction())"] → scheduled_tasks.constraints ["if(config('cleanup.staging'))"]
     }
 }
 

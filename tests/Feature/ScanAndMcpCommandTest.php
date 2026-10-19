@@ -70,3 +70,24 @@ it('passes --allow-empty to the auto-scan', function () {
     expect($repository->payload())->toBeArray()
         ->and(is_file($dir.'/index.json'))->toBeTrue();
 });
+
+it('does not serve when the auto-scan finds no PHP files and --allow-empty is not set', function () {
+    $dir = loomTempDir();
+    config()->set('loom.index_path', $dir.'/index.json');
+    app()->forgetInstance(IndexRepository::class);
+
+    $this->artisan('loom:mcp')
+        ->expectsOutputToContain('loom:scan failed')
+        ->assertExitCode(1);
+
+    expect(is_file($dir.'/index.json'))->toBeFalse();
+});
+
+it('auto-scans at startup with --allow-empty', function () {
+    $dir = loomTempDir();
+    config()->set('loom.index_path', $dir.'/index.json');
+    app()->forgetInstance(IndexRepository::class);
+
+    expect(Artisan::call('loom:mcp', ['--allow-empty' => true], new BufferedOutput))->toBe(0)
+        ->and(is_file($dir.'/index.json'))->toBeTrue();
+});

@@ -46,8 +46,11 @@ use Lucasp\Loom\Support\ScanScope;
  * and `config/app.php` list, inside or outside the scan paths. A kernel or
  * bootstrap schedule that hands the Schedule to another class's method (see
  * {@see ScheduleChainVisitor}) is followed into that method, located through
- * PSR-4 anywhere in the app root, and on through further handoffs; its tasks
- * count as kernel-form tasks and inherit the `if` guards around each call. A
+ * PSR-4 anywhere in the app root, and on through further handoffs. Each call
+ * site is followed on its own, as each call registers the tasks again: its
+ * tasks count as kernel-form tasks and inherit the `if` guards around that
+ * call. A handoff back into a method already on the call path is not
+ * followed, and the path stops at {@see self::MAX_HANDOFF_DEPTH} calls. A
  * handoff whose class cannot be read or located, or whose method the class
  * does not declare, is reported as a skipped file.
  *
@@ -109,7 +112,10 @@ final class ScheduleScanner implements Scanner
 
     private Psr4ClassLocator $locator;
 
-    /** @var list<array{handoff: ScheduleHandoff, from: string}> handoffs to follow, with the absolute file of each call */
+    /** Longest chain of handoffs followed from one kernel or bootstrap schedule. */
+    private const MAX_HANDOFF_DEPTH = 8;
+
+    /** @var list<array{handoff: ScheduleHandoff, from: string, path: list<string>}> handoffs to follow, with the absolute file of each call and the callees above it */
     private array $handoffs = [];
 
     public function __construct(?AstWalker $walker = null, ?ScanScope $scope = null, ?Psr4ClassLocator $locator = null)
@@ -124,29 +130,21 @@ final class ScheduleScanner implements Scanner
      */
     public function scan(string $appRoot): array
     {
-        /** @var array<string, ScheduledEntry> $entries keyed by file|line|kind|target */
+        /** @var array<string, ScheduledEntry> $entries keyed by file|line|kind|target|constraints */
         $entries = [];
+        /** @var array<string, true> $claimed file|line|kind|target of kernel-form tasks, which the facade form defers to */
+        $claimed = [];
         $this->handoffs = [];
 
-        foreach ($this->discoverKernelForm($appRoot) as $entry) {
-            $entries[$this->dedupeKey($entry)] = $entry;
+        foreach ([...$this->discoverKernelForm($appRoot), ...$this->discoverBootstrapForm($appRoot), ...$this->followHandoffs($appRoot)] as $entry) {
+            $entries[$this->dedupeKey($entry).'|'.Arr::join($entry->constraints, ',')] = $entry;
+            $claimed[$this->dedupeKey($entry)] = true;
         }
-        foreach ($this->discoverBootstrapForm($appRoot) as $entry) {
-            $entries[$this->dedupeKey($entry)] = $entry;
-        }
-        foreach ($this->followHandoffs($appRoot) as $entry) {
-            $entries[$this->dedupeKey($entry)] = $entry;
-        }
-        foreach ($this->discoverConsoleRoutesForm($appRoot) as $entry) {
+        foreach ([...$this->discoverConsoleRoutesForm($appRoot), ...$this->discoverFacadeForm($appRoot)] as $entry) {
             $key = $this->dedupeKey($entry);
-            if (! isset($entries[$key])) {
+            if (! isset($claimed[$key])) {
                 $entries[$key] = $entry;
-            }
-        }
-        foreach ($this->discoverFacadeForm($appRoot) as $entry) {
-            $key = $this->dedupeKey($entry);
-            if (! isset($entries[$key])) {
-                $entries[$key] = $entry;
+                $claimed[$key] = true;
             }
         }
 
@@ -248,36 +246,43 @@ final class ScheduleScanner implements Scanner
         return $entries;
     }
 
-    /** @param  list<string>  $outerGuards  guards around the call that reached this file */
-    private function queueHandoffs(ScheduleChainVisitor $visitor, string $file, array $outerGuards = []): void
+    /**
+     * @param  list<string>  $outerGuards  guards around the call that reached this file
+     * @param  list<string>  $path  callee keys from the kernel or bootstrap down to this file
+     */
+    private function queueHandoffs(ScheduleChainVisitor $visitor, string $file, array $outerGuards = [], array $path = []): void
     {
         foreach ($visitor->getHandoffs() as $handoff) {
-            $this->handoffs[] = ['handoff' => $handoff->withOuterGuards($outerGuards), 'from' => $file];
+            $this->handoffs[] = ['handoff' => $handoff->withOuterGuards($outerGuards), 'from' => $file, 'path' => $path];
         }
     }
 
     /**
-     * Read each method the Schedule was handed to, once per method, queueing
-     * the handoffs found there in turn.
+     * Read the method each call site hands the Schedule to, queueing the
+     * handoffs found there in turn.
      *
      * @return list<ScheduledEntry>
      */
     private function followHandoffs(string $appRoot): array
     {
         $entries = [];
-        $seen = [];
 
         for ($i = 0; $i < count($this->handoffs); $i++) {
-            ['handoff' => $handoff, 'from' => $from] = $this->handoffs[$i];
+            ['handoff' => $handoff, 'from' => $from, 'path' => $path] = $this->handoffs[$i];
             if (! $handoff->isFollowable()) {
                 $this->walker->recordSkip($from, $handoff->line, 'The Schedule is passed to a call whose class cannot be read; the tasks it registers are not read');
 
                 continue;
             }
-            if (isset($seen[$handoff->key()])) {
+            // A method already on the call path: recursion registers nothing new.
+            if (collect($path)->containsStrict($handoff->key())) {
                 continue;
             }
-            $seen[$handoff->key()] = true;
+            if (count($path) >= self::MAX_HANDOFF_DEPTH) {
+                $this->walker->recordSkip($from, $handoff->line, 'The Schedule is handed on more than '.self::MAX_HANDOFF_DEPTH.' times; the tasks registered further down are not read');
+
+                continue;
+            }
 
             $file = $this->locator->locate($appRoot, (string) $handoff->class);
             if ($file === null || AppPath::relative($appRoot, $file) === null || $this->scope()->isExcluded($appRoot, $file)) {
@@ -297,7 +302,7 @@ final class ScheduleScanner implements Scanner
             }
 
             $this->noteUnreadScope($visitor, $file, followed: true);
-            $this->queueHandoffs($visitor, $file, $handoff->guards);
+            $this->queueHandoffs($visitor, $file, $handoff->guards, [...$path, $handoff->key()]);
             foreach ($this->translate($visitor->getEntries(), $this->relativePath($appRoot, $file), $handoff->guards) as $entry) {
                 $entries[] = $entry;
             }

@@ -49,7 +49,7 @@ A skipped file is skipped by every scanner and doesn't change the exit code.
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Index written, with or without skipped files |
-| `1` | A scan path is invalid, or the scan directories hold no PHP files and `--allow-empty` is not set, or the index failed schema validation, or the output could not be written. Nothing is written. |
+| `1` | A scan path is invalid, the scan directories hold no PHP files without `--allow-empty`, the index failed schema validation, or the output could not be written. Nothing is written. |
 
 ## loom:show
 
@@ -132,6 +132,6 @@ Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio that
 | `--allow-empty` | Pass `--allow-empty` to `loom:scan` when this command scans. |
 <!-- /generated:command:loom:mcp -->
 
-Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false` or the server isn't registered.
+Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false`, the scan before serving fails or the server isn't registered.
 
 Every config key is in [Index, UI and MCP configuration](ui-config.md) and [Scan configuration](scan-config.md).

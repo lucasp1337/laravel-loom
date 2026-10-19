@@ -75,6 +75,55 @@ it('reports a Schedule helper that schedule() never calls', function () {
     expect($notes->first()->message)->toContain('never called from schedule()');
 });
 
+it('stops a handoff that calls back into a method on its call path', function () {
+    $root = sys_get_temp_dir().'/loom-handoff-'.bin2hex(random_bytes(6));
+    $files = new Filesystem;
+    $files->ensureDirectoryExists($root.'/app/Console');
+    $files->put($root.'/app/Console/Kernel.php', <<<'PHP'
+        <?php
+        namespace App\Console;
+        use Illuminate\Console\Scheduling\Schedule;
+        class Kernel
+        {
+            protected function schedule(Schedule $schedule): void
+            {
+                Ping::a($schedule);
+            }
+        }
+        PHP);
+    $files->put($root.'/app/Console/Ping.php', <<<'PHP'
+        <?php
+        namespace App\Console;
+        use Illuminate\Console\Scheduling\Schedule;
+        class Ping
+        {
+            public static function a(Schedule $schedule): void
+            {
+                $schedule->command('ping:a')->hourly();
+                Pong::b($schedule);
+            }
+        }
+        PHP);
+    $files->put($root.'/app/Console/Pong.php', <<<'PHP'
+        <?php
+        namespace App\Console;
+        use Illuminate\Console\Scheduling\Schedule;
+        class Pong
+        {
+            public static function b(Schedule $schedule): void
+            {
+                $schedule->command('pong:b')->daily();
+                Ping::a($schedule);
+            }
+        }
+        PHP);
+
+    $tasks = (new ScheduleScanner)->scan($root)['scheduled_tasks'];
+    $files->deleteDirectory($root);
+
+    expect(collect($tasks)->map(fn (ScheduledEntry $e): ?string => $e->target)->all())->toBe(['ping:a', 'pong:b']);
+});
+
 it('reports a Schedule handed to a method it cannot follow', function () {
     $root = sys_get_temp_dir().'/loom-handoff-'.bin2hex(random_bytes(6));
     $files = new Filesystem;

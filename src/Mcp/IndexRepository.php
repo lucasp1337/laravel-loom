@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Mcp;
 
+use Illuminate\Console\Command;
 use Illuminate\Contracts\Console\Kernel as Artisan;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\IndexLoader;
@@ -67,13 +68,20 @@ final class IndexRepository extends SnapshotIndexSource
         return parent::payload();
     }
 
-    private function ensureExists(): void
+    /** Runs the auto-scan when it is due; false when that `loom:scan` failed. */
+    public function scanIfMissing(): bool
     {
         if (! $this->autoScan || $this->scanned || $this->isAvailable()) {
-            return;
+            return true;
         }
 
         $this->scanned = true;
-        $this->artisan->call('loom:scan', $this->scanOptions);
+
+        return $this->artisan->call('loom:scan', $this->scanOptions) === Command::SUCCESS;
+    }
+
+    private function ensureExists(): void
+    {
+        $this->scanIfMissing();
     }
 }
