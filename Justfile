@@ -113,7 +113,7 @@ demo-gif:
     docker run --rm --network container:loom-demo {{as_host}} -v $(pwd)/tools/Demo:/demo:ro -v "$frames":/out {{playwright}} \
         sh -c "python -m pip install -q --user --no-warn-script-location --disable-pip-version-check playwright==1.48.0 && python /demo/record.py http://127.0.0.1:8080 /out"
     docker run --rm {{as_host}} -v "$frames":/frames -w /frames {{ffmpeg}} -v error -y -f concat -i frames.txt \
-        -vf "fps=10,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 demo.gif
+        -vf "fps=10,split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 demo.gif
     mkdir -p docs/assets
     cp "$frames/demo.gif" docs/assets/demo.gif
     echo "docs/assets/demo.gif: $(du -k docs/assets/demo.gif | cut -f1) KB (budget enforced by tests/Docs/DemoAssetsTest.php)"

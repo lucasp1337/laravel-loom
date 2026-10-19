@@ -62,7 +62,7 @@ wait_for_server()
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
-    page = browser.new_page(viewport={"width": 1200, "height": 600}, color_scheme="light")
+    page = browser.new_page(viewport={"width": 1920, "height": 1080}, color_scheme="light")
 
     page.goto(f"{BASE}/loom/routes")
     shot(page, 2.5)
