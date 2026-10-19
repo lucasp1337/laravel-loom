@@ -11,3 +11,4 @@ Key references:
 - `CONTRIBUTING.md` — toolchain, Docker workflow, docs rules
 - `.claude/skills/verify`, `.claude/skills/change-schema` — check and schema-change procedures
 - `.claude/agents/ast-specialist.md` — AST and visitor rules
+- `.claude/agents/issue-worker.md` — implement one GitHub issue end to end, through to an open PR

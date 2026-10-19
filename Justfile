@@ -3,7 +3,12 @@
 # on their host PHP can still run the toolchain.
 
 image := "laravel-loom-dev:latest"
-docker_run := "docker run --rm -v $(pwd):/app " + image
+# Containers run as the host user so nothing they write in the repo is root-owned.
+as_host := "--user $(id -u):$(id -g) -e HOME=/tmp"
+docker_run := "docker run --rm " + as_host + " -v $(pwd):/app " + image
+# Zensical in a throwaway venv under /tmp, writable by the host user.
+zensical := "python -m venv /tmp/venv && /tmp/venv/bin/pip install -q zensical==0.0.69 && /tmp/venv/bin/zensical"
+docs_serve := "-p 8000:8000 " + as_host + " -v $(pwd):/docs -w /docs python:3.13-slim sh -c \"" + zensical + " serve --dev-addr 0.0.0.0:8000\""
 
 # Default recipe: list every available task.
 default:
@@ -65,11 +70,11 @@ bench-baseline:
 
 # Regenerate tests/Fixtures/mcp-golden.json; review the diff.
 golden:
-    docker run --rm -e LOOM_UPDATE_GOLDEN=1 -v $(pwd):/app {{image}} vendor/bin/pest tests/Feature/Mcp/CharacterizationTest.php
+    docker run --rm {{as_host}} -e LOOM_UPDATE_GOLDEN=1 -v $(pwd):/app {{image}} vendor/bin/pest tests/Feature/Mcp/CharacterizationTest.php
 
 # Open an interactive shell in the container.
 shell:
-    docker run --rm -it -v $(pwd):/app {{image}} sh
+    docker run --rm -it {{as_host}} -v $(pwd):/app {{image}} sh
 
 # Regenerate the generated regions of the docs (between <!-- generated:NAME --> markers).
 docs-generate:
@@ -81,16 +86,24 @@ docs-check:
 
 # Serve the docs site locally with live reload at http://localhost:8000.
 docs-serve: docs-generate
-    docker run --rm -it -p 8000:8000 -v $(pwd):/docs -w /docs python:3.13-slim sh -c "pip install -q zensical==0.0.69 && zensical serve --dev-addr 0.0.0.0:8000"
+    docker run --rm -it {{docs_serve}}
+
+# Serve the docs in the background as container `loom-docs`; stop with `just docs-stop`.
+docs-serve-bg: docs-generate
+    docker run --rm -d --name loom-docs {{docs_serve}}
+
+# Stop the background docs server.
+docs-stop:
+    docker stop loom-docs
 
 # Strict site build from a scratch copy of docs/, overrides/, mkdocs.yml; the repo is mounted read-only.
 docs-build: docs-check
-    docker run --rm -v $(pwd):/src:ro python:3.13-slim sh -c "pip install -q zensical==0.0.69 && mkdir /work && cp -r /src/docs /src/overrides /src/mkdocs.yml /work/ && cd /work && zensical build --clean --strict"
+    docker run --rm {{as_host}} -v $(pwd):/src:ro python:3.13-slim sh -c "mkdir /tmp/work && cp -r /src/docs /src/overrides /src/mkdocs.yml /tmp/work/ && cd /tmp/work && {{zensical}} build --clean --strict"
 
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
 #   just scan /path/to/laravel/app
 scan target:
-    docker run --rm \
+    docker run --rm {{as_host}} \
         -v $(pwd):/app \
         -v {{target}}:/target:ro \
         {{image}} \
@@ -109,7 +122,7 @@ scan target:
 # Scan an arbitrary Laravel app and write the full index to stdout.
 #   just scan-json /path/to/laravel/app > index.json
 scan-json target:
-    @docker run --rm \
+    @docker run --rm {{as_host}} \
         -v $(pwd):/app \
         -v {{target}}:/target:ro \
         {{image}} \
