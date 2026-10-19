@@ -16,6 +16,12 @@
     class Order extends Model
     {
         protected $observables = ['archived', 'shipped'];
+
+        public function __construct(array $attributes = [])
+        {
+            parent::__construct($attributes);
+            $this->addObservableEvents('refunded'); // ✗ not recorded
+        }
     }
     ```
 

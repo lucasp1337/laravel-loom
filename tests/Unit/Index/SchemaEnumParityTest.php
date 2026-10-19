@@ -6,6 +6,7 @@ use Lucasp\Loom\Index\Confidence;
 use Lucasp\Loom\Index\DispatchMode;
 use Lucasp\Loom\Index\FrequencyUnit;
 use Lucasp\Loom\Index\ListenerRegistration;
+use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\UnresolvedReason;
@@ -33,6 +34,8 @@ it('keeps schema enums in step with their PHP enums', function (): void {
     $pairs = [
         'listener.registration' => [$defs['listener']['properties']['registration']['enum'], enumValues(ListenerRegistration::class)],
         'observer.registration' => [$defs['observer']['properties']['registration']['enum'], enumValues(ObserverRegistration::class)],
+        'observer.hooks' => [$defs['observer']['properties']['hooks']['items']['anyOf'][0]['enum'], ModelHook::observableValues()],
+        'modelEvent.event' => [$defs['modelEvent']['properties']['event']['anyOf'][0]['enum'], enumValues(ModelHook::class)],
         'dispatch.confidence' => [$defs['dispatch']['properties']['confidence']['enum'], enumValues(Confidence::class)],
         'dispatchSite.mode' => [$defs['dispatchSite']['properties']['mode']['enum'], enumValues(DispatchMode::class)],
         'scheduleEntry.kind' => [$defs['scheduleEntry']['properties']['kind']['enum'], enumValues(ScheduleKind::class)],

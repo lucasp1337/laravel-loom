@@ -96,8 +96,12 @@ Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent
 | `id` | string | `eloquent.{event}: {model FQCN}`. |
 | `kind` | one of `model_event` | Always `model_event`. |
 | `model` | string | FQCN of the model. |
-| `event` | string | Eloquent hook name (`booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings), or a custom event the model lists in `$observables`. |
+| `event` | [enum](#model_eventsevent) or string | Eloquent hook name (`booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings), or a custom event the model lists in `$observables`. |
 | `handled_by` | array of object | Observers and `Event::listen` targets that handle this model event, deduplicated. |
+
+### `model_events[].event`
+
+`retrieved`, `creating`, `created`, `updating`, `updated`, `saving`, `saved`, `deleting`, `deleted`, `restoring`, `restored`, `replicating`, `trashed`, `forceDeleting`, `forceDeleted`, `booting`, `booted`.
 
 ### `model_events[].handled_by[]`
 
@@ -160,7 +164,7 @@ Observer classes. One observer registered against N models gives N entries.
 | `line` | integer ≥ 1 | 1-indexed declaration line. |
 | `observes` | string | FQCN of the observed model. |
 | `registration` | [enum](#observersregistration) | How the observer was registered; when several registrations find a pair, the first value in the list wins. |
-| `hooks` | array of string | Observable model events the observer has a method for, sorted: the Eloquent events except `booting` and `booted`, plus the model's `$observables`. |
+| `hooks` | array of [enum](#observershooks) or string | Observable model events the observer has a method for, sorted: the Eloquent events except `booting` and `booted`, plus the model's `$observables`. |
 | `dispatches` | array of [dispatch](#dispatch) | Dispatches made from the observer's hook methods. |
 
 ### `observers[].registration`
@@ -170,6 +174,10 @@ Observer classes. One observer registered against N models gives N entries.
 | `attribute` | An `#[ObservedBy]` attribute on the model. |
 | `observers_array` | The `$observers` property of an EventServiceProvider. |
 | `observe_call` | `Model::observe(Observer::class)`, including `static::observe()` in `booted()`. |
+
+### `observers[].hooks`
+
+Same values as [`model_events[].event`](#model_eventsevent) without `booting`, `booted`.
 <!-- /generated:schema:observers -->
 
 <!-- generated:schema:jobs -->

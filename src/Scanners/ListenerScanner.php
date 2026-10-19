@@ -593,11 +593,12 @@ final class ListenerScanner implements Scanner
      * Whether the dispatcher defers the listener until the open transaction
      * commits: a sync listener through `ShouldHandleEventsAfterCommit`, a
      * queued one through `ShouldQueueAfterCommit`, either through a literal
-     * `$afterCommit = true`.
+     * `$afterCommit = true` (only the property default for a queued one, which
+     * is instantiated without its constructor).
      */
     private function runsAfterCommit(ClassHierarchyResolver $resolver, string $fqcn, bool $queued): bool
     {
-        return $resolver->queueConfig($fqcn, interfaceWinsOverFalse: true)->afterCommit === true
+        return $resolver->queueConfig($fqcn, interfaceWinsOverFalse: true, readsConstructor: ! $queued)->afterCommit === true
             || (! $queued && $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_HANDLE_EVENTS_AFTER_COMMIT->value));
     }
 

@@ -288,8 +288,10 @@ final class ClassHierarchyResolver
      * it is after-commit, except that a job may opt out with a literal `false`
      * (`$interfaceWinsOverFalse` is set for mailables, notifications and
      * listeners, whose queued wrapper takes the interface as `true` without looking at the property).
+     * `$readsConstructor` is off for a queued listener, which the dispatcher
+     * instantiates without its constructor.
      */
-    public function queueConfig(string $fqcn, bool $interfaceWinsOverFalse = false): QueueConfigData
+    public function queueConfig(string $fqcn, bool $interfaceWinsOverFalse = false, bool $readsConstructor = true): QueueConfigData
     {
         $fqcn = Fqcn::normalize($fqcn);
         $this->ensureIndexed();
@@ -300,7 +302,7 @@ final class ClassHierarchyResolver
         $constructors = [];
         /** @var list<QueueConfigData> $properties most derived first */
         $properties = [];
-        $constructing = true;
+        $constructing = $readsConstructor;
 
         foreach ($chain as $class) {
             $decl = $this->index[$class] ?? null;

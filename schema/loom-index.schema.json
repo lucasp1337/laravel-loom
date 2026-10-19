@@ -168,7 +168,10 @@
                     "description": "FQCN of the model."
                 },
                 "event": {
-                    "type": "string",
+                    "anyOf": [
+                        { "enum": ["retrieved", "creating", "created", "updating", "updated", "saving", "saved", "deleting", "deleted", "restoring", "restored", "replicating", "trashed", "forceDeleting", "forceDeleted", "booting", "booted"] },
+                        { "type": "string" }
+                    ],
                     "description": "Eloquent hook name (`booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings), or a custom event the model lists in `$observables`."
                 },
                 "handled_by": {
@@ -287,7 +290,12 @@
                 },
                 "hooks": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                        "anyOf": [
+                            { "enum": ["retrieved", "creating", "created", "updating", "updated", "saving", "saved", "deleting", "deleted", "restoring", "restored", "replicating", "trashed", "forceDeleting", "forceDeleted"] },
+                            { "type": "string" }
+                        ]
+                    },
                     "description": "Observable model events the observer has a method for, sorted: the Eloquent events except `booting` and `booted`, plus the model's `$observables`."
                 },
                 "dispatches": {

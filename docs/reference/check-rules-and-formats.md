@@ -27,7 +27,7 @@ Both read finished index files and need no source tree. Arguments and options ar
 | `--baseline=PATH` | Fails on any unresolved dispatch not in the baseline. |
 | `--strict` | Fails on every unresolved dispatch, whatever the baseline says. |
 
-Baseline entries match by file, line and expression, so moved code looks new; see the [recipe](../recipes/new-unresolved-dispatches.md).
+Entries with reason `handled_event_not_indexed` never fail. Baseline entries match by file, line and expression, so moved code looks new; see the [recipe](../recipes/new-unresolved-dispatches.md).
 
 ### Cycle detection
 

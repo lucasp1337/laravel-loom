@@ -11,12 +11,14 @@ use Lucasp\Loom\Check\Result\Violation;
 use Lucasp\Loom\Check\RuleKey;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Sections;
+use Lucasp\Loom\Index\UnresolvedReason;
 
 /**
  * Gates unresolved dispatches. In strict mode any unresolved dispatch fails;
  * otherwise, with a baseline, only dispatches absent from the baseline (newly
  * introduced) fail. Without a baseline and without strict mode, growth cannot
- * be determined, so nothing fails.
+ * be determined, so nothing fails. Informational reasons
+ * ({@see UnresolvedReason::isInformational()}) never fail.
  *
  * @internal
  */
@@ -39,7 +41,10 @@ final class UnresolvedDispatchesRule implements CheckRule
      */
     public function check(CheckContext $context): array
     {
-        $entries = $context->section(Sections::UNRESOLVED_DISPATCHES);
+        $entries = array_values(Arr::where(
+            $context->section(Sections::UNRESOLVED_DISPATCHES),
+            fn (array $entry): bool => UnresolvedReason::tryFrom($this->string($entry[Field::REASON->value] ?? null))?->isInformational() !== true,
+        ));
 
         // Neither strict nor a baseline: growth cannot be determined, nothing fails.
         if (! $context->strict() && ! $context->hasBaseline()) {

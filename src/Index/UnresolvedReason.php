@@ -38,6 +38,19 @@ enum UnresolvedReason: string implements Summarized
     case UNREADABLE_MODEL_HOOK = 'unreadable_model_hook';
     case HANDLED_EVENT_NOT_INDEXED = 'handled_event_not_indexed';
 
+    /**
+     * Whether the entry only informs: the code is readable but a link is
+     * missing, so `loom:check` does not gate on it.
+     */
+    public function isInformational(): bool
+    {
+        return match ($this) {
+            // the listener is read; only the event row is absent
+            self::HANDLED_EVENT_NOT_INDEXED => true,
+            default => false,
+        };
+    }
+
     public function summary(): string
     {
         return match ($this) {
