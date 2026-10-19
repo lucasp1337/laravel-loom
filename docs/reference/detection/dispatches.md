@@ -276,7 +276,7 @@
 
     use Illuminate\Support\Facades\Mail;
 
-    class Messenger
+    class Messenger implements Sends
     {
         public function mail(string $mailClass, string $to): void
         {
@@ -296,6 +296,15 @@
     }
     ```
 
+    ```php title="app/Services/Sends.php"
+    namespace App\Services;
+
+    interface Sends
+    {
+        public function mail(string $mailClass, string $to): void;
+    }
+    ```
+
     ```php title="app/Http/Controllers/OrderController.php"
     namespace App\Http\Controllers;
 
@@ -303,10 +312,11 @@
     use App\Jobs\ProcessOrder;
     use App\Mail\OrderReceipt;
     use App\Services\Messenger;
+    use App\Services\Sends;
 
     class OrderController
     {
-        public function __construct(private Messenger $messenger) {}
+        public function __construct(private Messenger $messenger, private Sends $sends) {}
 
         public function store(Messenger $messenger, object $anything): void
         {
@@ -316,6 +326,7 @@
             $this->queue(ProcessOrder::class); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
             $messenger->reuse(OrderReceipt::class); // ✗ not recorded
             $messenger->fire($anything); // ✗ not recorded
+            $this->sends->mail(OrderReceipt::class, 'a@example.com'); // ✗ not recorded
         }
 
         private function queue(string $job): void

@@ -2218,7 +2218,7 @@ Dispatch sites and listener or model-hook registrations that could not be resolv
 | `dynamic_list` | A list of dispatch targets built at runtime (a variable, a spread, a collection). |
 | `string_event_name` | The event is a string literal such as `'service.installed'`, not a class. |
 | `closure_job` | A closure is dispatched as a job, so no class names it. |
-| `view_mail` | A mail sent from a view name or array and a closure, so there is no mailable class. |
+| `view_mail` | A mail built from a view, an array, raw text or HTML (`Mail::send('view', ...)`, `Mail::raw()`), so there is no mailable class. |
 | `call_result` | The target is what a method, static or function call returns. |
 | `stored_target` | The target is read from a property, an array element or a constant. |
 | `relative_class_name` | `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read. |
@@ -4218,7 +4218,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 
     use Illuminate\Support\Facades\Mail;
 
-    class Messenger
+    class Messenger implements Sends
     {
         public function mail(string $mailClass, string $to): void
         {
@@ -4238,6 +4238,15 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     }
     ```
 
+    ```php title="app/Services/Sends.php"
+    namespace App\Services;
+
+    interface Sends
+    {
+        public function mail(string $mailClass, string $to): void;
+    }
+    ```
+
     ```php title="app/Http/Controllers/OrderController.php"
     namespace App\Http\Controllers;
 
@@ -4245,10 +4254,11 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     use App\Jobs\ProcessOrder;
     use App\Mail\OrderReceipt;
     use App\Services\Messenger;
+    use App\Services\Sends;
 
     class OrderController
     {
-        public function __construct(private Messenger $messenger) {}
+        public function __construct(private Messenger $messenger, private Sends $sends) {}
 
         public function store(Messenger $messenger, object $anything): void
         {
@@ -4258,6 +4268,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
             $this->queue(ProcessOrder::class); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
             $messenger->reuse(OrderReceipt::class); // ✗ not recorded
             $messenger->fire($anything); // ✗ not recorded
+            $this->sends->mail(OrderReceipt::class, 'a@example.com'); // ✗ not recorded
         }
 
         private function queue(string $job): void

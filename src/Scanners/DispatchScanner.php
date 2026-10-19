@@ -119,7 +119,9 @@ final class DispatchScanner implements Scanner
                 $sites[] = $site;
             }
 
-            $paramDispatches = [...$paramDispatches, ...$visitor->getParamDispatches()];
+            foreach ($visitor->getParamDispatches() as $dispatch) {
+                $paramDispatches[] = $dispatch;
+            }
             foreach ($visitor->getClassArgumentCalls() as $call) {
                 $call->file = $relative;
                 $classArgumentCalls[] = $call;
@@ -169,13 +171,23 @@ final class DispatchScanner implements Scanner
         }
 
         $byMethod = collect($paramDispatches)->groupBy(fn (ParamDispatchRecord $dispatch): string => $dispatch->key());
-        $resolver = new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
+        $names = collect($paramDispatches)->mapWithKeys(fn (ParamDispatchRecord $dispatch): array => [strtolower($dispatch->method) => true]);
+        $resolver = null;
         $sites = [];
 
         foreach ($calls as $call) {
-            // The class whose body holds the called method: the receiver, a parent or a trait
-            $method = $resolver->effectiveMethods($call->receiverClass)[strtolower($call->method)] ?? null;
-            $key = ParamDispatchRecord::keyOf($method->definedIn ?? $call->receiverClass, $call->method);
+            // No dispatching method has this name: nothing to look up
+            if (! $names->has(strtolower($call->method))) {
+                continue;
+            }
+
+            // The receiver's own method first; the hierarchy index is built only for a parent or trait method
+            $key = ParamDispatchRecord::keyOf($call->receiverClass, $call->method);
+            if (! $byMethod->has($key)) {
+                $resolver ??= new ClassHierarchyResolver($appRoot, $this->walker, $this->scope());
+                $method = $resolver->effectiveMethods($call->receiverClass)[strtolower($call->method)] ?? null;
+                $key = ParamDispatchRecord::keyOf($method->definedIn ?? $call->receiverClass, $call->method);
+            }
 
             foreach ($byMethod->get($key, []) as $dispatch) {
                 $target = $call->argumentFor($dispatch->position, $dispatch->parameter);

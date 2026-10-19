@@ -30,7 +30,17 @@ final class LocalAssignments
      */
     private function __construct(private array $values, private array $other, private array $written) {}
 
+    /** @var \WeakMap<Node\FunctionLike, self>|null one result per function node; the shared trees are never mutated */
+    private static ?\WeakMap $cache = null;
+
     public static function of(Node\FunctionLike $function): self
+    {
+        self::$cache ??= new \WeakMap;
+
+        return self::$cache[$function] ??= self::collect($function);
+    }
+
+    private static function collect(Node\FunctionLike $function): self
     {
         $collector = new class extends NodeVisitorAbstract
         {

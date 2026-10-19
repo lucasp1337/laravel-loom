@@ -48,7 +48,7 @@ enum UnresolvedReason: string implements Summarized
             self::DYNAMIC_LIST => 'a list of dispatch targets built at runtime (a variable, a spread, a collection).',
             self::STRING_EVENT_NAME => 'the event is a string literal such as `\'service.installed\'`, not a class.',
             self::CLOSURE_JOB => 'a closure is dispatched as a job, so no class names it.',
-            self::VIEW_MAIL => 'a mail sent from a view name or array and a closure, so there is no mailable class.',
+            self::VIEW_MAIL => 'a mail built from a view, an array, raw text or HTML (`Mail::send(\'view\', ...)`, `Mail::raw()`), so there is no mailable class.',
             self::CALL_RESULT => 'the target is what a method, static or function call returns.',
             self::STORED_TARGET => 'the target is read from a property, an array element or a constant.',
             self::RELATIVE_CLASS_NAME => '`self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read.',

@@ -257,8 +257,11 @@ final class DispatchSiteVisitor extends CollectingVisitor
         }
 
         $arguments = [];
+        $spread = false;
         foreach ($call->args()->all() as $arg) {
-            $target = $arg->unpacked ? null : $this->classRef($arg->value);
+            // After `...$xs` a position no longer names a parameter; named arguments still do
+            $spread = $spread || $arg->unpacked;
+            $target = $arg->unpacked || ($spread && $arg->name === null) ? null : $this->classRef($arg->value);
             if ($target !== null) {
                 $arguments[] = new ClassArgument($arg->position, $arg->name, $target);
             }

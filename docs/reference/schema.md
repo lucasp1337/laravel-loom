@@ -222,7 +222,7 @@ Dispatch sites and listener or model-hook registrations that could not be resolv
 | `dynamic_list` | A list of dispatch targets built at runtime (a variable, a spread, a collection). |
 | `string_event_name` | The event is a string literal such as `'service.installed'`, not a class. |
 | `closure_job` | A closure is dispatched as a job, so no class names it. |
-| `view_mail` | A mail sent from a view name or array and a closure, so there is no mailable class. |
+| `view_mail` | A mail built from a view, an array, raw text or HTML (`Mail::send('view', ...)`, `Mail::raw()`), so there is no mailable class. |
 | `call_result` | The target is what a method, static or function call returns. |
 | `stored_target` | The target is read from a property, an array element or a constant. |
 | `relative_class_name` | `self`, `static` or `parent` in a trait or anonymous class, or `parent` with no parent: there is no class name to read. |
