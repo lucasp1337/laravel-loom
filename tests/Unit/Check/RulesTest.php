@@ -44,7 +44,7 @@ function checkValidIndex(array $overrides = []): array
             'file' => 'app/Listeners/SendMail.php',
             'line' => 8,
             'registration' => 'auto_discovered',
-            'queued' => false,
+            'queued' => false, 'after_commit' => false,
             'handles' => [['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle']],
             'dispatches' => [],
         ]],
@@ -225,12 +225,12 @@ describe('CyclicDispatchRule', function () {
             'listeners' => [
                 [
                     'fqcn' => 'App\\Listeners\\La', 'file' => 'app/La.php', 'line' => 1,
-                    'registration' => 'auto_discovered', 'queued' => false, 'handles' => [],
+                    'registration' => 'auto_discovered', 'queued' => false, 'after_commit' => false, 'handles' => [],
                     'dispatches' => [['target' => 'App\\Events\\B', 'kind' => 'event', 'confidence' => 'high', 'file' => 'app/La.php', 'line' => 2]],
                 ],
                 [
                     'fqcn' => 'App\\Listeners\\Lb', 'file' => 'app/Lb.php', 'line' => 1,
-                    'registration' => 'auto_discovered', 'queued' => false, 'handles' => [],
+                    'registration' => 'auto_discovered', 'queued' => false, 'after_commit' => false, 'handles' => [],
                     'dispatches' => [['target' => 'App\\Events\\A', 'kind' => 'event', 'confidence' => 'high', 'file' => 'app/Lb.php', 'line' => 2]],
                 ],
             ],

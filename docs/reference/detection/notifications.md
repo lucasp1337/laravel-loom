@@ -117,4 +117,30 @@
         }
     }
     ```
+
+??? example "Framework notification parents"
+
+    ```php title="app/Notifications/PasswordReset.php"
+    namespace App\Notifications;
+
+    use Illuminate\Auth\Notifications\ResetPassword;
+
+    class PasswordReset extends ResetPassword {} // → notifications[PasswordReset]
+    ```
+
+    ```php title="app/Notifications/ConfirmEmail.php"
+    namespace App\Notifications;
+
+    use Illuminate\Auth\Notifications\VerifyEmail;
+
+    class ConfirmEmail extends VerifyEmail {} // → notifications[ConfirmEmail].channels []
+    ```
+
+    ```php title="app/Notifications/Formatter.php"
+    namespace App\Notifications;
+
+    use Illuminate\Support\Collection;
+
+    class Formatter extends Collection {} // ✗ not recorded
+    ```
 <!-- /generated:examples:notifications -->

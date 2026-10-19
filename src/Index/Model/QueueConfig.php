@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Index\Model;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Index\Field;
 
 /**
  * Static queue configuration read off a queueable class (job, mailable,
  * notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`,
- * `$backoff`, and whether the class dispatches after the transaction commits.
+ * `$backoff` (an int list for `[10, 60]`), and whether the class dispatches after the transaction commits.
  * Each value is the literal property value, or null when absent; `afterCommit`
  * is true or false when the source settles it, null when only the queue
  * connection's config could.
@@ -24,7 +25,8 @@ final readonly class QueueConfig
         public string|int|null $delay,
         public string|int|null $tries,
         public string|int|null $timeout,
-        public string|int|null $backoff,
+        /** @var string|int|list<int>|null */
+        public string|int|array|null $backoff,
         public ?bool $afterCommit = null,
     ) {}
 
@@ -37,9 +39,20 @@ final readonly class QueueConfig
             delay: self::scalar($data, Field::DELAY),
             tries: self::scalar($data, Field::TRIES),
             timeout: self::scalar($data, Field::TIMEOUT),
-            backoff: self::scalar($data, Field::BACKOFF),
+            backoff: self::backoff($data),
             afterCommit: Hydrate::nullableBool($data, Field::AFTER_COMMIT),
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return string|int|list<int>|null
+     */
+    private static function backoff(array $data): string|int|array|null
+    {
+        $value = $data[Field::BACKOFF->value] ?? null;
+
+        return is_array($value) ? array_values(Arr::where($value, static fn (mixed $seconds): bool => is_int($seconds))) : self::scalar($data, Field::BACKOFF);
     }
 
     /** @param  array<string, mixed>  $data */

@@ -21,7 +21,7 @@ namespace App\Notifications;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 
-class PasswordReset extends ResetPassword {} // ✗ not recorded
+class PasswordReset extends ResetPassword {} // → notifications[PasswordReset].channels []
 
 // app/Notifications/BackupFailed.php
 namespace App\Notifications;

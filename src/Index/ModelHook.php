@@ -59,6 +59,16 @@ enum ModelHook: string
         return $hook?->isObservable() === true ? $hook : null;
     }
 
+    /** The static registrar method that subscribes to this hook, the inverse of {@see self::fromRegistrar()}. */
+    public function registrar(): string
+    {
+        return match ($this) {
+            // SoftDeletes names its `trashed` registrar after the soft delete.
+            self::TRASHED => 'softDeleted',
+            default => $this->value,
+        };
+    }
+
     /** @return list<string> */
     public static function observableValues(): array
     {

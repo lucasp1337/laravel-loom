@@ -286,8 +286,8 @@ final class ClassHierarchyResolver
      *
      * `afterCommit` also follows `ShouldQueueAfterCommit`: a class implementing
      * it is after-commit, except that a job may opt out with a literal `false`
-     * (`$interfaceWinsOverFalse` is set for mailables and notifications, whose
-     * queued wrapper takes the interface as `true` without looking at the property).
+     * (`$interfaceWinsOverFalse` is set for mailables, notifications and
+     * listeners, whose queued wrapper takes the interface as `true` without looking at the property).
      */
     public function queueConfig(string $fqcn, bool $interfaceWinsOverFalse = false): QueueConfigData
     {
@@ -323,18 +323,23 @@ final class ClassHierarchyResolver
         }
 
         $sources = [...$constructors, ...$properties];
-        $pick = static fn (string $key): string|int|bool|null => collect($sources)
-            ->map(static fn (QueueConfigData $data): string|int|bool|null => $data->{$key})
-            ->first(static fn (string|int|bool|null $value): bool => $value !== null);
+        $pick = static fn (string $key): string|int|bool|array|null => collect($sources)
+            ->map(static fn (QueueConfigData $data): string|int|bool|array|null => $data->{$key})
+            ->first(static fn (string|int|bool|array|null $value): bool => $value !== null);
 
+        /** @var array<string, string|int|bool|list<int>|null> $settings */
         $settings = collect(QueueConfig::PROPERTIES)->mapWithKeys(static fn (string $key): array => [$key => $pick($key)])->all();
         $settings['afterCommit'] = $this->afterCommit($fqcn, $settings['afterCommit'], $interfaceWinsOverFalse);
 
         return QueueConfigData::fromSettings($settings);
     }
 
-    /** The class's after-commit setting: the interface and the literal declared, as described on `queueConfig()`. */
-    private function afterCommit(string $fqcn, string|int|bool|null $declared, bool $interfaceWinsOverFalse): ?bool
+    /**
+     * The class's after-commit setting: the interface and the literal declared, as described on `queueConfig()`.
+     *
+     * @param  string|int|bool|list<int>|null  $declared
+     */
+    private function afterCommit(string $fqcn, string|int|bool|array|null $declared, bool $interfaceWinsOverFalse): ?bool
     {
         $declared = is_bool($declared) ? $declared : null;
 
@@ -407,6 +412,27 @@ final class ClassHierarchyResolver
         unset($this->resolving[$fqcn]);
 
         return $this->methodsCache[$fqcn] = $methods;
+    }
+
+    /**
+     * The method the events dispatcher calls when a registration names
+     * `$method`: `__invoke` when the class has no such method but has
+     * `__invoke`, else `$method`. Unchanged when the class is unknown or a
+     * vendor parent might declare `$method`.
+     */
+    public function dispatchedMethod(string $fqcn, string $method): string
+    {
+        $methods = $this->effectiveMethods($fqcn);
+        $opaque = ! $this->knows($fqcn) || collect($this->extendsChain($fqcn))->contains(fn (string $parent): bool => ! $this->knows($parent));
+
+        return match (true) {
+            // the method exists, or may sit where Loom cannot see
+            $opaque || isset($methods[strtolower($method)]) => $method,
+            // Laravel's class-callable fallback
+            isset($methods['__invoke']) => '__invoke',
+            // neither exists: keep what the registration names
+            default => $method,
+        };
     }
 
     /**

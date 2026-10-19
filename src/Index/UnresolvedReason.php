@@ -7,7 +7,7 @@ namespace Lucasp\Loom\Index;
 /**
  * Why a dispatch or a listener / model-hook registration could not be resolved; the
  * values of `unresolved_dispatches[].reason`. Ordered as the schema lists them: dispatch
- * target forms, then class lookup, then registrations.
+ * target forms, then class lookup, then registrations, then cross-section links.
  *
  * A reason names the code shape Loom saw, so each one has a single fix; the
  * schema reference lists each with {@see self::summary()}.
@@ -36,6 +36,7 @@ enum UnresolvedReason: string implements Summarized
     case UNREADABLE_LISTENER = 'unreadable_listener';
     case UNREADABLE_SUBSCRIBER = 'unreadable_subscriber';
     case UNREADABLE_MODEL_HOOK = 'unreadable_model_hook';
+    case HANDLED_EVENT_NOT_INDEXED = 'handled_event_not_indexed';
 
     public function summary(): string
     {
@@ -60,6 +61,7 @@ enum UnresolvedReason: string implements Summarized
             self::UNREADABLE_LISTENER => 'a listener registration (`$listen`, `Event::listen()`, a subscriber return array) whose handler is not a class reference, a `[Class, method]` tuple, a readable string or a closure.',
             self::UNREADABLE_SUBSCRIBER => 'an `Event::subscribe()` call or `$subscribe` entry that is not a `::class` reference, a string literal or `new`.',
             self::UNREADABLE_MODEL_HOOK => 'a `static::creating(...)` style hook whose callback is not a closure or readable callable.',
+            self::HANDLED_EVENT_NOT_INDEXED => 'a listener `handles` an event class with no `events[]` row (a vendor event such as `Illuminate\\Auth\\Events\\Login`); reported at the listener class, `expression` is `Fqcn::class`.',
         };
     }
 }

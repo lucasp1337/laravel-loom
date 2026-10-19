@@ -168,26 +168,8 @@
                     "description": "FQCN of the model."
                 },
                 "event": {
-                    "enum": [
-                        "retrieved",
-                        "creating",
-                        "created",
-                        "updating",
-                        "updated",
-                        "saving",
-                        "saved",
-                        "deleting",
-                        "deleted",
-                        "restoring",
-                        "restored",
-                        "replicating",
-                        "trashed",
-                        "forceDeleting",
-                        "forceDeleted",
-                        "booting",
-                        "booted"
-                    ],
-                    "description": "Eloquent hook name; `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings."
+                    "type": "string",
+                    "description": "Eloquent hook name (`booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings), or a custom event the model lists in `$observables`."
                 },
                 "handled_by": {
                     "type": "array",
@@ -222,7 +204,7 @@
         },
         "listener": {
             "type": "object",
-            "required": ["fqcn", "file", "line", "handles", "registration", "queued", "dispatches"],
+            "required": ["fqcn", "file", "line", "handles", "registration", "queued", "after_commit", "dispatches"],
             "additionalProperties": false,
             "properties": {
                 "fqcn": {
@@ -265,6 +247,10 @@
                     "type": "boolean",
                     "description": "`true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait."
                 },
+                "after_commit": {
+                    "type": "boolean",
+                    "description": "`true` when the listener asks to run after the open database transaction commits: `ShouldHandleEventsAfterCommit` when not queued, `ShouldQueueAfterCommit` when queued, or `$afterCommit = true`."
+                },
                 "dispatches": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/dispatch" },
@@ -296,31 +282,13 @@
                     "description": "FQCN of the observed model."
                 },
                 "registration": {
-                    "enum": ["observe_call", "attribute"],
-                    "description": "How the observer was registered."
+                    "enum": ["attribute", "observers_array", "observe_call"],
+                    "description": "How the observer was registered; when several registrations find a pair, the first value in the list wins."
                 },
                 "hooks": {
                     "type": "array",
-                    "items": {
-                        "enum": [
-                            "retrieved",
-                            "creating",
-                            "created",
-                            "updating",
-                            "updated",
-                            "saving",
-                            "saved",
-                            "deleting",
-                            "deleted",
-                            "restoring",
-                            "restored",
-                            "replicating",
-                            "trashed",
-                            "forceDeleting",
-                            "forceDeleted"
-                        ]
-                    },
-                    "description": "Observable model events the observer has a method for, sorted."
+                    "items": { "type": "string" },
+                    "description": "Observable model events the observer has a method for, sorted: the Eloquent events except `booting` and `booted`, plus the model's `$observables`."
                 },
                 "dispatches": {
                     "type": "array",
@@ -328,7 +296,7 @@
                     "description": "Dispatches made from the observer's hook methods."
                 }
             },
-            "description": "Observer classes. One observer registered against N models gives N entries; when a pair is found through both paths, `attribute` wins over `observe_call`."
+            "description": "Observer classes. One observer registered against N models gives N entries."
         },
         "job": {
             "type": "object",
@@ -395,8 +363,9 @@
                     "description": "Literal value of the class's `$timeout` property."
                 },
                 "backoff": {
-                    "type": ["string", "integer", "null"],
-                    "description": "Literal value of the class's `$backoff` property."
+                    "type": ["string", "integer", "array", "null"],
+                    "items": { "type": "integer" },
+                    "description": "Literal value of the class's `$backoff` property; a list of seconds for `[10, 60]`."
                 },
                 "after_commit": {
                     "type": ["boolean", "null"],
@@ -851,7 +820,7 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "dynamic_method_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "string_event_name", "closure_job", "view_mail", "call_result", "stored_target", "relative_class_name", "unsupported_expression", "class_not_found", "target_not_indexed", "unreadable_event_name", "untyped_closure_listener", "unreadable_listener", "unreadable_subscriber", "unreadable_model_hook"],
+                    "enum": ["dynamic_class_name", "dynamic_method_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "string_event_name", "closure_job", "view_mail", "call_result", "stored_target", "relative_class_name", "unsupported_expression", "class_not_found", "target_not_indexed", "unreadable_event_name", "untyped_closure_listener", "unreadable_listener", "unreadable_subscriber", "unreadable_model_hook", "handled_event_not_indexed"],
                     "description": "Why the dispatch or registration could not be resolved."
                 }
             },

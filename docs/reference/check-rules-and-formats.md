@@ -210,8 +210,8 @@ events
         + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
 
 listeners
-  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
-  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
 
 unresolved_dispatches
   + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
@@ -295,6 +295,7 @@ Each non-empty section has `added`, `removed` and `changed`, with full entries. 
                 ],
                 "registration": "discovery_unverified",
                 "queued": false,
+                "after_commit": false,
                 "dispatches": [
                     {
                         "target": "App\\Events\\OrderPlaced",
@@ -317,6 +318,7 @@ Each non-empty section has `added`, `removed` and `changed`, with full entries. 
                 ],
                 "registration": "discovery_unverified",
                 "queued": false,
+                "after_commit": false,
                 "dispatches": [
                     {
                         "target": "App\\Events\\InventoryAdjusted",
@@ -366,8 +368,8 @@ The same diff:
 
 ## listeners
 
-- **added** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
-- **added** `{"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}`
+- **added** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
+- **added** `{"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}`
 
 ## unresolved_dispatches
 

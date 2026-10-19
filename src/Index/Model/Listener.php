@@ -26,6 +26,7 @@ final readonly class Listener
         public array $handles,
         public ListenerRegistration $registration,
         public bool $queued,
+        public bool $afterCommit,
         public array $dispatches,
     ) {}
 
@@ -39,6 +40,7 @@ final readonly class Listener
             handles: Hydrate::list($data, Field::HANDLES, Handle::fromArray(...)),
             registration: ListenerRegistration::from(Hydrate::string($data, Field::REGISTRATION)),
             queued: Hydrate::bool($data, Field::QUEUED),
+            afterCommit: Hydrate::bool($data, Field::AFTER_COMMIT),
             dispatches: Hydrate::list($data, Field::DISPATCHES, Dispatch::fromArray(...)),
         );
     }

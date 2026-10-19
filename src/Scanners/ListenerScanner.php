@@ -30,6 +30,7 @@ use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\EventDiscovery;
 use Lucasp\Loom\Support\EventDiscoveryResolver;
 use Lucasp\Loom\Support\EventDiscoveryStatus;
+use Lucasp\Loom\Support\LaravelClasses;
 use Lucasp\Loom\Support\PrimitiveDirectory;
 use Lucasp\Loom\Support\Psr4ClassLocator;
 use Lucasp\Loom\Support\ScannerFilesystem;
@@ -72,7 +73,10 @@ use Lucasp\Loom\Support\ScanScope;
  * names are model events, read by ObserverScanner). A registration whose event
  * or listener cannot be read is emitted in `unresolved_dispatches`.
  *
- * `method` is `handle` when a registration names none. A listener named in a
+ * `method` is `handle` when a registration names none, and `__invoke` when
+ * the class lacks the named method but has `__invoke` (the dispatcher's
+ * fallback). `after_commit` follows `ShouldHandleEventsAfterCommit` (sync),
+ * `ShouldQueueAfterCommit` (queued) and a literal `$afterCommit`. A listener named in a
  * registration but located outside Listeners/ is found through PSR-4; if its
  * file cannot be located it is dropped, since `file` and `line` are required.
  * `handles[]` is deduplicated on (event, method), so one listener can handle
@@ -563,8 +567,12 @@ final class ListenerScanner implements Scanner
 
         $entries = [];
         foreach ($merged as $fqcn => $loc) {
-            $handles = array_values($loc->handles);
-            $handles = array_values(collect($handles)->sort(fn (ListenerHandle $a, ListenerHandle $b): int => [$a->event, $a->method] <=> [$b->event, $b->method])->all());
+            $handles = array_values(collect($loc->handles)
+                ->map(fn (ListenerHandle $handle): ListenerHandle => new ListenerHandle(event: $handle->event, method: $resolver->dispatchedMethod($fqcn, $handle->method)))
+                ->unique(fn (ListenerHandle $handle): string => $handle->event.'::'.$handle->method)
+                ->sort(fn (ListenerHandle $a, ListenerHandle $b): int => [$a->event, $a->method] <=> [$b->event, $b->method])
+                ->all());
+            $queued = $resolver->isQueued($fqcn);
 
             // file/line are non-null at emit time — guaranteed by merge()'s PSR-4 guess.
             $entries[] = new ListenerEntry(
@@ -573,11 +581,24 @@ final class ListenerScanner implements Scanner
                 line: (int) $loc->line,
                 handles: $handles,
                 registration: $loc->registration,
-                queued: $resolver->isQueued($fqcn),
+                queued: $queued,
+                afterCommit: $this->runsAfterCommit($resolver, $fqcn, $queued),
             );
         }
 
         return $entries;
+    }
+
+    /**
+     * Whether the dispatcher defers the listener until the open transaction
+     * commits: a sync listener through `ShouldHandleEventsAfterCommit`, a
+     * queued one through `ShouldQueueAfterCommit`, either through a literal
+     * `$afterCommit = true`.
+     */
+    private function runsAfterCommit(ClassHierarchyResolver $resolver, string $fqcn, bool $queued): bool
+    {
+        return $resolver->queueConfig($fqcn, interfaceWinsOverFalse: true)->afterCommit === true
+            || (! $queued && $resolver->implementsInterface($fqcn, LaravelClasses::SHOULD_HANDLE_EVENTS_AFTER_COMMIT->value));
     }
 
     /**

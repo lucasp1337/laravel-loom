@@ -54,6 +54,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 | `unreadable_listener` | [Listeners](listeners.md) |
 | `unreadable_subscriber` | [Listeners](listeners.md) |
 | `unreadable_model_hook` | [Observers and model hooks](observers.md) |
+| `handled_event_not_indexed` | [Listeners](listeners.md) |
 | `unknown_route_call` | [Routes](routes.md) |
 | `dynamic_uri` | [Routes](routes.md) |
 | `dynamic_resource` | [Routes](routes.md) |

@@ -131,6 +131,7 @@ Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it return
     ],
     "registration": "discovery_unverified",
     "queued": false,
+    "after_commit": false,
     "dispatches": [
       {
         "target": "App\\Events\\ReceiptSent",

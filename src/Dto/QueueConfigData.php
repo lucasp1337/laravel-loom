@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Dto;
 
 /**
- * The queue-config settings Loom tracks per queueable class: six scalar properties and `afterCommit`.
+ * The queue-config settings Loom tracks per queueable class: six scalar properties (`backoff` may be a list of seconds) and `afterCommit`.
  *
  * @internal
  */
@@ -17,14 +17,15 @@ final readonly class QueueConfigData
         public string|int|null $delay,
         public string|int|null $tries,
         public string|int|null $timeout,
-        public string|int|null $backoff,
+        /** @var string|int|list<int>|null */
+        public string|int|array|null $backoff,
         public ?bool $afterCommit = null,
     ) {}
 
     /**
      * Build from the settings read off a class, keeping only values of the right type.
      *
-     * @param  array<string, string|int|bool|null>  $settings  keyed by property name; `afterCommit` is the only bool
+     * @param  array<string, string|int|bool|list<int>|null>  $settings  keyed by property name; `afterCommit` is the only bool, `backoff` the only list
      */
     public static function fromSettings(array $settings): self
     {
@@ -36,7 +37,7 @@ final readonly class QueueConfigData
             delay: $scalar('delay'),
             tries: $scalar('tries'),
             timeout: $scalar('timeout'),
-            backoff: $scalar('backoff'),
+            backoff: is_array($settings['backoff'] ?? null) ? $settings['backoff'] : $scalar('backoff'),
             afterCommit: is_bool($settings['afterCommit'] ?? null) ? $settings['afterCommit'] : null,
         );
     }
