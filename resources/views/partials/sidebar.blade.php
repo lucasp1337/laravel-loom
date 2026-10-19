@@ -1,6 +1,6 @@
 <nav class="loom-sidebar" x-bind:class="{ 'is-open': drawer }" aria-label="Loom sections">
     <a class="loom-logo" href="{{ $links->dashboard() }}">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 2v14M9 2v14M15 2v14M2 5h14M2 13h14"/></svg>
+        <svg class="loom-logo__mark" width="22" height="22" viewBox="0 0 64 64" fill="none" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path stroke="currentColor" d="M14 10v44M24 10v44M32 10v44M40 10v44M50 10v44"/><path class="loom-logo__weft" d="M6 32h52" stroke-width="3"/><path stroke="currentColor" d="M24 28.6v6.8M40 28.6v6.8"/></svg>
         Loom
         <small>v{{ $meta->loomVersion }}</small>
     </a>

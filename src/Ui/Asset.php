@@ -14,6 +14,7 @@ enum Asset: string
     case CSS = 'loom.css';
     case JS = 'loom.js';
     case CYTOSCAPE = 'cytoscape.min.js';
+    case LOGO = 'logo.svg';
 
     public function path(): string
     {
@@ -25,6 +26,8 @@ enum Asset: string
         return match ($this) {
             self::CSS => 'text/css; charset=UTF-8',
             self::JS, self::CYTOSCAPE => 'application/javascript; charset=UTF-8',
+            // The favicon; its colours follow the system theme.
+            self::LOGO => 'image/svg+xml',
         };
     }
 

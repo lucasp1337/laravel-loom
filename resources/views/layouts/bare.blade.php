@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Loom') · Loom</title>
+    <link rel="icon" type="image/svg+xml" href="{{ \Lucasp\Loom\Ui\Asset::LOGO->url() }}">
     <link rel="stylesheet" href="{{ \Lucasp\Loom\Ui\Asset::CSS->url() }}">
 </head>
 <body>
