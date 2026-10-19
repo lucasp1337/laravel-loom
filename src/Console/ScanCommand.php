@@ -34,7 +34,8 @@ class ScanCommand extends Command
         {--output= : Write the index here instead of the configured index_path. A relative path resolves from the project root. The MCP server and UI keep reading index_path}
         {--path=* : Scan this directory instead of scan.paths. Relative to the project root; glob patterns allowed}
         {--route-path=* : Read routes from this directory instead of scan.route_paths. Same rules as --path}
-        {--no-discover-routes : Do not follow route-file loading calls for this run, as if scan.discover_routes were false. Wins over the config value}';
+        {--no-discover-routes : Do not follow route-file loading calls for this run, as if scan.discover_routes were false. Wins over the config value}
+        {--allow-empty : Write an index even when the scan directories hold no PHP files, instead of failing}';
 
     protected $description = 'Scan the application and write the index (default storage/loom/index.json)';
 
@@ -50,13 +51,19 @@ class ScanCommand extends Command
             return self::FAILURE;
         }
 
-        if ($scope->directories($appRoot) === []) {
-            $this->error('No scan directory exists for: '.Arr::join($scope->paths(), ', '));
+        $allowEmpty = (bool) $this->option('allow-empty');
+        if ($scope->directories($appRoot) === [] && ! $allowEmpty) {
+            $this->error('No scan directory exists for: '.Arr::join($scope->paths(), ', ').'. Pass --allow-empty to write an empty index.');
 
             return self::FAILURE;
         }
 
         $coverage = ScanCoverage::counts($appRoot, $scope);
+        if ($coverage['files'] === 0 && ! $allowEmpty) {
+            $this->error('No PHP files found in the scan directories: '.Arr::join($scope->paths(), ', ').'. Pass --allow-empty to write an empty index.');
+
+            return self::FAILURE;
+        }
         if ($coverage['files'] === 0) {
             $this->warn('No PHP files found in the scan directories: '.Arr::join($scope->paths(), ', '));
         }

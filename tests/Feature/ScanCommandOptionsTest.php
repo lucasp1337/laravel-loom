@@ -121,6 +121,40 @@ it('exits 1 when no scan directory exists', function () {
     expect($code)->toBe(1)->and($text)->toContain('No scan directory exists');
 });
 
+it('exits 1 and writes nothing when the scan directories hold no PHP files', function () {
+    $out = scanCommandSetup('modules-fixture-app');
+    $empty = 'empty-'.bin2hex(random_bytes(4));
+    mkdir(base_path($empty));
+
+    try {
+        [$code, $text] = runScan(['--path' => [$empty]]);
+    } finally {
+        rmdir(base_path($empty));
+    }
+
+    expect($code)->toBe(1)
+        ->and($text)->toContain('No PHP files found')
+        ->and($text)->toContain('--allow-empty')
+        ->and(is_file($out))->toBeFalse();
+});
+
+it('writes an empty index with --allow-empty', function (string $path) {
+    $out = scanCommandSetup('modules-fixture-app');
+    $empty = 'empty-'.bin2hex(random_bytes(4));
+    mkdir(base_path($empty));
+
+    try {
+        [$code] = runScan(['--path' => [$path === 'empty' ? $empty : $path], '--route-path' => [$empty], '--allow-empty' => true]);
+    } finally {
+        rmdir(base_path($empty));
+    }
+    $index = json_decode((string) file_get_contents($out), true);
+
+    expect($code)->toBe(0)
+        ->and($index['events'])->toBe([])
+        ->and($index['routes'])->toBe([]);
+})->with(['empty', 'nowhere']);
+
 it('exits 1 for a scan path outside the project root', function (string $path) {
     $out = scanCommandSetup('modules-fixture-app');
 

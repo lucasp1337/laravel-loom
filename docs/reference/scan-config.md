@@ -27,7 +27,7 @@ php artisan vendor:publish --tag=loom-config
 
 ## How directories resolve
 
-Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; if none exist, `loom:scan` exits `1`.
+Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; when the rest hold no PHP files, `loom:scan` [exits `1`](commands.md#loomscan).
 
 | Layout | `scan.paths` |
 | --- | --- |

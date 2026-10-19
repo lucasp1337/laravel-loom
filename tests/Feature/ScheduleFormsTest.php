@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Filesystem\Filesystem;
 use Lucasp\Loom\Dto\ScheduledEntry;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Scanners\ScheduleScanner;
@@ -72,4 +73,39 @@ it('reports a Schedule helper that schedule() never calls', function () {
     $notes = collect($walker->skippedFiles())->filter(fn ($s): bool => str_ends_with($s->file, 'app/Console/Kernel.php'));
     expect($notes)->toHaveCount(1);
     expect($notes->first()->message)->toContain('never called from schedule()');
+});
+
+it('reports a Schedule handed to a method it cannot follow', function () {
+    $root = sys_get_temp_dir().'/loom-handoff-'.bin2hex(random_bytes(6));
+    $files = new Filesystem;
+    $files->ensureDirectoryExists($root.'/app/Console');
+    $files->ensureDirectoryExists($root.'/bootstrap');
+    $files->put($root.'/app/Console/Kernel.php', <<<'PHP'
+        <?php
+        namespace App\Console;
+        use Illuminate\Console\Scheduling\Schedule;
+        class Kernel
+        {
+            protected function schedule(Schedule $schedule): void
+            {
+                Tasks::missing($schedule);
+            }
+        }
+        PHP);
+    $files->put($root.'/app/Console/Tasks.php', "<?php\nnamespace App\\Console;\nclass Tasks {}\n");
+    $files->put($root.'/bootstrap/app.php', <<<'PHP'
+        <?php
+        use Illuminate\Foundation\Application;
+        return Application::configure(basePath: dirname(__DIR__))
+            ->withSchedule($callback)
+            ->create();
+        PHP);
+
+    $walker = new AstWalker;
+    (new ScheduleScanner($walker))->scan($root);
+    $files->deleteDirectory($root);
+
+    $notes = collect($walker->skippedFiles())->mapWithKeys(fn ($s): array => [basename($s->file).':'.$s->line => $s->message]);
+    expect($notes['Kernel.php:8'])->toContain('which that class does not declare')
+        ->and($notes['app.php:4'])->toContain('whose class cannot be read');
 });

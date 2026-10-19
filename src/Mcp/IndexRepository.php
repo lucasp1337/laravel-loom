@@ -21,6 +21,9 @@ final class IndexRepository extends SnapshotIndexSource
 
     private bool $scanned = false;
 
+    /** @var array<string, bool> options passed to the auto-scan */
+    private array $scanOptions = [];
+
     public function __construct(
         IndexLoader $loader,
         private readonly Artisan $artisan,
@@ -41,6 +44,12 @@ final class IndexRepository extends SnapshotIndexSource
     public function disableAutoScan(): void
     {
         $this->autoScan = false;
+    }
+
+    /** @param  array<string, bool>  $options  `loom:scan` options for the auto-scan */
+    public function scanWith(array $options): void
+    {
+        $this->scanOptions = $options;
     }
 
     public function index(): Index
@@ -65,6 +74,6 @@ final class IndexRepository extends SnapshotIndexSource
         }
 
         $this->scanned = true;
-        $this->artisan->call('loom:scan');
+        $this->artisan->call('loom:scan', $this->scanOptions);
     }
 }

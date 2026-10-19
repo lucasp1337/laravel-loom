@@ -104,7 +104,7 @@ ERROR  No index at [storage/loom/index.json] and --no-scan is set. Run `php arti
 ```
 <!-- /generated:output:mcp-no-scan -->
 
-`--scan` scans before serving, `--no-scan` never scans and `--snapshot=PATH` serves another file; see [Commands](../reference/commands.md#loommcp). The server answers from your last scan, not your working tree, so rescan after you change code.
+`--scan` scans before serving, `--no-scan` never scans, `--allow-empty` lets a scan with no PHP files write an empty index and `--snapshot=PATH` serves another file; see [Commands](../reference/commands.md#loommcp). The server answers from your last scan, not your working tree, so rescan after you change code.
 
 !!! warning "Keep stdout clean"
     Client and server talk JSON-RPC over stdout. A stray `echo`, a `dd()` or a PHP notice breaks the connection: log to a file and set `display_errors=stderr` for the CLI.

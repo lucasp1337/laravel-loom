@@ -21,7 +21,7 @@ it('still scans without livewire and hints at the UI', function () {
     $this->bootWithout([OptionalPackage::LIVEWIRE]);
     config()->set('loom.index_path', sys_get_temp_dir().'/loom-opt-'.bin2hex(random_bytes(6)).'.json');
 
-    $this->artisan('loom:scan')
+    $this->artisan('loom:scan', ['--allow-empty' => true])
         ->expectsOutputToContain('composer require --dev livewire/livewire')
         ->assertExitCode(0);
 });
@@ -30,7 +30,7 @@ it('does not hint at the UI when it is switched off', function () {
     $this->bootWithout([OptionalPackage::LIVEWIRE], ['loom.ui.enabled' => false]);
     config()->set('loom.index_path', sys_get_temp_dir().'/loom-opt-'.bin2hex(random_bytes(6)).'.json');
 
-    $this->artisan('loom:scan')->doesntExpectOutputToContain('livewire/livewire')->assertExitCode(0);
+    $this->artisan('loom:scan', ['--allow-empty' => true])->doesntExpectOutputToContain('livewire/livewire')->assertExitCode(0);
 });
 
 it('fails loom:mcp with an install hint without laravel/mcp', function () {

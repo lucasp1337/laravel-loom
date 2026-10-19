@@ -7,14 +7,18 @@ namespace Lucasp\Loom\Scanners\Visitors;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\ChainLink;
 use Lucasp\Loom\Dto\ScheduleChainEntry;
+use Lucasp\Loom\Dto\ScheduleHandoff;
 use Lucasp\Loom\Index\ScheduleKind;
 use Lucasp\Loom\Index\ScheduleMode;
 use Lucasp\Loom\Scanners\Schedule\ScheduleGuard;
 use Lucasp\Loom\Support\Ast\Arg;
 use Lucasp\Loom\Support\Ast\Args;
+use Lucasp\Loom\Support\Ast\Callables;
 use Lucasp\Loom\Support\Ast\CallChain;
 use Lucasp\Loom\Support\Ast\CallSite;
+use Lucasp\Loom\Support\Ast\ClassRef;
 use Lucasp\Loom\Support\Facades;
+use Lucasp\Loom\Support\Fqcn;
 use PhpParser\Node;
 use PhpParser\PrettyPrinter\Standard;
 
@@ -29,6 +33,14 @@ use PhpParser\PrettyPrinter\Standard;
  * is a chain too: the closure command forwards to the scheduler. Group frames
  * are pushed on enter and popped on leave so inner tasks see them. Enclosing
  * `if` branches are recorded on the entry as guards.
+ *
+ * In kernel mode with an entry point, the trusted scope is that method of that
+ * class instead of `schedule()`. Calls in a trusted scope that pass the
+ * Schedule to another class are kept as handoffs for the scanner to follow:
+ * `X::m($schedule)`, `(new X)->m($schedule)`, `app(X::class)->m($schedule)`,
+ * `resolve(X::class)` and `->make(X::class)` receivers, and a `withSchedule()`
+ * callable other than a closure (`new X`, `[X::class, 'm']`, `X::m(...)`).
+ * Any other receiver gives a handoff with no class.
  *
  * @internal
  */
@@ -114,8 +126,23 @@ final class ScheduleChainVisitor extends CollectingVisitor
     /** Line of the first chain in a Schedule helper that `schedule()` never calls. */
     private ?int $unreachedLine = null;
 
-    public function __construct(ScheduleMode $mode = ScheduleMode::KERNEL)
-    {
+    /** @var list<ScheduleHandoff> */
+    private array $handoffs = [];
+
+    /**
+     * Kernel-mode handoffs inside a method, held until reachability is known.
+     *
+     * @var list<array{handoff: ScheduleHandoff, method: string}>
+     */
+    private array $pendingHandoffs = [];
+
+    private bool $entryFound = false;
+
+    /** @param  ScheduleHandoff|null  $entry  kernel mode: read this method of this class instead of `schedule()` */
+    public function __construct(
+        ScheduleMode $mode = ScheduleMode::KERNEL,
+        private readonly ?ScheduleHandoff $entry = null,
+    ) {
         $this->mode = $mode;
     }
 
@@ -134,6 +161,9 @@ final class ScheduleChainVisitor extends CollectingVisitor
         $this->scheduleRoots = [];
         $this->pending = [];
         $this->unreachedLine = null;
+        $this->handoffs = [];
+        $this->pendingHandoffs = [];
+        $this->entryFound = false;
         $this->entries = [];
     }
 
@@ -143,8 +173,9 @@ final class ScheduleChainVisitor extends CollectingVisitor
 
         $this->trackScheduleBindings($node);
 
-        if ($this->mode === ScheduleMode::KERNEL && $this->isScheduleMethod($node)) {
+        if ($this->mode === ScheduleMode::KERNEL && $this->isRootMethodAt(count($this->parentStack) - 1)) {
             $this->scheduleRoots[(string) $this->currentMethodKey()] = true;
+            $this->entryFound = true;
         }
 
         // PhpParser enters a group call before descending into its closure, so
@@ -178,6 +209,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
 
         $this->recordSameClassCall($node);
+        $this->recordHandoff($node);
 
         // Emit only at the outermost call in a chain.
         $parent = $this->currentParent();
@@ -275,6 +307,13 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
         $this->pending = [];
 
+        foreach ($this->pendingHandoffs as $item) {
+            if ($reachable[$item['method']] ??= $this->isReachable($item['method'])) {
+                $this->handoffs[] = $item['handoff'];
+            }
+        }
+        $this->pendingHandoffs = [];
+
         return null;
     }
 
@@ -341,6 +380,149 @@ final class ScheduleChainVisitor extends CollectingVisitor
     public function unreachedHelperLine(): ?int
     {
         return $this->unreachedLine;
+    }
+
+    /** @return list<ScheduleHandoff> */
+    public function getHandoffs(): array
+    {
+        return $this->handoffs;
+    }
+
+    /** Whether the entry point (or a `schedule()` method) was declared in the file. */
+    public function foundEntry(): bool
+    {
+        return $this->entryFound;
+    }
+
+    /**
+     * A call in a trusted scope that passes the Schedule on, or the callable
+     * given to `withSchedule()`, kept as a handoff. Same-class calls are
+     * edges of the call graph instead, and `parent::` calls reach the framework.
+     */
+    private function recordHandoff(Node\Expr\MethodCall|Node\Expr\StaticCall $node): void
+    {
+        if ($this->mode === ScheduleMode::FACADE) {
+            return;
+        }
+
+        $handoff = $this->mode === ScheduleMode::BOOTSTRAP && $this->isWithScheduleCall($node)
+            ? $this->withScheduleHandoff($node)
+            : $this->passedScheduleHandoff($node);
+        if ($handoff === null) {
+            return;
+        }
+
+        // Inside a kernel method: kept only when `schedule()` reaches it, decided after the walk.
+        $method = $this->mode === ScheduleMode::KERNEL ? $this->currentMethodKey() : null;
+        if ($method !== null) {
+            $this->pendingHandoffs[] = ['handoff' => $handoff, 'method' => $method];
+
+            return;
+        }
+        if ($this->inTrustedScope() || $this->isWithScheduleCall($node)) {
+            $this->handoffs[] = $handoff;
+        }
+    }
+
+    private function isWithScheduleCall(Node\Expr\MethodCall|Node\Expr\StaticCall $node): bool
+    {
+        return $node->name instanceof Node\Identifier && $node->name->toString() === 'withSchedule';
+    }
+
+    /** `withSchedule(new X)`, `withSchedule([X::class, 'm'])` or `withSchedule(X::m(...))`; null for a closure. */
+    private function withScheduleHandoff(Node\Expr\MethodCall|Node\Expr\StaticCall $node): ?ScheduleHandoff
+    {
+        $callback = Args::of($node->args)->valueAt(0);
+        if ($callback === null || $callback instanceof Node\Expr\Closure || $callback instanceof Node\Expr\ArrowFunction) {
+            return null;
+        }
+
+        $line = $callback->getStartLine();
+        // `new X`: an invokable object
+        if ($callback instanceof Node\Expr\New_ && $callback->class instanceof Node\Name) {
+            return new ScheduleHandoff($callback->class->toString(), '__invoke', 0, $line);
+        }
+
+        $target = Callables::staticTarget($callback);
+        $listener = Callables::listener($callback);
+        $member = match (true) {
+            // `[X::class, 'm']` or `[new X, 'm']`
+            $target !== null => Fqcn::splitStaticMember($target),
+            // `X::m(...)`
+            $listener !== null => [$listener['listener'], $listener['method']],
+            // anything else cannot be read
+            default => null,
+        };
+
+        return new ScheduleHandoff($member[0] ?? null, $member[1] ?? null, 0, $line);
+    }
+
+    /** A call that takes the Schedule as an argument and belongs to another class. */
+    private function passedScheduleHandoff(Node\Expr\MethodCall|Node\Expr\StaticCall $node): ?ScheduleHandoff
+    {
+        $position = null;
+        foreach (Args::of($node->args)->values() as $index => $value) {
+            if ($this->isProvenSchedule($value)) {
+                $position = $index;
+
+                break;
+            }
+        }
+        if ($position === null) {
+            return null;
+        }
+
+        $class = $node instanceof Node\Expr\StaticCall
+            ? $this->staticCallClass($node)
+            : $this->receiverClass($node->var);
+        // `$this->m()`, `self::m()`, `static::m()`, `parent::m()`: the in-class call graph or the framework
+        if ($class === '') {
+            return null;
+        }
+
+        $method = $node->name instanceof Node\Identifier ? $node->name->toString() : null;
+
+        return new ScheduleHandoff($class, $method, $position, $node->getStartLine(), $this->enclosingGuards($node));
+    }
+
+    /** The called class; '' for this class or its parent, null when unreadable. */
+    private function staticCallClass(Node\Expr\StaticCall $node): ?string
+    {
+        if (! $node->class instanceof Node\Name) {
+            return null;
+        }
+
+        $name = $node->class->toString();
+
+        return in_array(Str::lower($name), ['self', 'static', 'parent'], true) ? '' : $name;
+    }
+
+    /** The class of a method call's receiver; '' for `$this`, null when unreadable. */
+    private function receiverClass(Node\Expr $receiver): ?string
+    {
+        // `$this->helper($schedule)`
+        if ($receiver instanceof Node\Expr\Variable && $receiver->name === 'this') {
+            return '';
+        }
+
+        // `(new X)->m($schedule)`
+        if ($receiver instanceof Node\Expr\New_) {
+            return ClassRef::fromInstanceOrConstant($receiver);
+        }
+
+        // `app(X::class)` / `resolve(X::class)`
+        if ($receiver instanceof Node\Expr\FuncCall && $receiver->name instanceof Node\Name
+            && in_array(Str::lower($receiver->name->toString()), ['app', 'resolve'], true)) {
+            return ClassRef::fromClassConstant(Args::of($receiver->args)->valueAt(0));
+        }
+
+        // `$this->app->make(X::class)` / `->makeWith(X::class, [...])`
+        if ($receiver instanceof Node\Expr\MethodCall && $receiver->name instanceof Node\Identifier
+            && in_array($receiver->name->toString(), ['make', 'makeWith'], true)) {
+            return ClassRef::fromClassConstant(Args::of($receiver->args)->valueAt(0));
+        }
+
+        return null;
     }
 
     /**
@@ -470,6 +652,11 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
 
         $names = [];
+        // The root scope's Schedule parameter, typed or not.
+        $root = $this->rootScheduleParameter($node);
+        if ($root !== null) {
+            $names[] = $root;
+        }
         foreach ($node->getParams() as $param) {
             if (! $this->isScheduleType($param->type) || ! $param->var instanceof Node\Expr\Variable || ! is_string($param->var->name)) {
                 continue;
@@ -485,6 +672,21 @@ final class ScheduleChainVisitor extends CollectingVisitor
         $this->noteBodyScope($node);
     }
 
+    /** The parameter a root scope receives the Schedule in: `schedule()`, the `withSchedule()` closure or the entry point. */
+    private function rootScheduleParameter(Node\FunctionLike $node): ?string
+    {
+        $index = count($this->parentStack) - 1;
+        $isRoot = ($this->mode === ScheduleMode::KERNEL && $this->isRootMethodAt($index))
+            || ($this->mode === ScheduleMode::BOOTSTRAP && $this->closureIsWithSchedule($index));
+        if (! $isRoot) {
+            return null;
+        }
+
+        $param = $node->getParams()[$this->entry->argument ?? 0] ?? null;
+
+        return $param !== null && $param->var instanceof Node\Expr\Variable && is_string($param->var->name) ? $param->var->name : null;
+    }
+
     /** Remember the first schedule scope that has statements, to report when it yields nothing. */
     private function noteBodyScope(Node $node): void
     {
@@ -493,7 +695,7 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
 
         $index = count($this->parentStack) - 1;
-        $isScope = ($this->mode === ScheduleMode::KERNEL && $this->isScheduleMethod($node))
+        $isScope = ($this->mode === ScheduleMode::KERNEL && $this->isRootMethodAt($index))
             || ($this->mode === ScheduleMode::BOOTSTRAP && $this->closureIsWithSchedule($index));
         $hasBody = ($node instanceof Node\Stmt\ClassMethod || $node instanceof Node\Expr\Closure) && ($node->stmts ?? []) !== [];
         if ($isScope && $hasBody) {
@@ -562,8 +764,8 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
 
         if ($this->mode === ScheduleMode::KERNEL) {
-            foreach ($this->parentStack as $ancestor) {
-                if ($this->isScheduleMethod($ancestor)) {
+            foreach (array_keys($this->parentStack) as $index) {
+                if ($this->isRootMethodAt($index)) {
                     return true;
                 }
             }
@@ -600,6 +802,23 @@ final class ScheduleChainVisitor extends CollectingVisitor
         }
 
         return $grand->name instanceof Node\Identifier && $grand->name->toString() === 'withSchedule';
+    }
+
+    /** The stack node at $index is `schedule()`, or the entry point when one is set. */
+    private function isRootMethodAt(int $index): bool
+    {
+        $node = $this->parentStack[$index] ?? null;
+        if ($this->entry === null || $node === null) {
+            return $node !== null && $this->isScheduleMethod($node);
+        }
+
+        $class = $this->parentStack[$index - 1] ?? null;
+
+        return $node instanceof Node\Stmt\ClassMethod
+            && $class instanceof Node\Stmt\ClassLike
+            && $class->namespacedName !== null
+            && Fqcn::same($class->namespacedName->toString(), (string) $this->entry->class)
+            && Str::lower($node->name->toString()) === Str::lower((string) $this->entry->method);
     }
 
     /**

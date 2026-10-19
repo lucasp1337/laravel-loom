@@ -8,7 +8,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Lucasp\Loom\Dto\UnresolvedGroupAttribute;
 use Lucasp\Loom\Dto\UnresolvedRoutePath;
-use Lucasp\Loom\Scanners\Visitors\ProviderListVisitor;
 use Lucasp\Loom\Scanners\Visitors\RouteFileLoadVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\Ast\Route\RouteFileReference;
@@ -38,12 +37,15 @@ final class RouteFileDiscovery
 
     private RoutePathResolver $resolver;
 
+    private ProviderFiles $providers;
+
     public function __construct(
         private readonly ScanScope $scope,
         private readonly AstWalker $walker,
-        private readonly Psr4ClassLocator $locator = new Psr4ClassLocator,
+        Psr4ClassLocator $locator = new Psr4ClassLocator,
     ) {
         $this->resolver = new RoutePathResolver;
+        $this->providers = new ProviderFiles($scope, $walker, $locator);
     }
 
     /**
@@ -132,7 +134,7 @@ final class RouteFileDiscovery
         if (is_file($bootstrap)) {
             $enqueue($bootstrap);
         }
-        foreach ($this->providerFiles($appRoot) as $path) {
+        foreach ($this->providers->all($appRoot) as $path) {
             $enqueue($path);
         }
 
@@ -271,38 +273,5 @@ final class RouteFileDiscovery
         }
 
         return $visitor->getReferences();
-    }
-
-    /**
-     * Provider files named by `bootstrap/providers.php` and `config/app.php`,
-     * located through the project's PSR-4 map.
-     *
-     * @return list<string>
-     */
-    private function providerFiles(string $appRoot): array
-    {
-        $root = AppPath::prefix($appRoot);
-        $found = [];
-
-        foreach (['bootstrap/providers.php', 'config/app.php'] as $list) {
-            $file = AppPath::join($appRoot, $list);
-            if (! is_file($file) || $this->scope->isExcluded($appRoot, $file)) {
-                continue;
-            }
-
-            $visitor = new ProviderListVisitor;
-            if ($this->walker->walk($file, [$visitor]) === null) {
-                continue;
-            }
-
-            foreach ($visitor->getProviders() as $fqcn) {
-                $path = $this->locator->locate($appRoot, $fqcn);
-                if ($path !== null && Str::startsWith($path, $root)) {
-                    $found[$path] = true;
-                }
-            }
-        }
-
-        return array_keys($found);
     }
 }

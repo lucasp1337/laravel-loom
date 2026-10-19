@@ -31,6 +31,8 @@ use Lucasp\Loom\Support\Sorting;
 /**
  * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
  * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
+ * Registrations are read from the scan paths and from the providers that
+ * `bootstrap/providers.php` and `config/app.php` list.
  *
  * `observers[]` has one entry per (observer, model) pair from the attribute and
  * the `observe()` call; when both exist the attribute wins. An observer's
@@ -93,7 +95,7 @@ final class ObserverScanner implements Scanner
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
 
-        foreach ($this->scanFiles($appRoot) as $file) {
+        foreach ($this->registrationFiles($appRoot, $this->walker) as $file) {
             $hookVisitor = new ModelHookCallVisitor;
             $classVisitor = new ObserverClassVisitor;
             $attrVisitor = new ObservedByAttributeVisitor;

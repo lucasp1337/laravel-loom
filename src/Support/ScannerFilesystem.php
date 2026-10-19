@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Support;
 
 use FilesystemIterator;
+use Lucasp\Loom\Support\Ast\AstWalker;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -22,6 +23,8 @@ trait ScannerFilesystem
 
     private ?RouteFileDiscovery $routeDiscovery = null;
 
+    private ?ProviderFiles $providerFiles = null;
+
     protected function scope(): ScanScope
     {
         return $this->scope ??= ScanScope::default();
@@ -36,6 +39,24 @@ trait ScannerFilesystem
     protected function scanFiles(string $appRoot, ?PrimitiveDirectory $subdirectory = null): iterable
     {
         return $this->scope()->files($appRoot, $subdirectory?->value);
+    }
+
+    /**
+     * The scan files plus the registered providers no scan directory holds:
+     * a provider registers listeners, observers and schedules wherever it lives.
+     *
+     * @return iterable<SplFileInfo>
+     */
+    protected function registrationFiles(string $appRoot, AstWalker $walker): iterable
+    {
+        foreach ($this->scanFiles($appRoot) as $file) {
+            yield $file;
+        }
+
+        $this->providerFiles ??= new ProviderFiles($this->scope(), $walker, new Psr4ClassLocator($this->scope()->composerFiles()));
+        foreach ($this->providerFiles->outsideScanPaths($appRoot) as $path) {
+            yield new SplFileInfo($path);
+        }
     }
 
     /**

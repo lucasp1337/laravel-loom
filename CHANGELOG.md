@@ -20,6 +20,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `queue_config.after_commit`: `ShouldQueueAfterCommit`, `$afterCommit`, `afterCommit()` / `beforeCommit()` in the constructor.
 - `scan.ast_cache_mb` sizes the shared parse cache (`null` from the memory limit, `0` off).
 - `scan.composer_files` and merge-plugin includes; `loom:scan` prints scanned counts and warns about nested composer PSR-4 directories outside the scan paths.
+- Scan scope: `loom:scan` fails when the scan directories hold no PHP files unless `--allow-empty` (also on `loom:mcp`); listed providers outside the scan paths are read for registrations; schedules handed to another class are followed ([#167](https://github.com/lucasp1337/laravel-loom/issues/167)).
 
 ### Changed
 
