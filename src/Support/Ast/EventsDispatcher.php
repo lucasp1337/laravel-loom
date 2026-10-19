@@ -13,6 +13,9 @@ use PhpParser\Node;
  */
 final class EventsDispatcher
 {
+    /** The container key the Dispatcher is bound under. */
+    private const CONTAINER_ALIAS = 'events';
+
     private const DISPATCHER_FQCNS = [
         'Illuminate\\Contracts\\Events\\Dispatcher',
         'Illuminate\\Events\\Dispatcher',
@@ -66,7 +69,8 @@ final class EventsDispatcher
 
     /**
      * Match `app(Dispatcher::class)`, `resolve(Dispatcher::class)`,
-     * `$x->make(Dispatcher::class)`, `$x->makeWith(Dispatcher::class)`.
+     * `$x->make(Dispatcher::class)`, `$x->makeWith(Dispatcher::class)`, and the
+     * same with the container alias `'events'`.
      */
     private static function isDispatcherContainerResolution(Node\Expr $receiver): bool
     {
@@ -99,6 +103,11 @@ final class EventsDispatcher
 
     private static function firstArgIsDispatcherClass(Args $args): bool
     {
+        // `app('events')`: the container alias of the Dispatcher
+        if (Literal::string($args->valueAt(0)) === self::CONTAINER_ALIAS) {
+            return true;
+        }
+
         $fqcn = ClassRef::fromClassConstant($args->valueAt(0));
         if ($fqcn === null) {
             return false;

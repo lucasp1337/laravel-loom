@@ -25,6 +25,7 @@ final readonly class DispatchRule
      * @param  DispatchMode|null  $mode  fixed execution mode; null defers to the `->afterResponse()` chain (jobs only)
      * @param  int|null  $channelsAt  position of the literal channel filter argument
      * @param  string  $labelPrefix  METHOD_CALL only: prefix of the call label used when an expression cannot be rendered
+     * @param  bool  $classString  a string literal `Class` or `Class@method` also names the target
      */
     public function __construct(
         public DispatchShape $shape,
@@ -38,6 +39,7 @@ final readonly class DispatchRule
         public ?DispatchMode $mode = null,
         public ?int $channelsAt = null,
         public string $labelPrefix = '',
+        public bool $classString = false,
     ) {}
 
     /** Stable identity of the row, unique within a table. */

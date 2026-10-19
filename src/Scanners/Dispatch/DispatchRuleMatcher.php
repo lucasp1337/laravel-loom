@@ -47,9 +47,12 @@ final class DispatchRuleMatcher
         return new self(DispatchRules::all());
     }
 
-    public function match(CallSite $call): ?DispatchRule
+    /**
+     * @param  string|null  $name  the method name to match instead of the written one, for a dynamic name read elsewhere
+     */
+    public function match(CallSite $call, ?string $name = null): ?DispatchRule
     {
-        $name = $call->name();
+        $name ??= $call->name();
         if ($name === null) {
             return null;
         }
@@ -63,6 +66,20 @@ final class DispatchRuleMatcher
             CallKind::METHOD => $this->matchMethod($call, $name),
             CallKind::INSTANTIATION => null,
         };
+    }
+
+    /**
+     * The owned facade a static call with a dynamic method name is made on
+     * (`Bus::$method($job)`), or null for any other call.
+     */
+    public function dynamicFacadeCall(CallSite $call): ?Facades
+    {
+        $class = $call->className();
+        if ($call->kind() !== CallKind::STATIC || $call->name() !== null || $class === null) {
+            return null;
+        }
+
+        return collect($this->ownedFacades)->first(fn (Facades $facade): bool => $facade->matches($class));
     }
 
     private function matchStatic(CallSite $call, string $method): ?DispatchRule

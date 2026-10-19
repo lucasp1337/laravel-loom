@@ -25,9 +25,10 @@ final class LocalAssignments
 {
     /**
      * @param  array<string, list<Node\Expr>>  $values  plain `=` right-hand sides by variable name
-     * @param  array<string, true>  $other  names written in any other way
+     * @param  array<string, true>  $other  names written in any other way, parameters included
+     * @param  array<string, true>  $written  names the body writes in any way
      */
-    private function __construct(private array $values, private array $other) {}
+    private function __construct(private array $values, private array $other, private array $written) {}
 
     public static function of(Node\FunctionLike $function): self
     {
@@ -138,6 +139,10 @@ final class LocalAssignments
         $body = $function instanceof Node\Expr\ArrowFunction ? [$function->expr] : ($function->getStmts() ?? []);
         $traverser->traverse($body);
 
+        $written = $collector->other;
+        foreach ($collector->values as $name => $values) {
+            $written[$name] = true;
+        }
         $other = $collector->other;
         foreach ($function->getParams() as $param) {
             if ($param->var instanceof Node\Expr\Variable && is_string($param->var->name)) {
@@ -145,7 +150,13 @@ final class LocalAssignments
             }
         }
 
-        return new self($collector->values, $other);
+        return new self($collector->values, $other, $written);
+    }
+
+    /** Whether the body writes $name in any way; a parameter that is only read is not written. */
+    public function writes(string $name): bool
+    {
+        return isset($this->written[$name]);
     }
 
     /** The one expression assigned to $name, or null when it is assigned zero times, repeatedly, or written another way. */

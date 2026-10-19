@@ -215,6 +215,7 @@ Dispatch sites and listener or model-hook registrations that could not be resolv
 | Value | Meaning |
 | --- | --- |
 | `dynamic_class_name` | The target is a variable, or `new $class` / `$class::dispatch()`. |
+| `dynamic_method_name` | A dispatching facade called with a variable method name (`Bus::$method($job)`), so the call it makes is unknown. |
 | `container_resolution` | The target comes from `app()`, `resolve()` or `->make()`. |
 | `string_concatenation` | The target is built by concatenation or interpolation. |
 | `conditional_dispatch` | A ternary or `match` whose branches cannot be evaluated. |
@@ -508,7 +509,7 @@ A resolved dispatch made from a class method or closure.
 | --- | --- |
 | `high` | The target is resolved in the handler method itself. |
 | `medium` | The call sits in a helper method the handler reaches (see `via`). |
-| `low` | Reserved; not emitted today. |
+| `low` | A caller passes the class to a method that dispatches `new $param` or `$param`; the site is the call. |
 <!-- /generated:shape:dispatch -->
 
 ## Determinism

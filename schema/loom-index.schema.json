@@ -851,7 +851,7 @@
                     "description": "Pretty-printed source of the unresolvable expression."
                 },
                 "reason": {
-                    "enum": ["dynamic_class_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "string_event_name", "closure_job", "view_mail", "call_result", "stored_target", "relative_class_name", "unsupported_expression", "class_not_found", "target_not_indexed", "unreadable_event_name", "untyped_closure_listener", "unreadable_listener", "unreadable_subscriber", "unreadable_model_hook"],
+                    "enum": ["dynamic_class_name", "dynamic_method_name", "container_resolution", "string_concatenation", "conditional_dispatch", "dynamic_list", "string_event_name", "closure_job", "view_mail", "call_result", "stored_target", "relative_class_name", "unsupported_expression", "class_not_found", "target_not_indexed", "unreadable_event_name", "untyped_closure_listener", "unreadable_listener", "unreadable_subscriber", "unreadable_model_hook"],
                     "description": "Why the dispatch or registration could not be resolved."
                 }
             },

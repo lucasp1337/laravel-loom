@@ -11,6 +11,7 @@ use Lucasp\Loom\Scanners\Dispatch\DispatchRules;
 use Lucasp\Loom\Scanners\Dispatch\DispatchShape;
 use Lucasp\Loom\Scanners\Dispatch\DispatchTarget;
 use Lucasp\Loom\Support\Ast\CallSite;
+use Lucasp\Loom\Support\Facades;
 
 function matchDispatchRule(string $expr, ?DispatchRuleMatcher $matcher = null): ?DispatchRule
 {
@@ -67,6 +68,9 @@ function dispatchRuleCases(): array
         'Mail::queueOn' => ['Mail::queueOn($q, $m)', 'facade_static:Mail:queueOn', DispatchForm::MAIL_FACADE, $mail, DispatchMode::PUSH, 1],
         'Mail::later' => ['Mail::later($d, $m)', 'facade_static:Mail:later', DispatchForm::MAIL_FACADE, $mail, DispatchMode::PUSH, 1],
         'Mail::laterOn' => ['Mail::laterOn($q, $d, $m)', 'facade_static:Mail:laterOn', DispatchForm::MAIL_FACADE, $mail, DispatchMode::PUSH, 2],
+        'Mail::raw' => ['Mail::raw($t, $cb)', 'facade_static:Mail:raw', DispatchForm::MAIL_FACADE, $mail, null, 0],
+        'Mail::html' => ['Mail::html($h, $cb)', 'facade_static:Mail:html', DispatchForm::MAIL_FACADE, $mail, null, 0],
+        'Mail::plain' => ['Mail::plain($v, $d, $cb)', 'facade_static:Mail:plain', DispatchForm::MAIL_FACADE, $mail, null, 0],
 
         'Notification::send' => ['Notification::send($u, $n)', 'facade_static:Notification:send', DispatchForm::NOTIFICATION_FACADE, $note, null, 1],
         'Notification::sendNow' => ['Notification::sendNow($u, $n)', 'facade_static:Notification:sendNow', DispatchForm::NOTIFICATION_FACADE, $note, DispatchMode::SYNC, 1],
@@ -84,6 +88,9 @@ function dispatchRuleCases(): array
         'Mail::to()->queueOn' => ['Mail::to($u)->queueOn($q, $m)', 'method_call:Mail:queueOn', DispatchForm::MAIL_CHAIN, $mail, DispatchMode::PUSH, 1],
         'Mail::to()->later' => ['Mail::to($u)->later($d, $m)', 'method_call:Mail:later', DispatchForm::MAIL_CHAIN, $mail, DispatchMode::PUSH, 1],
         'Mail::to()->laterOn' => ['Mail::to($u)->laterOn($q, $d, $m)', 'method_call:Mail:laterOn', DispatchForm::MAIL_CHAIN, $mail, DispatchMode::PUSH, 2],
+        'Mail::mailer()->raw' => ["Mail::mailer('ses')->raw(\$t, \$cb)", 'method_call:Mail:raw', DispatchForm::MAIL_CHAIN, $mail, null, 0],
+        'Mail::mailer()->html' => ["Mail::mailer('ses')->html(\$h, \$cb)", 'method_call:Mail:html', DispatchForm::MAIL_CHAIN, $mail, null, 0],
+        'Mail::mailer()->plain' => ["Mail::mailer('ses')->plain(\$v, \$d, \$cb)", 'method_call:Mail:plain', DispatchForm::MAIL_CHAIN, $mail, null, 0],
 
         'Notification::route()->notify' => ["Notification::route('mail', \$a)->notify(\$n)", 'method_call:Notification:notify', DispatchForm::NOTIFICATION_CHAIN, $note, null, 0],
         'Notification::route()->notifyNow' => ["Notification::route('mail', \$a)->notifyNow(\$n)", 'method_call:Notification:notifyNow', DispatchForm::NOTIFICATION_CHAIN, $note, DispatchMode::SYNC, 0],
@@ -131,6 +138,39 @@ it('reads the argument and chain shape of a row from its target', function (stri
     'bus chain is a list' => ['Bus::chain([])', DispatchTarget::LIST_ITEMS, null],
     'dispatchable is the class' => ['Job::dispatch()', DispatchTarget::STATIC_CLASS, null],
     'notification facade takes channels' => ['Notification::send($u, $n)', DispatchTarget::ARGUMENT, 2],
+    'view-only mail has no class' => ['Mail::raw($t, $cb)', DispatchTarget::VIEW_MAIL, null],
+]);
+
+it('reads a class string only on the Queue rows', function (string $expr, bool $classString): void {
+    expect(matchDispatchRule($expr)?->classString)->toBe($classString);
+})->with([
+    'Queue::push' => ["Queue::push('App\\\\Jobs\\\\Ping@handle')", true],
+    'Queue::bulk' => ['Queue::bulk([$a])', true],
+    'Bus::dispatch' => ['Bus::dispatch($j)', false],
+    'Mail::send' => ['Mail::send($m)', false],
+]);
+
+it('matches a dynamic method by the name read elsewhere', function (): void {
+    $site = CallSite::of(parseExpr('Bus::$method($job)'));
+    $matcher = DispatchRuleMatcher::forDispatchSites();
+
+    expect($site)->not->toBeNull()
+        ->and($matcher->match($site))->toBeNull()
+        ->and($matcher->match($site, 'dispatchSync')?->key())->toBe('facade_static:Bus:dispatchSync');
+});
+
+it('names the owned facade of a dynamic static call', function (string $expr, ?Facades $facade): void {
+    $site = CallSite::of(parseExpr($expr));
+
+    expect($site)->not->toBeNull()
+        ->and(DispatchRuleMatcher::forDispatchSites()->dynamicFacadeCall($site))->toBe($facade);
+})->with([
+    'Bus' => ['Bus::$method($j)', Facades::BUS],
+    'Queue braces' => ["Queue::{'push'}(\$j)", Facades::QUEUE],
+    'written name' => ['Bus::dispatch($j)', null],
+    'unowned facade' => ['Cache::$method($k)', null],
+    'dynamic class' => ['$class::$method()', null],
+    'method call' => ['$bus->$method($j)', null],
 ]);
 
 it('matches a Dispatchable call on a variable class', function (): void {
@@ -146,7 +186,8 @@ it('matches nothing for shapes outside the table', function (string $expr): void
     'dynamic method' => ['$x->$m($n)'],
     'new expression' => ['new Foo($e)'],
     'unknown method' => ['$x->handle($e)'],
-    'unlisted Mail static' => ['Mail::raw($t, $cb)'],
+    'unlisted Mail static' => ['Mail::alwaysTo($a)'],
+    'view mail behind a PendingMail root' => ['Mail::to($u)->raw($t, $cb)'],
     'unlisted Bus static' => ['Bus::dispatchIf($c, $j)'],
     'unlisted Queue static' => ['Queue::dispatch($j)'],
     'unlisted Event static' => ['Event::dispatchIf($c, $e)'],

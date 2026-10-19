@@ -58,7 +58,7 @@ final class DispatchEntry
     /**
      * Mark a payload as reached through helper methods: `via` lists them in
      * call order and the confidence drops to medium, since the helper may not
-     * run on every path.
+     * run on every path; a `low` site stays low.
      *
      * @param  array<string, mixed>  $payload
      * @param  list<string>  $via
@@ -70,7 +70,7 @@ final class DispatchEntry
             return $payload;
         }
 
-        $payload[Field::CONFIDENCE->value] = Confidence::MEDIUM->value;
+        $payload[Field::CONFIDENCE->value] = ($payload[Field::CONFIDENCE->value] ?? null) === Confidence::LOW->value ? Confidence::LOW->value : Confidence::MEDIUM->value;
         $payload[Field::VIA->value] = $via;
 
         return $payload;

@@ -16,7 +16,7 @@ class OrderController
         ProcessOrder::dispatch()->onQueue('high')->onConnection('redis'); // → jobs[ProcessOrder].dispatched_from.overrides {"queue":"high","connection":"redis"}
         dispatch(new ProcessOrder)->delay(60)->afterCommit(); // → jobs[ProcessOrder].dispatched_from.overrides {"delay":60,"after_commit":true}
         Mail::to('a@example.com')->locale('es')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.locale es
-        Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides null
+        Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
         Mail::to('a@example.com')->send((new OrderReceipt)->mailer('postmark')); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
 
         ProcessOrder::dispatch()->delay(now()->addMinutes(5)); // → jobs[ProcessOrder].dispatched_from.overrides null

@@ -1613,7 +1613,7 @@ it('classifies an unreadable dispatch target by its shape', function (string $bo
     'constant' => ['event(self::EVENT);', 'stored_target'],
     'static property' => ['dispatch(static::$job);', 'stored_target'],
     'coalesce' => ['event($event ?? new Fallback);', 'unsupported_expression'],
-    'string job' => ["Queue::push('Handler@run');", 'unsupported_expression'],
+    'string that is no class' => ["Queue::push('run the handler');", 'unsupported_expression'],
     'dynamic class receiver property' => ['$this->model::dispatch($id);', 'stored_target'],
     'match' => ['event(match ($kind) { 1 => new A, default => $other });', 'conditional_dispatch'],
 ]);

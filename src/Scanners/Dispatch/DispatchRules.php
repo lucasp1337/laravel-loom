@@ -62,16 +62,16 @@ final class DispatchRules
             // `Bus::batch([new A, new B])`
             self::facade(Facades::BUS, 'batch', DispatchForm::JOB_HELPER, DispatchKinds::JOB, target: DispatchTarget::LIST_ITEMS),
 
-            // `Queue::push($job)`
-            self::facade(Facades::QUEUE, 'push', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT),
+            // `Queue::push($job)`; a `'Class@method'` string is a job too
+            self::facade(Facades::QUEUE, 'push', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, classString: true),
             // `Queue::pushOn($queue, $job)`
-            self::facade(Facades::QUEUE, 'pushOn', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 1),
+            self::facade(Facades::QUEUE, 'pushOn', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 1, classString: true),
             // `Queue::later($delay, $job)`
-            self::facade(Facades::QUEUE, 'later', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 1),
+            self::facade(Facades::QUEUE, 'later', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 1, classString: true),
             // `Queue::laterOn($queue, $delay, $job)`
-            self::facade(Facades::QUEUE, 'laterOn', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 2),
+            self::facade(Facades::QUEUE, 'laterOn', DispatchForm::FACADE, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 2, classString: true),
             // `Queue::bulk([new A, new B])`
-            self::facade(Facades::QUEUE, 'bulk', DispatchForm::JOB_HELPER, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::LIST_ITEMS),
+            self::facade(Facades::QUEUE, 'bulk', DispatchForm::JOB_HELPER, DispatchKinds::JOB, DispatchMode::PUSH, DispatchTarget::LIST_ITEMS, classString: true),
 
             // `Mail::send($mailable)`
             self::facade(Facades::MAIL, 'send', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, target: DispatchTarget::ARGUMENT),
@@ -87,6 +87,12 @@ final class DispatchRules
             self::facade(Facades::MAIL, 'later', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 1),
             // `Mail::laterOn($queue, $delay, $mailable)`
             self::facade(Facades::MAIL, 'laterOn', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, DispatchMode::PUSH, DispatchTarget::ARGUMENT, argIndex: 2),
+            // `Mail::raw($text, $cb)`: a message with no mailable class
+            self::facade(Facades::MAIL, 'raw', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, target: DispatchTarget::VIEW_MAIL),
+            // `Mail::html($html, $cb)`
+            self::facade(Facades::MAIL, 'html', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, target: DispatchTarget::VIEW_MAIL),
+            // `Mail::plain($view, $data, $cb)`
+            self::facade(Facades::MAIL, 'plain', DispatchForm::MAIL_FACADE, DispatchKinds::MAILABLE, target: DispatchTarget::VIEW_MAIL),
 
             // `Notification::send($notifiables, $n, $channels)`; `send` is plain, ShouldQueue decides
             self::facade(Facades::NOTIFICATION, 'send', DispatchForm::NOTIFICATION_FACADE, DispatchKinds::NOTIFICATION, target: DispatchTarget::ARGUMENT, argIndex: 1, channelsAt: 2),
@@ -118,6 +124,12 @@ final class DispatchRules
             self::mailTerminal('later', DispatchMode::PUSH, argIndex: 1),
             // `Mail::to($u)->laterOn($queue, $delay, $m)`
             self::mailTerminal('laterOn', DispatchMode::PUSH, argIndex: 2),
+            // `Mail::mailer('x')->raw($text, $cb)`: the named mailer's view-only sends
+            self::mailerViewMail('raw'),
+            // `Mail::mailer('x')->html($html, $cb)`
+            self::mailerViewMail('html'),
+            // `Mail::mailer('x')->plain($view, $data, $cb)`
+            self::mailerViewMail('plain'),
 
             // `Notification::route('mail', $a)->notify($n)`: rooted at the facade
             self::notify('notify', DispatchForm::NOTIFICATION_CHAIN, Facades::NOTIFICATION),
@@ -159,9 +171,9 @@ final class DispatchRules
     }
 
     /** `Facade::name(...)`. */
-    private static function facade(Facades $facade, string $name, DispatchForm $form, DispatchKinds $kind, ?DispatchMode $mode = null, DispatchTarget $target = DispatchTarget::PENDING_ARGUMENT, int $argIndex = 0, ?int $channelsAt = null): DispatchRule
+    private static function facade(Facades $facade, string $name, DispatchForm $form, DispatchKinds $kind, ?DispatchMode $mode = null, DispatchTarget $target = DispatchTarget::PENDING_ARGUMENT, int $argIndex = 0, ?int $channelsAt = null, bool $classString = false): DispatchRule
     {
-        return new DispatchRule(DispatchShape::FACADE_STATIC, $name, $form, $kind, $target, facade: $facade, argIndex: $argIndex, mode: $mode, channelsAt: $channelsAt);
+        return new DispatchRule(DispatchShape::FACADE_STATIC, $name, $form, $kind, $target, facade: $facade, argIndex: $argIndex, mode: $mode, channelsAt: $channelsAt, classString: $classString);
     }
 
     /** `Class::name(...)`. */
@@ -183,6 +195,21 @@ final class DispatchRules
             rootMethods: self::MAIL_ROOT_METHODS,
             argIndex: $argIndex,
             mode: $mode,
+            labelPrefix: 'Mail::...->',
+        );
+    }
+
+    /** `Mail::mailer(...)->name(...)`: `Mailer::raw()` and the like; a PendingMail has no such method. */
+    private static function mailerViewMail(string $name): DispatchRule
+    {
+        return new DispatchRule(
+            DispatchShape::METHOD_CALL,
+            $name,
+            DispatchForm::MAIL_CHAIN,
+            DispatchKinds::MAILABLE,
+            DispatchTarget::VIEW_MAIL,
+            facade: Facades::MAIL,
+            rootMethods: ['mailer'],
             labelPrefix: 'Mail::...->',
         );
     }

@@ -35,6 +35,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 | Reason | Shown on |
 | --- | --- |
 | `dynamic_class_name` | [Dispatches](dispatches.md), [Mailables](mailables.md) |
+| `dynamic_method_name` | [Dispatches](dispatches.md) |
 | `container_resolution` | [Dispatches](dispatches.md) |
 | `string_concatenation` | [Dispatches](dispatches.md) |
 | `conditional_dispatch` | [Dispatches](dispatches.md) |

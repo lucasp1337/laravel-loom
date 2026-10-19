@@ -79,6 +79,30 @@
     class ShipOrder {}
     ```
 
+??? example "Facade calls with a variable method name"
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Jobs\ProcessOrder;
+    use Illuminate\Support\Facades\Bus;
+
+    class OrderController
+    {
+        public function store(bool $sync, string $method): void
+        {
+            $call = 'dispatchSync';
+            Bus::$call(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode sync
+            Bus::{'dispatch'}(new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            Bus::{'dispatchIf'}(true, new ProcessOrder); // ✗ not recorded
+
+            Bus::$method(new ProcessOrder); // ✗ dynamic_method_name
+            $mode = $sync ? 'dispatchSync' : 'dispatch';
+            Bus::$mode(new ProcessOrder); // ✗ dynamic_method_name
+        }
+    }
+    ```
+
 ??? example "Dispatches reached through helper methods"
 
     ```php title="app/Listeners/BaseListener.php"
@@ -173,6 +197,8 @@
             Queue::later(60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
             Queue::laterOn('orders', 60, new ProcessOrder); // → jobs[ProcessOrder].dispatched_from.mode push
             Queue::bulk([new ProcessOrder]); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::push('App\Jobs\ProcessOrder@handle'); // → jobs[ProcessOrder].dispatched_from.mode push
+            Queue::push('App\Support\SyncInventory@fire'); // ✗ class_not_found
             Queue::pushRaw('{"job":"x"}'); // ✗ not recorded
         }
     }
@@ -230,7 +256,7 @@
             ProcessOrder::dispatch()->onQueue('high')->onConnection('redis'); // → jobs[ProcessOrder].dispatched_from.overrides {"queue":"high","connection":"redis"}
             dispatch(new ProcessOrder)->delay(60)->afterCommit(); // → jobs[ProcessOrder].dispatched_from.overrides {"delay":60,"after_commit":true}
             Mail::to('a@example.com')->locale('es')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.locale es
-            Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides null
+            Mail::mailer('postmark')->to('a@example.com')->send(new OrderReceipt); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
             Mail::to('a@example.com')->send((new OrderReceipt)->mailer('postmark')); // → mailables[OrderReceipt].sent_from.overrides.mailer postmark
 
             ProcessOrder::dispatch()->delay(now()->addMinutes(5)); // → jobs[ProcessOrder].dispatched_from.overrides null
@@ -239,6 +265,78 @@
             $job = new ProcessOrder;
             $job->onQueue('high');
             dispatch($job); // → jobs[ProcessOrder].dispatched_from.overrides null
+        }
+    }
+    ```
+
+??? example "Classes passed to a method that dispatches its parameter"
+
+    ```php title="app/Services/Messenger.php"
+    namespace App\Services;
+
+    use Illuminate\Support\Facades\Mail;
+
+    class Messenger
+    {
+        public function mail(string $mailClass, string $to): void
+        {
+            Mail::to($to)->send(new $mailClass); // ✗ dynamic_class_name
+        }
+
+        public function fire(object $event): void
+        {
+            event($event); // ✗ dynamic_class_name
+        }
+
+        public function reuse(string $mailClass): void
+        {
+            $mailClass = $mailClass.'Mail';
+            Mail::send(new $mailClass); // ✗ dynamic_class_name
+        }
+    }
+    ```
+
+    ```php title="app/Http/Controllers/OrderController.php"
+    namespace App\Http\Controllers;
+
+    use App\Events\OrderPlaced;
+    use App\Jobs\ProcessOrder;
+    use App\Mail\OrderReceipt;
+    use App\Services\Messenger;
+
+    class OrderController
+    {
+        public function __construct(private Messenger $messenger) {}
+
+        public function store(Messenger $messenger, object $anything): void
+        {
+            app(Messenger::class)->mail(mailClass: OrderReceipt::class, to: 'a@example.com'); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            $this->messenger->mail(OrderReceipt::class, 'a@example.com'); // → mailables[OrderReceipt].sent_from.method OrderController::store
+            $messenger->fire(new OrderPlaced); // → events[OrderPlaced].dispatched_from.method OrderController::store
+            $this->queue(ProcessOrder::class); // → jobs[ProcessOrder].dispatched_from.method OrderController::store
+            $messenger->reuse(OrderReceipt::class); // ✗ not recorded
+            $messenger->fire($anything); // ✗ not recorded
+        }
+
+        private function queue(string $job): void
+        {
+            $job::dispatch(); // ✗ dynamic_class_name
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use App\Mail\OrderReceipt;
+    use App\Services\Messenger;
+
+    class SendReceipt
+    {
+        public function handle(OrderPlaced $event): void
+        {
+            (new Messenger)->mail(OrderReceipt::class, 'a@example.com'); // → listeners[SendReceipt].dispatches.confidence low
         }
     }
     ```

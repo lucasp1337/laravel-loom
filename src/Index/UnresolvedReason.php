@@ -17,6 +17,7 @@ namespace Lucasp\Loom\Index;
 enum UnresolvedReason: string implements Summarized
 {
     case DYNAMIC_CLASS_NAME = 'dynamic_class_name';
+    case DYNAMIC_METHOD_NAME = 'dynamic_method_name';
     case CONTAINER_RESOLUTION = 'container_resolution';
     case STRING_CONCATENATION = 'string_concatenation';
     case CONDITIONAL_DISPATCH = 'conditional_dispatch';
@@ -40,6 +41,7 @@ enum UnresolvedReason: string implements Summarized
     {
         return match ($this) {
             self::DYNAMIC_CLASS_NAME => 'the target is a variable, or `new $class` / `$class::dispatch()`.',
+            self::DYNAMIC_METHOD_NAME => 'a dispatching facade called with a variable method name (`Bus::$method($job)`), so the call it makes is unknown.',
             self::CONTAINER_RESOLUTION => 'the target comes from `app()`, `resolve()` or `->make()`.',
             self::STRING_CONCATENATION => 'the target is built by concatenation or interpolation.',
             self::CONDITIONAL_DISPATCH => 'a ternary or `match` whose branches cannot be evaluated.',
