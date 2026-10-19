@@ -16,7 +16,7 @@ final class WordBudget
 
     /** @var array<string, int> page => words */
     public const PAGES = [
-        'README.md' => 490,
+        'README.md' => 643,
         'docs/concepts/the-index.md' => 270,
         'docs/concepts/what-loom-sees.md' => 220,
         'docs/getting-started.md' => 250,

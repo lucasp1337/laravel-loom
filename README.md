@@ -12,9 +12,11 @@
 
 # Laravel Loom
 
-Loom is a static analyzer that maps a Laravel app's events, listeners, jobs, mailables, notifications, schedules and routes into a JSON index, a browser UI and an MCP server.
+Events, listeners and queued jobs keep a Laravel app loosely coupled. That works until you have to trace a flow: who fires `OrderPlaced`, what listens, and what does that listener dispatch next? Loom stitches the loose parts back together. It shows where every event, job, mailable and notification is dispatched and who handles it, with a file and line for each hop, so you can follow the app at hundreds of events without clicking through code.
 
-It reads your source, never boots the app, and answers "what happens when `OrderPlaced` fires?" with a file and line for every hop.
+![Chain graph](docs/assets/demo.gif)
+
+## Quick start
 
 ```bash
 composer require lucasp1337/laravel-loom --dev
@@ -49,9 +51,20 @@ php artisan loom:show OrderPlaced
 ```
 <!-- /generated:output:show-event -->
 
-[Getting started](docs/getting-started.md) walks through it.
+`dispatched_from` is where your code fires the event; `handled_by` is every listener that reacts. [Getting started](docs/getting-started.md) walks through it.
 
-![Chain graph](docs/assets/demo.gif)
+## How does Loom work?
+
+`loom:scan` parses your PHP source. It never boots the app, so it needs no database, queue or `.env` and gives the same result on a laptop and in CI. It links every dispatch to its handlers, and every handler to what it dispatches next.
+
+The result is one JSON file, `storage/loom/index.json`. The UI, the MCP server and the CLI checks read that file, so scan again after you change code. [The index](docs/concepts/the-index.md) explains its shape, and [what Loom sees](docs/concepts/what-loom-sees.md) lists what gets picked up.
+
+## What you can do with it
+
+- Browse the read-only UI at `/loom`. Open an event and follow its chain as a graph, one column per hop. See [browse the UI](docs/guides/browse-the-ui.md).
+- Point your coding agent at `php artisan loom:mcp`, so it can ask what fires an event or what a change breaks instead of grepping. See [ask an agent](docs/guides/ask-an-agent.md).
+- Gate pull requests with `loom:check`, which fails on dead events or dispatch cycles, and use `loom:diff` to show how the wiring changed between branches. See [gate your CI](docs/guides/gate-your-ci.md).
+- Load the index into typed PHP objects for your own scripts. See the [PHP API](docs/reference/php-api.md) and [recipes](docs/recipes/event-chain.md).
 
 ## Ask what a change breaks
 
@@ -122,19 +135,11 @@ Asked "What breaks if I delete `SendReceipt`?", an agent calls:
 
 Answer: `OrderPlaced` (fired by `OrderController::store`) loses its only handler; nothing `SendReceipt` dispatches runs.
 
-## What you can do with it
-
-- **See the wiring.** Every primitive, forward and backward, in [one index](docs/concepts/the-index.md). What gets picked up is in [what Loom sees](docs/concepts/what-loom-sees.md).
-- **Browse it.** A read-only UI at `/loom`: [browse the UI](docs/guides/browse-the-ui.md).
-- **Ask an agent.** `php artisan loom:mcp` serves the index to an MCP client: [ask an agent](docs/guides/ask-an-agent.md).
-- **Gate your CI.** `loom:check` fails pull requests that add dead events or dispatch cycles, and `loom:diff` shows how the architecture changed between branches: [gate your CI](docs/guides/gate-your-ci.md).
-- **Read it from code.** Load the index into typed PHP objects: [PHP API](docs/reference/php-api.md) and [recipes](docs/recipes/event-chain.md).
-
 ## What it is not
 
-- Not a runtime tracer: it reports what your source says, not what a request did.
-- Not complete for dynamic code: `event($class)` is listed under `unresolved_dispatches` with a file and line instead of guessed.
-- Not a style linter: it has no opinion beyond the [check rules](docs/reference/check-rules-and-formats.md).
+- Not a runtime tracer. It reports what your source says, not what a request did.
+- Not complete for dynamic code. `event($class)` is listed under `unresolved_dispatches` with a file and line instead of guessed.
+- Not a style linter. It has no opinion beyond the [check rules](docs/reference/check-rules-and-formats.md).
 
 > [!NOTE]
 > Install with `--dev`. The UI, the MCP server and the `viewLoom` gate then disappear from `composer install --no-dev` production builds. The UI is also mounted only in `local` unless you list more environments in `loom.ui.environments`.
@@ -142,7 +147,7 @@ Answer: `OrderPlaced` (fired by `OrderController::store`) loses its only handler
 ## Requirements
 
 - PHP 8.3 or newer
-- Laravel 12 or 13
+- Laravel 12.41+ or 13
 
 The browser UI needs `livewire/livewire` and `loom:mcp` needs `laravel/mcp`. Neither ships with Loom:
 
