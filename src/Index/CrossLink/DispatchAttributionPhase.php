@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lucasp\Loom\Index\CrossLink;
 
 use Lucasp\Loom\Index\Field;
-use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\Sections;
 
 /**
@@ -21,7 +20,7 @@ use Lucasp\Loom\Index\Sections;
  * {@see CrossLinkContext::MAX_HELPER_HOPS} helpers). Such a dispatch carries
  * `via` (the helpers, in call order) and `confidence: medium`. Helpers inherited
  * from a parent class or trait, calls on other objects and callables are not
- * followed. A non-hook observer method gets none.
+ * followed. An observer method that is not one of the entry's `hooks` gets none.
  *
  * @internal
  */
@@ -29,7 +28,6 @@ final class DispatchAttributionPhase implements CrossLinkPhase
 {
     public function apply(CrossLinkContext $context): void
     {
-        $observerHooks = collect(ModelHook::observableValues())->flip()->all();
         $listenerIndex = $context->index(Sections::LISTENERS);
         $jobIndex = $context->index(Sections::JOBS);
 
@@ -64,8 +62,9 @@ final class DispatchAttributionPhase implements CrossLinkPhase
                     $this->appendOnce($context, Sections::JOBS, $jobIndex[$classFqcn], $entryPayload);
                 }
 
-                if (isset($observerHooks[$entryMethod], $context->observerIndex[$classFqcn])) {
-                    foreach ($context->observerIndex[$classFqcn] as $oIdx) {
+                foreach ($context->observerIndex[$classFqcn] ?? [] as $oIdx) {
+                    $hooks = $context->sections[Sections::OBSERVERS->value][$oIdx][Field::HOOKS->value] ?? [];
+                    if (is_array($hooks) && collect($hooks)->containsStrict($entryMethod)) {
                         $this->appendOnce($context, Sections::OBSERVERS, $oIdx, $entryPayload);
                     }
                 }

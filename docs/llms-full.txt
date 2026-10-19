@@ -548,8 +548,8 @@ events
         + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
 
 listeners
-  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
-  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
 
 unresolved_dispatches
   + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
@@ -877,7 +877,7 @@ Both read finished index files and need no source tree. Arguments and options ar
 | `--baseline=PATH` | Fails on any unresolved dispatch not in the baseline. |
 | `--strict` | Fails on every unresolved dispatch, whatever the baseline says. |
 
-Baseline entries match by file, line and expression, so moved code looks new; see the [recipe](../recipes/new-unresolved-dispatches.md).
+Entries with reason `handled_event_not_indexed` never fail. Baseline entries match by file, line and expression, so moved code looks new; see the [recipe](../recipes/new-unresolved-dispatches.md).
 
 ### Cycle detection
 
@@ -1041,8 +1041,8 @@ events
         + {"file":"app/Listeners/RecountStock.php","line":12,"method":"App\\Listeners\\RecountStock::handle"}
 
 listeners
-  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
-  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}
+  + {"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}
 
 unresolved_dispatches
   + {"file":"app/Services/Notifier.php","line":9,"expression":"event($eventClass)","reason":"dynamic_class_name"}
@@ -1122,6 +1122,7 @@ Each non-empty section has `added`, `removed` and `changed`, with full entries. 
                 ],
                 "registration": "discovery_unverified",
                 "queued": false,
+                "after_commit": false,
                 "dispatches": [
                     {
                         "target": "App\\Events\\OrderPlaced",
@@ -1144,6 +1145,7 @@ Each non-empty section has `added`, `removed` and `changed`, with full entries. 
                 ],
                 "registration": "discovery_unverified",
                 "queued": false,
+                "after_commit": false,
                 "dispatches": [
                     {
                         "target": "App\\Events\\InventoryAdjusted",
@@ -1189,8 +1191,8 @@ The same diff:
 
 ## listeners
 
-- **added** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
-- **added** `{"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}`
+- **added** `{"fqcn":"App\\Listeners\\RecountStock","file":"app/Listeners/RecountStock.php","line":8,"handles":[{"event":"App\\Events\\InventoryAdjusted","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\OrderPlaced","kind":"event","confidence":"high","file":"app/Listeners/RecountStock.php","line":12}]}`
+- **added** `{"fqcn":"App\\Listeners\\ReserveStock","file":"app/Listeners/ReserveStock.php","line":8,"handles":[{"event":"App\\Events\\OrderPlaced","method":"handle"}],"registration":"discovery_unverified","queued":false,"after_commit":false,"dispatches":[{"target":"App\\Events\\InventoryAdjusted","kind":"event","confidence":"high","file":"app/Listeners/ReserveStock.php","line":12}]}`
 
 ## unresolved_dispatches
 
@@ -1419,6 +1421,7 @@ Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it return
     ],
     "registration": "discovery_unverified",
     "queued": false,
+    "after_commit": false,
     "dispatches": [
       {
         "target": "App\\Events\\ReceiptSent",
@@ -2108,7 +2111,7 @@ Synthetic Eloquent model events from observer hooks and `Event::listen('eloquent
 | `id` | string | `eloquent.{event}: {model FQCN}`. |
 | `kind` | one of `model_event` | Always `model_event`. |
 | `model` | string | FQCN of the model. |
-| `event` | [enum](#model_eventsevent) | Eloquent hook name; `booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings. |
+| `event` | [enum](#model_eventsevent) or string | Eloquent hook name (`booting` and `booted` come only from `Event::listen('eloquent.booted: ...')` strings), or a custom event the model lists in `$observables`. |
 | `handled_by` | array of object | Observers and `Event::listen` targets that handle this model event, deduplicated. |
 
 ### `model_events[].event`
@@ -2136,6 +2139,7 @@ Listener classes. Handler methods include inherited ones.
 | `handles` | array of object | Events this listener handles, deduplicated by `event`, `method` and sorted by `event`, then `method`. |
 | `registration` | [enum](#listenersregistration) | How the listener was registered; when several registrations find it, the first value in the list wins. |
 | `queued` | boolean | `true` when the class implements `ShouldQueue` directly or through a parent class or interface, not through a trait. |
+| `after_commit` | boolean | `true` when the listener asks to run after the open database transaction commits: `ShouldHandleEventsAfterCommit` when not queued, `ShouldQueueAfterCommit` when queued, or `$afterCommit = true`. |
 | `dispatches` | array of [dispatch](#dispatch) | Events and jobs dispatched from the listener's handler methods. |
 
 ### `listeners[].registration`
@@ -2158,7 +2162,7 @@ Listener classes. Handler methods include inherited ones.
 
 ## `observers[]`
 
-Observer classes. One observer registered against N models gives N entries; when a pair is found through both paths, `attribute` wins over `observe_call`.
+Observer classes. One observer registered against N models gives N entries.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -2166,16 +2170,17 @@ Observer classes. One observer registered against N models gives N entries; when
 | `file` | [path](#relativepath) | File declaring the class. |
 | `line` | integer ≥ 1 | 1-indexed declaration line. |
 | `observes` | string | FQCN of the observed model. |
-| `registration` | [enum](#observersregistration) | How the observer was registered. |
-| `hooks` | array of [enum](#observershooks) | Observable model events the observer has a method for, sorted. |
+| `registration` | [enum](#observersregistration) | How the observer was registered; when several registrations find a pair, the first value in the list wins. |
+| `hooks` | array of [enum](#observershooks) or string | Observable model events the observer has a method for, sorted: the Eloquent events except `booting` and `booted`, plus the model's `$observables`. |
 | `dispatches` | array of [dispatch](#dispatch) | Dispatches made from the observer's hook methods. |
 
 ### `observers[].registration`
 
 | Value | Meaning |
 | --- | --- |
-| `observe_call` | `Model::observe(Observer::class)`, including `static::observe()` in `booted()`. |
 | `attribute` | An `#[ObservedBy]` attribute on the model. |
+| `observers_array` | The `$observers` property of an EventServiceProvider. |
+| `observe_call` | `Model::observe(Observer::class)`, including `static::observe()` in `booted()`. |
 
 ### `observers[].hooks`
 
@@ -2230,6 +2235,7 @@ Dispatch sites and listener or model-hook registrations that could not be resolv
 | `unreadable_listener` | A listener registration (`$listen`, `Event::listen()`, a subscriber return array) whose handler is not a class reference, a `[Class, method]` tuple, a readable string or a closure. |
 | `unreadable_subscriber` | An `Event::subscribe()` call or `$subscribe` entry that is not a `::class` reference, a string literal or `new`. |
 | `unreadable_model_hook` | A `static::creating(...)` style hook whose callback is not a closure or readable callable. |
+| `handled_event_not_indexed` | A listener `handles` an event class with no `events[]` row (a vendor event such as `Illuminate\Auth\Events\Login`); reported at the listener class, `expression` is `Fqcn::class`. |
 
 ## `closure_listeners[]`
 
@@ -2394,7 +2400,7 @@ Class-level queue settings. A key is `null` when the class declares nothing for 
 | `delay` | string or integer or null | Literal value of the class's `$delay` property. |
 | `tries` | string or integer or null | Literal value of the class's `$tries` property. |
 | `timeout` | string or integer or null | Literal value of the class's `$timeout` property. |
-| `backoff` | string or integer or null | Literal value of the class's `$backoff` property. |
+| `backoff` | string or integer or array or null | Literal value of the class's `$backoff` property; a list of seconds for `[10, 60]`. |
 | `after_commit` | boolean or null | Whether the class dispatches after the open database transaction commits, or `null` when the class says nothing and the queue connection's `after_commit` setting decides. |
 
 ### `dispatchSite`
@@ -2628,7 +2634,7 @@ Only these classes carry `@api`; everything else is `@internal` and may change i
 | `ModelEventHandler` | A handler (observer hook or `Event::listen` target) attached to a model event, emitted on `model_events[*].handled_by`. |
 | `Notification` | A notification class: its queue configuration, the channels it sends on, and the sites that notify it. |
 | `Observer` | A model observer: the model it observes, which lifecycle hooks it defines, and what it dispatches. |
-| `QueueConfig` | Static queue configuration read off a queueable class (job, mailable, notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff`, and whether the class dispatches after the transaction commits. |
+| `QueueConfig` | Static queue configuration read off a queueable class (job, mailable, notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff` (an int list for `[10, 60]`), and whether the class dispatches after the transaction commits. |
 | `Route` | An HTTP route: its verb, URI, name, controller target, middleware, and what the action dispatches. |
 | `ScheduledTask` | A scheduled task (command, job, closure, or shell exec) with its cron expression or sub-minute `frequency` and its modifiers. |
 | `UnresolvedDispatch` | A dispatch site the scanner could not statically resolve to a target, with the raw expression and the reason. |
@@ -2788,6 +2794,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 | `unreadable_listener` | [Listeners](listeners.md) |
 | `unreadable_subscriber` | [Listeners](listeners.md) |
 | `unreadable_model_hook` | [Observers and model hooks](observers.md) |
+| `handled_event_not_indexed` | [Listeners](listeners.md) |
 | `unknown_route_call` | [Routes](routes.md) |
 | `dynamic_uri` | [Routes](routes.md) |
 | `dynamic_resource` | [Routes](routes.md) |
@@ -2911,6 +2918,89 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     ```
 
 # Listeners
+
+??? example "Listeners that wait for the transaction"
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+
+    class SendReceipt implements ShouldHandleEventsAfterCommit // → listeners.after_commit true
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/QueueReceipt.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
+
+    class QueueReceipt implements ShouldQueueAfterCommit // → listeners.after_commit true
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/AuditOrder.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class AuditOrder // → listeners.after_commit true
+    {
+        public $afterCommit = true;
+
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/CountOrder.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class CountOrder // → listeners.after_commit false
+    {
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/ArchiveOrder.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+
+    class ArchiveOrder // → listeners.after_commit true
+    {
+        public function __construct()
+        {
+            $this->afterCommit = true;
+        }
+
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/QueueArchive.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class QueueArchive implements ShouldQueue // → listeners.after_commit false
+    {
+        public function __construct()
+        {
+            $this->afterCommit = true;
+        }
+
+        public function handle(OrderPlaced $event): void {}
+    }
+    ```
 
 ??? example "Discovered listener, typed to its event"
 
@@ -3104,6 +3194,49 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
         use HandlesShipping { onShipped as protected handleShipped; }
 
         public function handleNothing(): void {}
+    }
+    ```
+
+??? example "Invokable listeners"
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Events\OrderPlaced;
+    use App\Events\OrderShipped;
+    use App\Listeners\NotifyWarehouse;
+    use App\Listeners\SendReceipt;
+    use Illuminate\Support\Facades\Event;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            Event::listen(OrderPlaced::class, NotifyWarehouse::class); // → listeners[NotifyWarehouse].handles.method __invoke
+            Event::listen(OrderShipped::class, [NotifyWarehouse::class, 'onShipped']); // → events[OrderShipped].handled_by.method __invoke
+            Event::listen(OrderShipped::class, SendReceipt::class); // → listeners[SendReceipt].handles.method handle
+        }
+    }
+    ```
+
+    ```php title="app/Listeners/NotifyWarehouse.php"
+    namespace App\Listeners;
+
+    class NotifyWarehouse
+    {
+        public function __invoke(object $event): void {}
+    }
+    ```
+
+    ```php title="app/Listeners/SendReceipt.php"
+    namespace App\Listeners;
+
+    class SendReceipt
+    {
+        public function handle(object $event): void {}
+
+        public function __invoke(object $event): void {}
     }
     ```
 
@@ -3371,6 +3504,22 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     }
     ```
 
+??? example "Events without an event row"
+
+    ```php title="app/Listeners/LogLogin.php"
+    namespace App\Listeners;
+
+    use App\Events\OrderPlaced;
+    use Illuminate\Auth\Events\Login;
+
+    class LogLogin // ✗ handled_event_not_indexed
+    {
+        public function handle(Login $event): void {} // → listeners[LogLogin].handles.event Illuminate\Auth\Events\Login
+
+        public function handleOrder(OrderPlaced $event): void {} // → events[OrderPlaced].handled_by.listener LogLogin
+    }
+    ```
+
 # Closure listeners
 
 ??? example "Dispatches inside a closure listener"
@@ -3460,6 +3609,46 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     ```
 
 # Observers and model hooks
+
+??? example "Custom observable events"
+
+    ```php title="app/Models/Order.php"
+    namespace App\Models;
+
+    use App\Observers\OrderObserver;
+    use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+    use Illuminate\Database\Eloquent\Model;
+
+    #[ObservedBy(OrderObserver::class)]
+    class Order extends Model
+    {
+        protected $observables = ['archived', 'shipped'];
+
+        public function __construct(array $attributes = [])
+        {
+            parent::__construct($attributes);
+            $this->addObservableEvents('refunded'); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Observers/OrderObserver.php"
+    namespace App\Observers;
+
+    use App\Events\OrderShipped;
+
+    class OrderObserver // → observers.hooks ["archived","created"] → model_events[eloquent.archived: App\Models\Order].handled_by.method archived
+    {
+        public function archived(): void
+        {
+            event(new OrderShipped); // → observers[OrderObserver].dispatches.target OrderShipped
+        }
+
+        public function created(): void {}
+
+        public function refunded(): void {} // ✗ not recorded
+    }
+    ```
 
 ??? example "eloquent.* event strings"
 
@@ -3644,6 +3833,78 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     }
     ```
 
+??? example "The $observers array"
+
+    ```php title="app/Providers/EventServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Models\Order;
+    use App\Models\User;
+    use App\Observers\AuditObserver;
+    use App\Observers\OrderObserver;
+    use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+
+    class EventServiceProvider extends ServiceProvider
+    {
+        protected $observers = [
+            Order::class => [OrderObserver::class, AuditObserver::class], // → observers[OrderObserver].registration observers_array → observers[AuditObserver].observes App\Models\Order
+            'App\Models\User' => AuditObserver::class, // → observers[AuditObserver].observes App\Models\User
+        ];
+    }
+    ```
+
+    ```php title="app/Observers/OrderObserver.php"
+    namespace App\Observers;
+
+    class OrderObserver // → model_events[eloquent.created: App\Models\Order].handled_by.handler OrderObserver
+    {
+        public function created(): void {}
+    }
+    ```
+
+    ```php title="app/Observers/AuditObserver.php"
+    namespace App\Observers;
+
+    class AuditObserver
+    {
+        public function saved(): void {}
+    }
+    ```
+
+??? example "A model's own static hook method"
+
+    ```php title="app/Models/Order.php"
+    namespace App\Models;
+
+    use Illuminate\Database\Eloquent\Model;
+
+    class Order extends Model
+    {
+        public static function creating($callback): void {}
+
+        protected static function booted(): void
+        {
+            static::creating(fn (Order $order) => null); // ✗ not recorded
+            static::created(fn (Order $order) => null); // → model_events[eloquent.created: App\Models\Order].handled_by.method {closure}
+        }
+    }
+    ```
+
+    ```php title="app/Providers/AppServiceProvider.php"
+    namespace App\Providers;
+
+    use App\Models\Order;
+    use Illuminate\Support\ServiceProvider;
+
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot(): void
+        {
+            Order::creating(fn (Order $order) => null); // ✗ not recorded
+        }
+    }
+    ```
+
 ??? example "Observer registrations"
 
     ```php title="app/Models/Order.php"
@@ -3736,6 +3997,32 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     ```
 
 # Jobs
+
+??? example "Backoff lists"
+
+    ```php title="app/Jobs/SyncInventory.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class SyncInventory implements ShouldQueue
+    {
+        public $backoff = [10, 60, 300]; // → jobs[SyncInventory].queue_config.backoff [10,60,300]
+    }
+    ```
+
+    ```php title="app/Jobs/SyncPrices.php"
+    namespace App\Jobs;
+
+    use Illuminate\Contracts\Queue\ShouldQueue;
+
+    class SyncPrices implements ShouldQueue
+    {
+        public $backoff = [10, self::MAX]; // → jobs[SyncPrices].queue_config.backoff null
+
+        public const MAX = 600;
+    }
+    ```
 
 ??? example "Queue settings from the constructor"
 
@@ -4616,6 +4903,32 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
     }
     ```
 
+??? example "Framework notification parents"
+
+    ```php title="app/Notifications/PasswordReset.php"
+    namespace App\Notifications;
+
+    use Illuminate\Auth\Notifications\ResetPassword;
+
+    class PasswordReset extends ResetPassword {} // → notifications[PasswordReset]
+    ```
+
+    ```php title="app/Notifications/ConfirmEmail.php"
+    namespace App\Notifications;
+
+    use Illuminate\Auth\Notifications\VerifyEmail;
+
+    class ConfirmEmail extends VerifyEmail {} // → notifications[ConfirmEmail].channels []
+    ```
+
+    ```php title="app/Notifications/Formatter.php"
+    namespace App\Notifications;
+
+    use Illuminate\Support\Collection;
+
+    class Formatter extends Collection {} // ✗ not recorded
+    ```
+
 # Schedule
 
 ??? example "Tasks in routes/console.php"
@@ -5076,7 +5389,7 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 
     use Illuminate\Auth\Notifications\ResetPassword;
 
-    class PasswordReset extends ResetPassword {} // ✗ not recorded
+    class PasswordReset extends ResetPassword {} // → notifications[PasswordReset].channels []
     ```
 
     ```php title="app/Notifications/BackupFailed.php"

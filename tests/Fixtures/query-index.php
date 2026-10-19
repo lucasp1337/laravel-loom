@@ -35,7 +35,7 @@ $listener = static fn (string $name, string $handles, array $dispatches, bool $q
     'file' => "app/Listeners/{$name}.php",
     'line' => 5,
     'registration' => 'auto_discovered',
-    'queued' => $queued,
+    'queued' => $queued, 'after_commit' => false,
     'handles' => $handles === '' ? [] : [['event' => "App\\Events\\{$handles}", 'method' => 'handle']],
     'dispatches' => $dispatches,
 ];
@@ -71,7 +71,7 @@ return [
             'line' => 30,
             'end_line' => 34,
             'registration' => 'event_listen_call',
-            'queued' => true,
+            'queued' => true, 'after_commit' => false,
             'dispatches' => [$dispatch('App\\Events\\Ping', 'app/Providers/EventServiceProvider.php', 32)],
         ],
     ],

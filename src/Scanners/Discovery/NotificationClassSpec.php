@@ -17,7 +17,8 @@ use Lucasp\Loom\Support\PrimitiveDirectory;
 
 /**
  * Notifications: every concrete class under Notifications/ that is one
- * (extends Notification or declares via()), plus notification-kind
+ * (extends Notification or a framework notification such as `ResetPassword`,
+ * or declares via()), plus notification-kind
  * dispatch targets (never ambiguous). Adds the declared `via()` channels.
  *
  * @implements ClassSpec<NotificationClassRecord, NotificationLocation, NotificationEntry>
@@ -86,8 +87,8 @@ final class NotificationClassSpec implements ClassSpec
     public function belongsByConvention(object $record, ClassHierarchyResolver $resolver): bool
     {
         // A class under Notifications/ is a notification only when it extends
-        // Notification (or an unseen vendor parent) or declares via().
-        return $resolver->mayExtend($record->fqcn, LaravelClasses::NOTIFICATION->value)
+        // Notification, a framework notification or an unseen vendor parent, or declares via().
+        return collect(LaravelClasses::notificationClasses())->contains(fn (string $base): bool => $resolver->mayExtend($record->fqcn, $base))
             || isset($resolver->effectiveMethods($record->fqcn)['via']);
     }
 

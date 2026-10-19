@@ -209,11 +209,12 @@ final class SchemaPages implements RegionSource
         if (isset($node['$ref'])) {
             return [$this->refLabel($node['$ref']), null, null];
         }
-        if (isset($node['oneOf'])) {
+        $branches = $node['oneOf'] ?? $node['anyOf'] ?? null;
+        if (is_array($branches)) {
             $labels = [];
             $inline = null;
             $values = null;
-            foreach ($node['oneOf'] as $branch) {
+            foreach ($branches as $branch) {
                 [$label, $branchInline, $branchValues] = $this->typeOf($branch);
                 $labels[] = $label;
                 $inline ??= $branchInline;

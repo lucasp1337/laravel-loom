@@ -168,6 +168,7 @@ final class IndexSerializer
             ]),
             Field::REGISTRATION->value => $e->registration->value,
             Field::QUEUED->value => $e->queued,
+            Field::AFTER_COMMIT->value => $e->afterCommit,
             Field::DISPATCHES->value => [],
         ];
     }
@@ -322,7 +323,7 @@ final class IndexSerializer
     }
 
     /**
-     * @return array<string, string|int|bool|null>|null
+     * @return array<string, string|int|bool|list<int>|null>|null
      */
     private function queueConfig(?QueueConfigData $q): ?array
     {

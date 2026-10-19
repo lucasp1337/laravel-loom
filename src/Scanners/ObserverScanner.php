@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lucasp\Loom\Scanners;
 
+use Illuminate\Support\Arr;
 use Lucasp\Loom\Contracts\Scanner;
 use Lucasp\Loom\Dto\ClosureListenerEntry;
 use Lucasp\Loom\Dto\EloquentListenRecord;
@@ -17,9 +18,11 @@ use Lucasp\Loom\Index\ModelHook;
 use Lucasp\Loom\Index\ObserverRegistration;
 use Lucasp\Loom\Scanners\Visitors\EloquentListenStringVisitor;
 use Lucasp\Loom\Scanners\Visitors\ModelHookCallVisitor;
+use Lucasp\Loom\Scanners\Visitors\ObservablesVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserveCallVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObservedByAttributeVisitor;
 use Lucasp\Loom\Scanners\Visitors\ObserverClassVisitor;
+use Lucasp\Loom\Scanners\Visitors\ObserversArrayVisitor;
 use Lucasp\Loom\Support\Ast\AstWalker;
 use Lucasp\Loom\Support\ClassHierarchyResolver;
 use Lucasp\Loom\Support\EloquentEventName;
@@ -29,19 +32,21 @@ use Lucasp\Loom\Support\ScanScope;
 use Lucasp\Loom\Support\Sorting;
 
 /**
- * Discovers Eloquent observers via `#[ObservedBy]`, `Model::observe()`, and
- * `Event::listen('eloquent.*')`. Emits both observers[] and model_events[].
- * Registrations are read from the scan paths and from the providers that
- * `bootstrap/providers.php` and `config/app.php` list.
+ * Discovers Eloquent observers via `#[ObservedBy]`, an EventServiceProvider's
+ * `$observers`, `Model::observe()`, and `Event::listen('eloquent.*')`. Emits
+ * both observers[] and model_events[]. Registrations are read from the scan
+ * paths and from the providers that `bootstrap/providers.php` and
+ * `config/app.php` list.
  *
- * `observers[]` has one entry per (observer, model) pair from the attribute and
- * the `observe()` call; when both exist the attribute wins. An observer's
- * `hooks` are the methods named after an observable Eloquent event, of any
- * visibility and declared, inherited or trait-provided (a vendor parent is
- * opaque), because Laravel registers an observer method whenever
- * `method_exists` is true. `booting` and `booted` are fired as model events but
- * are not observable, so they are never hooks. An observer with no matching
- * method is still emitted with `hooks: []`.
+ * `observers[]` has one entry per (observer, model) pair from the attribute,
+ * `$observers` and the `observe()` call, winning in that order. An observer's
+ * `hooks` are the methods named after an observable event, of any visibility
+ * and declared, inherited or trait-provided (a vendor parent is opaque),
+ * because Laravel registers an observer method whenever `method_exists` is
+ * true. The observable events are the Eloquent ones and the model's literal
+ * `$observables` (the most derived declaration in the app wins). `booting` and
+ * `booted` are fired as model events but are not observable, so they are never
+ * hooks. An observer with no matching method is still emitted with `hooks: []`.
  *
  * Both sections are written here and nowhere else: the cross-link pass reads
  * `model_events[]` but never regenerates it.
@@ -50,7 +55,11 @@ use Lucasp\Loom\Support\Sorting;
  * handler: observer hook methods, the `Event::listen('eloquent.*')` strings
  * and `$listen` keys, and model hook registrations (`static::creating(...)`,
  * see {@see ModelHookCallVisitor}), deduplicated on `handler::method` with the
- * observer winning. A pair with no handler is not emitted.
+ * observer winning. A pair with no handler is not emitted. A hook call on a
+ * class that declares its own static method of that name (`creating()` on the
+ * model) calls that method, not the Eloquent registrar, and is not a hook. A
+ * class handler without the named method but with `__invoke` is recorded with
+ * `__invoke`, as the dispatcher calls it.
  *
  * A closure model hook is a handler with method `{closure}` on the model, and
  * a `closure_listeners[]` entry (registration `model_hook`, event
@@ -94,6 +103,8 @@ final class ObserverScanner implements Scanner
         $hookRecords = [];
         /** @var list<UnresolvedDispatchEntry> $unresolved */
         $unresolved = [];
+        /** @var array<string, list<string>> $observables */
+        $observables = [];
 
         foreach ($this->registrationFiles($appRoot, $this->walker) as $file) {
             $hookVisitor = new ModelHookCallVisitor;
@@ -101,6 +112,8 @@ final class ObserverScanner implements Scanner
             $attrVisitor = new ObservedByAttributeVisitor;
             $observeVisitor = new ObserveCallVisitor;
             $listenVisitor = new EloquentListenStringVisitor;
+            $observersArrayVisitor = new ObserversArrayVisitor;
+            $observablesVisitor = new ObservablesVisitor;
 
             $this->walker->walk($file->getPathname(), [
                 $classVisitor,
@@ -108,7 +121,10 @@ final class ObserverScanner implements Scanner
                 $observeVisitor,
                 $listenVisitor,
                 $hookVisitor,
+                $observersArrayVisitor,
+                $observablesVisitor,
             ]);
+            $observables = [...$observables, ...$observablesVisitor->getObservables()];
 
             $relative = $this->relativePath($appRoot, $file->getPathname());
 
@@ -132,6 +148,16 @@ final class ObserverScanner implements Scanner
                         'model' => $pair->model,
                         'observer' => $observerFqcn,
                         'registration' => ObserverRegistration::ATTRIBUTE,
+                    ];
+                }
+            }
+
+            foreach ($observersArrayVisitor->getPairs() as $pair) {
+                foreach ($pair->observers as $observerFqcn) {
+                    $observerRegs[] = [
+                        'model' => $pair->model,
+                        'observer' => $observerFqcn,
+                        'registration' => ObserverRegistration::OBSERVERS_ARRAY,
                     ];
                 }
             }
@@ -162,6 +188,10 @@ final class ObserverScanner implements Scanner
         $closureListeners = [];
         foreach ($this->expandTraitHooks($hookRecords, $classMap, $resolver) as $hook) {
             $record = $hook['record'];
+            // The class's own static method of the registrar's name shadows the registrar.
+            if (isset($resolver->effectiveMethods($record->model)[strtolower(ModelHook::from($record->hook)->registrar())])) {
+                continue;
+            }
             $listenEntries[] = [
                 'model' => $record->model,
                 'hook' => $record->hook,
@@ -182,7 +212,11 @@ final class ObserverScanner implements Scanner
             }
         }
 
-        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, $resolver);
+        $listenEntries = Arr::map($listenEntries, static fn (array $entry): array => $entry['method'] === EloquentListenRecord::CLOSURE_METHOD
+            ? $entry
+            : [...$entry, 'method' => $resolver->dispatchedMethod($entry['handler'], $entry['method'])]);
+
+        $observers = $this->mergeObservers($appRoot, $observerRegs, $classMap, $resolver, $observables);
         $modelEvents = $this->buildModelEvents($observers, $listenEntries);
 
         return [
@@ -234,13 +268,14 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Precedence: attribute > observe_call. Unlocatable observers dropped.
+     * Precedence: attribute > observers_array > observe_call. Unlocatable observers dropped.
      *
      * @param  array<int, array{model: string, observer: string, registration: ObserverRegistration}>  $regs
      * @param  array<string, array{file: string, line: int}>  $classMap
+     * @param  array<string, list<string>>  $observables  class FQCN => declared `$observables`
      * @return array<string, array{fqcn: string, observes: string, file: string, line: int, hooks: list<string>, registration: ObserverRegistration}>
      */
-    private function mergeObservers(string $appRoot, array $regs, array $classMap, ClassHierarchyResolver $resolver): array
+    private function mergeObservers(string $appRoot, array $regs, array $classMap, ClassHierarchyResolver $resolver, array $observables): array
     {
         /** @var array<string, ObserverRegistration> $registrationByPair */
         $registrationByPair = [];
@@ -272,7 +307,7 @@ final class ObserverScanner implements Scanner
                 'observes' => $model,
                 'file' => is_array($location) ? $location['file'] : $location->file,
                 'line' => is_array($location) ? $location['line'] : $location->line,
-                'hooks' => $this->hooksOf($resolver, $observer),
+                'hooks' => $this->hooksOf($resolver, $observer, $this->observableEvents($resolver, $model, $observables)),
                 'registration' => $registration,
             ];
         }
@@ -281,31 +316,44 @@ final class ObserverScanner implements Scanner
     }
 
     /**
-     * Observable Eloquent events the observer has a method for. Laravel
-     * registers an observer method with `method_exists`, so declared,
-     * inherited and trait methods all count, whatever their visibility.
+     * Observable events the observer has a method for. Laravel registers an
+     * observer method with `method_exists`, so declared, inherited and trait
+     * methods all count, whatever their visibility.
      *
+     * @param  list<string>  $events
      * @return list<string>
      */
-    private function hooksOf(ClassHierarchyResolver $resolver, string $observerFqcn): array
+    private function hooksOf(ClassHierarchyResolver $resolver, string $observerFqcn, array $events): array
     {
         $methods = $resolver->effectiveMethods($observerFqcn);
 
-        $hooks = [];
-        foreach (ModelHook::observableValues() as $hook) {
-            if (isset($methods[strtolower($hook)])) {
-                $hooks[] = $hook;
-            }
-        }
-        $hooks = array_values(collect($hooks)->sort()->all());
+        return array_values(collect($events)
+            ->filter(static fn (string $event): bool => isset($methods[strtolower($event)]))
+            ->unique()
+            ->sort()
+            ->all());
+    }
 
-        return $hooks;
+    /**
+     * The model's observable events: the Eloquent ones, then the `$observables`
+     * of the model or its nearest app parent that declares them.
+     *
+     * @param  array<string, list<string>>  $observables
+     * @return list<string>
+     */
+    private function observableEvents(ClassHierarchyResolver $resolver, string $model, array $observables): array
+    {
+        $declaring = collect([$model, ...$resolver->extendsChain($model)])
+            ->first(static fn (string $class): bool => isset($observables[$class]));
+
+        return [...ModelHook::observableValues(), ...($declaring === null ? [] : $observables[$declaring])];
     }
 
     private function precedence(ObserverRegistration $registration): int
     {
         return match ($registration) {
-            ObserverRegistration::ATTRIBUTE => 2,
+            ObserverRegistration::ATTRIBUTE => 3,
+            ObserverRegistration::OBSERVERS_ARRAY => 2,
             ObserverRegistration::OBSERVE_CALL => 1,
         };
     }

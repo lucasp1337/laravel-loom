@@ -44,7 +44,7 @@ function checkValidIndex(array $overrides = []): array
             'file' => 'app/Listeners/SendMail.php',
             'line' => 8,
             'registration' => 'auto_discovered',
-            'queued' => false,
+            'queued' => false, 'after_commit' => false,
             'handles' => [['event' => 'App\\Events\\OrderPlaced', 'method' => 'handle']],
             'dispatches' => [],
         ]],
@@ -172,6 +172,15 @@ describe('UnresolvedDispatchesRule', function () {
         expect($violations[0]->context['file'])->toBe('app/B.php');
     });
 
+    it('ignores informational reasons in strict and baseline mode', function () use ($entries) {
+        $informational = ['file' => 'app/Listeners/LogLogin.php', 'line' => 8, 'expression' => 'Illuminate\\Auth\\Events\\Login::class', 'reason' => 'handled_event_not_indexed'];
+        $index = checkValidIndex(['unresolved_dispatches' => [...$entries(), $informational]]);
+        $baseline = checkValidIndex(['unresolved_dispatches' => $entries()]);
+
+        expect((new UnresolvedDispatchesRule)->check(checkContext($index, strict: true)))->toHaveCount(2)
+            ->and((new UnresolvedDispatchesRule)->check(checkContext($index, $baseline)))->toBe([]);
+    });
+
     it('flags nothing without a baseline in non-strict mode', function () use ($entries) {
         $index = checkValidIndex(['unresolved_dispatches' => $entries()]);
 
@@ -225,12 +234,12 @@ describe('CyclicDispatchRule', function () {
             'listeners' => [
                 [
                     'fqcn' => 'App\\Listeners\\La', 'file' => 'app/La.php', 'line' => 1,
-                    'registration' => 'auto_discovered', 'queued' => false, 'handles' => [],
+                    'registration' => 'auto_discovered', 'queued' => false, 'after_commit' => false, 'handles' => [],
                     'dispatches' => [['target' => 'App\\Events\\B', 'kind' => 'event', 'confidence' => 'high', 'file' => 'app/La.php', 'line' => 2]],
                 ],
                 [
                     'fqcn' => 'App\\Listeners\\Lb', 'file' => 'app/Lb.php', 'line' => 1,
-                    'registration' => 'auto_discovered', 'queued' => false, 'handles' => [],
+                    'registration' => 'auto_discovered', 'queued' => false, 'after_commit' => false, 'handles' => [],
                     'dispatches' => [['target' => 'App\\Events\\A', 'kind' => 'event', 'confidence' => 'high', 'file' => 'app/Lb.php', 'line' => 2]],
                 ],
             ],

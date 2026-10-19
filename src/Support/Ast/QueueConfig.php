@@ -90,23 +90,30 @@ final class QueueConfig
         return collect(self::PROPERTIES)->contains($name);
     }
 
-    /** A setting's literal: `afterCommit` is a bool, the rest are strings or ints. */
-    private static function literal(string $name, ?Node\Expr $node): string|int|bool|null
+    /**
+     * A setting's literal: `afterCommit` is a bool, `backoff` an int list or
+     * scalar, the rest are strings or ints.
+     *
+     * @return string|int|bool|list<int>|null
+     */
+    private static function literal(string $name, ?Node\Expr $node): string|int|bool|array|null
     {
         return match ($name) {
             // `public $afterCommit = true;`
             'afterCommit' => Literal::bool($node),
+            // `public $backoff = [10, 60];`
+            'backoff' => Literal::intList($node) ?? Literal::scalar($node),
             default => Literal::scalar($node),
         };
     }
 
-    /** @return array<string, string|int|bool|null> */
+    /** @return array<string, string|int|bool|list<int>|null> */
     private static function blank(): array
     {
         return collect(self::PROPERTIES)->mapWithKeys(static fn (string $key): array => [$key => null])->all();
     }
 
-    /** @param  array<string, string|int|bool|null>  $values */
+    /** @param  array<string, string|int|bool|list<int>|null>  $values */
     private static function data(array $values): QueueConfigData
     {
         return QueueConfigData::fromSettings($values);
@@ -124,7 +131,7 @@ final class QueueConfig
     /**
      * Literal settings one constructor statement applies to `$this`.
      *
-     * @return array<string, string|int|bool>
+     * @return array<string, string|int|bool|list<int>>
      */
     private static function constructorSettings(Node\Expr $expr): array
     {

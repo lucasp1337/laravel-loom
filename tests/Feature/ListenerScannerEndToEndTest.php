@@ -94,12 +94,15 @@ it('leaves non-listener sections empty and reports unreadable registrations', fu
     expect($payload['events'])->toBe([]);
     expect($payload['observers'])->toBe([]);
     expect($payload['model_events'])->toBe([]);
-    // Listener registrations Loom cannot read are reported, not dropped.
-    expect(collect($payload['unresolved_dispatches'])->pluck('reason')->unique()->all())->toBe(['unreadable_event_name', 'untyped_closure_listener']);
+    // Listener registrations Loom cannot read are reported, not dropped; with no
+    // event rows every handled event class is reported too.
+    $registrations = collect($payload['unresolved_dispatches'])->reject(fn (array $entry): bool => $entry['reason'] === 'handled_event_not_indexed');
+    expect($registrations->pluck('reason')->unique()->values()->all())->toBe(['unreadable_event_name', 'untyped_closure_listener'])
+        ->and($registrations)->toHaveCount(3);
 
     expect($payload['stats']['events'])->toBe(0);
     expect($payload['stats']['observers'])->toBe(0);
-    expect($payload['stats']['unresolved_dispatches'])->toBe(3);
+    expect($payload['stats']['unresolved_dispatches'])->toBe(count($payload['unresolved_dispatches']));
 });
 
 it('sorts events[*].handled_by by listener asc then method asc', function () {

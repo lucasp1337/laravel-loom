@@ -120,7 +120,7 @@ Only these classes carry `@api`; everything else is `@internal` and may change i
 | `ModelEventHandler` | A handler (observer hook or `Event::listen` target) attached to a model event, emitted on `model_events[*].handled_by`. |
 | `Notification` | A notification class: its queue configuration, the channels it sends on, and the sites that notify it. |
 | `Observer` | A model observer: the model it observes, which lifecycle hooks it defines, and what it dispatches. |
-| `QueueConfig` | Static queue configuration read off a queueable class (job, mailable, notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff`, and whether the class dispatches after the transaction commits. |
+| `QueueConfig` | Static queue configuration read off a queueable class (job, mailable, notification): `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$backoff` (an int list for `[10, 60]`), and whether the class dispatches after the transaction commits. |
 | `Route` | An HTTP route: its verb, URI, name, controller target, middleware, and what the action dispatches. |
 | `ScheduledTask` | A scheduled task (command, job, closure, or shell exec) with its cron expression or sub-minute `frequency` and its modifiers. |
 | `UnresolvedDispatch` | A dispatch site the scanner could not statically resolve to a target, with the raw expression and the reason. |

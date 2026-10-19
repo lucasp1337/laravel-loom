@@ -37,7 +37,7 @@
 
     use Illuminate\Auth\Notifications\ResetPassword;
 
-    class PasswordReset extends ResetPassword {} // ✗ not recorded
+    class PasswordReset extends ResetPassword {} // → notifications[PasswordReset].channels []
     ```
 
     ```php title="app/Notifications/BackupFailed.php"

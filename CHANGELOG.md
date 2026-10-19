@@ -22,6 +22,7 @@ All notable changes to `laravel-loom` will be documented in this file. This proj
 - `scan.ast_cache_mb` sizes the shared parse cache (`null` from the memory limit, `0` off).
 - `scan.composer_files` and merge-plugin includes; `loom:scan` prints scanned counts and warns about nested composer PSR-4 directories outside the scan paths.
 - Scan scope: `loom:scan` fails when the scan directories hold no PHP files unless `--allow-empty` (also on `loom:mcp`); listed providers outside the scan paths are read for registrations; schedules handed to another class are followed ([#167](https://github.com/lucasp1337/laravel-loom/issues/167)).
+- Listeners and observers: `$observers` (`observers_array`), model `$observables` (`observers[].hooks` and `model_events[].event` accept custom names), `__invoke` fallback, new required `listeners[].after_commit`, `handled_event_not_indexed`, framework notification parents, `$backoff` lists; a model's own static `creating()` is not a hook ([#166](https://github.com/lucasp1337/laravel-loom/issues/166)).
 
 ### Changed
 
