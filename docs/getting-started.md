@@ -12,8 +12,8 @@ php artisan loom:scan
 
 ```text
 Loom index written to /var/www/shop/storage/loom/index.json
-Scanned 11 PHP files in 1 directories.
-events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
+Scanned 12 PHP files in 1 directories.
+events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 1, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
 ```
 <!-- /generated:output:scan -->
 

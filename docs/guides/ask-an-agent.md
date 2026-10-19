@@ -37,14 +37,21 @@ Ask "What happens when an order is placed?". The agent calls `events-following` 
                     "kind": "event",
                     "confidence": "high",
                     "file": "app/Listeners/SendReceipt.php",
-                    "line": 13
+                    "line": 15
                 },
                 {
                     "target": "App\\Jobs\\SendMail",
                     "kind": "job",
                     "confidence": "high",
                     "file": "app/Listeners/SendReceipt.php",
-                    "line": 14
+                    "line": 16
+                },
+                {
+                    "target": "App\\Mail\\OrderReceipt",
+                    "kind": "mailable",
+                    "confidence": "high",
+                    "file": "app/Listeners/SendReceipt.php",
+                    "line": 17
                 }
             ]
         },
@@ -80,6 +87,10 @@ Ask "What happens when an order is placed?". The agent calls `events-following` 
         "App\\Events\\ReceiptSent",
         "App\\Events\\ReceiptLogged"
     ],
+    "mailables_reached": [
+        "App\\Mail\\OrderReceipt"
+    ],
+    "notifications_reached": [],
     "cycles": [],
     "truncated": false
 }

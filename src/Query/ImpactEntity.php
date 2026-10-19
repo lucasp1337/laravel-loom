@@ -10,5 +10,7 @@ enum ImpactEntity: string
     case EVENT = 'event';
     case LISTENER = 'listener';
     case JOB = 'job';
+    case MAILABLE = 'mailable';
+    case NOTIFICATION = 'notification';
     case UNKNOWN = 'unknown';
 }

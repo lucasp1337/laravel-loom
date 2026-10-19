@@ -6,8 +6,8 @@ declare(strict_types=1);
  * Shared index payload for the MCP characterization and IndexQuery tests.
  *
  *   POST /orders → OrderController::store dispatches OrderPlaced (twice, same site)
- *   OrderPlaced  → SendReceipt (dispatches ReceiptSent + job SendMail)
- *   ReceiptSent  → ArchiveReceipt, plus a closure listener that dispatches Ping
+ *   OrderPlaced  → SendReceipt (dispatches ReceiptSent + job SendMail, notifies Shipped)
+ *   ReceiptSent  → ArchiveReceipt (sends mailable Receipt), plus a closure listener that dispatches Ping
  *   Ping ⇄ Pong  → PingListener / PongListener dispatch each other (cycle)
  *   Lonely       → orphan event; Idle → listener handling nothing
  */
@@ -58,8 +58,9 @@ return [
         $listener('SendReceipt', 'OrderPlaced', [
             $dispatch('App\\Events\\ReceiptSent', 'app/Listeners/SendReceipt.php'),
             $dispatch('App\\Jobs\\SendMail', 'app/Listeners/SendReceipt.php', 9, 'job'),
+            $dispatch('App\\Notifications\\Shipped', 'app/Listeners/SendReceipt.php', 11, 'notification'),
         ]),
-        $listener('ArchiveReceipt', 'ReceiptSent', []),
+        $listener('ArchiveReceipt', 'ReceiptSent', [$dispatch('App\\Mail\\Receipt', 'app/Listeners/ArchiveReceipt.php', 8, 'mailable')]),
         $listener('Idle', '', []),
         $listener('PingListener', 'Ping', [$dispatch('App\\Events\\Pong', 'app/Listeners/PingListener.php')], true),
         $listener('PongListener', 'Pong', [$dispatch('App\\Events\\Ping', 'app/Listeners/PongListener.php')]),
@@ -97,7 +98,10 @@ return [
             'queued' => true,
             'queue_config' => ['connection' => null, 'queue' => 'mail', 'delay' => null, 'tries' => 3, 'timeout' => null, 'backoff' => null, 'after_commit' => true],
             'dispatched_from' => [$site('app/Listeners/SendReceipt.php', 9)],
-            'dispatches' => [$dispatch('App\\Events\\Pong', 'app/Jobs/SendMail.php', 15)],
+            'dispatches' => [
+                $dispatch('App\\Events\\Pong', 'app/Jobs/SendMail.php', 15),
+                $dispatch('App\\Mail\\Receipt', 'app/Jobs/SendMail.php', 20, 'mailable'),
+            ],
         ],
     ],
     'mailables' => [
@@ -107,7 +111,7 @@ return [
             'line' => 4,
             'queued' => false,
             'queue_config' => null,
-            'sent_from' => [$site('app/Jobs/SendMail.php', 20, 'handle')],
+            'sent_from' => [$site('app/Jobs/SendMail.php', 20, 'App\\Jobs\\SendMail::handle'), $site('app/Listeners/ArchiveReceipt.php', 8, 'App\\Listeners\\ArchiveReceipt::handle')],
         ],
     ],
     'notifications' => [
@@ -117,7 +121,7 @@ return [
             'line' => 4,
             'queued' => false,
             'queue_config' => null,
-            'notified_from' => [],
+            'notified_from' => [$site('app/Listeners/SendReceipt.php', 11, 'App\\Listeners\\SendReceipt::handle')],
             'channels' => ['mail'],
             'channels_dynamic' => false,
         ],

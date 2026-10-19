@@ -24,13 +24,15 @@ final class ImpactNoteFormatter
         return match ($note) {
             ImpactNote::RENAME_TOUCHES_ALL => "Renaming this event requires updating all {$sites} and {$handlers} below.",
             ImpactNote::REMOVE_ORPHANS_HANDLERS => "Removing this event orphans its {$handlers}; its {$sites} would dispatch a missing class.",
+            ImpactNote::RENAME_TOUCHES_SENDS => "Renaming this {$report->kind->value} requires updating all {$sites} below.",
+            ImpactNote::REMOVE_BREAKS_SENDS => "Removing this {$report->kind->value} breaks its {$sites}; each would send a missing class.",
             ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT => 'Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.',
             ImpactNote::WOULD_ORPHAN_EVENTS => ($report->change === ChangeKind::REMOVE ? 'Removing' : 'Renaming')
                 .' this class would leave '.self::plural(count($report->wouldOrphanEvents), 'event')
                 .' with no remaining handler: '.Arr::join($report->wouldOrphanEvents, ', ').'.',
             ImpactNote::NO_ORPHANS => 'No handled event would be left without a handler by this change.',
             ImpactNote::DOWNSTREAM_NOT_EXPANDED => 'Downstream dispatches from this class are listed; their own chains are not expanded here.',
-            ImpactNote::UNKNOWN_FQCN => 'No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.',
+            ImpactNote::UNKNOWN_FQCN => 'No event, listener, job, mailable or notification in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled.',
         };
     }
 

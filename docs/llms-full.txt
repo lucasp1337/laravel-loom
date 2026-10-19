@@ -47,8 +47,8 @@ php artisan loom:scan
 
 ```text
 Loom index written to /var/www/shop/storage/loom/index.json
-Scanned 11 PHP files in 1 directories.
-events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
+Scanned 12 PHP files in 1 directories.
+events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 1, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
 ```
 
 The scan reads your source and never boots your app. The last line counts each section of the index it wrote.
@@ -116,8 +116,8 @@ Loom reads your source without booting the app and records what it finds, one in
 
 ```text
 Loom index written to /var/www/shop/storage/loom/index.json
-Scanned 11 PHP files in 1 directories.
-events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
+Scanned 12 PHP files in 1 directories.
+events: 4, listeners: 4, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 1, closure listeners: 1, scheduled tasks: 0, mailables: 1, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 0
 ```
 
 The sections and their fields are in the [schema](../reference/schema.md#top-level-fields). The code shapes each scanner reads, and the ones it skips, are tested examples under [What Loom detects](../reference/detection/index.md).
@@ -142,7 +142,7 @@ A scan writes one JSON document, `storage/loom/index.json`: metadata, `stats`, t
   "loom_version": "0.4.0",
   "scanned_at": "2026-01-01T00:00:00Z",
   "laravel_version": "13.0",
-  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":1,"notifications":0},
   "events": [ { "...": "..." } ],
   "model_events": [ { "...": "..." } ],
   "listeners": [ { "...": "..." } ],
@@ -237,7 +237,7 @@ The listener:
 {
     "fqcn": "App\\Listeners\\SendReceipt",
     "file": "app/Listeners/SendReceipt.php",
-    "line": 9,
+    "line": 11,
     "handles": [
         {
             "event": "App\\Events\\OrderPlaced",
@@ -252,14 +252,21 @@ The listener:
             "kind": "event",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 13
+            "line": 15
         },
         {
             "target": "App\\Jobs\\SendMail",
             "kind": "job",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 14
+            "line": 16
+        },
+        {
+            "target": "App\\Mail\\OrderReceipt",
+            "kind": "mailable",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 17
         }
     ]
 }
@@ -276,7 +283,7 @@ The job:
     "dispatched_from": [
         {
             "file": "app/Listeners/SendReceipt.php",
-            "line": 14,
+            "line": 16,
             "method": "App\\Listeners\\SendReceipt::handle"
         }
     ]
@@ -388,14 +395,21 @@ Ask "What happens when an order is placed?". The agent calls `events-following` 
                     "kind": "event",
                     "confidence": "high",
                     "file": "app/Listeners/SendReceipt.php",
-                    "line": 13
+                    "line": 15
                 },
                 {
                     "target": "App\\Jobs\\SendMail",
                     "kind": "job",
                     "confidence": "high",
                     "file": "app/Listeners/SendReceipt.php",
-                    "line": 14
+                    "line": 16
+                },
+                {
+                    "target": "App\\Mail\\OrderReceipt",
+                    "kind": "mailable",
+                    "confidence": "high",
+                    "file": "app/Listeners/SendReceipt.php",
+                    "line": 17
                 }
             ]
         },
@@ -431,6 +445,10 @@ Ask "What happens when an order is placed?". The agent calls `events-following` 
         "App\\Events\\ReceiptSent",
         "App\\Events\\ReceiptLogged"
     ],
+    "mailables_reached": [
+        "App\\Mail\\OrderReceipt"
+    ],
+    "notifications_reached": [],
     "cycles": [],
     "truncated": false
 }
@@ -643,6 +661,7 @@ App\Listeners\SendReceipt::handle
       → event App\Events\ReceiptLogged
         App\Listeners\WriteAuditLog::handle
   → job App\Jobs\SendMail
+  → mailable App\Mail\OrderReceipt
 ```
 
 A listener's `dispatches` covers its whole class. The `events-following` [MCP tool](../reference/mcp-tools.md) returns the same chain as JSON, with a depth limit. Loading the index is covered in the [PHP API](../reference/php-api.md).
@@ -766,8 +785,8 @@ It prints the path written, the files read and a count per section. `-v` also li
 
 ```text
 Loom index written to /var/www/shop/storage/loom/index.json
-Scanned 16 PHP files in 1 directories.
-events: 5, listeners: 6, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 2, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 1
+Scanned 17 PHP files in 1 directories.
+events: 5, listeners: 6, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 2, closure listeners: 1, scheduled tasks: 0, mailables: 1, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 1
 Skipped files:
   app/Broken.php:8  Syntax error, unexpected '}', expecting T_VARIABLE
 ```
@@ -1338,6 +1357,7 @@ The responses below come from a small order app: `POST /orders` fires `OrderPlac
 - `truncated`: `true` when `depth` cut a chain short.
 - `cycles`: events revisited on a path; each event is expanded once.
 - `events_reached`: the events whose handlers were expanded.
+- `mailables_reached`, `notifications_reached`: leaves sent along the way.
 
 ## Lookups
 
@@ -1375,7 +1395,7 @@ Called with `section` = `jobs`, it returns:
       "dispatched_from": [
         {
           "file": "app/Listeners/SendReceipt.php",
-          "line": 14,
+          "line": 16,
           "method": "App\\Listeners\\SendReceipt::handle"
         }
       ],
@@ -1412,7 +1432,7 @@ Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it return
   "entity": {
     "fqcn": "App\\Listeners\\SendReceipt",
     "file": "app/Listeners/SendReceipt.php",
-    "line": 9,
+    "line": 11,
     "handles": [
       {
         "event": "App\\Events\\OrderPlaced",
@@ -1428,14 +1448,21 @@ Called with `kind` = `listener`, `fqcn` = `App\Listeners\SendReceipt`, it return
         "kind": "event",
         "confidence": "high",
         "file": "app/Listeners/SendReceipt.php",
-        "line": 13
+        "line": 15
       },
       {
         "target": "App\\Jobs\\SendMail",
         "kind": "job",
         "confidence": "high",
         "file": "app/Listeners/SendReceipt.php",
-        "line": 14
+        "line": 16
+      },
+      {
+        "target": "App\\Mail\\OrderReceipt",
+        "kind": "mailable",
+        "confidence": "high",
+        "file": "app/Listeners/SendReceipt.php",
+        "line": 17
       }
     ]
   }
@@ -1591,14 +1618,21 @@ Called with `event_fqcn` = `App\Events\OrderPlaced`, it returns:
           "kind": "event",
           "confidence": "high",
           "file": "app/Listeners/SendReceipt.php",
-          "line": 13
+          "line": 15
         },
         {
           "target": "App\\Jobs\\SendMail",
           "kind": "job",
           "confidence": "high",
           "file": "app/Listeners/SendReceipt.php",
-          "line": 14
+          "line": 16
+        },
+        {
+          "target": "App\\Mail\\OrderReceipt",
+          "kind": "mailable",
+          "confidence": "high",
+          "file": "app/Listeners/SendReceipt.php",
+          "line": 17
         }
       ]
     },
@@ -1634,6 +1668,10 @@ Called with `event_fqcn` = `App\Events\OrderPlaced`, it returns:
     "App\\Events\\ReceiptSent",
     "App\\Events\\ReceiptLogged"
   ],
+  "mailables_reached": [
+    "App\\Mail\\OrderReceipt"
+  ],
+  "notifications_reached": [],
   "cycles": [],
   "truncated": false
 }
@@ -1641,7 +1679,7 @@ Called with `event_fqcn` = `App\Events\OrderPlaced`, it returns:
 
 - Each edge is one handler of one event.
 - An event that is not in the index returns an empty `edges` list, not an error.
-- See [Chain output](#chain-output) for `truncated`, `cycles` and `events_reached`.
+- See [Chain output](#chain-output) for `truncated`, `cycles` and the `*_reached` lists.
 
 ### `events-from-method`
 
@@ -1681,14 +1719,21 @@ Called with `method_fqcn` = `App\Http\Controllers\OrderController::store`, `dept
               "kind": "event",
               "confidence": "high",
               "file": "app/Listeners/SendReceipt.php",
-              "line": 13
+              "line": 15
             },
             {
               "target": "App\\Jobs\\SendMail",
               "kind": "job",
               "confidence": "high",
               "file": "app/Listeners/SendReceipt.php",
-              "line": 14
+              "line": 16
+            },
+            {
+              "target": "App\\Mail\\OrderReceipt",
+              "kind": "mailable",
+              "confidence": "high",
+              "file": "app/Listeners/SendReceipt.php",
+              "line": 17
             }
           ]
         }
@@ -1696,10 +1741,18 @@ Called with `method_fqcn` = `App\Http\Controllers\OrderController::store`, `dept
       "events_reached": [
         "App\\Events\\OrderPlaced"
       ],
+      "mailables_reached": [
+        "App\\Mail\\OrderReceipt"
+      ],
+      "notifications_reached": [],
       "cycles": [],
       "truncated": true
     }
-  ]
+  ],
+  "mailables_reached": [
+    "App\\Mail\\OrderReceipt"
+  ],
+  "notifications_reached": []
 }
 ```
 
@@ -1761,14 +1814,21 @@ Called with `method` = `POST`, `uri` = `/orders`, `depth` = `1`, it returns:
                 "kind": "event",
                 "confidence": "high",
                 "file": "app/Listeners/SendReceipt.php",
-                "line": 13
+                "line": 15
               },
               {
                 "target": "App\\Jobs\\SendMail",
                 "kind": "job",
                 "confidence": "high",
                 "file": "app/Listeners/SendReceipt.php",
-                "line": 14
+                "line": 16
+              },
+              {
+                "target": "App\\Mail\\OrderReceipt",
+                "kind": "mailable",
+                "confidence": "high",
+                "file": "app/Listeners/SendReceipt.php",
+                "line": 17
               }
             ]
           }
@@ -1776,10 +1836,18 @@ Called with `method` = `POST`, `uri` = `/orders`, `depth` = `1`, it returns:
         "events_reached": [
           "App\\Events\\OrderPlaced"
         ],
+        "mailables_reached": [
+          "App\\Mail\\OrderReceipt"
+        ],
+        "notifications_reached": [],
         "cycles": [],
         "truncated": true
       }
-    ]
+    ],
+    "mailables_reached": [
+      "App\\Mail\\OrderReceipt"
+    ],
+    "notifications_reached": []
   }
 }
 ```
@@ -1818,11 +1886,11 @@ Review questions over the whole graph.
 
 ### `impact-of-change`
 
-Reports what removing or renaming an event, listener or job touches. `change` only changes the wording of `notes`.
+Reports what removing or renaming an event, listener, job, mailable or notification touches. `change` only changes the wording of `notes`.
 
 | Input | Type | Required / default | Notes |
 | --- | --- | --- | --- |
-| `fqcn` | string | required | The fully-qualified class name being changed (event, listener, or job). |
+| `fqcn` | string | required | The fully-qualified class name being changed (event, listener, job, mailable or notification). |
 | `change` | string | `remove` | The kind of change being made. Affects the framing of the notes only. One of `remove`, `rename`. |
 
 Called with `fqcn` = `App\Listeners\SendReceipt`, it returns:
@@ -1844,14 +1912,21 @@ Called with `fqcn` = `App\Listeners\SendReceipt`, it returns:
       "kind": "event",
       "confidence": "high",
       "file": "app/Listeners/SendReceipt.php",
-      "line": 13
+      "line": 15
     },
     {
       "target": "App\\Jobs\\SendMail",
       "kind": "job",
       "confidence": "high",
       "file": "app/Listeners/SendReceipt.php",
-      "line": 14
+      "line": 16
+    },
+    {
+      "target": "App\\Mail\\OrderReceipt",
+      "kind": "mailable",
+      "confidence": "high",
+      "file": "app/Listeners/SendReceipt.php",
+      "line": 17
     }
   ],
   "notes": [
@@ -1895,14 +1970,21 @@ For an event the report lists who fires it, who handles it, and the chain downst
             "kind": "event",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 13
+            "line": 15
           },
           {
             "target": "App\\Jobs\\SendMail",
             "kind": "job",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 14
+            "line": 16
+          },
+          {
+            "target": "App\\Mail\\OrderReceipt",
+            "kind": "mailable",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 17
           }
         ]
       },
@@ -1938,11 +2020,36 @@ For an event the report lists who fires it, who handles it, and the chain downst
       "App\\Events\\ReceiptSent",
       "App\\Events\\ReceiptLogged"
     ],
+    "mailables_reached": [
+      "App\\Mail\\OrderReceipt"
+    ],
+    "notifications_reached": [],
     "cycles": [],
     "truncated": false
   },
   "notes": [
     "Removing this event orphans its 1 handler; its 1 dispatch site would dispatch a missing class.",
+    "Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here."
+  ]
+}
+```
+
+For a mailable or notification the report lists the sites that send it. Called with `fqcn` = `App\Mail\OrderReceipt`, it returns:
+
+```json
+{
+  "fqcn": "App\\Mail\\OrderReceipt",
+  "change": "remove",
+  "kind": "mailable",
+  "dispatchers": [
+    {
+      "file": "app/Listeners/SendReceipt.php",
+      "line": 17,
+      "method": "App\\Listeners\\SendReceipt::handle"
+    }
+  ],
+  "notes": [
+    "Removing this mailable breaks its 1 dispatch site; each would send a missing class.",
     "Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here."
   ]
 }
@@ -1959,7 +2066,7 @@ A class Loom does not know gets `kind` `unknown` and a note instead of a chain. 
   "handlers": [],
   "downstream": null,
   "notes": [
-    "No event, listener, or job in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled."
+    "No event, listener, job, mailable or notification in the index matches this FQCN. It may be unscanned, dynamically referenced, or misspelled."
   ]
 }
 ```
@@ -2038,7 +2145,7 @@ Reference for `storage/loom/index.json`, generated from `schema/loom-index.schem
   "loom_version": "0.4.0",
   "scanned_at": "2026-01-01T00:00:00Z",
   "laravel_version": "13.0",
-  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":1,"notifications":0},
   "events": [ { "...": "..." } ],
   "model_events": [ { "...": "..." } ],
   "listeners": [ { "...": "..." } ],
@@ -2549,7 +2656,7 @@ var_dump($index->findListener('App\Listeners\Missing'));
 ```
 
 ```text title="Output"
-app/Listeners/SendReceipt.php:9
+app/Listeners/SendReceipt.php:11
 discovery_unverified
 NULL
 ```
@@ -2577,6 +2684,7 @@ dispatched from App\Http\Controllers\OrderController::store
 handled by App\Listeners\SendReceipt::handle
   dispatches event App\Events\ReceiptSent
   dispatches job App\Jobs\SendMail
+  dispatches mailable App\Mail\OrderReceipt
 ```
 
 ## Handle errors

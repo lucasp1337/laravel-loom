@@ -34,6 +34,7 @@ it('runs every recipe snippet on its own against the docs fixture index', functi
     expect(SnippetRunner::run($root, $fixture->indexPath(), [$snippet])[$snippet->path()])->toContain($expected);
 })->with([
     'event chain' => [RecipeSnippet::EventChain, "      → event App\\Events\\ReceiptLogged\n        App\\Listeners\\WriteAuditLog::handle"],
+    'event chain to a mailable' => [RecipeSnippet::EventChain, "  → mailable App\\Mail\\OrderReceipt\n"],
     'routes without auth' => [RecipeSnippet::RoutesWithoutAuth, "GET /health  routes/web.php:8\n"],
     'job triggers' => [RecipeSnippet::JobTriggers, "      route POST /orders\n"],
 ]);

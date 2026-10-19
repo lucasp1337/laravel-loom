@@ -11,7 +11,7 @@ A scan writes one JSON document, `storage/loom/index.json`: metadata, `stats`, t
   "loom_version": "0.4.0",
   "scanned_at": "2026-01-01T00:00:00Z",
   "laravel_version": "13.0",
-  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":1,"notifications":0},
   "events": [ { "...": "..." } ],
   "model_events": [ { "...": "..." } ],
   "listeners": [ { "...": "..." } ],
@@ -118,7 +118,7 @@ The listener:
 {
     "fqcn": "App\\Listeners\\SendReceipt",
     "file": "app/Listeners/SendReceipt.php",
-    "line": 9,
+    "line": 11,
     "handles": [
         {
             "event": "App\\Events\\OrderPlaced",
@@ -133,14 +133,21 @@ The listener:
             "kind": "event",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 13
+            "line": 15
         },
         {
             "target": "App\\Jobs\\SendMail",
             "kind": "job",
             "confidence": "high",
             "file": "app/Listeners/SendReceipt.php",
-            "line": 14
+            "line": 16
+        },
+        {
+            "target": "App\\Mail\\OrderReceipt",
+            "kind": "mailable",
+            "confidence": "high",
+            "file": "app/Listeners/SendReceipt.php",
+            "line": 17
         }
     ]
 }
@@ -161,7 +168,7 @@ The job:
     "dispatched_from": [
         {
             "file": "app/Listeners/SendReceipt.php",
-            "line": 14,
+            "line": 16,
             "method": "App\\Listeners\\SendReceipt::handle"
         }
     ]

@@ -31,7 +31,7 @@ var_dump($index->findListener('App\Listeners\Missing'));
 ```
 
 ```text title="Output"
-app/Listeners/SendReceipt.php:9
+app/Listeners/SendReceipt.php:11
 discovery_unverified
 NULL
 ```
@@ -59,6 +59,7 @@ dispatched from App\Http\Controllers\OrderController::store
 handled by App\Listeners\SendReceipt::handle
   dispatches event App\Events\ReceiptSent
   dispatches job App\Jobs\SendMail
+  dispatches mailable App\Mail\OrderReceipt
 ```
 
 ## Handle errors

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Index;
 use Lucasp\Loom\Index\IndexLoader;
 use Lucasp\Loom\Index\Model\Event;
@@ -74,6 +75,20 @@ it('follows an event through handlers and their dispatched events', function () 
         ->and($chain->edges[0]->file)->toBe('app/Listeners/SendReceipt.php');
 });
 
+it('reaches mailables and notifications as leaves within the depth bound', function () use ($e) {
+    $q = queryFor();
+    $deep = $q->eventChain($e('OrderPlaced'), 2);
+    $shallow = $q->eventChain($e('OrderPlaced'), 1);
+
+    expect($deep->reached(DispatchKinds::NOTIFICATION))->toBe(['App\\Notifications\\Shipped'])
+        ->and($deep->reached(DispatchKinds::MAILABLE))->toBe(['App\\Mail\\Receipt'])
+        ->and($deep->eventsReached)->not->toContain('App\\Mail\\Receipt')
+        ->and($shallow->reached(DispatchKinds::NOTIFICATION))->toBe(['App\\Notifications\\Shipped'])
+        ->and($shallow->reached(DispatchKinds::MAILABLE))->toBe([])
+        ->and($deep->toArray()['mailables_reached'])->toBe(['App\\Mail\\Receipt'])
+        ->and($deep->toArray()['notifications_reached'])->toBe(['App\\Notifications\\Shipped']);
+});
+
 it('includes closure listeners as handlers', function () use ($e) {
     $chain = queryFor()->eventChain($e('ReceiptSent'), 1);
 
@@ -129,7 +144,7 @@ it('returns an empty chain for unknown or unhandled events', function () use ($e
 it('always emits cycles and truncated in the array shape', function () use ($e) {
     $chain = queryFor()->eventChain($e('Ping'));
 
-    expect(array_keys($chain->toArray()))->toBe(['root', 'depth', 'edges', 'events_reached', 'cycles', 'truncated']);
+    expect(array_keys($chain->toArray()))->toBe(['root', 'depth', 'edges', 'events_reached', 'mailables_reached', 'notifications_reached', 'cycles', 'truncated']);
 });
 
 it('reports diamonds as revisits, not cycles; ignores handlerless frontier for truncation', function () {
@@ -182,6 +197,18 @@ it('chains only the event dispatches of a method', function () use ($e) {
         ->and($result->chains)->toHaveCount(1)
         ->and($result->chains[0]->root)->toBe($e('OrderPlaced'))
         ->and($result->chains[0]->depth)->toBe(2);
+});
+
+it('reports mailables and notifications a method reaches directly or down its chains', function () {
+    $q = queryFor();
+    $store = $q->eventsFromMethod('App\\Http\\Controllers\\OrderController::store', 2);
+    $job = $q->eventsFromMethod('App\\Jobs\\SendMail');
+
+    expect($store->reached(DispatchKinds::MAILABLE))->toBe(['App\\Mail\\Receipt'])
+        ->and($store->reached(DispatchKinds::NOTIFICATION))->toBe(['App\\Notifications\\Shipped'])
+        ->and($job->reached(DispatchKinds::MAILABLE))->toBe(['App\\Mail\\Receipt'])
+        ->and($job->chains)->toHaveCount(1)
+        ->and($job->toArray()['mailables_reached'])->toBe(['App\\Mail\\Receipt']);
 });
 
 // handlersFor / dispatchSitesFor ----------------------------------------------
@@ -276,12 +303,29 @@ it('reports impact for a job and for an unknown class', function () {
     $job = $q->impactOfChange('App\\Jobs\\SendMail');
     expect($job->kind)->toBe(ImpactEntity::JOB)
         ->and($job->handles)->toBe([])
-        ->and($job->dispatches)->toHaveCount(1);
+        ->and($job->dispatches)->toHaveCount(2);
 
     $unknown = $q->impactOfChange('App\\Nope');
     expect($unknown->kind)->toBe(ImpactEntity::UNKNOWN)
         ->and($unknown->notes)->toBe([ImpactNote::UNKNOWN_FQCN])
         ->and($unknown->toArray()['downstream'])->toBeNull();
+});
+
+it('reports the send sites a mailable or notification change touches', function () use ($e) {
+    $q = queryFor();
+
+    $mailable = $q->impactOfChange('App\\Mail\\Receipt');
+    expect($mailable->kind)->toBe(ImpactEntity::MAILABLE)
+        ->and(array_map(static fn ($site) => $site->file, $mailable->dispatchers))->toBe(['app/Jobs/SendMail.php', 'app/Listeners/ArchiveReceipt.php'])
+        ->and($mailable->notes)->toBe([ImpactNote::REMOVE_BREAKS_SENDS, ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT]);
+
+    $notification = $q->impactOfChange('App\\Notifications\\Shipped', ChangeKind::RENAME);
+    expect($notification->kind)->toBe(ImpactEntity::NOTIFICATION)
+        ->and($notification->dispatchers)->toHaveCount(1)
+        ->and($notification->notes[0])->toBe(ImpactNote::RENAME_TOUCHES_SENDS);
+
+    // An event's downstream chain lists the mailables and notifications it reaches.
+    expect($q->impactOfChange($e('OrderPlaced'))->toArray()['downstream']['notifications_reached'])->toBe(['App\\Notifications\\Shipped']);
 });
 
 it('emits note codes when no renderer is given', function () {
@@ -539,7 +583,7 @@ it('pins the wire keys of every query result', function () use ($e) {
         ->and(array_keys($q->handlersFor($e('ReceiptSent'))->toArray()['closure_listeners'][0]))->toBe(['file', 'line', 'queued'])
         ->and(array_keys($q->dispatchSitesFor($e('OrderPlaced'))->toArray()))->toBe(['event', 'count', 'dispatch_sites'])
         ->and(array_keys($q->dispatchSitesFor($e('OrderPlaced'))->toArray()['dispatch_sites'][0]))->toBe(['file', 'line', 'method'])
-        ->and(array_keys($q->eventsFromMethod('App\\Listeners\\SendReceipt')->toArray()))->toBe(['method_fqcn', 'dispatches', 'chains'])
+        ->and(array_keys($q->eventsFromMethod('App\\Listeners\\SendReceipt')->toArray()))->toBe(['method_fqcn', 'dispatches', 'chains', 'mailables_reached', 'notifications_reached'])
         ->and(array_keys($q->orphans()->toArray()))->toBe(['orphan_events', 'idle_listeners'])
         ->and(array_keys($q->orphans()->toArray()['orphan_events'][0]))->toBe(['fqcn', 'kind', 'file', 'line'])
         ->and(array_keys($q->orphans()->toArray()['idle_listeners'][0]))->toBe(['fqcn', 'file', 'line']);
@@ -548,7 +592,7 @@ it('pins the wire keys of every query result', function () use ($e) {
     expect(array_keys($cycle))->toBe(['from_handler', 'back_to_event']);
 });
 
-it('pins the impact report keys for events, listeners and unknown classes', function () use ($e) {
+it('pins the impact report keys for events, listeners, mailables and unknown classes', function () use ($e) {
     $q = queryFor();
     $event = $q->impactOfChange($e('ReceiptSent'))->toArray();
 
@@ -560,7 +604,11 @@ it('pins the impact report keys for events, listeners and unknown classes', func
         ->and(array_keys($q->impactOfChange('App\\Listeners\\PingListener')->toArray()))
         ->toBe(['fqcn', 'change', 'kind', 'handles', 'would_orphan_events', 'dispatches', 'notes'])
         ->and(array_keys($q->impactOfChange('App\\Nope')->toArray()))
-        ->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'handlers', 'downstream', 'notes']);
+        ->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'handlers', 'downstream', 'notes'])
+        ->and(array_keys($q->impactOfChange('App\\Mail\\Receipt')->toArray()))
+        ->toBe(['fqcn', 'change', 'kind', 'dispatchers', 'notes'])
+        ->and(array_keys($event['downstream']))
+        ->toBe(['root', 'depth', 'edges', 'events_reached', 'mailables_reached', 'notifications_reached', 'cycles', 'truncated']);
 });
 
 it('always emits the route note key, null when a chain resolved', function () {

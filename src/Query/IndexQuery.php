@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Lucasp\Loom\Index\DispatchKinds;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\Index;
+use Lucasp\Loom\Index\Model\DispatchSite;
 use Lucasp\Loom\Index\Model\Route;
 use Lucasp\Loom\Index\Model\UnresolvedDispatch;
 use Lucasp\Loom\Index\SectionRegistry;
@@ -54,7 +55,11 @@ final class IndexQuery
         return (new ChainWalker($this->index()))->chain($eventFqcn, ChainDepth::clamp($depth));
     }
 
-    /** Dispatches from `Class::method`, `Class@method` or a bare `Class`, then the chain of each dispatched event. */
+    /**
+     * Dispatches from `Class::method`, `Class@method` or a bare `Class`, then the
+     * chain of each dispatched event. Mailables and notifications are leaves,
+     * reported through {@see MethodChain::reached()}.
+     */
     public function eventsFromMethod(string $methodFqcn, int $depth = ChainDepth::DEFAULT): MethodChain
     {
         $walker = new ChainWalker($this->index());
@@ -139,6 +144,16 @@ final class IndexQuery
 
         if ($index->findEvent($fqcn) !== null) {
             return $this->eventImpact($index, $fqcn, $kind);
+        }
+
+        $mailable = $index->findMailable($fqcn);
+        if ($mailable !== null) {
+            return $this->sendImpact($fqcn, $kind, ImpactEntity::MAILABLE, $mailable->sentFrom);
+        }
+
+        $notification = $index->findNotification($fqcn);
+        if ($notification !== null) {
+            return $this->sendImpact($fqcn, $kind, ImpactEntity::NOTIFICATION, $notification->notifiedFrom);
         }
 
         $listener = $index->findListener($fqcn);
@@ -344,6 +359,21 @@ final class IndexQuery
             downstream: (new ChainWalker($index))->chain($fqcn, ChainDepth::DEFAULT),
             notes: [
                 $kind === ChangeKind::RENAME ? ImpactNote::RENAME_TOUCHES_ALL : ImpactNote::REMOVE_ORPHANS_HANDLERS,
+                ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT,
+            ],
+        );
+    }
+
+    /** @param  list<DispatchSite>  $sites */
+    private function sendImpact(string $fqcn, ChangeKind $kind, ImpactEntity $entity, array $sites): ImpactReport
+    {
+        return new ImpactReport(
+            $fqcn,
+            $kind,
+            $entity,
+            dispatchers: $sites,
+            notes: [
+                $kind === ChangeKind::RENAME ? ImpactNote::RENAME_TOUCHES_SENDS : ImpactNote::REMOVE_BREAKS_SENDS,
                 ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT,
             ],
         );

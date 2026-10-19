@@ -87,6 +87,8 @@ function mcpCharacterizationCases(): array
         'impact.listener_would_orphan' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\PingListener']],
         'impact.listener_idle' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Listeners\\Idle']],
         'impact.job' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Jobs\\SendMail']],
+        'impact.mailable' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Mail\\Receipt']],
+        'impact.notification_rename' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Notifications\\Shipped', 'change' => 'rename']],
         'impact.unknown' => [ImpactOfChangeTool::class, ['fqcn' => 'App\\Nope']],
         'impact.bad_change' => [ImpactOfChangeTool::class, ['fqcn' => $order, 'change' => 'explode']],
         'orphans' => [FindOrphansTool::class, []],

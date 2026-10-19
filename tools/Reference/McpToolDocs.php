@@ -91,7 +91,7 @@ final class McpToolDocs
                 notes: [
                     'Each edge is one handler of one event.',
                     'An event that is not in the index returns an empty `edges` list, not an error.',
-                    'See [Chain output](#chain-output) for `truncated`, `cycles` and `events_reached`.',
+                    'See [Chain output](#chain-output) for `truncated`, `cycles` and the `*_reached` lists.',
                 ],
             ),
             new ToolDoc(
@@ -126,7 +126,7 @@ final class McpToolDocs
                 tool: ImpactOfChangeTool::class,
                 group: McpGroup::Analysis,
                 answers: 'What does removing or renaming this class affect?',
-                summary: 'Reports what removing or renaming an event, listener or job touches. `change` only changes the wording of `notes`.',
+                summary: 'Reports what removing or renaming an event, listener, job, mailable or notification touches. `change` only changes the wording of `notes`.',
                 example: ['fqcn' => 'App\\Listeners\\SendReceipt'],
                 notes: [
                     'For a listener, `handles` are the events it handles and `would_orphan_events` are those whose only handler it is. A job has the same keys, with empty `handles`.',
@@ -135,6 +135,7 @@ final class McpToolDocs
                 ],
                 variants: [
                     new CallVariant('For an event the report lists who fires it, who handles it, and the chain downstream', ['fqcn' => self::ORDER_EVENT]),
+                    new CallVariant('For a mailable or notification the report lists the sites that send it', ['fqcn' => 'App\\Mail\\OrderReceipt']),
                     new CallVariant('A class Loom does not know gets `kind` `unknown` and a note instead of a chain', ['fqcn' => 'App\\Nope']),
                 ],
                 errors: [['fqcn' => self::ORDER_EVENT, 'change' => 'explode']],
