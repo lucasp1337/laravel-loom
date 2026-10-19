@@ -546,6 +546,12 @@
             ],
             "errors": []
         },
+        "impact.mailable_unused": {
+            "content": [
+                "{\"fqcn\":\"App\\\\Mail\\\\Unused\",\"change\":\"remove\",\"kind\":\"mailable\",\"dispatchers\":[],\"notes\":[\"No known site sends this mailable; it may be unused or sent dynamically.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
+            ],
+            "errors": []
+        },
         "impact.notification_rename": {
             "content": [
                 "{\"fqcn\":\"App\\\\Notifications\\\\Shipped\",\"change\":\"rename\",\"kind\":\"notification\",\"dispatchers\":[{\"file\":\"app/Listeners/SendReceipt.php\",\"line\":11,\"method\":\"App\\\\Listeners\\\\SendReceipt::handle\"}],\"notes\":[\"Renaming this notification requires updating all 1 dispatch site below.\",\"Dynamic dispatches (event($var), string class names) are not statically resolvable and may not appear here.\"]}"
@@ -676,7 +682,7 @@
         },
         "list.mailables": {
             "content": [
-                "{\"section\":\"mailables\",\"count\":1,\"items\":[{\"fqcn\":\"App\\\\Mail\\\\Receipt\",\"file\":\"app/Mail/Receipt.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"sent_from\":[{\"file\":\"app/Jobs/SendMail.php\",\"line\":20,\"method\":\"App\\\\Jobs\\\\SendMail::handle\"},{\"file\":\"app/Listeners/ArchiveReceipt.php\",\"line\":8,\"method\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\"}]}]}"
+                "{\"section\":\"mailables\",\"count\":2,\"items\":[{\"fqcn\":\"App\\\\Mail\\\\Receipt\",\"file\":\"app/Mail/Receipt.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"sent_from\":[{\"file\":\"app/Jobs/SendMail.php\",\"line\":20,\"method\":\"App\\\\Jobs\\\\SendMail::handle\"},{\"file\":\"app/Listeners/ArchiveReceipt.php\",\"line\":8,\"method\":\"App\\\\Listeners\\\\ArchiveReceipt::handle\"}]},{\"fqcn\":\"App\\\\Mail\\\\Unused\",\"file\":\"app/Mail/Unused.php\",\"line\":4,\"queued\":false,\"queue_config\":null,\"sent_from\":[]}]}"
             ],
             "errors": []
         },

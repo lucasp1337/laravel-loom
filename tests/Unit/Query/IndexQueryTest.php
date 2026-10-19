@@ -324,6 +324,10 @@ it('reports the send sites a mailable or notification change touches', function 
         ->and($notification->dispatchers)->toHaveCount(1)
         ->and($notification->notes[0])->toBe(ImpactNote::RENAME_TOUCHES_SENDS);
 
+    $unused = $q->impactOfChange('App\\Mail\\Unused', ChangeKind::RENAME);
+    expect($unused->dispatchers)->toBe([])
+        ->and($unused->notes)->toBe([ImpactNote::NO_KNOWN_SENDS, ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT]);
+
     // An event's downstream chain lists the mailables and notifications it reaches.
     expect($q->impactOfChange($e('OrderPlaced'))->toArray()['downstream']['notifications_reached'])->toBe(['App\\Notifications\\Shipped']);
 });

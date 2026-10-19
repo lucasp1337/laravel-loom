@@ -373,7 +373,14 @@ final class IndexQuery
             $entity,
             dispatchers: $sites,
             notes: [
-                $kind === ChangeKind::RENAME ? ImpactNote::RENAME_TOUCHES_SENDS : ImpactNote::REMOVE_BREAKS_SENDS,
+                match (true) {
+                    // Nothing known sends it, so neither change touches a send site
+                    $sites === [] => ImpactNote::NO_KNOWN_SENDS,
+                    // Every send site names the class
+                    $kind === ChangeKind::RENAME => ImpactNote::RENAME_TOUCHES_SENDS,
+                    // Every send site would reference a missing class
+                    default => ImpactNote::REMOVE_BREAKS_SENDS,
+                },
                 ImpactNote::DYNAMIC_DISPATCH_BLIND_SPOT,
             ],
         );

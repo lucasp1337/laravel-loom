@@ -8,6 +8,7 @@ use Lucasp\Loom\Query\Dto\ChainEdge;
 use Lucasp\Loom\Query\Dto\DispatchRef;
 use Lucasp\Loom\Query\Dto\EventChain;
 use Lucasp\Loom\Query\HandlerKind;
+use Lucasp\Loom\Ui\NodeType;
 use Lucasp\Loom\Ui\Support\ChainGraph;
 
 /** @param  list<DispatchRef>  $dispatches */
@@ -66,6 +67,6 @@ it('draws mailables and notifications as childless leaves', function () {
 
     $leaves = array_slice(ChainGraph::build($chain)['nodes'], 2);
 
-    expect(array_column($leaves, 'type'))->toBe(['mailable', 'notification'])
+    expect(array_column($leaves, 'type'))->toBe([NodeType::MAILABLE->value, NodeType::NOTIFICATION->value])
         ->and(array_column($leaves, 'has_children'))->toBe([false, false]);
 });

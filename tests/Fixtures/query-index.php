@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   OrderPlaced  → SendReceipt (dispatches ReceiptSent + job SendMail, notifies Shipped)
  *   ReceiptSent  → ArchiveReceipt (sends mailable Receipt), plus a closure listener that dispatches Ping
  *   Ping ⇄ Pong  → PingListener / PongListener dispatch each other (cycle)
- *   Lonely       → orphan event; Idle → listener handling nothing
+ *   Lonely       → orphan event; Idle → listener handling nothing; Unused → mailable nothing sends
  */
 
 $site = static fn (string $file, int $line, string $method = 'dispatch'): array => [
@@ -112,6 +112,14 @@ return [
             'queued' => false,
             'queue_config' => null,
             'sent_from' => [$site('app/Jobs/SendMail.php', 20, 'App\\Jobs\\SendMail::handle'), $site('app/Listeners/ArchiveReceipt.php', 8, 'App\\Listeners\\ArchiveReceipt::handle')],
+        ],
+        [
+            'fqcn' => 'App\\Mail\\Unused',
+            'file' => 'app/Mail/Unused.php',
+            'line' => 4,
+            'queued' => false,
+            'queue_config' => null,
+            'sent_from' => [],
         ],
     ],
     'notifications' => [
