@@ -63,6 +63,10 @@ use Lucasp\Loom\Support\ScanScope;
  * 4. Subscribers named in `$subscribe` or `Event::subscribe(...)`
  *    ({@see SubscriberClassVisitor}).
  *
+ * Registrations (2-4) are also read from the providers that
+ * `bootstrap/providers.php` and `config/app.php` list, inside or outside the
+ * scan paths.
+ *
  * Listener values are `Foo::class`, `'Fqcn@method'`, `Foo::class.'@method'`,
  * tuples and callables; a string event key is kept as written (`eloquent.*`
  * names are model events, read by ObserverScanner). A registration whose event
@@ -294,7 +298,7 @@ final class ListenerScanner implements Scanner
         $pairs = [];
         $closures = [];
 
-        foreach ($this->scanFiles($appRoot) as $file) {
+        foreach ($this->registrationFiles($appRoot, $this->walker) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor, $discoveryVisitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
             $this->collectUnresolved($relative, $visitor->getUnresolved());
@@ -325,7 +329,7 @@ final class ListenerScanner implements Scanner
         $pairs = [];
         $closures = [];
 
-        foreach ($this->scanFiles($appRoot) as $file) {
+        foreach ($this->registrationFiles($appRoot, $this->walker) as $file) {
             $this->walker->walk($file->getPathname(), [$visitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
             $this->collectUnresolved($relative, $visitor->getUnresolved());
@@ -356,7 +360,7 @@ final class ListenerScanner implements Scanner
 
         $seen = [];
 
-        foreach ($this->scanFiles($appRoot) as $file) {
+        foreach ($this->registrationFiles($appRoot, $this->walker) as $file) {
             $this->walker->walk($file->getPathname(), [$arrayVisitor, $callVisitor]);
             $relative = $this->relativePath($appRoot, $file->getPathname());
             $this->collectUnresolved($relative, $arrayVisitor->getUnresolved());

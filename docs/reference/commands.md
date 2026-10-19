@@ -13,7 +13,7 @@ php artisan loom:mcp                     # serve the index over MCP
 ## loom:scan
 
 ```bash
-php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [-v]
+php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [--allow-empty] [-v]
 ```
 
 Parses the app without booting it, validates the result against the [schema](schema.md) and writes the index. The directories come from [scan configuration](scan-config.md).
@@ -27,6 +27,7 @@ Parses the app without booting it, validates the result against the [schema](sch
 | `--path=` | Scan this directory instead of `scan.paths`. Relative to the project root; glob patterns allowed. Repeatable. |
 | `--route-path=` | Read routes from this directory instead of `scan.route_paths`. Same rules as `--path`. Repeatable. |
 | `--no-discover-routes` | Do not follow route-file loading calls for this run, as if `scan.discover_routes` were false. Wins over the config value. |
+| `--allow-empty` | Write an index even when the scan directories hold no PHP files, instead of failing. |
 <!-- /generated:command:loom:scan -->
 
 It prints the path written, the files read and a count per section. `-v` also lists each skipped file with its parser message and each route-file path not followed, with its reason:
@@ -48,7 +49,7 @@ A skipped file is skipped by every scanner and doesn't change the exit code.
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Index written, with or without skipped files |
-| `1` | A scan path is invalid or matches no directory, the index failed schema validation, or the output could not be written. Nothing is written. |
+| `1` | A scan path is invalid, the scan directories hold no PHP files without `--allow-empty`, the index failed schema validation, or the output could not be written. Nothing is written. |
 
 ## loom:show
 
@@ -128,8 +129,9 @@ Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio that
 | `--snapshot=` | Serve this index file instead of the default (`storage/loom/index.json`); it is never auto-scanned. |
 | `--scan` | Run `loom:scan` before serving; cannot be combined with `--snapshot`. |
 | `--no-scan` | Never auto-scan; the snapshot must already exist. |
+| `--allow-empty` | Pass `--allow-empty` to `loom:scan` when this command scans. |
 <!-- /generated:command:loom:mcp -->
 
-Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false` or the server isn't registered.
+Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false`, the scan before serving fails or the server isn't registered.
 
 Every config key is in [Index, UI and MCP configuration](ui-config.md) and [Scan configuration](scan-config.md).

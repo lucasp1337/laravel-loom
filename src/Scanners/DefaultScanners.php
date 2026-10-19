@@ -43,7 +43,7 @@ final class DefaultScanners
             new MailableScanner(walker: $walker, locator: $locator, scope: $scope),
             new NotificationScanner(walker: $walker, locator: $locator, scope: $scope),
             new DispatchScanner(walker: $walker, scope: $scope, routeDiscovery: $discovery),
-            new ScheduleScanner(walker: $walker, scope: $scope),
+            new ScheduleScanner(walker: $walker, scope: $scope, locator: $locator),
             new RouteScanner(walker: $walker, scope: $scope, routeDiscovery: $discovery),
         ];
     }

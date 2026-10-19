@@ -24,7 +24,8 @@ final class McpCommand extends Command
     protected $signature = 'loom:mcp
         {--snapshot= : Serve this index file instead of the default (storage/loom/index.json); it is never auto-scanned}
         {--scan : Run loom:scan before serving; cannot be combined with --snapshot}
-        {--no-scan : Never auto-scan; the snapshot must already exist}';
+        {--no-scan : Never auto-scan; the snapshot must already exist}
+        {--allow-empty : Pass --allow-empty to loom:scan when this command scans}';
 
     protected $description = 'Start the embedded Loom MCP server over stdio';
 
@@ -63,8 +64,15 @@ final class McpCommand extends Command
             $repository->disableAutoScan();
         }
 
+        $scanOptions = (bool) $this->option('allow-empty') ? ['--allow-empty' => true] : [];
+        $repository->scanWith($scanOptions);
+
         // Silent: anything on stdout before the server starts would corrupt the JSON-RPC stream.
-        if ($this->option('scan') && $this->callSilently('loom:scan') !== self::SUCCESS) {
+        // The auto-scan runs now, so a failed scan stops here instead of failing every tool call.
+        $scanned = $this->option('scan')
+            ? $this->callSilently('loom:scan', $scanOptions) === self::SUCCESS
+            : $repository->scanIfMissing();
+        if (! $scanned) {
             $this->components->error('loom:scan failed; not starting the MCP server.');
 
             return self::FAILURE;

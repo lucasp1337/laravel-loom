@@ -450,7 +450,7 @@ php artisan loom:mcp --no-scan
 ERROR  No index at [storage/loom/index.json] and --no-scan is set. Run `php artisan loom:scan` first.
 ```
 
-`--scan` scans before serving, `--no-scan` never scans and `--snapshot=PATH` serves another file; see [Commands](../reference/commands.md#loommcp). The server answers from your last scan, not your working tree, so rescan after you change code.
+`--scan` scans before serving, `--no-scan` never scans, `--allow-empty` lets a scan with no PHP files write an empty index and `--snapshot=PATH` serves another file; see [Commands](../reference/commands.md#loommcp). The server answers from your last scan, not your working tree, so rescan after you change code.
 
 !!! warning "Keep stdout clean"
     Client and server talk JSON-RPC over stdout. A stray `echo`, a `dd()` or a PHP notice breaks the connection: log to a file and set `display_errors=stderr` for the CLI.
@@ -749,7 +749,7 @@ php artisan loom:mcp                     # serve the index over MCP
 ## loom:scan
 
 ```bash
-php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [-v]
+php artisan loom:scan [--output=PATH] [--path=DIR ...] [--route-path=DIR ...] [--allow-empty] [-v]
 ```
 
 Parses the app without booting it, validates the result against the [schema](schema.md) and writes the index. The directories come from [scan configuration](scan-config.md).
@@ -760,6 +760,7 @@ Parses the app without booting it, validates the result against the [schema](sch
 | `--path=` | Scan this directory instead of `scan.paths`. Relative to the project root; glob patterns allowed. Repeatable. |
 | `--route-path=` | Read routes from this directory instead of `scan.route_paths`. Same rules as `--path`. Repeatable. |
 | `--no-discover-routes` | Do not follow route-file loading calls for this run, as if `scan.discover_routes` were false. Wins over the config value. |
+| `--allow-empty` | Write an index even when the scan directories hold no PHP files, instead of failing. |
 
 It prints the path written, the files read and a count per section. `-v` also lists each skipped file with its parser message and each route-file path not followed, with its reason:
 
@@ -776,7 +777,7 @@ A skipped file is skipped by every scanner and doesn't change the exit code.
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Index written, with or without skipped files |
-| `1` | A scan path is invalid or matches no directory, the index failed schema validation, or the output could not be written. Nothing is written. |
+| `1` | A scan path is invalid, the scan directories hold no PHP files without `--allow-empty`, the index failed schema validation, or the output could not be written. Nothing is written. |
 
 ## loom:show
 
@@ -841,8 +842,9 @@ Starts a read-only [MCP](https://modelcontextprotocol.io) server over stdio that
 | `--snapshot=` | Serve this index file instead of the default (`storage/loom/index.json`); it is never auto-scanned. |
 | `--scan` | Run `loom:scan` before serving; cannot be combined with `--snapshot`. |
 | `--no-scan` | Never auto-scan; the snapshot must already exist. |
+| `--allow-empty` | Pass `--allow-empty` to `loom:scan` when this command scans. |
 
-Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false` or the server isn't registered.
+Exit `0` when the server stops normally, `1` when `laravel/mcp` isn't installed, `mcp.enabled` is `false`, the scan before serving fails or the server isn't registered.
 
 Every config key is in [Index, UI and MCP configuration](ui-config.md) and [Scan configuration](scan-config.md).
 
@@ -2698,7 +2700,7 @@ php artisan vendor:publish --tag=loom-config
 
 ## How directories resolve
 
-Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; if none exist, `loom:scan` exits `1`.
+Convention directories (`Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`) are looked for directly under each entry of `scan.paths`; everything else is found anywhere under one. Missing directories are ignored; when the rest hold no PHP files, `loom:scan` [exits `1`](commands.md#loomscan).
 
 | Layout | `scan.paths` |
 | --- | --- |
@@ -4534,6 +4536,117 @@ Each `reason` in `unresolved_dispatches` and `unresolved_routes`, and the page t
 
     Schedule::command('cache:warm')->hourly()->environments('production')->when(fn () => true); // → scheduled_tasks.constraints when(closure)
     Schedule::command('queue:prune')->hourly()->timezone('Europe/Paris')->runInBackground(); // → scheduled_tasks.timezone Europe/Paris → scheduled_tasks.run_in_background true
+    ```
+
+??? example "Schedule handed to another class"
+
+    ```php title="app/Console/Kernel.php"
+    namespace App\Console;
+
+    use App\Scheduling\BillingTasks;
+    use App\Scheduling\CleanupTasks;
+    use App\Scheduling\ReportTasks;
+    use Illuminate\Console\Scheduling\Schedule;
+    use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+
+    class Kernel extends ConsoleKernel
+    {
+        protected ReportTasks $reports;
+
+        protected function schedule(Schedule $schedule): void
+        {
+            (new BillingTasks)->register($schedule);
+            BillingTasks::nightly($schedule);
+
+            (new CleanupTasks)->register($schedule);
+
+            if (app()->isProduction()) {
+                app(CleanupTasks::class)->register($schedule);
+            }
+
+            if (config('cleanup.staging')) {
+                resolve(CleanupTasks::class)->register($schedule);
+            }
+
+            $this->reports->register($schedule); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Scheduling/BillingTasks.php"
+    namespace App\Scheduling;
+
+    use Illuminate\Console\Scheduling\Schedule;
+
+    class BillingTasks
+    {
+        public function register(Schedule $schedule): void
+        {
+            $schedule->command('invoices:charge')->daily(); // → scheduled_tasks.cron 0 0 * * *
+            $this->reminders($schedule);
+        }
+
+        public static function nightly(Schedule $schedule): void
+        {
+            $schedule->command('invoices:close')->dailyAt('23:00'); // → scheduled_tasks.cron 0 23 * * *
+        }
+
+        private function reminders(Schedule $schedule): void
+        {
+            $schedule->command('invoices:remind')->hourly(); // → scheduled_tasks.cron 0 * * * *
+        }
+    }
+    ```
+
+    ```php title="app/Scheduling/CleanupTasks.php"
+    namespace App\Scheduling;
+
+    use Illuminate\Console\Scheduling\Schedule;
+
+    class CleanupTasks
+    {
+        public function register(Schedule $schedule): void
+        {
+            $schedule->command('logs:prune')->weekly(); // → scheduled_tasks.constraints [] → scheduled_tasks.constraints ["if(app()->isProduction())"] → scheduled_tasks.constraints ["if(config('cleanup.staging'))"]
+        }
+    }
+    ```
+
+    ```php title="app/Scheduling/ReportTasks.php"
+    namespace App\Scheduling;
+
+    use Illuminate\Console\Scheduling\Schedule;
+
+    class ReportTasks
+    {
+        public function register(Schedule $schedule): void
+        {
+            $schedule->command('reports:send')->daily(); // ✗ not recorded
+        }
+    }
+    ```
+
+    ```php title="app/Scheduling/QueueTasks.php"
+    namespace App\Scheduling;
+
+    use Illuminate\Console\Scheduling\Schedule;
+
+    class QueueTasks
+    {
+        public function __invoke(Schedule $schedule): void
+        {
+            $schedule->job(new \App\Jobs\ProcessOrder)->everyFiveMinutes(); // → scheduled_tasks.cron */5 * * * *
+        }
+    }
+    ```
+
+    ```php title="bootstrap/app.php"
+    use App\Scheduling\QueueTasks;
+    use Illuminate\Foundation\Application;
+
+    return Application::configure(basePath: dirname(__DIR__))
+        ->withSchedule(new QueueTasks)
+        ->create();
     ```
 
 ??? example "Console kernel and withSchedule"
