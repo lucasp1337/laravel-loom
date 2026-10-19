@@ -54,6 +54,7 @@ The `docs/` tree is published as a [Zensical](https://zensical.org/) site. It bu
 just docs-generate   # refresh the generated regions
 just docs-check      # fail if a generated region drifted from its source; writes nothing
 just docs-serve      # regenerate, then live-reload preview at http://localhost:8000
+just docs-serve-bg   # the same, detached; `just docs-stop` stops it
 just docs-build      # check, then strict build from a scratch copy (fails on broken links)
 ```
 
