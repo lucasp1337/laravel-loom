@@ -46,6 +46,7 @@ App\Listeners\SendReceipt::handle
       → event App\Events\ReceiptLogged
         App\Listeners\WriteAuditLog::handle
   → job App\Jobs\SendMail
+  → mailable App\Mail\OrderReceipt
 ```
 <!-- /generated:recipe:event-chain -->
 

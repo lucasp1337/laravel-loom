@@ -37,8 +37,8 @@ It prints the path written, the files read and a count per section. `-v` also li
 
 ```text
 Loom index written to /var/www/shop/storage/loom/index.json
-Scanned 16 PHP files in 1 directories.
-events: 5, listeners: 6, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 2, closure listeners: 1, scheduled tasks: 0, mailables: 0, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 1
+Scanned 17 PHP files in 1 directories.
+events: 5, listeners: 6, observers: 0, model events: 0, jobs: 1, unresolved dispatches: 2, closure listeners: 1, scheduled tasks: 0, mailables: 1, notifications: 0, routes: 2, unresolved routes: 0, skipped files: 1
 Skipped files:
   app/Broken.php:8  Syntax error, unexpected '}', expecting T_VARIABLE
 ```

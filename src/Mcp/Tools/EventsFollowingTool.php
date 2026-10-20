@@ -15,7 +15,7 @@ use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('events-following')]
-#[Description('Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3).')]
+#[Description('Follow an event through its handlers, what those handlers dispatch, and the handlers of those events, recursively. Returns the transitive handler/dispatch chain rooted at the given event, bounded by depth (1..6, default 3). Mailables and notifications the handlers send are listed as leaves.')]
 final class EventsFollowingTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}

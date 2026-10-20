@@ -16,7 +16,7 @@ use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('impact-of-change')]
-#[Description('Blast-radius report for removing or renaming a class. For an event: who dispatches it, who handles it (named + closure listeners), and the transitive downstream chain. For a listener/job: which events it handles and whether removing it would orphan an event (an event whose only handler is this class). Notes call out what static analysis cannot determine.')]
+#[Description('Blast-radius report for removing or renaming a class. For an event: who dispatches it, who handles it (named + closure listeners), and the transitive downstream chain, including the mailables and notifications it reaches. For a mailable/notification: the sites that send it. For a listener/job: which events it handles and whether removing it would orphan an event (an event whose only handler is this class). Notes call out what static analysis cannot determine.')]
 final class ImpactOfChangeTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}
@@ -26,7 +26,7 @@ final class ImpactOfChangeTool extends LoomTool
     {
         return [
             'fqcn' => $schema->string()
-                ->description('The fully-qualified class name being changed (event, listener, or job).')
+                ->description('The fully-qualified class name being changed (event, listener, job, mailable or notification).')
                 ->required(),
             'change' => $schema->string()
                 ->enum(self::enumValues(ChangeKind::class))

@@ -15,7 +15,7 @@ use Lucasp\Loom\Query\IndexQuery;
 
 /** @internal */
 #[Name('events-from-method')]
-#[Description('Transitive closure starting from a Class::method (or Class@method, or a bare Class for every method): what it dispatches, then the event chain following each dispatched event. Depth bounds the chain (1..6, default 3). Method granularity is exact only for routes; listeners/observers/jobs resolve at class level.')]
+#[Description('Transitive closure starting from a Class::method (or Class@method, or a bare Class for every method): what it dispatches, then the event chain following each dispatched event, plus every mailable and notification reached directly or down those chains. Depth bounds the chain (1..6, default 3). Method granularity is exact only for routes; listeners/observers/jobs resolve at class level.')]
 final class EventsFromMethodTool extends LoomTool
 {
     public function __construct(private readonly IndexQuery $query) {}

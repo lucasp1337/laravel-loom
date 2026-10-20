@@ -160,8 +160,8 @@ it('walks the chain to the configured depth', function () {
     $depth3 = Livewire::test(ChainPage::class, ['fqcn' => ORDER])->viewData('graph');
 
     // Depth 1 expands OrderPlaced only; what SendReceipt dispatches is drawn but not expanded.
-    expect(collect($depth1['nodes'])->pluck('id')->all())->toBe(['App\Events\OrderPlaced', 'App\Listeners\SendReceipt', 'App\Events\ReceiptSent', 'App\Jobs\SendMail'])
-        ->and(collect($depth3['nodes'])->pluck('id'))->toContain('App\Listeners\ArchiveReceipt')
+    expect(collect($depth1['nodes'])->pluck('id')->all())->toBe(['App\Events\OrderPlaced', 'App\Listeners\SendReceipt', 'App\Events\ReceiptSent', 'App\Jobs\SendMail', 'App\Notifications\Shipped'])
+        ->and(collect($depth3['nodes'])->pluck('id'))->toContain('App\Listeners\ArchiveReceipt', 'App\Mail\Receipt')
         ->and(count($depth3['nodes']))->toBeGreaterThan(count($depth1['nodes']))
         ->and($depth3['depth'])->toBe(3);
 });

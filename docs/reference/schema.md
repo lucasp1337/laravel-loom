@@ -11,7 +11,7 @@ Reference for `storage/loom/index.json`, generated from `schema/loom-index.schem
   "loom_version": "0.4.0",
   "scanned_at": "2026-01-01T00:00:00Z",
   "laravel_version": "13.0",
-  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":0,"notifications":0},
+  "stats": {"events":4,"model_events":0,"listeners":4,"observers":0,"jobs":1,"unresolved_dispatches":1,"closure_listeners":1,"scheduled_tasks":0,"routes":2,"unresolved_routes":0,"mailables":1,"notifications":0},
   "events": [ { "...": "..." } ],
   "model_events": [ { "...": "..." } ],
   "listeners": [ { "...": "..." } ],

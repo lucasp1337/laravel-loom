@@ -13,8 +13,9 @@ use Lucasp\Loom\Query\ImpactNote;
 
 /**
  * Blast radius of removing or renaming a class. Which fields are populated
- * depends on `kind`: events carry dispatchers/handlers/downstream, listeners
- * and jobs carry handles/wouldOrphanEvents/dispatches.
+ * depends on `kind`: events carry dispatchers/handlers/downstream, mailables
+ * and notifications carry their send sites as dispatchers, listeners and jobs
+ * carry handles/wouldOrphanEvents/dispatches.
  *
  * @internal
  */
@@ -51,24 +52,36 @@ final readonly class ImpactReport
 
         $head = ['fqcn' => $this->fqcn, 'change' => $this->change->value, 'kind' => $this->kind->value];
 
-        if ($this->kind === ImpactEntity::EVENT || $this->kind === ImpactEntity::UNKNOWN) {
-            return $head + [
-                'dispatchers' => Arr::map($this->dispatchers, static fn (DispatchSite $s): array => [
-                    'file' => $s->file,
-                    'line' => $s->line,
-                    'method' => $s->method,
-                ]),
+        return $head + match ($this->kind) {
+            // An unknown class keeps the event shape, empty
+            ImpactEntity::EVENT, ImpactEntity::UNKNOWN => [
+                'dispatchers' => $this->sites(),
                 'handlers' => Arr::map($this->handlers, static fn (HandlerRef $h): array => $h->toArray()),
                 'downstream' => $this->downstream?->toArray(),
                 'notes' => $notes,
-            ];
-        }
+            ],
+            // Leaves: only the sites that send them
+            ImpactEntity::MAILABLE, ImpactEntity::NOTIFICATION => [
+                'dispatchers' => $this->sites(),
+                'notes' => $notes,
+            ],
+            // Handlers: what they handle and what they dispatch
+            ImpactEntity::LISTENER, ImpactEntity::JOB => [
+                'handles' => $this->handles,
+                'would_orphan_events' => $this->wouldOrphanEvents,
+                'dispatches' => Arr::map($this->dispatches, static fn (DispatchRef $d): array => $d->toArray()),
+                'notes' => $notes,
+            ],
+        };
+    }
 
-        return $head + [
-            'handles' => $this->handles,
-            'would_orphan_events' => $this->wouldOrphanEvents,
-            'dispatches' => Arr::map($this->dispatches, static fn (DispatchRef $d): array => $d->toArray()),
-            'notes' => $notes,
-        ];
+    /** @return list<array{file: string, line: int, method: string}> */
+    private function sites(): array
+    {
+        return array_values(Arr::map($this->dispatchers, static fn (DispatchSite $s): array => [
+            'file' => $s->file,
+            'line' => $s->line,
+            'method' => $s->method,
+        ]));
     }
 }

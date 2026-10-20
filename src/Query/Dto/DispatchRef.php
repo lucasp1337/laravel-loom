@@ -26,6 +26,21 @@ final readonly class DispatchRef
         return new self($dispatch->target, $dispatch->kind, $dispatch->confidence, $dispatch->file, $dispatch->line, $dispatch->via);
     }
 
+    /**
+     * Distinct targets of one kind, in first-seen order.
+     *
+     * @param  iterable<self>  $refs
+     * @return list<string>
+     */
+    public static function targetsOf(iterable $refs, DispatchKinds $kind): array
+    {
+        return array_values(collect($refs)
+            ->filter(static fn (self $ref): bool => $ref->kind === $kind)
+            ->map(static fn (self $ref): string => $ref->target)
+            ->unique()
+            ->all());
+    }
+
     /** @return array{target: string, kind: string, confidence: string, file: string, line: int, via?: list<string>} */
     public function toArray(): array
     {
