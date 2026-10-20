@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <style>.w{stroke:#1f2328}@media (prefers-color-scheme:dark){.w{stroke:#c9d1d9}}</style>
+  <g stroke-width="2.4" stroke-linecap="round">
+    <path class="w" d="M14 10v44M24 10v44M32 10v44M40 10v44M50 10v44"/>
+    <path d="M6 32h52" stroke="#E8743B" stroke-width="3"/>
+    <path class="w" d="M24 28.6v6.8M40 28.6v6.8"/>
+  </g>
+</svg>

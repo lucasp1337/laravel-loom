@@ -18,6 +18,7 @@ enum OutputSample: string
     case McpNoScan = 'mcp-no-scan';
     case McpEventsFollowing = 'mcp-events-following';
     case McpUnresolved = 'mcp-unresolved';
+    case AgentImpact = 'agent-impact';
     case IndexShape = 'index-shape';
     case IndexRoute = 'index-route';
     case IndexEvent = 'index-event';
@@ -38,7 +39,7 @@ enum OutputSample: string
     {
         return match ($this) {
             // Index entries and the JSON formats.
-            self::ShowEvent, self::McpEventsFollowing, self::McpUnresolved, self::IndexShape, self::IndexRoute,
+            self::ShowEvent, self::McpEventsFollowing, self::McpUnresolved, self::AgentImpact, self::IndexShape, self::IndexRoute,
             self::IndexEvent, self::IndexListener, self::IndexJob, self::CheckJson, self::CheckSkipped, self::DiffJson => 'json',
             // The markdown formats, shown as source.
             self::CheckMarkdown, self::DiffMarkdown => 'markdown',

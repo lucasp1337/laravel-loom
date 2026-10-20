@@ -2,6 +2,7 @@
 :root{
 --bg:#ffffff;--bgSub:#f6f8fa;--bgInset:#f6f8fa;--bd:#d1d9e0;--bdM:#d8dee4;
 --fg:#1f2328;--fgM:#59636e;--fgS:#818b98;
+--logo:#1f2328;--logoWeft:#e8743b;
 --accent:#0969da;--accentSub:#ddf4ff;--accentBd:#54aeff;
 --attn:#9a6700;--attnSub:#fff8c5;--attnBd:#d4a72c;
 --danger:#cf222e;--dangerSub:#ffebe9;--dangerBd:#ff818a;
@@ -14,6 +15,7 @@
 @media (prefers-color-scheme:dark){:root{
 --bg:#0d1117;--bgSub:#151b23;--bgInset:#010409;--bd:#3d444d;--bdM:#2f353d;
 --fg:#f0f6fc;--fgM:#9198a1;--fgS:#7d8590;
+--logo:#c9d1d9;--logoWeft:#e8743b;
 --accent:#4493f8;--accentSub:#121d2f;--accentBd:#265db5;
 --attn:#d29922;--attnSub:#221d10;--attnBd:#7d6417;
 --danger:#f85149;--dangerSub:#25171c;--dangerBd:#7c2e30;
@@ -24,6 +26,7 @@
 :root[data-theme="light"]{
 --bg:#ffffff;--bgSub:#f6f8fa;--bgInset:#f6f8fa;--bd:#d1d9e0;--bdM:#d8dee4;
 --fg:#1f2328;--fgM:#59636e;--fgS:#818b98;
+--logo:#1f2328;--logoWeft:#e8743b;
 --accent:#0969da;--accentSub:#ddf4ff;--accentBd:#54aeff;
 --attn:#9a6700;--attnSub:#fff8c5;--attnBd:#d4a72c;
 --danger:#cf222e;--dangerSub:#ffebe9;--dangerBd:#ff818a;
@@ -34,6 +37,7 @@
 :root[data-theme="dark"]{
 --bg:#0d1117;--bgSub:#151b23;--bgInset:#010409;--bd:#3d444d;--bdM:#2f353d;
 --fg:#f0f6fc;--fgM:#9198a1;--fgS:#7d8590;
+--logo:#c9d1d9;--logoWeft:#e8743b;
 --accent:#4493f8;--accentSub:#121d2f;--accentBd:#265db5;
 --attn:#d29922;--attnSub:#221d10;--attnBd:#7d6417;
 --danger:#f85149;--dangerSub:#25171c;--dangerBd:#7c2e30;
@@ -57,6 +61,8 @@ code,pre,kbd{font-family:var(--mono)}
 .loom-app{display:flex;min-height:100vh}
 .loom-sidebar{width:220px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--bgSub);border-right:1px solid var(--bd);padding:12px 8px}
 .loom-logo{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;font-weight:600;font-size:14px;color:var(--fg)}
+.loom-logo__mark{flex:none;color:var(--logo)}
+.loom-logo__weft{stroke:var(--logoWeft)}
 .loom-logo:hover{text-decoration:none}
 .loom-logo small{margin-left:auto;font:11px var(--mono);color:var(--fgS);font-weight:400}
 .loom-nav{display:flex;flex-direction:column;gap:2px}

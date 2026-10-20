@@ -11,13 +11,16 @@ use Lucasp\Loom\Check\RuleKey;
 use Lucasp\Loom\Index\Field;
 use Lucasp\Loom\Index\MetaField;
 use Lucasp\Loom\Index\Sections;
+use Lucasp\Loom\Mcp\Tools\DispatchSitesForTool;
 use Lucasp\Loom\Mcp\Tools\EventsFollowingTool;
 use Lucasp\Loom\Mcp\Tools\FindUnresolvedDispatchesTool;
+use Lucasp\Loom\Mcp\Tools\ImpactOfChangeTool;
 use Lucasp\Loom\Tools\Reference\OutputSample;
 use Lucasp\Loom\Tools\Regions\GeneratedRegion;
 use Lucasp\Loom\Tools\Regions\RegionName;
 use Lucasp\Loom\Tools\Regions\RegionPrefix;
 use Lucasp\Loom\Tools\SourceContext;
+use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -29,6 +32,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class CommandOutputPages implements RegionSource
 {
     private const EVENT = 'App\\Events\\OrderPlaced';
+
+    private const LISTENER = 'App\\Listeners\\SendReceipt';
 
     /** Values that differ per run or per install, pinned in the index shape. */
     private const PINNED = [
@@ -70,6 +75,10 @@ final class CommandOutputPages implements RegionSource
             OutputSample::McpNoScan => $this->app->run($this->app->empty(), 'loom:mcp', ['--no-scan' => true]),
             OutputSample::McpEventsFollowing => $this->tool(EventsFollowingTool::class, ['event_fqcn' => self::EVENT]),
             OutputSample::McpUnresolved => $this->tool(FindUnresolvedDispatchesTool::class, []),
+            OutputSample::AgentImpact => $this->calls([
+                [ImpactOfChangeTool::class, ['fqcn' => self::LISTENER]],
+                [DispatchSitesForTool::class, ['event_fqcn' => self::EVENT]],
+            ]),
             OutputSample::IndexShape => $this->shape(),
             OutputSample::IndexRoute => $this->excerpt(Sections::ROUTES, Field::CONTROLLER_METHOD, 'store', [
                 Field::METHOD, Field::URI, Field::NAME, Field::CONTROLLER_FQCN, Field::CONTROLLER_METHOD, Field::FILE, Field::LINE, Field::DISPATCHES,
@@ -77,7 +86,7 @@ final class CommandOutputPages implements RegionSource
             OutputSample::IndexEvent => $this->excerpt(Sections::EVENTS, Field::ID, self::EVENT, [
                 Field::ID, Field::FILE, Field::LINE, Field::DISPATCHED_FROM, Field::HANDLED_BY,
             ]),
-            OutputSample::IndexListener => $this->excerpt(Sections::LISTENERS, Field::FQCN, 'App\\Listeners\\SendReceipt', [
+            OutputSample::IndexListener => $this->excerpt(Sections::LISTENERS, Field::FQCN, self::LISTENER, [
                 Field::FQCN, Field::FILE, Field::LINE, Field::HANDLES, Field::REGISTRATION, Field::QUEUED, Field::DISPATCHES,
             ]),
             OutputSample::IndexJob => $this->excerpt(Sections::JOBS, Field::FQCN, 'App\\Jobs\\SendMail', [
@@ -187,6 +196,21 @@ final class CommandOutputPages implements RegionSource
     private function tool(string $tool, array $arguments): string
     {
         return $this->json($this->decode($this->context->fixture->call($tool, $arguments)['text']));
+    }
+
+    /**
+     * Tool calls in order, each with the name and arguments a client sends and
+     * the result it gets back.
+     *
+     * @param  list<array{class-string<Tool>, array<string, mixed>}>  $calls
+     */
+    private function calls(array $calls): string
+    {
+        return $this->json(array_map(fn (array $call): array => [
+            'tool' => (new ReflectionClass($call[0]))->newInstanceWithoutConstructor()->name(),
+            'arguments' => $call[1],
+            'result' => $this->decode($this->context->fixture->call($call[0], $call[1])['text']),
+        ], $calls));
     }
 
     /** @return array<string, mixed> */

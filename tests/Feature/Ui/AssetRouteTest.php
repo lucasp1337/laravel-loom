@@ -39,3 +39,11 @@ it('keeps cytoscape off the shell assets', function () {
 it('pins the vendored cytoscape version', function () {
     expect((string) file_get_contents(Asset::CYTOSCAPE->path()))->toContain('3.30.2');
 });
+
+it('shows the Loom mark in the header and as the favicon', function () {
+    $this->get('/loom')
+        ->assertSee('class="loom-logo__mark"', false)
+        ->assertSee('<link rel="icon" type="image/svg+xml" href="'.Asset::LOGO->url().'">', false);
+
+    expect((string) file_get_contents(Asset::LOGO->path()))->toContain('prefers-color-scheme:dark');
+});

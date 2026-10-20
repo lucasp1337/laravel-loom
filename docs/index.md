@@ -7,6 +7,8 @@ hide:
 
 # Laravel Loom
 
+![Chain graph](assets/demo.gif)
+
 ## Understand it
 
 - [What Loom sees](concepts/what-loom-sees.md): what a scan records and what it can't resolve.
@@ -15,7 +17,7 @@ hide:
 ## Use it
 
 - [Browse the UI](guides/browse-the-ui.md): the read-only `/loom` dashboard and chain graph.
-- [Ask an agent](guides/ask-an-agent.md): serve the index to an agent through the MCP server.
+- [Ask an agent](guides/ask-an-agent.md): serve the index over MCP, then ask [what a change breaks](https://github.com/lucasp1337/laravel-loom#ask-what-a-change-breaks).
 - [Use with Laravel Boost](guides/use-with-boost.md): register the MCP server next to Boost's.
 - [Gate your CI](guides/gate-your-ci.md): diff and check the index on every pull request.
 - [Why was my code missed?](guides/why-was-my-code-missed.md): trace a missing entry to its cause.

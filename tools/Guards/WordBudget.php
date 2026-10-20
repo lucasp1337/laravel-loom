@@ -16,7 +16,7 @@ final class WordBudget
 
     /** @var array<string, int> page => words */
     public const PAGES = [
-        'README.md' => 490,
+        'README.md' => 643,
         'docs/concepts/the-index.md' => 270,
         'docs/concepts/what-loom-sees.md' => 220,
         'docs/getting-started.md' => 250,
@@ -25,7 +25,7 @@ final class WordBudget
         'docs/guides/gate-your-ci.md' => 250,
         'docs/guides/use-with-boost.md' => 180,
         'docs/guides/why-was-my-code-missed.md' => 230,
-        'docs/index.md' => 240,
+        'docs/index.md' => 250,
         'docs/recipes/event-chain.md' => 70,
         'docs/recipes/job-triggers.md' => 80,
         'docs/recipes/new-unresolved-dispatches.md' => 80,

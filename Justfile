@@ -8,6 +8,9 @@ as_host := "--user $(id -u):$(id -g) -e HOME=/tmp"
 docker_run := "docker run --rm " + as_host + " -v $(pwd):/app " + image
 # Zensical in a throwaway venv under /tmp, writable by the host user.
 zensical := "python -m venv /tmp/venv && /tmp/venv/bin/pip install -q zensical==0.0.69 && /tmp/venv/bin/zensical"
+# Images for `just demo-gif`; the Playwright image tag matches the pip package it installs.
+playwright := "mcr.microsoft.com/playwright/python:v1.48.0-jammy"
+ffmpeg := "mwader/static-ffmpeg:7.1"
 docs_serve := "-p 8000:8000 " + as_host + " -v $(pwd):/docs -w /docs python:3.13-slim sh -c \"" + zensical + " serve --dev-addr 0.0.0.0:8000\""
 
 # Default recipe: list every available task.
@@ -99,6 +102,21 @@ docs-stop:
 # Strict site build from a scratch copy of docs/, overrides/, mkdocs.yml; the repo is mounted read-only.
 docs-build: docs-check
     docker run --rm {{as_host}} -v $(pwd):/src:ro python:3.13-slim sh -c "mkdir /tmp/work && cp -r /src/docs /src/overrides /src/mkdocs.yml /tmp/work/ && cd /tmp/work && {{zensical}} build --clean --strict"
+
+# Record docs/assets/demo.gif: headless Chromium clicks through the UI over the docs fixture app. Not run in CI.
+demo-gif:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    frames=$(mktemp -d)
+    trap 'docker stop loom-demo >/dev/null 2>&1 || true; rm -rf "$frames"' EXIT
+    docker run --rm -d --name loom-demo {{as_host}} -v $(pwd):/app {{image}} php -S 0.0.0.0:8080 tools/demo-server.php >/dev/null
+    docker run --rm --network container:loom-demo {{as_host}} -v $(pwd)/tools/Demo:/demo:ro -v "$frames":/out {{playwright}} \
+        sh -c "python -m pip install -q --user --no-warn-script-location --disable-pip-version-check playwright==1.48.0 && python /demo/record.py http://127.0.0.1:8080 /out"
+    docker run --rm {{as_host}} -v "$frames":/frames -w /frames {{ffmpeg}} -v error -y -f concat -i frames.txt \
+        -vf "fps=10,split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" -loop 0 demo.gif
+    mkdir -p docs/assets
+    cp "$frames/demo.gif" docs/assets/demo.gif
+    echo "docs/assets/demo.gif: $(du -k docs/assets/demo.gif | cut -f1) KB (budget enforced by tests/Docs/DemoAssetsTest.php)"
 
 # Scan an arbitrary Laravel app and print stats. Pass an absolute path.
 #   just scan /path/to/laravel/app
